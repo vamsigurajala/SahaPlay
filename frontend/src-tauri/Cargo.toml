@@ -9,8 +9,14 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # tray-icon: Tauri v2 gates system-tray support behind this feature flag
-# (unlike v1, where it was always available).
-tauri = { version = "2", features = ["tray-icon"] }
+# (unlike v1, where it was always available). devtools: right-click ->
+# Inspect Element (or Ctrl+Shift+I) is disabled in a release build by
+# default — added specifically so the several silent-catch async chains in
+# desktopNotify.js's notification path (permission check, native window
+# state, the show_windows_toast invoke) can actually be diagnosed by
+# reading the console on a real installed build, instead of guessing
+# blind at what failed.
+tauri = { version = "2", features = ["tray-icon", "devtools"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"

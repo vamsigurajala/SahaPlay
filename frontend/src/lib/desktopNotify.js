@@ -75,8 +75,17 @@ function registerTauriEventBridge() {
   import('@tauri-apps/api/event').then(({ listen }) => {
     listen('open_chat_from_notification', (event) => {
       dispatchChatOpenFromNotification(event.payload);
-    }).catch(() => {});
-  }).catch(() => {});
+    }).catch((e) => console.error('[desktopNotify] failed to listen for open_chat_from_notification', e));
+    // main.rs's show_windows_toast reports its own Toast::show() outcome
+    // here — the release build has no attached console for its own
+    // eprintln! to reach, so without this, a Rust-side failure (e.g. an
+    // AUMID/COM error) would be completely invisible even with devtools
+    // open, showing only as "I never got a notification."
+    listen('show_windows_toast_result', (event) => {
+      if (event.payload?.ok) console.debug('[desktopNotify] Toast::show succeeded');
+      else console.error('[desktopNotify] Toast::show failed (Rust side)', event.payload?.error);
+    }).catch((e) => console.error('[desktopNotify] failed to listen for show_windows_toast_result', e));
+  }).catch((e) => console.error('[desktopNotify] @tauri-apps/api/event failed to load', e));
 }
 
 export function ensureDesktopNotifyPermission() {
@@ -121,11 +130,22 @@ export function openWindowsNotificationSettings() {
     .catch(() => {});
 }
 
+// Every step here used to fail silently (a bare .catch(() => {})), which
+// made "why didn't a notification show up" undiagnosable on an installed
+// build with no console access. Logged with a consistent prefix instead —
+// Cargo.toml now enables the devtools feature specifically so these are
+// actually visible (right-click -> Inspect, or Ctrl+Shift+I).
 function sendTauriNotification(title, body, data) {
   getTauriNotify().then(async (mod) => {
-    if (!mod) return;
-    const granted = await mod.isPermissionGranted();
-    if (!granted) return;
+    if (!mod) { console.error('[desktopNotify] @tauri-apps/plugin-notification failed to load'); return; }
+    let granted;
+    try {
+      granted = await mod.isPermissionGranted();
+    } catch (e) {
+      console.error('[desktopNotify] isPermissionGranted() threw', e);
+      return;
+    }
+    if (!granted) { console.warn('[desktopNotify] notification permission not granted, skipping'); return; }
     // Invokes main.rs's show_windows_toast command instead of this
     // plugin's own sendNotification — see registerTauriEventBridge's
     // comment above for why: this plugin's JS click callback never fires
@@ -139,9 +159,10 @@ function sendTauriNotification(title, body, data) {
       // Notification path just holds onto it. Covers both the chat-tap
       // shape ({chatId, type}) and the friend-request shape ({type,
       // username}) without this file needing to know either one.
-      invoke('show_windows_toast', { title, body, data: data || null }).catch(() => {});
-    }).catch(() => {});
-  }).catch(() => {});
+      invoke('show_windows_toast', { title, body, data: data || null })
+        .catch((e) => console.error('[desktopNotify] show_windows_toast invoke failed', e));
+    }).catch((e) => console.error('[desktopNotify] @tauri-apps/api/core failed to load', e));
+  }).catch((e) => console.error('[desktopNotify] getTauriNotify() rejected', e));
 }
 
 // Whether the Tauri window is genuinely the thing on screen right now —
@@ -163,10 +184,13 @@ async function isTauriWindowActuallyOnScreen() {
       win.isVisible(),
       win.isFocused(),
     ]);
-    return !minimized && visible && focused;
-  } catch {
+    const onScreen = !minimized && visible && focused;
+    console.debug('[desktopNotify] window state', { minimized, visible, focused, onScreen });
+    return onScreen;
+  } catch (e) {
     // Unknown state — fail toward showing the notification rather than
     // silently swallowing it, the opposite of the bug being fixed here.
+    console.error('[desktopNotify] window-state check failed', e);
     return false;
   }
 }

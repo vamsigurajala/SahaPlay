@@ -37,6 +37,12 @@ use tauri_winrt_notification::Toast;
 // fix.
 #[tauri::command]
 fn show_windows_toast(app: tauri::AppHandle, title: String, body: String, data: Option<serde_json::Value>) {
+    // Cloned up front — the release build has no console attached
+    // (windows_subsystem = "windows" at the top of this file), so
+    // eprintln! alone would be invisible even with devtools enabled; this
+    // clone lets the outcome also reach the JS console via a Tauri event,
+    // where desktopNotify.js's own diagnostic logging can actually show it.
+    let app_for_result = app.clone();
     tauri::async_runtime::spawn(async move {
         let result = Toast::new("com.sahaplay.desktop")
             .title(&title)
@@ -60,8 +66,17 @@ fn show_windows_toast(app: tauri::AppHandle, title: String, body: String, data: 
                 Ok(())
             })
             .show();
-        if let Err(err) = result {
-            eprintln!("[show_windows_toast] Toast::show failed: {err:?}");
+        match result {
+            Ok(()) => {
+                let _ = app_for_result.emit("show_windows_toast_result", serde_json::json!({ "ok": true }));
+            }
+            Err(err) => {
+                eprintln!("[show_windows_toast] Toast::show failed: {err:?}");
+                let _ = app_for_result.emit(
+                    "show_windows_toast_result",
+                    serde_json::json!({ "ok": false, "error": format!("{err:?}") }),
+                );
+            }
         }
     });
 }
