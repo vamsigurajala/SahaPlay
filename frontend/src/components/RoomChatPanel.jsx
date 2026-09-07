@@ -1410,6 +1410,33 @@ export default function RoomChatPanel({ p }) {
   });
   const groupWrapperRef = React.useRef(null);
   const dmWrapperRef = React.useRef(null);
+  // This wrapper (header + wallpaper backdrop + message list + composer, all
+  // as normal-flow siblings) is never meant to be user-scrollable at all —
+  // the message list inside it has its own separate scroll container for
+  // that. But the wallpaper backdrop below is deliberately given a fixed,
+  // screen-sized height (see stableViewportHeight's own comment) rather than
+  // one that tracks this wrapper's real height, and in the layout where a
+  // game sits above this chat panel (sharing the screen, not filling it),
+  // the wrapper's real height is always shorter than that fixed backdrop
+  // height by design — which technically makes this overflow:hidden wrapper
+  // a container with real (if invisible) scrollable content. Mobile
+  // browsers scroll the nearest such ancestor of a focused input into view
+  // on focus/blur, which on this wrapper drags the header/messages/composer
+  // as one block instead of the intended nothing-visibly-scrolls behavior —
+  // reported as the header ending up cut off under a message bubble and the
+  // composer stranded mid-panel after the keyboard closes, wallpaper-only
+  // (no wallpaper means no oversized backdrop, hence no real overflow to
+  // scroll in the first place). Forcing scrollTop back to 0 right after a
+  // focus/blur transition undoes any such nudge regardless of whether the
+  // browser applied it on the way in or the way out. The short delay lets
+  // the browser's own scroll attempt (and iOS/Android's keyboard
+  // open/close animation) finish first, rather than racing it.
+  const resetGroupWrapperScroll = React.useCallback(() => {
+    setTimeout(() => { if (groupWrapperRef.current) groupWrapperRef.current.scrollTop = 0; }, 60);
+  }, []);
+  const resetDmWrapperScroll = React.useCallback(() => {
+    setTimeout(() => { if (dmWrapperRef.current) dmWrapperRef.current.scrollTop = 0; }, 60);
+  }, []);
   // Gives the wallpaper backdrops below a fixed pixel height instead of one
   // that shrinks whenever the on-screen keyboard opens (which is what made
   // the wallpaper image visibly recompute its crop and slide). Read
@@ -3988,8 +4015,8 @@ export default function RoomChatPanel({ p }) {
                         // under the keyboard for a beat before sliding into
                         // place. See the identical fix/comment on the global
                         // chat window's composer onFocus.
-                        onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }}
-                        onBlur={() => { composerFocusedRef.current = false; }}
+                        onFocus={() => { p.setShowGroupEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } resetGroupWrapperScroll(); }}
+                        onBlur={() => { composerFocusedRef.current = false; resetGroupWrapperScroll(); }}
                         placeholder={t('msgRoomPlace', 'Message the room...')}
                         disabled={isDisabled}
                         style={{
@@ -5017,8 +5044,8 @@ export default function RoomChatPanel({ p }) {
                             onPointerDown={() => { wasNearBottomOnFocusRef.current = isScrollNearBottom(); }}
                             // Instant — see the identical comment on the
                             // group composer's onFocus.
-                            onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } }}
-                            onBlur={() => { composerFocusedRef.current = false; }}
+                            onFocus={() => { p.setShowDmEmojiPicker(false); composerFocusedRef.current = true; wasNearBottomOnFocusRef.current = isScrollNearBottom(); if (wasNearBottomOnFocusRef.current) { try { scrollToBottom(true); } catch {} } resetDmWrapperScroll(); }}
+                            onBlur={() => { composerFocusedRef.current = false; resetDmWrapperScroll(); }}
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{
                               flex:1,
