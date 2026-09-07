@@ -3344,6 +3344,32 @@ const Room = () => {
   // for the in-room call view, not just movies/games.
   const canPeekGesture = isMobile && !isTvMode && !isMobileFsMode && (!!mediaUrl || isScreensharing || isViewer);
 
+  // Mobile "game/media above chat" layout: the player column sits at a fixed
+  // 260px (see .mob-media-active .room-player-col in index.css) regardless of
+  // the on-screen keyboard. When the keyboard opens for the chat composer
+  // below it, that fixed 260px was squeezing the remaining space so hard the
+  // composer ended up hidden behind the keyboard, with only wasted blank
+  // space (the game iframe not filling its own box) visible above it. Once
+  // the keyboard opens, shrink the player column down to a small strip via
+  // the same --peek-player-height channel the pull-to-expand gesture already
+  // drives, freeing that space back to the chat panel so its composer stays
+  // visible right above the keyboard. Not applied to isCallActivity — a call
+  // tile has its own much taller 62vh/340px floor for a reason (see
+  // getPeekBaseHeight above) and isn't usually being typed into at the same
+  // time as the keyboard is open.
+  const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv || !isMobile) return;
+    const KEYBOARD_HEIGHT_THRESHOLD = 150;
+    const handler = () => {
+      setIsChatKeyboardOpen(window.innerHeight - vv.height > KEYBOARD_HEIGHT_THRESHOLD);
+    };
+    vv.addEventListener('resize', handler);
+    handler();
+    return () => vv.removeEventListener('resize', handler);
+  }, [isMobile]);
+
   const startPeekDrag = (e) => {
     if (!canPeekGesture) return;
     const touch = e.touches?.[0];
@@ -11475,7 +11501,7 @@ const Room = () => {
             // a single JS-side constant can't correctly represent both.
             '--peek-player-height': isPeekDragging
               ? `${peekDragRef.current.baseHeight + peekProgress * (peekDragRef.current.containerHeight - peekDragRef.current.baseHeight)}px`
-              : (isPeekExpanded ? '100%' : undefined),
+              : (isPeekExpanded ? '100%' : ((isChatKeyboardOpen && !isCallActivity(mediaUrl)) ? '90px' : undefined)),
             transition: isPeekDragging ? 'none' : 'height 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
           className="no-scrollbar room-player-col"
