@@ -1,11 +1,33 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::io::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     AppHandle, Emitter, Manager, WindowEvent,
 };
 use tauri_winrt_notification::Toast;
+
+// Appends one line to <app log dir>/notify-debug.log — a diagnostic channel
+// that survives even if the JS side never sees the desktop_toast_result
+// event (e.g. IPC/event-bridge issue) or no react-hot-toast <Toaster/> is
+// mounted on whatever page is active. If a real toast still isn't showing
+// up after this build, this file
+// (%LOCALAPPDATA%\com.sahaplay.desktop\logs\notify-debug.log) is the thing
+// to read/share — it will say plainly whether Toast::show() itself
+// succeeded or exactly why it didn't.
+fn log_toast_attempt(app: &AppHandle, line: &str) {
+    let dir = match app.path().app_log_dir() {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+    let _ = std::fs::create_dir_all(&dir);
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("notify-debug.log")) {
+        let _ = writeln!(f, "[{now}] {line}");
+    }
+}
 
 // Builds and shows a real Windows toast natively in Rust, bypassing the
 // WebView entirely. This exists because WebView2 does NOT surface a JS
@@ -17,48 +39,43 @@ use tauri_winrt_notification::Toast;
 // the app's notification sound (a plain <audio> element, unrelated to this
 // API) played fine while no toast ever appeared.
 //
-// An earlier attempt at this exact approach (see git history) also failed
-// to display anything, but critically never checked the Result of
-// `Toast::show()` — so a silent Err (wrong app_id, COM/apartment issue,
-// anything) would have looked identical to "nothing happened," same as
-// what was being debugged. This version reports success/failure back to JS
-// via the desktop_toast_result event specifically so that stops being a
-// guessing game.
+// Deliberately as close as possible to what @tauri-apps/plugin-notification
+// itself does under the hood (same tauri-winrt-notification crate, same
+// app_id = the Tauri `identifier`, same tauri::async_runtime::spawn wrapping)
+// — that exact combination was confirmed to display a real toast on this
+// app before (see git history), the only problem with it being that its
+// Actions API for click-to-open is mobile-only. Click support is out of
+// scope for now; this only needs to get a toast on screen at all. No
+// on_activated handler is registered — one extra difference from the
+// proven-working path was one too many variables while debugging "nothing
+// shows up at all."
 //
-// app_id is the Tauri `identifier` from tauri.conf.json
-// (com.sahaplay.desktop) — Tauri's NSIS bundler registers this exact
-// string as the installed shortcut's AppUserModelID via the NSIS
-// ApplicationID plugin, which is what lets CreateToastNotifierWithId(app_id)
-// resolve to a real, correctly-attributed notifier instead of being
-// silently dropped by the OS for an unrecognized id.
+// Both outcomes are reported back over two independent channels so a
+// failure (or even a same-page mismatch — Rust says it showed, Windows
+// still didn't display it) is never silently invisible again: the
+// desktop_toast_result JS event (see desktopNotify.js, shown as an
+// on-screen banner that doesn't depend on any React component being
+// mounted) and notify-debug.log on disk as a backstop if even that event
+// never reaches JS.
 #[tauri::command]
-fn show_windows_toast(app: AppHandle, title: String, body: String, tag: String, launch_data: Option<String>) {
+fn show_windows_toast(app: AppHandle, title: String, body: String, tag: String) {
     let identifier = app.config().identifier.clone();
-    let activate_handle = app.clone();
     let result_handle = app.clone();
+    let log_handle = app.clone();
 
     tauri::async_runtime::spawn(async move {
-        let toast = Toast::new(&identifier)
-            .title(&title)
-            .text1(&body)
-            .on_activated(move |_arg| {
-                if let Some(window) = activate_handle.get_webview_window("main") {
-                    let _ = window.unminimize();
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-                let _ = activate_handle.emit("desktop_toast_clicked", launch_data.clone());
-                Ok(())
-            });
+        let toast = Toast::new(&identifier).title(&title).text1(&body);
 
         match toast.show() {
             Ok(()) => {
+                log_toast_attempt(&log_handle, &format!("OK tag={tag} app_id={identifier}"));
                 let _ = result_handle.emit(
                     "desktop_toast_result",
                     serde_json::json!({ "tag": tag, "ok": true }),
                 );
             }
             Err(e) => {
+                log_toast_attempt(&log_handle, &format!("ERR tag={tag} app_id={identifier} error={e}"));
                 let _ = result_handle.emit(
                     "desktop_toast_result",
                     serde_json::json!({ "tag": tag, "ok": false, "error": e.to_string() }),
