@@ -144,6 +144,33 @@ function sendTauriNotification(title, body, data) {
   }).catch(() => {});
 }
 
+// Whether the Tauri window is genuinely the thing on screen right now —
+// deliberately NOT document.hidden/document.hasFocus() (the Page
+// Visibility API check the plain-browser path below uses). Minimizing the
+// window was reported to suppress every notification: WebView2 doesn't
+// reliably flip those two properties just because the native window got
+// minimized (unlike a browser tab actually losing visibility when you
+// switch away from it), so the generic check was reading a minimized,
+// completely off-screen window as "visible and focused" and skipping the
+// notification entirely. isMinimized/isVisible/isFocused ask the OS
+// directly instead of inferring it from the DOM.
+async function isTauriWindowActuallyOnScreen() {
+  try {
+    const mod = await import('@tauri-apps/api/window');
+    const win = mod.getCurrentWindow();
+    const [minimized, visible, focused] = await Promise.all([
+      win.isMinimized(),
+      win.isVisible(),
+      win.isFocused(),
+    ]);
+    return !minimized && visible && focused;
+  } catch {
+    // Unknown state — fail toward showing the notification rather than
+    // silently swallowing it, the opposite of the bug being fixed here.
+    return false;
+  }
+}
+
 // data: optional { chatId, type } — when present, clicking the notification
 // (or the Tauri toast) dispatches 'open_chat_from_notification' so
 // BottomNav.jsx/Navbar.jsx open that exact chat, the same event the native
@@ -153,10 +180,15 @@ function sendTauriNotification(title, body, data) {
 export function showDesktopNotification(title, body, tag, data) {
   if (isCapacitorApp()) return;
   if (typeof document === 'undefined') return;
+  if (isTauriApp()) {
+    isTauriWindowActuallyOnScreen().then((onScreen) => {
+      if (!onScreen) sendTauriNotification(title, body, data);
+    });
+    return null;
+  }
   // Window/tab is visible AND focused — an in-page UI already covers this;
   // showing an OS notification too would just be a redundant duplicate.
   if (!document.hidden && document.hasFocus()) return;
-  if (isTauriApp()) { sendTauriNotification(title, body, data); return null; }
   if (typeof window === 'undefined' || !('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
   try {
