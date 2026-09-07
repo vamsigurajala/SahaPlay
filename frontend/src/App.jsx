@@ -1330,18 +1330,17 @@ function App() {
               refresh; the user decides when it's safe. */}
           {updateAvailable && (
             <div
-              // gcw-force-dark: this app's global light-mode CSS has a broad
-              // heuristic rule (further down this file) that flips ANY
-              // position:fixed element with an inline background to a light
-              // #f7f8fc card color — meant for modals/panels, but this toast
-              // matches both conditions too. That's what was silently
-              // overriding the intended #18181f background to a near-white
-              // one in light mode, leaving white (.stay-white) text
-              // unreadable against it. gcw-force-dark is the existing
-              // escape hatch already exempted from that rule (and its
-              // siblings) throughout this file — use it to keep this toast's
-              // own colors exactly as authored, in both themes.
-              className="stay-white gcw-force-dark"
+              // No gcw-force-dark here on purpose — this toast's background
+              // is a plain inline color (no stay-white on the text/container
+              // either), so it now goes through the same light-mode
+              // position:fixed override every other floating panel in this
+              // file gets (further down this file), flipping to the app's
+              // usual #f7f8fc card color in light mode instead of staying
+              // black. Text inherits --text-primary (near-white in dark,
+              // near-black in light) instead of being forced white. Layout
+              // is one row on desktop/tablet, and text+close on top with
+              // Refresh below on phones — see .update-toast* in index.css.
+              className="update-toast"
               style={{
                 position: 'fixed',
                 left: '50%',
@@ -1351,17 +1350,13 @@ function App() {
                 // width (not maxWidth) with a fixed 360px cap forced a two-row
                 // wrap even on a spacious desktop window where the text +
                 // Refresh + X would happily fit on one line — width:max-content
-                // lets it size to its actual content, only clamping (and
-                // therefore wrapping, via flexWrap below) once maxWidth is
-                // genuinely too narrow to fit on one row, which is the real
-                // "adjust based on screen size" behavior rather than a fixed
-                // desktop-unfriendly width.
+                // lets it size to its actual content, only clamping once
+                // maxWidth is genuinely too narrow to fit on one row (phones
+                // get their own explicit column layout instead, see CSS).
                 width: 'max-content',
                 maxWidth: 'calc(100vw - 32px)',
                 display: 'flex',
                 alignItems: 'center',
-                flexWrap: 'wrap',
-                justifyContent: 'center',
                 gap: 8,
                 padding: '10px 16px',
                 borderRadius: 16,
@@ -1372,31 +1367,32 @@ function App() {
                 fontWeight: 600,
               }}
             >
-              <span className="stay-white" style={{ flex: '1 1 auto', minWidth: 0 }}>A new version of SahaPlay is available</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="stay-white"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    background: 'var(--brand-1, #a855f7)', border: 'none',
-                    borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <RefreshCw size={14} className="stay-white" /> Refresh
-                </button>
+              <div className="update-toast-text-row">
+                <span className="update-toast-text" style={{ flex: '1 1 auto', minWidth: 0 }}>A new version of SahaPlay is available</span>
                 <button
                   onClick={() => setUpdateAvailable(false)}
                   aria-label="Dismiss"
+                  className="update-toast-close"
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4,
+                    background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 4, flexShrink: 0,
                   }}
                 >
                   <X size={16} />
                 </button>
               </div>
+              <button
+                onClick={() => window.location.reload()}
+                className="update-toast-refresh stay-white"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: 'var(--brand-1, #a855f7)', border: 'none',
+                  borderRadius: 999, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  whiteSpace: 'nowrap', flexShrink: 0,
+                }}
+              >
+                <RefreshCw size={14} className="stay-white" /> Refresh
+              </button>
             </div>
           )}
           <ScrollToTop />

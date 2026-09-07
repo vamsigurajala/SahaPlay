@@ -2009,3 +2009,42 @@ html[data-theme='light'] .player-subtitle-menu button {
 html[data-theme='light'] .player-subtitle-menu button:hover {
   background: rgba(0,0,0,0.05) !important;
 }
+
+/* ── "New version available" toast (App.jsx) ─────────────────────────────
+   One row on desktop/tablet: text, Refresh, close — achieved by dissolving
+   .update-toast-text-row (display:contents) so its children (text + close)
+   become direct flex items of .update-toast alongside Refresh, ordered via
+   the `order` values below. Phones get an explicit two-row layout instead:
+   text + close on top, Refresh full-width below. */
+.update-toast-text-row {
+  display: contents;
+}
+.update-toast-text {
+  order: 1;
+}
+.update-toast-refresh {
+  order: 2;
+}
+.update-toast-close {
+  order: 3;
+}
+@media (max-width: 480px) {
+  .update-toast {
+    flex-direction: column;
+    align-items: stretch !important;
+    width: min(92vw, 340px) !important;
+  }
+  .update-toast-text-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    order: 1;
+  }
+  .update-toast-refresh {
+    order: 2;
+    width: 100%;
+    justify-content: center;
+  }
+}
