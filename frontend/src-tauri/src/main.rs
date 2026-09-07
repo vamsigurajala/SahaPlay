@@ -3,83 +3,8 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Emitter, Manager, WindowEvent,
+    Manager, WindowEvent,
 };
-use tauri_winrt_notification::Toast;
-
-// Replaces @tauri-apps/plugin-notification's JS sendNotification for the
-// Windows desktop build specifically — see the long comment on the
-// tauri-winrt-notification dependency in Cargo.toml for why: that plugin's
-// own docs say its click/Actions callback only works on mobile, so a toast
-// built through it can never tell us it was clicked on Windows at all.
-// Toast::on_activated below fires for a plain body click too (not just an
-// explicit button), which is exactly what "bring the window forward and
-// open that chat" needs. `data` is passed through opaquely (not typed
-// here) — desktopNotify.js's own two notification shapes (a chat tap
-// carrying chatId/type, or a friend-request tap carrying type/username)
-// both just need to come back out exactly as they went in, so there's
-// nothing for this command to inspect or validate. None for a call
-// notification (see desktopNotify.js), which has nowhere specific to
-// navigate — GlobalCallOverlay is already always mounted and reactive.
-//
-// Deliberately fire-and-forget on tauri::async_runtime::spawn, mirroring
-// exactly how tauri-plugin-notification's OWN Windows backend calls the
-// underlying WinRT toast API (it goes through notify-rust, which internally
-// calls this exact same tauri-winrt-notification crate — confirmed by
-// reading its source — always from inside an async_runtime::spawn'd task,
-// never a plain synchronous call). A first version of this command called
-// Toast::show() directly and synchronously from the command handler itself,
-// which stopped notifications from appearing at all — Windows' WinRT toast
-// APIs are COM calls that need the calling thread's COM apartment already
-// initialized, which the async runtime's worker threads apparently have and
-// a synchronous command-dispatch thread apparently doesn't. Matching the
-// proven-working call site exactly, rather than guessing further, is the
-// fix.
-#[tauri::command]
-fn show_windows_toast(app: tauri::AppHandle, title: String, body: String, data: Option<serde_json::Value>) {
-    // Cloned up front — the release build has no console attached
-    // (windows_subsystem = "windows" at the top of this file), so
-    // eprintln! alone would be invisible even with devtools enabled; this
-    // clone lets the outcome also reach the JS console via a Tauri event,
-    // where desktopNotify.js's own diagnostic logging can actually show it.
-    let app_for_result = app.clone();
-    tauri::async_runtime::spawn(async move {
-        let result = Toast::new("com.sahaplay.desktop")
-            .title(&title)
-            .text1(&body)
-            .on_activated(move |_action| {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.unminimize();
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-                if let Some(data) = data.clone() {
-                    // Rebroadcast into the same 'open_chat_from_notification'
-                    // browser CustomEvent the native Android app's own
-                    // notification tap already produces — see
-                    // desktopNotify.js's registerTauriEventBridge, which
-                    // forwards this Tauri event into that exact DOM event so
-                    // Navbar.jsx/Room.jsx need no Tauri-specific code of
-                    // their own to react to it.
-                    let _ = app.emit("open_chat_from_notification", data);
-                }
-                Ok(())
-            })
-            .show();
-        match result {
-            Ok(()) => {
-                let _ = app_for_result.emit("show_windows_toast_result", serde_json::json!({ "ok": true }));
-            }
-            Err(err) => {
-                eprintln!("[show_windows_toast] Toast::show failed: {err:?}");
-                let _ = app_for_result.emit(
-                    "show_windows_toast_result",
-                    serde_json::json!({ "ok": false, "error": format!("{err:?}") }),
-                );
-            }
-        }
-    });
-}
 
 fn main() {
     tauri::Builder::default()
@@ -92,21 +17,28 @@ fn main() {
                 let _ = window.set_focus();
             }
         }))
-        // The plain Web `Notification` API doesn't reliably surface as a real
-        // Windows toast from an unpackaged WebView2 host (no registered AUMID)
-        // — confirmed by testing, not just a theoretical risk. This plugin
-        // talks to the native Windows notification system directly, the same
-        // way Tauri apps are documented to do it. See desktopNotify.js, which
-        // routes through this plugin specifically when running under Tauri.
-        .plugin(tauri_plugin_notification::init())
         // Lets the app open ms-settings:notifications directly — used when
         // the OS-level notification toggle for SahaPlay is off, so "fix it
         // for me" from inside our own Settings screen actually takes the
         // user to the one place that can fix it (the app itself can't grant
         // its own OS notification permission, only Windows' own Settings UI
         // can flip that toggle).
+        //
+        // Desktop notifications themselves (see desktopNotify.js) go
+        // through the plain Web `Notification` API now, the same as a
+        // regular browser tab — not a Tauri notification plugin/native
+        // Rust command. Two earlier native approaches
+        // (@tauri-apps/plugin-notification's sendNotification, then a
+        // hand-rolled command using tauri-winrt-notification directly for
+        // click support that plugin's docs say is mobile-only) were tried
+        // and removed after real-device testing kept turning up either no
+        // toast at all or no working click, layer after layer of native
+        // complexity that never actually fixed it. WebView2 is a real
+        // Chromium engine and the app has a proper AUMID via its NSIS
+        // install, so the plain API — proven to work for every browser
+        // user already — gets to be the one and only path here instead of
+        // a fourth native workaround.
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![show_windows_toast])
         .setup(|app| {
             let open_item = MenuItem::with_id(app, "open", "Open SahaPlay", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;

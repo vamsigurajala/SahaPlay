@@ -1,11 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window — remote-URL shell, native desktop notifications for calls/messages, opening ms-settings: for the user to fix OS notification permission themselves, and opening external streaming/social/music platform links (GuidedShareModal's Launch button) in the system's default browser",
+  "description": "Capability for the main window — remote-URL shell, opening ms-settings: for the user to fix OS notification permission themselves, and opening external streaming/social/music platform links (GuidedShareModal's Launch button) in the system's default browser. Desktop notifications themselves (see desktopNotify.js) use the plain Web Notification API, which isn't a Tauri command/plugin and needs no ACL permission entry here.",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "notification:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "ms-settings:*" }, { "url": "https://*" }, { "url": "http://*" }]
