@@ -1952,6 +1952,31 @@ const GlobalChatWidget = React.memo(forwardRef(({
   });
   const [showThemeSheet, setShowThemeSheet] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  // Closes the Browse/Poll popup on any click that isn't on it or its own
+  // toggle button — a plain document 'click' listener (not mousedown/
+  // touchstart, and only attached while the menu is actually open) rather
+  // than the shared mousedown-based outside-click effect further below,
+  // which would reintroduce the exact bug a full-screen catcher div used to
+  // exist to avoid: closing on mousedown lets the browser's own click (for
+  // the SAME tap) fire afterward against whatever's newly exposed once
+  // React re-renders, which for this button specifically could fall
+  // through onto a nav control underneath. Using 'click' throughout avoids
+  // that split entirely, and unlike the old catcher div (a full-screen
+  // position:fixed element the click had to physically land ON), this
+  // fires from whatever the user actually clicked — a message row, an
+  // image, empty space, or truly outside the panel — via normal
+  // bubbling, so it isn't at the mercy of any stacking/z-index quirk
+  // between that div and the message list.
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const handleAttachMenuOutsideClick = (e) => {
+      const t = e.target;
+      if (t.closest && (t.closest('.chat-attach-menu-popup') || t.closest('.chat-attach-toggle-btn'))) return;
+      setShowAttachMenu(false);
+    };
+    document.addEventListener('click', handleAttachMenuOutsideClick);
+    return () => document.removeEventListener('click', handleAttachMenuOutsideClick);
+  }, [showAttachMenu]);
   const [showPollComposer, setShowPollComposer] = useState(false);
   // Key only (not the message object itself) — the live message is looked
   // up from `messages` on every render below, so this screen keeps
@@ -9430,6 +9455,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               <div style={{ position: 'relative' }}>
                                 <button
                                   type="button"
+                                  className="chat-attach-toggle-btn"
                                   disabled={isUploading || !!(activeChat?.type === 'room' && mediaBlocked && !isHost)}
                                   onClick={() => {
                                     if (activeChat?.type === 'room' && mediaBlocked && !isHost) {
@@ -9444,49 +9470,41 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                   <Paperclip size={18} />
                                 </button>
                                 {showAttachMenu && (
+                                  // Plain absolutely-positioned popup, closed by the
+                                  // document-level click listener below — a previous
+                                  // version used a full-screen position:fixed catcher
+                                  // div instead, which a click landing on a message row
+                                  // (plain tap, long-press, or otherwise) wasn't reliably
+                                  // reaching, leaving the menu stuck open. This mirrors
+                                  // the same closest()-based pattern already used for
+                                  // showEmojiPicker/activeMessageMenu/etc above instead
+                                  // of inventing a second mechanism.
                                   <div
-                                    className="chat-attach-menu-overlay"
-                                    // onClick (not onMouseDown): closing on mousedown unmounts
-                                    // this full-screen overlay before the browser's mouseup/click
-                                    // for the SAME tap has fired, so that mouseup/click then
-                                    // falls through and lands on whatever element is now exposed
-                                    // underneath the pointer — on some layouts that's a nav
-                                    // control, which is what read as "tapping the paperclip
-                                    // again jumps to Home". Closing on click keeps the overlay
-                                    // mounted through the whole gesture, so nothing underneath
-                                    // ever receives a stray click. Also fixes outside-tap-to-
-                                    // close being unreliable on touch devices, since click is the
-                                    // event touch reliably synthesizes (mousedown isn't guaranteed).
-                                    onClick={() => setShowAttachMenu(false)}
-                                    style={{ position: 'fixed', inset: 0, zIndex: 100020 }}
+                                    className="chat-attach-menu-popup"
+                                    style={{
+                                      position: 'absolute', bottom: 46, right: 0, minWidth: 180, zIndex: 100020,
+                                      background: isLight ? '#fff' : '#1c1c22', borderRadius: 14,
+                                      border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                                      boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6,
+                                    }}
                                   >
-                                    <div
-                                      onClick={e => e.stopPropagation()}
-                                      style={{
-                                        position: 'absolute', bottom: 46, right: 0, minWidth: 180,
-                                        background: isLight ? '#fff' : '#1c1c22', borderRadius: 14,
-                                        border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
-                                        boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6,
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setShowAttachMenu(false);
+                                        fileInputRef.current?.click();
                                       }}
+                                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}
                                     >
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setShowAttachMenu(false);
-                                          fileInputRef.current?.click();
-                                        }}
-                                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}
-                                      >
-                                        <ImageIcon size={17} color="#3b82f6" /> Browse
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => { setShowAttachMenu(false); setEditingPollMsg(null); setShowPollComposer(true); }}
-                                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}
-                                      >
-                                        <BarChart2 size={17} color="#f59e0b" /> Poll
-                                      </button>
-                                    </div>
+                                      <ImageIcon size={17} color="#3b82f6" /> Browse
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setShowAttachMenu(false); setEditingPollMsg(null); setShowPollComposer(true); }}
+                                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}
+                                    >
+                                      <BarChart2 size={17} color="#f59e0b" /> Poll
+                                    </button>
                                   </div>
                                 )}
                               </div>
