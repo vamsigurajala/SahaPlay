@@ -2156,19 +2156,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // text was confusing/broken, see commitEditedText/submitPollEdit below.
   const [editingPollMsg, setEditingPollMsg] = useState(null);
   const [reportMsgTarget, setReportMsgTarget] = useState(null);
-  // The composer's own popovers (attach menu, emoji picker, poll composer)
-  // belong to whichever chat was open when they were opened — leaving one
-  // showing after switching to a different chat (or closing the panel
-  // entirely and reopening it, e.g. via a clicked notification) reads as a
-  // stuck/broken menu rather than a fresh chat. Keyed on the partner/room id
-  // rather than the whole activeChat object so it doesn't also fire for
-  // in-place updates to the same chat (avatar/displayName arriving late).
-  useEffect(() => {
-    setShowAttachMenu(false);
-    setShowEmojiPicker(false);
-    setShowPollComposer(false);
-    setEditingPollMsg(null);
-  }, [activeChat?.partner]);
   // Single shared instance for the whole thread — see hooks/useSwipeToReply.js for why
   // these aren't called per-message inside the .map() below.
   const swipe = useSwipeToReply();
@@ -5221,6 +5208,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
     setActiveChat(chatToOpen);
     setView('chat');
     setActiveRelation(null); // Reset
+    // The composer's own popovers (attach menu, emoji picker, poll composer)
+    // belong to whichever chat was open when they were opened. Resetting
+    // this on every doOpenChat call (not e.g. an effect keyed on the
+    // partner id) matters specifically for reopening the SAME chat — going
+    // back to the list and tapping the same conversation again (or a
+    // notification landing on the chat that's already active) doesn't
+    // change activeChat.partner at all, so a dependency-based reset would
+    // never fire even though the panel was, from the user's point of view,
+    // closed and reopened.
+    setShowAttachMenu(false);
+    setShowEmojiPicker(false);
+    setShowPollComposer(false);
+    setEditingPollMsg(null);
     setMessages([]); // Clear previous chat context immediately
     // Set loading synchronously in the same batch as the clear above, so there is never
     // a render where messages is empty AND loading is false (that gap is what briefly
