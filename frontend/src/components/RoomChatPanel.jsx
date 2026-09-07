@@ -1393,6 +1393,8 @@ export default function RoomChatPanel({ p }) {
   // with no keyboard actually involved. Shared between group/DM the same
   // way p.messagesEndRef already is — only one tab is ever mounted at once.
   const composerFocusedRef = React.useRef(false);
+  const groupWrapperRef = React.useRef(null);
+  const dmWrapperRef = React.useRef(null);
   useVisualViewportResize(() => {
     // Belt-and-suspenders on top of composerFocusedRef: Android doesn't
     // always fire a real blur event when the keyboard is dismissed by a
@@ -1407,9 +1409,21 @@ export default function RoomChatPanel({ p }) {
     const active = document.activeElement;
     const composerActuallyFocused = active === p.groupInputRef?.current || active === p.dmInputRef?.current;
     if (composerActuallyFocused && composerFocusedRef.current && wasNearBottomOnFocusRef.current) scrollToBottom(true);
+    // Same fix as resetGroupWrapperScroll/resetDmWrapperScroll below (see
+    // their own comment for the full explanation) but triggered by the
+    // visual viewport actually finishing its resize instead of a fixed
+    // delay after focus/blur — a plain setTimeout after focus/blur was
+    // still losing the race against the real keyboard animation on a slow
+    // device/APK build, letting the browser's own scroll-into-view land
+    // AFTER that timeout already fired. This fires once the resize itself
+    // has genuinely settled, on every platform this hook supports
+    // (including the Capacitor Android WebView), so there's nothing left
+    // to race. Unconditional, not gated on composer focus — a scrollTop
+    // reset on a wrapper that's never meant to scroll is harmless even if
+    // nothing actually needed correcting.
+    if (groupWrapperRef.current) groupWrapperRef.current.scrollTop = 0;
+    if (dmWrapperRef.current) dmWrapperRef.current.scrollTop = 0;
   });
-  const groupWrapperRef = React.useRef(null);
-  const dmWrapperRef = React.useRef(null);
   // This wrapper (header + wallpaper backdrop + message list + composer, all
   // as normal-flow siblings) is never meant to be user-scrollable at all —
   // the message list inside it has its own separate scroll container for
