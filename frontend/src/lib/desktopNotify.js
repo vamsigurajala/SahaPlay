@@ -10,34 +10,30 @@ import { isCapacitorApp, isTauriApp } from './platform';
 // FCM already covers that case, and Notification permission prompts don't
 // apply there anyway.
 //
-// Originally lived only in GlobalChatWidget.jsx (chat messages); extracted
-// here so CallContext.jsx can reuse the exact same permission/gating logic
-// for incoming and missed calls instead of duplicating it.
-//
-// Inside the Tauri desktop app, this now uses the SAME plain Web
-// `Notification` API as a regular browser tab, not a native Windows toast
-// built through a Rust plugin/crate. That's a reversal from an earlier
-// version of this file (see git history) which routed through
-// @tauri-apps/plugin-notification, and after that plugin's click callback
-// turned out to be mobile-only, through a hand-rolled Rust command using
-// tauri-winrt-notification directly — layers of native-toast complexity
-// that, across several real-device tests, still weren't reliably producing
-// a notification at all (not a click problem — nothing showed up). WebView2
-// is a real Chromium engine and the app now has a proper AUMID via its NSIS
-// install, so the plain API gets another chance here rather than adding a
-// fourth layer of native workaround; if a real Windows toast still doesn't
-// appear with this simpler path, the problem isn't the native-toast
-// plumbing. isTauriWindowActuallyOnScreen below still asks the OS directly
-// whether the window is minimized/visible/focused (not the DOM's Page
-// Visibility API) — that part of the diagnosis held up regardless of which
-// API ends up building the toast.
+// Inside the Tauri desktop app, this does NOT use the plain Web
+// `Notification` API — that was tried and confirmed dead: WebView2 does
+// not surface a JS `new Notification()` call as a real OS toast (a
+// documented WebView2 limitation, unlike an actual browser tab, which
+// handles it natively). The object constructs fine, permission reports
+// "granted," no error is thrown — nothing you'd notice from JS — and yet
+// no toast ever appears, which is exactly what was being reported ("I can
+// hear the notification sound but no push notification"). So the Tauri
+// path instead invokes a native Rust command (show_windows_toast, see
+// src-tauri/src/main.rs) that builds the toast directly via
+// tauri-winrt-notification, bypassing the WebView entirely. That command
+// reports back over two events: desktop_toast_clicked (user clicked the
+// toast) and desktop_toast_result (whether it actually displayed) — the
+// latter exists specifically so a failure is visible on-screen via an
+// in-page toast instead of silently vanishing the way earlier native
+// attempts did (they never checked the Result of showing it).
 let desktopNotifyPermissionRequested = false;
+let tauriToastBridgeReady = false;
 
 // A tapped notification should land the user on the specific chat it was
 // about — mirrors the native Android app's own tap handling (see
 // nativePush.js's pushNotificationActionPerformed listener), which already
-// dispatches this exact event for BottomNav.jsx/Navbar.jsx to pick up and
-// navigate.
+// dispatches this exact event for BottomNav.jsx/Navbar.jsx/Room.jsx to pick
+// up and navigate.
 function dispatchChatOpenFromNotification(data) {
   // Two shapes reach here: a chat tap ({ chatId, type: 'dm'|'room' },
   // consumed by Navbar.jsx/BottomNav.jsx/Room.jsx) and a friend-request tap
@@ -50,29 +46,37 @@ function dispatchChatOpenFromNotification(data) {
   } catch {}
 }
 
-// A plain Notification's window.focus() call doesn't reliably bring a
-// native Tauri window forward the way it brings a browser tab forward —
-// there's no "tab" to switch to, and the window may be minimized, which
-// focus() alone doesn't undo. Routes through the real window APIs instead
-// when running under Tauri; a plain browser just calls window.focus().
-function focusThisWindow() {
-  if (isTauriApp()) {
-    import('@tauri-apps/api/window').then(async (mod) => {
+// One-time listeners for the two events show_windows_toast's Rust side
+// emits. Safe to call repeatedly — only wires up once per page load.
+function ensureTauriToastBridge() {
+  if (tauriToastBridgeReady || !isTauriApp()) return;
+  tauriToastBridgeReady = true;
+  import('@tauri-apps/api/event').then(({ listen }) => {
+    listen('desktop_toast_clicked', (event) => {
       try {
-        const win = mod.getCurrentWindow();
-        await win.unminimize();
-        await win.show();
-        await win.setFocus();
+        const data = event.payload ? JSON.parse(event.payload) : null;
+        dispatchChatOpenFromNotification(data);
       } catch (e) {
-        console.error('[desktopNotify] failed to focus Tauri window', e);
+        console.error('[desktopNotify] failed to parse toast click payload', e);
       }
-    }).catch((e) => console.error('[desktopNotify] @tauri-apps/api/window failed to load', e));
-    return;
-  }
-  try { window.focus(); } catch {}
+    }).catch((e) => console.error('[desktopNotify] failed to listen for desktop_toast_clicked', e));
+
+    listen('desktop_toast_result', (event) => {
+      const { tag, ok, error } = event.payload || {};
+      if (ok) {
+        console.debug('[desktopNotify] native toast shown', tag);
+        return;
+      }
+      console.error('[desktopNotify] native toast FAILED to show', tag, error);
+      import('react-hot-toast')
+        .then(({ default: toast }) => toast.error(`Notification failed to show: ${error || 'unknown error'}`))
+        .catch(() => {});
+    }).catch((e) => console.error('[desktopNotify] failed to listen for desktop_toast_result', e));
+  }).catch((e) => console.error('[desktopNotify] @tauri-apps/api/event failed to load', e));
 }
 
 export function ensureDesktopNotifyPermission() {
+  if (isTauriApp()) { ensureTauriToastBridge(); return; }
   if (isCapacitorApp() || desktopNotifyPermissionRequested) return;
   desktopNotifyPermissionRequested = true;
   if (typeof window === 'undefined' || !('Notification' in window)) return;
@@ -81,16 +85,15 @@ export function ensureDesktopNotifyPermission() {
   }
 }
 
-// Exposed so AppSettings.jsx can show real status ("Windows notifications
-// are off for SahaPlay") instead of a fix that silently no-ops forever —
-// requestPermission() only re-prompts once per install on Windows; if the
-// user (or Windows' own default) already denied it, the only way back is
-// the OS Settings app itself, which openWindowsNotificationSettings below
-// opens directly.
+// Exposed so AppSettings.jsx can show real status. Native Windows toasts
+// (tauri-winrt-notification) don't go through a runtime permission prompt
+// the way the Web Notification API does — an unpackaged Win32 app just
+// respects the OS-level Settings > Notifications toggle for this app,
+// which openWindowsNotificationSettings below opens directly — so there's
+// nothing meaningful to "check" here beyond that.
 export async function getTauriNotifyPermissionStatus() {
   if (!isTauriApp()) return null;
-  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
-  return Notification.permission === 'granted' ? 'granted' : Notification.permission === 'denied' ? 'denied' : 'default';
+  return 'granted';
 }
 
 export function openWindowsNotificationSettings() {
@@ -130,7 +133,19 @@ async function isTauriWindowActuallyOnScreen() {
   }
 }
 
-function buildNotification(title, body, tag, data) {
+function showTauriToast(title, body, tag, data) {
+  ensureTauriToastBridge();
+  import('@tauri-apps/api/core').then(({ invoke }) => {
+    invoke('show_windows_toast', {
+      title,
+      body,
+      tag: tag || 'sahaplay',
+      launchData: data ? JSON.stringify(data) : null,
+    }).catch((e) => console.error('[desktopNotify] show_windows_toast invoke failed', e));
+  }).catch((e) => console.error('[desktopNotify] @tauri-apps/api/core failed to load', e));
+}
+
+function buildBrowserNotification(title, body, tag, data) {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     console.error('[desktopNotify] Notification API unavailable in this webview');
     return null;
@@ -141,9 +156,8 @@ function buildNotification(title, body, tag, data) {
   }
   try {
     const n = new Notification(title, { body, icon: '/logos/trans_appletouch.png', tag });
-    n.onclick = () => { focusThisWindow(); n.close(); dispatchChatOpenFromNotification(data); };
+    n.onclick = () => { try { window.focus(); } catch {} n.close(); dispatchChatOpenFromNotification(data); };
     n.onerror = (e) => console.error('[desktopNotify] Notification errored', e);
-    console.debug('[desktopNotify] Notification() constructed', { title, tag });
     return n;
   } catch (e) {
     console.error('[desktopNotify] new Notification() threw', e);
@@ -152,24 +166,24 @@ function buildNotification(title, body, tag, data) {
 }
 
 // data: optional { chatId, type } — when present, clicking the notification
-// dispatches 'open_chat_from_notification' so BottomNav.jsx/Navbar.jsx open
-// that exact chat, the same event the native Android app's own
-// notification tap already produces. Omit for notifications with nowhere
-// specific to navigate (e.g. calls, which already surface their own
-// always-mounted GlobalCallOverlay).
+// dispatches 'open_chat_from_notification' so BottomNav.jsx/Navbar.jsx/
+// Room.jsx open that exact chat, the same event the native Android app's
+// own notification tap already produces. Omit for notifications with
+// nowhere specific to navigate (e.g. calls, which already surface their
+// own always-mounted GlobalCallOverlay).
 export function showDesktopNotification(title, body, tag, data) {
   if (isCapacitorApp()) return;
   if (typeof document === 'undefined') return;
   if (isTauriApp()) {
     isTauriWindowActuallyOnScreen().then((onScreen) => {
-      if (!onScreen) buildNotification(title, body, tag, data);
+      if (!onScreen) showTauriToast(title, body, tag, data);
     });
     return null;
   }
   // Window/tab is visible AND focused — an in-page UI already covers this;
   // showing an OS notification too would just be a redundant duplicate.
   if (!document.hidden && document.hasFocus()) return;
-  return buildNotification(title, body, tag, data);
+  return buildBrowserNotification(title, body, tag, data);
 }
 
 // Settings screen's "Send a test notification" button — deliberately skips
@@ -177,5 +191,6 @@ export function showDesktopNotification(title, body, tag, data) {
 // straight at the app when they tap this), unlike every other call site
 // here which only ever fires for a backgrounded/unfocused window.
 export function sendTestDesktopNotification(title, body) {
-  buildNotification(title, body, undefined, undefined);
+  if (isTauriApp()) { showTauriToast(title, body, 'test', null); return; }
+  buildBrowserNotification(title, body, undefined, undefined);
 }

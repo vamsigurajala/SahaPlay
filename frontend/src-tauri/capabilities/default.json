@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window — remote-URL shell, opening ms-settings: for the user to fix OS notification permission themselves, and opening external streaming/social/music platform links (GuidedShareModal's Launch button) in the system's default browser. Desktop notifications themselves (see desktopNotify.js) use the plain Web Notification API, which isn't a Tauri command/plugin and needs no ACL permission entry here.",
+  "description": "Capability for the main window — remote-URL shell, opening ms-settings: for the user to fix OS notification permission themselves, and opening external streaming/social/music platform links (GuidedShareModal's Launch button) in the system's default browser. Desktop notifications go through a custom show_windows_toast command (see main.rs/desktopNotify.js), built with tauri-winrt-notification directly rather than a Tauri plugin — app-defined commands registered via invoke_handler/generate_handler! are allowed by default and need no ACL permission entry here (unlike plugin-provided commands, e.g. notification:*/opener:*).",
   "windows": ["main"],
   "permissions": [
     "core:default",

@@ -3,8 +3,70 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, WindowEvent,
+    AppHandle, Emitter, Manager, WindowEvent,
 };
+use tauri_winrt_notification::Toast;
+
+// Builds and shows a real Windows toast natively in Rust, bypassing the
+// WebView entirely. This exists because WebView2 does NOT surface a JS
+// `new Notification()` call as a real OS toast — confirmed as a known
+// WebView2 limitation (unlike a normal Chrome/Edge browser tab, which
+// handles it natively) — so the plain Web Notification API can construct
+// the object and report "granted" permission with zero errors while
+// literally nothing ever reaches the OS. That's exactly what was happening:
+// the app's notification sound (a plain <audio> element, unrelated to this
+// API) played fine while no toast ever appeared.
+//
+// An earlier attempt at this exact approach (see git history) also failed
+// to display anything, but critically never checked the Result of
+// `Toast::show()` — so a silent Err (wrong app_id, COM/apartment issue,
+// anything) would have looked identical to "nothing happened," same as
+// what was being debugged. This version reports success/failure back to JS
+// via the desktop_toast_result event specifically so that stops being a
+// guessing game.
+//
+// app_id is the Tauri `identifier` from tauri.conf.json
+// (com.sahaplay.desktop) — Tauri's NSIS bundler registers this exact
+// string as the installed shortcut's AppUserModelID via the NSIS
+// ApplicationID plugin, which is what lets CreateToastNotifierWithId(app_id)
+// resolve to a real, correctly-attributed notifier instead of being
+// silently dropped by the OS for an unrecognized id.
+#[tauri::command]
+fn show_windows_toast(app: AppHandle, title: String, body: String, tag: String, launch_data: Option<String>) {
+    let identifier = app.config().identifier.clone();
+    let activate_handle = app.clone();
+    let result_handle = app.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let toast = Toast::new(&identifier)
+            .title(&title)
+            .text1(&body)
+            .on_activated(move |_arg| {
+                if let Some(window) = activate_handle.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+                let _ = activate_handle.emit("desktop_toast_clicked", launch_data.clone());
+                Ok(())
+            });
+
+        match toast.show() {
+            Ok(()) => {
+                let _ = result_handle.emit(
+                    "desktop_toast_result",
+                    serde_json::json!({ "tag": tag, "ok": true }),
+                );
+            }
+            Err(e) => {
+                let _ = result_handle.emit(
+                    "desktop_toast_result",
+                    serde_json::json!({ "tag": tag, "ok": false, "error": e.to_string() }),
+                );
+            }
+        }
+    });
+}
 
 fn main() {
     tauri::Builder::default()
@@ -23,22 +85,8 @@ fn main() {
         // user to the one place that can fix it (the app itself can't grant
         // its own OS notification permission, only Windows' own Settings UI
         // can flip that toggle).
-        //
-        // Desktop notifications themselves (see desktopNotify.js) go
-        // through the plain Web `Notification` API now, the same as a
-        // regular browser tab — not a Tauri notification plugin/native
-        // Rust command. Two earlier native approaches
-        // (@tauri-apps/plugin-notification's sendNotification, then a
-        // hand-rolled command using tauri-winrt-notification directly for
-        // click support that plugin's docs say is mobile-only) were tried
-        // and removed after real-device testing kept turning up either no
-        // toast at all or no working click, layer after layer of native
-        // complexity that never actually fixed it. WebView2 is a real
-        // Chromium engine and the app has a proper AUMID via its NSIS
-        // install, so the plain API — proven to work for every browser
-        // user already — gets to be the one and only path here instead of
-        // a fourth native workaround.
         .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![show_windows_toast])
         .setup(|app| {
             let open_item = MenuItem::with_id(app, "open", "Open SahaPlay", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
