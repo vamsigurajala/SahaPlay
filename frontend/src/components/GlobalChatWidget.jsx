@@ -2156,6 +2156,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // text was confusing/broken, see commitEditedText/submitPollEdit below.
   const [editingPollMsg, setEditingPollMsg] = useState(null);
   const [reportMsgTarget, setReportMsgTarget] = useState(null);
+  // The composer's own popovers (attach menu, emoji picker, poll composer)
+  // belong to whichever chat was open when they were opened — leaving one
+  // showing after switching to a different chat (or closing the panel
+  // entirely and reopening it, e.g. via a clicked notification) reads as a
+  // stuck/broken menu rather than a fresh chat. Keyed on the partner/room id
+  // rather than the whole activeChat object so it doesn't also fire for
+  // in-place updates to the same chat (avatar/displayName arriving late).
+  useEffect(() => {
+    setShowAttachMenu(false);
+    setShowEmojiPicker(false);
+    setShowPollComposer(false);
+    setEditingPollMsg(null);
+  }, [activeChat?.partner]);
   // Single shared instance for the whole thread — see hooks/useSwipeToReply.js for why
   // these aren't called per-message inside the .map() below.
   const swipe = useSwipeToReply();
@@ -5173,20 +5186,35 @@ const GlobalChatWidget = React.memo(forwardRef(({
     });
     clearPersistedReactionPreview((targetPartner || '').toLowerCase());
 
-    // For room chats, attach permissions from the conversations list so the input UI can enforce them
+    // For room chats, attach permissions from the conversations list so the input UI can enforce them.
+    // Also backfills displayName (and partnerAvatar) when the caller didn't
+    // supply one — a notification-triggered open (see pendingOpenChat below)
+    // only knows the raw chatId/type, not a proper name, which otherwise
+    // left the header blank until the panel was closed and reopened from
+    // the conversations list (which DOES carry displayName already).
     let chatPerms = chat.permissions || null;
     let chatIsHost = chat.isHost || false;
+    let chatDisplayName = chat.displayName || null;
+    let chatPartnerAvatar = chat.partnerAvatar || null;
+    const existingConvo = Array.isArray(conversations)
+      ? conversations.find(c => c.id === targetPartner || c.partner === targetPartner)
+      : null;
+    if (existingConvo) {
+      chatDisplayName = chatDisplayName || existingConvo.displayName || null;
+      chatPartnerAvatar = chatPartnerAvatar || existingConvo.partnerAvatar || null;
+    }
     if (chat.type === 'room') {
-      const existing = Array.isArray(conversations)
-        ? conversations.find(c => c.id === targetPartner || c.partner === targetPartner)
-        : null;
-      if (existing) {
-        chatPerms = existing.permissions || chatPerms || null;
-        chatIsHost = existing.isHost || chatIsHost || false;
+      if (existingConvo) {
+        chatPerms = existingConvo.permissions || chatPerms || null;
+        chatIsHost = existingConvo.isHost || chatIsHost || false;
       }
+      // Last resort so the header is never blank, even if this room hasn't
+      // shown up in the conversations list yet. Private chats get the
+      // equivalent fallback further below once /api/users/:partner resolves.
+      chatDisplayName = chatDisplayName || targetPartner;
     }
 
-    const chatToOpen = { ...chat, partner: targetPartner, permissions: chatPerms, isHost: chatIsHost };
+    const chatToOpen = { ...chat, partner: targetPartner, permissions: chatPerms, isHost: chatIsHost, displayName: chatDisplayName, partnerAvatar: chatPartnerAvatar };
     
     const chatKey = (chat.id || chat.partner || '').toLowerCase();
     clearTimeout(perChatTimersRef.current[chatKey]);
@@ -5230,6 +5258,20 @@ const GlobalChatWidget = React.memo(forwardRef(({
           setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
             (c.partner === targetPartner || c.id === targetPartner)
               ? { ...c, partnerAvatar: d.avatarPath }
+              : c
+          ));
+        }
+        // Same fix as above, for the header title: a notification-triggered
+        // open has no displayName to start with (see chatDisplayName above),
+        // so fill it in from the fresh profile fetch once it resolves —
+        // falling back to the raw username rather than leaving it blank if
+        // even that comes back empty somehow.
+        if (!chatDisplayName) {
+          const resolvedName = (d && (d.displayName || d.username)) || chat.partner;
+          setActiveChat(prev => prev ? { ...prev, displayName: prev.displayName || resolvedName } : prev);
+          setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
+            (c.partner === targetPartner || c.id === targetPartner)
+              ? { ...c, displayName: c.displayName || resolvedName }
               : c
           ));
         }
