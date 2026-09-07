@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import PinnedRoomsGrid from './components/PinnedRoomsGrid';
+import RoomCardSkeleton from './components/RoomCardSkeleton';
 import { usePinnedRooms } from './hooks/usePinnedRooms';
 import PullToRefresh from './components/PullToRefresh';
 
@@ -13,7 +14,7 @@ import PullToRefresh from './components/PullToRefresh';
 // already gets its own page rather than being mixed into the home view.
 const PinnedRooms = () => {
   const { t } = useTranslation();
-  const { pinnedRooms, unpinRoom } = usePinnedRooms();
+  const { pinnedRooms, unpinRoom, isLoading } = usePinnedRooms();
 
   return (
     <PullToRefresh>
@@ -73,7 +74,11 @@ const PinnedRooms = () => {
           </div>
           <p className="section-desc" style={{ color: '#a0aab2', fontSize: '16px', marginBottom: '30px' }}>{t('pinnedRoomsDesc', 'Rooms you\'ve pinned for quick access.')}</p>
 
-          {pinnedRooms.length === 0 ? (
+          {isLoading ? (
+            <div className="rooms-grid">
+              <RoomCardSkeleton count={6} />
+            </div>
+          ) : pinnedRooms.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
               <Pin size={28} style={{ opacity: 0.4, marginBottom: 12 }} />
               <h3 style={{ margin: '0 0 10px', color: '#fff', fontSize: '18px' }}>{t('noPinnedRooms', 'No pinned rooms yet')}</h3>

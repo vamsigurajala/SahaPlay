@@ -26,12 +26,13 @@ import { isCapacitorApp, isTauriApp } from './platform';
 // first).
 //
 // The command reports back over desktop_toast_result — Rust's own view of
-// whether Toast::show() succeeded or not. That result is surfaced via a
+// whether Toast::show() succeeded or not. A failure is surfaced via a
 // plain DOM banner (showDiagnosticBanner below), not a react-hot-toast
 // toast(): this file has no guarantee any page's <Toaster/> happens to be
 // mounted when the result comes back, and a diagnostic that can silently
-// fail to render is worse than not having one. Rust also appends the same
-// outcome to notify-debug.log under the app's log directory
+// fail to render is worse than not having one. Success is silent — the
+// real toast itself is the confirmation. Rust also appends every outcome
+// to notify-debug.log under the app's log directory
 // (%LOCALAPPDATA%\com.sahaplay.desktop\logs\ on Windows) as a second,
 // independent channel in case even the event round-trip back to JS never
 // happens.
@@ -74,7 +75,6 @@ function ensureTauriToastBridge() {
       const { tag, ok, error } = event.payload || {};
       if (ok) {
         console.debug('[desktopNotify] Toast::show() reported success', tag);
-        showDiagnosticBanner(`Native toast shown (${tag}) — check for it on screen`, false);
         return;
       }
       console.error('[desktopNotify] Toast::show() FAILED', tag, error);
