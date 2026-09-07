@@ -3206,7 +3206,21 @@ export default function RoomChatPanel({ p }) {
            though it's a genuine descendant). GlobalChatWidget's own
            equivalent backdrop never hit this because that panel already has
            an explicit zIndex (10000) for unrelated reasons. */
-        <div ref={groupWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
+        <div ref={(el) => {
+          groupWrapperRef.current = el;
+          // This wrapper should never actually scroll — only the inner message
+          // list (its own overflow-y:auto div) is meant to move. But the
+          // wallpaper backdrop below is deliberately taller than this wrapper's
+          // real height (see its own comment), which gives the browser a
+          // genuine, if invisible, scrollable region here. Focusing the
+          // composer triggers the platform's built-in "scroll focused input
+          // into view" behavior, which briefly scrolls THIS wrapper — dragging
+          // the header out of place for a frame before the older focus/blur-
+          // timeout correction caught up, which read as a glitchy flash. A raw
+          // 'scroll' listener reacts on the same tick the browser moves it,
+          // snapping it back before the next paint instead of after a delay.
+          if (el) el.onscroll = () => { if (el.scrollTop !== 0) el.scrollTop = 0; };
+        }} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
           {/* Shared wallpaper backdrop — mobile AND desktop again. Was
               briefly mobile-disabled (painting the wallpaper as
               #room-chat-panel's own background instead, matching the
@@ -4191,7 +4205,11 @@ export default function RoomChatPanel({ p }) {
         /* ===== DM Thread =====
            zIndex:0 load-bearing — see the identical comment on the group
            chat wrapper above; same fix, same reason. */
-        <div ref={dmWrapperRef} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
+        <div ref={(el) => {
+          dmWrapperRef.current = el;
+          // Same scroll-lock fix as the group wrapper above — see that comment.
+          if (el) el.onscroll = () => { if (el.scrollTop !== 0) el.scrollTop = 0; };
+        }} style={{flex:1,display:'flex',flexDirection:'column',minWidth:0,minHeight:0,position:'relative',zIndex:0,overflow:'hidden'}}>
             {/* Shared wallpaper backdrop — mobile and desktop, see the
                 identical comment on the group chat thread above. */}
             {dmWallpaper && (
