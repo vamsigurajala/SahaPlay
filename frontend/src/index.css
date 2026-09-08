@@ -35,6 +35,27 @@ html.pwa-standalone *::-webkit-scrollbar {
   height: 0 !important;
 }
 
+/* Same "still scrolls, just no visible track/thumb" treatment as the
+   installed-app rule above, but for plain mobile web too — regular Home,
+   Public Rooms, Pinned Rooms, Account, App Settings, etc. all render their
+   own page-level scroll on a bare mobile browser tab (not just the
+   installed PWA/TWA/APK), and that scrollbar read the same as the one the
+   rule above already exists to remove. Scoped to a mobile-width viewport so
+   desktop/tablet-with-a-mouse browsing keeps its normal, expected
+   scrollbar — this is purely about the phone-width browser tab case. */
+@media (max-width: 767px) {
+  html:not(.pwa-standalone),
+  html:not(.pwa-standalone) * {
+    scrollbar-width: none !important;
+  }
+  html:not(.pwa-standalone)::-webkit-scrollbar,
+  html:not(.pwa-standalone) *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+}
+
 /* Room cards with no host-set thumbnail (RoomThumbnail.jsx) — plain "no
    image" placeholder, themed for both modes here so every host page (Public
    Rooms, Home, Pinned Rooms) gets it for free without redefining it. */
