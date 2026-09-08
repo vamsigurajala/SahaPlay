@@ -2930,25 +2930,43 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
         document.body
       )}
 
-      {/* Resolve confirmation modal */}
+      {/* Resolve confirmation modal — admin-modal-overlay/admin-modal-card class
+          hooks below aren't decorative: App.jsx's global light-theme "force
+          any un-themed fixed-position modal to a plain light background"
+          catch-all rule (see html[data-theme='light'] [style*="position:
+          fixed"]... in App.jsx) explicitly exempts these two class names.
+          Without them this modal's own background was getting silently
+          overridden to flat #f7f8fc in light mode while every text color
+          here stayed hardcoded light-on-dark — background nearly white,
+          text nearly invisible, exactly the bug reported. Every color below
+          is now branched on isLight instead of relying on that catch-all. */}
       {resolveConfirm && (
-        <div onClick={() => { setResolveConfirm(null); setResolveMessage(''); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99998, padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'linear-gradient(135deg,#0a1a12,#091310)', border: '1px solid rgba(16,185,129,0.35)', borderRadius: 20, padding: 32, maxWidth: 460, width: '100%', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+        <div className="admin-modal-overlay" onClick={() => { setResolveConfirm(null); setResolveMessage(''); }} style={{ position: 'fixed', inset: 0, background: isLight ? 'rgba(15,23,42,0.35)' : 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99998, padding: 20 }}>
+          <div className="admin-modal-card" onClick={e => e.stopPropagation()} style={{
+            // Light mode: a frosted glass card (translucent + blurred), not a
+            // flat white box — matches what was asked for specifically here.
+            background: isLight ? 'rgba(255,255,255,0.78)' : 'linear-gradient(135deg,#0a1a12,#091310)',
+            backdropFilter: isLight ? 'blur(20px) saturate(180%)' : 'none',
+            WebkitBackdropFilter: isLight ? 'blur(20px) saturate(180%)' : 'none',
+            border: isLight ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(16,185,129,0.35)',
+            borderRadius: 20, padding: 32, maxWidth: 460, width: '100%',
+            boxShadow: isLight ? '0 24px 64px rgba(15,23,42,0.18)' : '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <CheckCircle size={20} color="#34d399" />
+              <div style={{ width: 40, height: 40, borderRadius: '50%', background: isLight ? 'rgba(16,185,129,0.12)' : 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <CheckCircle size={20} color={isLight ? '#059669' : '#34d399'} />
               </div>
-              <h3 style={{ margin: 0, color: '#fff', fontWeight: 800, fontSize: 17 }}>Resolve Ticket</h3>
+              <h3 style={{ margin: 0, color: isLight ? '#0f172a' : '#fff', fontWeight: 800, fontSize: 17 }}>Resolve Ticket</h3>
             </div>
 
             {/* Message to user - SHOWN IN EMAIL */}
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <label style={{ display: 'block', color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
-                  Message to User <span style={{ color: 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(shown in email)</span>
+                <label style={{ display: 'block', color: isLight ? '#374151' : 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
+                  Message to User <span style={{ color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>(shown in email)</span>
                 </label>
                 {resolveConfirm?.hadNotes && resolveMessage && (
-                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: isLight ? 'rgba(16,185,129,0.12)' : 'rgba(16,185,129,0.15)', color: isLight ? '#059669' : '#34d399', border: isLight ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(16,185,129,0.3)', whiteSpace: 'nowrap' }}>
                     ✎ pre-filled from your notes
                   </span>
                 )}
@@ -2960,19 +2978,19 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                 rows={4}
                 style={{
                   width: '100%', padding: '12px 14px', borderRadius: 10,
-                  background: resolveMessage ? 'rgba(16,185,129,0.07)' : 'rgba(255,255,255,0.03)',
-                  border: resolveMessage ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(255,255,255,0.1)',
-                  color: '#e5e7eb', fontSize: 13, lineHeight: 1.6, resize: 'vertical',
+                  background: resolveMessage ? (isLight ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.07)') : (isLight ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.03)'),
+                  border: resolveMessage ? '1px solid rgba(16,185,129,0.35)' : (isLight ? '1px solid rgba(15,23,42,0.15)' : '1px solid rgba(255,255,255,0.1)'),
+                  color: isLight ? '#0f172a' : '#e5e7eb', fontSize: 13, lineHeight: 1.6, resize: 'vertical',
                   outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', transition: 'border 0.2s',
                 }}
               />
-              <p style={{ margin: '6px 0 0', color: 'rgba(255,255,255,0.3)', fontSize: 11, lineHeight: 1.5 }}>
-                🔒 Internal notes are <strong style={{ color: 'rgba(255,255,255,0.5)' }}>never</strong> sent to users — only this message appears in the resolution email. Edit or clear before sending.
+              <p style={{ margin: '6px 0 0', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.3)', fontSize: 11, lineHeight: 1.5 }}>
+                🔒 Internal notes are <strong style={{ color: isLight ? '#374151' : 'rgba(255,255,255,0.5)' }}>never</strong> sent to users — only this message appears in the resolution email. Edit or clear before sending.
               </p>
             </div>
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setResolveConfirm(null); setResolveMessage(''); }} style={{ padding: '9px 18px', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              <button onClick={() => { setResolveConfirm(null); setResolveMessage(''); }} style={{ padding: '9px 18px', borderRadius: 9, background: isLight ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid rgba(15,23,42,0.15)' : '1px solid rgba(255,255,255,0.12)', color: isLight ? '#334155' : 'rgba(255,255,255,0.6)', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                 Cancel
               </button>
               <button
@@ -2983,7 +3001,7 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
                   handleAction(resolveConfirm.id, 'resolved', msg);
                 }}
                 disabled={!!actionLoading}
-                style={{ padding: '9px 20px', borderRadius: 9, background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', color: '#34d399', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
+                style={{ padding: '9px 20px', borderRadius: 9, background: isLight ? 'rgba(16,185,129,0.12)' : 'rgba(16,185,129,0.15)', border: isLight ? '1px solid rgba(16,185,129,0.45)' : '1px solid rgba(16,185,129,0.4)', color: isLight ? '#059669' : '#34d399', fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>
                 ✓ Confirm &amp; Send Email
               </button>
             </div>
