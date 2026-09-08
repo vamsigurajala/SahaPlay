@@ -1072,6 +1072,21 @@ function emitToUser(username, event, data) {
   sids.forEach(sid => io.to(sid).emit(event, data));
 }
 
+// socketId -> { ip, userAgent, connectedAt } — a separate parallel map, NOT a
+// widened connectedSockets value type: connectedSockets has 12+ read/write
+// sites elsewhere in this file that all assume Set<socketId> semantics
+// (.has/.get().size/.get().delete/spreading .keys()), so changing its shape
+// would touch every one of them. This is purely additive, populated/cleaned
+// up at the exact same two lifecycle points connectedSockets itself already
+// uses (io.on('connection') and the disconnect handler, both further down),
+// and — like connectedSockets — deliberately in-memory only, not persisted:
+// a server restart already clears presence the same way, and every client
+// reconnects and re-registers within seconds, which the rest of this app
+// already relies on. Backs GET /api/admin/users/:userId/sessions (Admin >
+// Users > Terminate) — support-staff visibility into a user's live
+// sessions/devices, not a historical audit log.
+const socketSessionMeta = new Map();
+
 // usernameLower -> Set<chatId> (DM: the other person's username; group: the
 // room id) currently open across that user's own chat surfaces, used by
 // notifyChatMessage below to skip a push notification for a chat the
@@ -1440,6 +1455,36 @@ app.set('trust proxy', 1);
 
 // ─── Rate Limiters (all applied BEFORE route definitions) ────────────────────
 
+// Fire-and-forget rate-limit-trip logging for the Admin > Security page —
+// same defensive style as chatLockRateLimit's existing blocked-until write
+// further down (pool.query(...).catch(() => {})): never blocks or slows the
+// 429 response, and a logging failure never surfaces to the caller.
+function logRateLimitEvent(limiterName, req) {
+  pool.query(
+    'INSERT INTO rate_limit_events (limiter_name, ip, username, path) VALUES ($1, $2, $3, $4)',
+    [limiterName, req.ip, req.user?.username || null, req.originalUrl || req.path || null]
+  ).catch(() => {});
+}
+// Same, for the hand-rolled Socket.IO event limiters below (checkChatRate /
+// checkMediaControlRate / checkJoinRate) — there's no `req` in socket
+// context, so this reads the equivalent fields off the handshake instead.
+function logSocketRateLimitEvent(limiterName, socket) {
+  pool.query(
+    'INSERT INTO rate_limit_events (limiter_name, ip, username, path) VALUES ($1, $2, $3, $4)',
+    [limiterName, socket.handshake?.address || null, socket.username || null, 'socket:' + limiterName]
+  ).catch(() => {});
+}
+// rate_limit_events is high-volume telemetry (globalLimiter alone allows up
+// to 15000 requests/15min before tripping, so a real abuse spike logs
+// heavily) — trim anything older than 30 days once a day so it doesn't grow
+// unbounded. In-process setInterval, no new job-scheduler dependency, same
+// as how other periodic bookkeeping (e.g. adminRoleCache expiry) is handled
+// in this file.
+setInterval(() => {
+  pool.query(`DELETE FROM rate_limit_events WHERE created_at < NOW() - INTERVAL '30 days'`)
+    .catch(e => console.warn('[rate_limit_events] cleanup failed:', e.message));
+}, 24 * 60 * 60 * 1000);
+
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15000,
@@ -1463,6 +1508,7 @@ const globalLimiter = rateLimit({
     return skipRoutes.some(route => url.startsWith(route));
   },
   handler: (req, res) => {
+    logRateLimitEvent('global', req);
     res.status(429).json({ error: 'Too many requests. Try again later.' });
   }
 });
@@ -1473,6 +1519,7 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
+    logRateLimitEvent('login', req);
     res.status(429).json({ error: 'Too many login attempts. Wait 15 minutes.' });
   }
 });
@@ -1488,6 +1535,7 @@ const uploadLimiter = rateLimit({
     return username ? `upload_${username}` : ipKeyGenerator(req.ip);
   },
   handler: (req, res) => {
+    logRateLimitEvent('upload', req);
     res.status(429).json({ error: 'Upload limit reached. Wait a few minutes.' });
   }
 });
@@ -1498,29 +1546,42 @@ const roomCreateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
+    logRateLimitEvent('roomCreate', req);
     res.status(429).json({ error: 'Too many rooms created. Please wait before creating more.' });
   }
 });
+// Converted from the `message:` shorthand to an explicit `handler` (below and
+// on the 5 limiters that follow) purely to hook in logRateLimitEvent — same
+// status code, same response body as before, behavior-preserving otherwise.
 const contactLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 3,
-  message: { success: false, error: 'Too many messages sent. Please wait an hour before trying again.' },
   standardHeaders: true,
   legacyHeaders: false,
+  handler: (req, res) => {
+    logRateLimitEvent('contact', req);
+    res.status(429).json({ success: false, error: 'Too many messages sent. Please wait an hour before trying again.' });
+  }
 });
 const bugReportLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
-  message: { success: false, error: 'Too many bug reports submitted. Please wait an hour before trying again.' },
   standardHeaders: true,
   legacyHeaders: false,
+  handler: (req, res) => {
+    logRateLimitEvent('bugReport', req);
+    res.status(429).json({ success: false, error: 'Too many bug reports submitted. Please wait an hour before trying again.' });
+  }
 });
 const dmRestLimiter = rateLimit({   // A7-F5
   windowMs: 60 * 1000,
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many messages, slow down' }
+  handler: (req, res) => {
+    logRateLimitEvent('dmRest', req);
+    res.status(429).json({ error: 'Too many messages, slow down' });
+  }
 });
 const streamLimiter = rateLimit({   // A7-F8
   windowMs: 5 * 60 * 1000,
@@ -1532,14 +1593,20 @@ const streamLimiter = rateLimit({   // A7-F8
     const username = req.user?.username;
     return username ? `stream_${username}` : ipKeyGenerator(req.ip);
   },
-  message: { error: 'Too many upload chunks' }
+  handler: (req, res) => {
+    logRateLimitEvent('stream', req);
+    res.status(429).json({ error: 'Too many upload chunks' });
+  }
 });
 const checkUsernameLimiter = rateLimit({  // A8-F9
   windowMs: 60 * 1000,
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many username checks. Please slow down.' }
+  handler: (req, res) => {
+    logRateLimitEvent('checkUsername', req);
+    res.status(429).json({ error: 'Too many username checks. Please slow down.' });
+  }
 });
 // TURN credentials and Hyperbeam sessions both proxy to paid third-party APIs
 // (Metered.ca, Hyperbeam) — this exists to cap quota/cost abuse, not to throttle
@@ -1558,7 +1625,10 @@ const thirdPartyProxyLimiter = rateLimit({
   // reference every request, so nothing ever accumulates and the limit never
   // trips (found and fixed during testing of this change).
   keyGenerator: (req) => ipKeyGenerator(req.ip),
-  message: { error: 'Too many requests to this feature. Please wait a few minutes.' }
+  handler: (req, res) => {
+    logRateLimitEvent('thirdPartyProxy', req);
+    res.status(429).json({ error: 'Too many requests to this feature. Please wait a few minutes.' });
+  }
 });
 
 // Apply limiters — order matters: specific limits before global
@@ -1940,6 +2010,55 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE admin_audit_logs ADD COLUMN IF NOT EXISTS support_request_id TEXT`)
     .catch(e => console.warn('[Migration] admin_audit_logs.support_request_id column:', e.message));
 
+  // Rate-limit trigger telemetry (Admin > Security page). Deliberately its own
+  // table, not folded into admin_audit_logs — these are automated system
+  // events, not actions a human admin took, and admin_audit_logs' own
+  // "filter by admin" UI assumes every row has one. No updated_at (append-
+  // only) and no details JSONB — kept narrow since this can be high-volume
+  // (globalLimiter alone allows up to 15000 requests/15min before tripping,
+  // so a real abuse spike could log heavily); a periodic cleanup trims rows
+  // older than 30 days, see the setInterval near the rate limiters below.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rate_limit_events (
+      id SERIAL PRIMARY KEY,
+      limiter_name TEXT NOT NULL,
+      ip TEXT,
+      username TEXT,
+      path TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(e => console.warn('[Migration] rate_limit_events table:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_rate_limit_events_created_at ON rate_limit_events (created_at DESC)`)
+    .catch(e => console.warn('[Migration] idx_rate_limit_events_created_at:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_rate_limit_events_limiter_name ON rate_limit_events (limiter_name, created_at DESC)`)
+    .catch(e => console.warn('[Migration] idx_rate_limit_events_limiter_name:', e.message));
+
+  // Legal / government data-request log (Admin > Legal Requests page).
+  // deleted_at is a soft-delete flag, not a real DELETE — matches this
+  // codebase's general avoidance of hard deletes on admin-workflow tables,
+  // and a compliance record should stay recoverable even if entered by
+  // mistake. The default list view filters WHERE deleted_at IS NULL.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS legal_requests (
+      id SERIAL PRIMARY KEY,
+      date_received DATE NOT NULL,
+      requesting_authority VARCHAR(255) NOT NULL,
+      request_details TEXT NOT NULL,
+      provided_details TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      internal_notes TEXT,
+      created_by_admin_id TEXT NOT NULL,
+      created_by_admin_email TEXT,
+      deleted_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `).catch(e => console.warn('[Migration] legal_requests table:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_legal_requests_created_at ON legal_requests (created_at DESC)`)
+    .catch(e => console.warn('[Migration] idx_legal_requests_created_at:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_legal_requests_status ON legal_requests (status)`)
+    .catch(e => console.warn('[Migration] idx_legal_requests_status:', e.message));
+
   await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'open'`)
     .catch(e => console.warn('[Migration] reports.status column:', e.message));
   await pool.query(`ALTER TABLE reports ADD COLUMN IF NOT EXISTS admin_notes TEXT`)
@@ -2056,6 +2175,8 @@ const migrationsReady = (async () => {
     .catch(e => console.warn('[Migration] idx_audit_logs_admin_user_id:', e.message));
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_target_user_id ON admin_audit_logs(target_user_id)`)
     .catch(e => console.warn('[Migration] idx_audit_logs_target_user_id:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON admin_audit_logs(action)`)
+    .catch(e => console.warn('[Migration] idx_audit_logs_action:', e.message));
 
   // reports table — NOTE: spec asked for submitted_by_user_id, but that column does not exist on
   // this table (it exists on support_requests). The reports table's real "who filed this" column
@@ -3742,6 +3863,26 @@ function authenticateTokenOptional(req, res, next) {
 
 // ─── Admin Authorization Middleware ──────────────────────────────────────────
 const ALL_ADMIN_ROLES = ['super_admin', 'admin', 'moderator', 'support'];
+
+// Every action string ever written to admin_audit_logs.action across this file
+// (each INSERT still hand-writes its own literal, same as always — this is
+// just the definitive list for the audit-log filter dropdown, GET
+// /api/admin/audit-logs/filters below). Hardcoded rather than a DISTINCT
+// query on the table so the dropdown isn't missing an action that hasn't
+// fired yet in this environment. Frontend's ACTION_META (Admin.jsx) is a
+// separate, necessarily-duplicated list (it also carries display label/color)
+// — keep both in sync by hand when a new action string is introduced, there's
+// no shared-constants mechanism across the frontend/backend boundary here.
+const ALL_AUDIT_ACTIONS = [
+  'PERMANENT_BAN_USER', 'TEMP_BAN_USER', 'UNBAN_USER', 'TERMINATE_USER',
+  'FORCE_CLOSE_ROOM', 'KICK_USER_FROM_ROOM', 'DELETE_ROOM',
+  'REPORT_RESOLVED', 'REPORT_DISMISSED', 'REPORT_ASSIGNED', 'REPORT_NOTE_ADDED',
+  'SUPPORT_REQUEST_ASSIGNED', 'SUPPORT_REQUEST_NOTE_ADDED', 'SUPPORT_ATTACHMENT_DELETED',
+  'SUPPORT_REQUEST_RESOLVED', 'SUPPORT_REQUEST_DISMISSED', 'SUPPORT_REQUEST_UPDATED',
+  'ADMIN_ROLE_CHANGED', 'ADMIN_ACCESS_DISABLED', 'ADMIN_INVITE_SENT', 'ADMIN_INVITE_REVOKED',
+  'ADMIN_INVITE_RESENT', 'ADMIN_INVITE_ACCEPTED',
+  'LEGAL_REQUEST_CREATED', 'LEGAL_REQUEST_UPDATED', 'LEGAL_REQUEST_STATUS_CHANGED', 'LEGAL_REQUEST_DELETED',
+];
 
 // A10-A1: In-process cache for admin role lookups (5-minute TTL)
 const adminRoleCache = new Map(); // Map<userId, { role, email, expiresAt }>
@@ -7391,7 +7532,13 @@ function checkChatRate(socketId) {
   if (now > b.resetAt) { b.count = 0; b.resetAt = now + 60000; }
   b.count++;
   chatRateBuckets.set(socketId, b);
-  return b.count <= 30;
+  const ok = b.count <= 30;
+  // Only looked up on an actual trip (rare), not every call — these
+  // functions only ever receive a socketId, not the socket object itself,
+  // so the live socket is fetched here purely for the IP/username this
+  // logs, same registry Socket.IO itself already keeps.
+  if (!ok) { const s = io.sockets.sockets.get(socketId); if (s) logSocketRateLimitEvent('chatSocket', s); }
+  return ok;
 }
 
 // A7-F4: Socket-level media control rate limiter: 10 events per 5 seconds per socket (shared play/pause/seek bucket)
@@ -7402,7 +7549,9 @@ function checkMediaControlRate(socketId) {
   if (now > b.resetAt) { b.count = 0; b.resetAt = now + 5000; }
   b.count++;
   mediaControlBuckets.set(socketId, b);
-  return b.count <= 10;
+  const ok = b.count <= 10;
+  if (!ok) { const s = io.sockets.sockets.get(socketId); if (s) logSocketRateLimitEvent('mediaControlSocket', s); }
+  return ok;
 }
 
 // A7-F2: Socket-level join rate limiter: 10 joins per 10 seconds per socket
@@ -7413,7 +7562,9 @@ function checkJoinRate(socketId) {
   if (now > b.resetAt) { b.count = 0; b.resetAt = now + 10000; }
   b.count++;
   joinRateBuckets.set(socketId, b);
-  return b.count <= 10;
+  const ok = b.count <= 10;
+  if (!ok) { const s = io.sockets.sockets.get(socketId); if (s) logSocketRateLimitEvent('joinSocket', s); }
+  return ok;
 }
 
 // A7-F3: Typing debounce — suppress repeated typing-start broadcasts within 2 s per socket
@@ -7425,6 +7576,11 @@ io.on('connection', (socket) => {
   if (socket.username) {
     const wasOffline = !connectedSockets.has(socket.username.toLowerCase());
     registerSocket(socket.username, socket.id);
+    socketSessionMeta.set(socket.id, {
+      ip: socket.handshake?.address || null,
+      userAgent: socket.handshake?.headers?.['user-agent'] || null,
+      connectedAt: new Date().toISOString(),
+    });
     // Only the FIRST socket for this user (not a second tab/device while
     // already online) counts as "just came online" — broadcast to everyone
     // so any open chat list can flip that user's dot green live, and give
@@ -7636,6 +7792,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     try {
     unregisterSocket(socket.username, socket.id);
+    socketSessionMeta.delete(socket.id);
 
     // If this was the user's LAST connected socket and they were in a call,
     // remove them from it — a multi-tab/multi-device user keeps the call
@@ -10987,6 +11144,7 @@ const chatLockRateLimit = rateLimit({
       'UPDATE users SET "chat_lock_blocked_until" = $1 WHERE LOWER(username) = LOWER($2)',
       [blockedUntil, req.user?.username || '']
     ).catch(() => {});
+    logRateLimitEvent('chatLock', req);
     res.status(429).json({ error: 'Too many attempts. Try again in 30 seconds.', blockedUntil });
   },
   skipSuccessfulRequests: true,
@@ -12332,6 +12490,30 @@ app.post('/api/admin/users/:userId/terminate', authenticateToken, requireAdmin, 
   }
 });
 
+// GET /api/admin/users/:userId/sessions — live session/device visibility,
+// companion view for /terminate above (same role gate, placed right after
+// it). Reads connectedSockets + socketSessionMeta, both in-memory only — see
+// socketSessionMeta's own comment for why this isn't persisted to a table.
+// An empty list is a normal, valid response (count: 0), not a 404.
+app.get('/api/admin/users/:userId/sessions', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const targetR = await pool.query('SELECT username FROM users WHERE id = $1', [userId]);
+    if (targetR.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const username = targetR.rows[0].username;
+
+    const sids = connectedSockets.get(username.toLowerCase());
+    const sessions = sids
+      ? [...sids].map(sid => ({ socketId: sid, ...(socketSessionMeta.get(sid) || {}) }))
+      : [];
+
+    res.json({ username, sessions, count: sessions.length });
+  } catch (err) {
+    console.error('[ADMIN] users/:userId/sessions error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch sessions' });
+  }
+});
+
 // POST /api/admin/users/:userId/unban
 app.post('/api/admin/users/:userId/unban', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
   const { userId } = req.params;
@@ -12466,11 +12648,33 @@ app.post('/api/admin/rooms/:roomId/kick-member', authenticateToken, requireAdmin
 });
 
 // GET /api/admin/audit-logs
+// Optional filters: adminEmail (exact), action (exact), targetSearch (free
+// text against target username/email/id), dateFrom/dateTo (range on
+// created_at). All built as a parameterized WHERE clause — condition
+// strings and params are pushed in lockstep, values are never string-
+// interpolated. The COUNT query needs the same LEFT JOIN as the list query
+// once targetSearch filters on the joined username, unlike the old bare
+// SELECT COUNT(*).
 app.get('/api/admin/audit-logs', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
     const offset = (page - 1) * limit;
+
+    const conditions = [];
+    const params = [];
+    let i = 1;
+    const { adminEmail, action, targetSearch, dateFrom, dateTo } = req.query;
+    if (adminEmail) { conditions.push(`l.admin_email = $${i++}`); params.push(adminEmail); }
+    if (action) { conditions.push(`l.action = $${i++}`); params.push(action); }
+    if (targetSearch) {
+      conditions.push(`(u.username ILIKE $${i} OR l.target_email ILIKE $${i} OR l.target_user_id = $${i + 1})`);
+      params.push(`%${targetSearch}%`, targetSearch);
+      i += 2;
+    }
+    if (dateFrom) { conditions.push(`l.created_at >= $${i++}`); params.push(dateFrom); }
+    if (dateTo) { conditions.push(`l.created_at <= $${i++}`); params.push(dateTo); }
+    const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const [logsR, countR] = await Promise.all([
       pool.query(
@@ -12479,11 +12683,15 @@ app.get('/api/admin/audit-logs', authenticateToken, requireAdmin, requireAdminRo
                 u.username AS target_username
          FROM admin_audit_logs l
          LEFT JOIN users u ON l.target_user_id = u.id::TEXT
+         ${whereSql}
          ORDER BY l.created_at DESC
-         LIMIT $1 OFFSET $2`,
-        [limit, offset]
+         LIMIT $${i} OFFSET $${i + 1}`,
+        [...params, limit, offset]
       ),
-      pool.query('SELECT COUNT(*) FROM admin_audit_logs'),
+      pool.query(
+        `SELECT COUNT(*) FROM admin_audit_logs l LEFT JOIN users u ON l.target_user_id = u.id::TEXT ${whereSql}`,
+        params
+      ),
     ]);
 
     res.json({
@@ -12496,6 +12704,224 @@ app.get('/api/admin/audit-logs', authenticateToken, requireAdmin, requireAdminRo
   } catch (err) {
     console.error('[ADMIN] audit-logs error:', err.message);
     res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
+// GET /api/admin/audit-logs/filters — distinct admins (for the filter
+// dropdown) + the full known action list (hardcoded, see ALL_AUDIT_ACTIONS).
+app.get('/api/admin/audit-logs/filters', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    const adminsR = await pool.query(
+      `SELECT DISTINCT admin_user_id, admin_email FROM admin_audit_logs ORDER BY admin_email`
+    );
+    res.json({ admins: adminsR.rows, actions: ALL_AUDIT_ACTIONS });
+  } catch (err) {
+    console.error('[ADMIN] audit-logs/filters error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch audit log filters' });
+  }
+});
+
+// ─── Security: rate-limit trigger visibility (Admin > Security page) ────────
+// GET /api/admin/security/rate-limits/summary
+app.get('/api/admin/security/rate-limits/summary', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    const [byLimiterR, topIpsR, topAccountsR, totalR] = await Promise.all([
+      pool.query(
+        `SELECT limiter_name, COUNT(*) AS count FROM rate_limit_events
+         WHERE created_at >= NOW() - INTERVAL '24 hours'
+         GROUP BY limiter_name ORDER BY count DESC`
+      ),
+      pool.query(
+        `SELECT ip, COUNT(*) AS count FROM rate_limit_events
+         WHERE created_at >= NOW() - INTERVAL '24 hours' AND ip IS NOT NULL
+         GROUP BY ip ORDER BY count DESC LIMIT 20`
+      ),
+      pool.query(
+        `SELECT username, COUNT(*) AS count FROM rate_limit_events
+         WHERE created_at >= NOW() - INTERVAL '24 hours' AND username IS NOT NULL
+         GROUP BY username ORDER BY count DESC LIMIT 20`
+      ),
+      pool.query(`SELECT COUNT(*) FROM rate_limit_events WHERE created_at >= NOW() - INTERVAL '24 hours'`),
+    ]);
+    res.json({
+      byLimiter: byLimiterR.rows.map(r => ({ limiter_name: r.limiter_name, count: parseInt(r.count) })),
+      topIps: topIpsR.rows.map(r => ({ ip: r.ip, count: parseInt(r.count) })),
+      topAccounts: topAccountsR.rows.map(r => ({ username: r.username, count: parseInt(r.count) })),
+      totalLast24h: parseInt(totalR.rows[0].count),
+    });
+  } catch (err) {
+    console.error('[ADMIN] security/rate-limits/summary error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch rate-limit summary' });
+  }
+});
+
+// GET /api/admin/security/rate-limits/events
+app.get('/api/admin/security/rate-limits/events', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
+    const offset = (page - 1) * limit;
+    const { limiterName } = req.query;
+    const whereSql = limiterName ? 'WHERE limiter_name = $1' : '';
+    const params = limiterName ? [limiterName] : [];
+
+    const [eventsR, countR] = await Promise.all([
+      pool.query(
+        `SELECT id, limiter_name, ip, username, path, created_at FROM rate_limit_events
+         ${whereSql} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset]
+      ),
+      pool.query(`SELECT COUNT(*) FROM rate_limit_events ${whereSql}`, params),
+    ]);
+    res.json({
+      events: eventsR.rows,
+      total: parseInt(countR.rows[0].count),
+      page,
+      limit,
+      pages: Math.ceil(parseInt(countR.rows[0].count) / limit),
+    });
+  } catch (err) {
+    console.error('[ADMIN] security/rate-limits/events error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch rate-limit events' });
+  }
+});
+
+// ─── Legal / government data-request log (Admin > Legal Requests page) ──────
+const LEGAL_REQUEST_STATUSES = ['pending', 'fulfilled', 'declined'];
+
+// GET /api/admin/legal-requests
+app.get('/api/admin/legal-requests', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
+    const offset = (page - 1) * limit;
+    const { status } = req.query;
+    const conditions = ['deleted_at IS NULL'];
+    const params = [];
+    if (status && LEGAL_REQUEST_STATUSES.includes(status)) {
+      conditions.push(`status = $${params.length + 1}`);
+      params.push(status);
+    }
+    const whereSql = `WHERE ${conditions.join(' AND ')}`;
+
+    const [rowsR, countR] = await Promise.all([
+      pool.query(
+        `SELECT * FROM legal_requests ${whereSql} ORDER BY date_received DESC, created_at DESC
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset]
+      ),
+      pool.query(`SELECT COUNT(*) FROM legal_requests ${whereSql}`, params),
+    ]);
+    res.json({
+      requests: rowsR.rows,
+      total: parseInt(countR.rows[0].count),
+      page,
+      limit,
+      pages: Math.ceil(parseInt(countR.rows[0].count) / limit),
+    });
+  } catch (err) {
+    console.error('[ADMIN] legal-requests list error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch legal requests' });
+  }
+});
+
+// POST /api/admin/legal-requests
+app.post('/api/admin/legal-requests', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+  try {
+    const { dateReceived, requestingAuthority, requestDetails, providedDetails, status, internalNotes } = req.body;
+    if (!dateReceived || !requestingAuthority?.trim() || !requestDetails?.trim()) {
+      return res.status(400).json({ error: 'dateReceived, requestingAuthority and requestDetails are required.' });
+    }
+    const finalStatus = status && LEGAL_REQUEST_STATUSES.includes(status) ? status : 'pending';
+
+    const insertR = await pool.query(
+      `INSERT INTO legal_requests
+         (date_received, requesting_authority, request_details, provided_details, status, internal_notes, created_by_admin_id, created_by_admin_email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [dateReceived, requestingAuthority.trim(), requestDetails.trim(), providedDetails?.trim() || null,
+       finalStatus, internalNotes?.trim() || null, String(req.user.id), req.adminEmail]
+    );
+    const row = insertR.rows[0];
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, reason, details)
+       VALUES ($1, $2, 'LEGAL_REQUEST_CREATED', $3, $4)`,
+      [String(req.user.id), req.adminEmail, `Legal request from ${requestingAuthority.trim()}`,
+       JSON.stringify({ legalRequestId: row.id, requestingAuthority: requestingAuthority.trim() })]
+    );
+
+    res.json({ success: true, request: row });
+  } catch (err) {
+    console.error('[ADMIN] legal-requests create error:', err.message);
+    res.status(500).json({ error: 'Failed to create legal request' });
+  }
+});
+
+// PATCH /api/admin/legal-requests/:id
+app.patch('/api/admin/legal-requests/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const currentR = await pool.query('SELECT * FROM legal_requests WHERE id = $1 AND deleted_at IS NULL', [id]);
+    if (!currentR.rows[0]) return res.status(404).json({ error: 'Legal request not found' });
+    const current = currentR.rows[0];
+
+    const { dateReceived, requestingAuthority, requestDetails, providedDetails, status, internalNotes } = req.body;
+    if (status !== undefined && !LEGAL_REQUEST_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status.' });
+    }
+
+    const next = {
+      date_received: dateReceived !== undefined ? dateReceived : current.date_received,
+      requesting_authority: requestingAuthority !== undefined ? requestingAuthority.trim() : current.requesting_authority,
+      request_details: requestDetails !== undefined ? requestDetails.trim() : current.request_details,
+      provided_details: providedDetails !== undefined ? providedDetails?.trim() || null : current.provided_details,
+      status: status !== undefined ? status : current.status,
+      internal_notes: internalNotes !== undefined ? internalNotes?.trim() || null : current.internal_notes,
+    };
+
+    await pool.query(
+      `UPDATE legal_requests SET date_received=$1, requesting_authority=$2, request_details=$3,
+         provided_details=$4, status=$5, internal_notes=$6, updated_at=NOW() WHERE id=$7`,
+      [next.date_received, next.requesting_authority, next.request_details, next.provided_details,
+       next.status, next.internal_notes, id]
+    );
+
+    const statusChanged = status !== undefined && status !== current.status;
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, reason, details)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [String(req.user.id), req.adminEmail,
+       statusChanged ? 'LEGAL_REQUEST_STATUS_CHANGED' : 'LEGAL_REQUEST_UPDATED',
+       `Legal request #${id}`,
+       JSON.stringify(statusChanged ? { legalRequestId: id, from: current.status, to: status } : { legalRequestId: id })]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] legal-requests update error:', err.message);
+    res.status(500).json({ error: 'Failed to update legal request' });
+  }
+});
+
+// DELETE /api/admin/legal-requests/:id — soft delete
+app.delete('/api/admin/legal-requests/:id', authenticateToken, requireAdmin, requireAdminRole(['super_admin', 'admin']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const currentR = await pool.query('SELECT id FROM legal_requests WHERE id = $1 AND deleted_at IS NULL', [id]);
+    if (!currentR.rows[0]) return res.status(404).json({ error: 'Legal request not found' });
+
+    await pool.query('UPDATE legal_requests SET deleted_at = NOW() WHERE id = $1', [id]);
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, reason, details)
+       VALUES ($1, $2, 'LEGAL_REQUEST_DELETED', $3, $4)`,
+      [String(req.user.id), req.adminEmail, `Legal request #${id}`, JSON.stringify({ legalRequestId: id })]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[ADMIN] legal-requests delete error:', err.message);
+    res.status(500).json({ error: 'Failed to delete legal request' });
   }
 });
 
@@ -13353,6 +13779,7 @@ app.post('/api/admin/invites/:id/resend', authenticateToken, requireAdmin, requi
     if (check.rows[0].last_resent_at) {
       const msSinceResend = Date.now() - new Date(check.rows[0].last_resent_at).getTime();
       if (msSinceResend < 60 * 60 * 1000) {
+        logRateLimitEvent('inviteResend', req);
         return res.status(429).json({ error: 'Please wait before resending this invite.' });
       }
     }

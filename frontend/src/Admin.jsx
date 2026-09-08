@@ -4,11 +4,11 @@ import { io } from 'socket.io-client';
 import './Admin.css';
 import { useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Shield, Ban, CheckCircle, Search,
+  LayoutDashboard, Users, Shield, ShieldAlert, Ban, CheckCircle, Search,
   RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, X,
   LogOut, Clock, Infinity as InfinityIcon, Activity, UserCheck, ExternalLink,
   Trash2, FileText, Crown, UserMinus, ChevronDown, ChevronUp,
-  Inbox, UserCog, Mail, Paperclip, Calendar,
+  Inbox, UserCog, Mail, Paperclip, Calendar, Scale, Monitor, Plus,
 } from 'lucide-react';
 import { getAvatarUrl } from './utils/avatarUtils';
 import MediaLightbox from './components/MediaLightbox';
@@ -76,6 +76,19 @@ function TerminateModal({ user, onClose, onTerminated }) {
   const [confirmText, setConfirmText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Live session/device visibility, tied to this exact confirmation flow
+  // (rather than a separate row affordance) so it's clear, right next to the
+  // button, that Terminate kills every session below at once — this action
+  // is account-wide, not per-socket-id, see /api/admin/users/:id/sessions.
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+
+  useEffect(() => {
+    apiFetch(`/api/admin/users/${user.id}/sessions`)
+      .then(d => setSessions(d.sessions || []))
+      .catch(() => {})
+      .finally(() => setSessionsLoading(false));
+  }, [user.id]);
 
   const canSubmit = confirmText === 'TERMINATE' && reason.trim();
 
@@ -120,6 +133,32 @@ function TerminateModal({ user, onClose, onTerminated }) {
         <p style={{ margin: '0 0 20px', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.5)', fontSize: 13, lineHeight: 1.5 }}>
           This permanently disables the account. The user will not be able to log in or use the platform ever again.
         </p>
+
+        <div style={{ marginBottom: 20, padding: '12px 14px', borderRadius: 10, background: isLight ? '#f9fafb' : 'rgba(255,255,255,0.04)', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: sessionsLoading || sessions.length === 0 ? 0 : 8 }}>
+            <Monitor size={14} color={isLight ? '#4b5563' : 'rgba(255,255,255,0.5)'} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: isLight ? '#111827' : '#fff' }}>
+              {sessionsLoading ? 'Checking active sessions…' : `${sessions.length} active session${sessions.length === 1 ? '' : 's'}`}
+            </span>
+          </div>
+          {!sessionsLoading && sessions.length > 0 && (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {sessions.map(s => (
+                  <div key={s.socketId} style={{ fontSize: 12, color: isLight ? '#374151' : 'rgba(255,255,255,0.6)', display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.userAgent || ''}>{s.userAgent || 'Unknown device'}</span>
+                    <span style={{ color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.35)', fontSize: 11 }}>
+                      {s.ip || 'unknown IP'}{s.connectedAt ? ` · connected ${new Date(s.connectedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p style={{ margin: '10px 0 0', fontSize: 11.5, color: isLight ? '#9ca3af' : 'rgba(255,255,255,0.35)', fontStyle: 'italic' }}>
+                Terminating will immediately disconnect all of the sessions above.
+              </p>
+            </>
+          )}
+        </div>
 
         {error && (
           <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '10px 14px', color: '#f87171', marginBottom: 16, fontSize: 13 }}>
@@ -1747,15 +1786,45 @@ function ActiveRoomsPage() {
 }
 
 // ─── Audit Logs Page ──────────────────────────────────────────────────────────
+// Covers every action string ALL_AUDIT_ACTIONS lists on the backend (server.js)
+// — keep both in sync by hand when a new action is introduced, there's no
+// shared-constants mechanism across the frontend/backend boundary here.
 const ACTION_META = {
-  PERMANENT_BAN_USER:  { label: 'Permanent Ban',   color: '#ef4444' },
-  TEMP_BAN_USER:       { label: 'Temp Ban',         color: '#f59e0b' },
-  UNBAN_USER:          { label: 'Unban',            color: '#10b981' },
-  TERMINATE_USER:      { label: 'Terminate',        color: '#dc2626' },
-  FORCE_CLOSE_ROOM:    { label: 'Force Close Room', color: '#8b5cf6' },
-  KICK_USER_FROM_ROOM: { label: 'Kick from Room',   color: '#f59e0b' },
-  DELETE_ROOM:         { label: 'Delete Room',      color: '#dc2626' },
-  RESOLVE_REPORT:      { label: 'Resolve Report',   color: '#10b981' },
+  // Destructive / irreversible
+  PERMANENT_BAN_USER:  { label: 'Permanent Ban',    color: '#ef4444' },
+  TERMINATE_USER:      { label: 'Terminate',         color: '#dc2626' },
+  DELETE_ROOM:         { label: 'Delete Room',       color: '#dc2626' },
+  SUPPORT_ATTACHMENT_DELETED: { label: 'Attachment Deleted', color: '#dc2626' },
+  ADMIN_ACCESS_DISABLED: { label: 'Access Disabled', color: '#dc2626' },
+  ADMIN_INVITE_REVOKED: { label: 'Invite Revoked',   color: '#dc2626' },
+  LEGAL_REQUEST_DELETED: { label: 'Legal Request Deleted', color: '#dc2626' },
+  // Temporary / warning
+  TEMP_BAN_USER:        { label: 'Temp Ban',         color: '#f59e0b' },
+  KICK_USER_FROM_ROOM:  { label: 'Kick from Room',   color: '#f59e0b' },
+  // Resolved / positive
+  UNBAN_USER:            { label: 'Unban',           color: '#10b981' },
+  REPORT_RESOLVED:       { label: 'Report Resolved', color: '#10b981' },
+  SUPPORT_REQUEST_RESOLVED: { label: 'Ticket Resolved', color: '#10b981' },
+  // Dismissed (final, non-destructive)
+  REPORT_DISMISSED:          { label: 'Report Dismissed', color: '#94a3b8' },
+  SUPPORT_REQUEST_DISMISSED: { label: 'Ticket Dismissed',  color: '#94a3b8' },
+  // Room actions
+  FORCE_CLOSE_ROOM:    { label: 'Force Close Room',  color: '#8b5cf6' },
+  // Routine / neutral
+  REPORT_ASSIGNED:            { label: 'Report Assigned',    color: '#3b82f6' },
+  REPORT_NOTE_ADDED:          { label: 'Report Note Added',  color: '#3b82f6' },
+  SUPPORT_REQUEST_ASSIGNED:   { label: 'Ticket Assigned',    color: '#3b82f6' },
+  SUPPORT_REQUEST_NOTE_ADDED: { label: 'Ticket Note Added',  color: '#3b82f6' },
+  SUPPORT_REQUEST_UPDATED:    { label: 'Ticket Updated',     color: '#3b82f6' },
+  // Admin-team management — matches AdminTeamPage's own ROLE_COLORS palette
+  ADMIN_ROLE_CHANGED:    { label: 'Role Changed',    color: '#6366f1' },
+  ADMIN_INVITE_SENT:     { label: 'Invite Sent',     color: '#6366f1' },
+  ADMIN_INVITE_RESENT:   { label: 'Invite Resent',   color: '#6366f1' },
+  ADMIN_INVITE_ACCEPTED: { label: 'Invite Accepted', color: '#6366f1' },
+  // Legal / data requests
+  LEGAL_REQUEST_CREATED:        { label: 'Legal Request Created', color: '#14b8a6' },
+  LEGAL_REQUEST_UPDATED:        { label: 'Legal Request Updated', color: '#14b8a6' },
+  LEGAL_REQUEST_STATUS_CHANGED: { label: 'Legal Status Changed',  color: '#14b8a6' },
 };
 
 function AuditLogsPage() {
@@ -1767,14 +1836,58 @@ function AuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  function load(p = 1) {
+  const [filterAdmin, setFilterAdmin] = useState('');
+  const [filterAction, setFilterAction] = useState('');
+  const [filterTarget, setFilterTarget] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterOptions, setFilterOptions] = useState({ admins: [], actions: [] });
+  const targetSearchTimer = useRef(null);
+
+  const T = isLight
+    ? { inputBg: '#ffffff', inputBorder: '#d1d5db', text: '#374151' }
+    : { inputBg: 'rgba(255,255,255,0.05)', inputBorder: 'rgba(255,255,255,0.12)', text: '#fff' };
+  const inputStyle = { padding: '7px 10px', borderRadius: 8, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, fontSize: 12.5, outline: 'none', fontFamily: 'inherit' };
+
+  const load = useCallback((p = 1, overrides = {}) => {
     setLoading(true);
-    apiFetch(`/api/admin/audit-logs?page=${p}&limit=25`)
+    const params = new URLSearchParams({ page: p, limit: 25 });
+    const adminEmail = overrides.filterAdmin ?? filterAdmin;
+    const action = overrides.filterAction ?? filterAction;
+    const targetSearch = overrides.filterTarget ?? filterTarget;
+    const dateFrom = overrides.filterDateFrom ?? filterDateFrom;
+    const dateTo = overrides.filterDateTo ?? filterDateTo;
+    if (adminEmail) params.set('adminEmail', adminEmail);
+    if (action) params.set('action', action);
+    if (targetSearch) params.set('targetSearch', targetSearch);
+    if (dateFrom) params.set('dateFrom', dateFrom);
+    if (dateTo) params.set('dateTo', dateTo);
+    apiFetch(`/api/admin/audit-logs?${params}`)
       .then(d => { setLogs(d.logs); setTotal(d.total); setPage(d.page); setPages(d.pages || 1); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
-  }
+  }, [filterAdmin, filterAction, filterTarget, filterDateFrom, filterDateTo]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    apiFetch('/api/admin/audit-logs/filters')
+      .then(d => setFilterOptions({ admins: d.admins || [], actions: d.actions || [] }))
+      .catch(() => {});
+  }, []);
+
+  function handleTargetSearch(val) {
+    setFilterTarget(val);
+    clearTimeout(targetSearchTimer.current);
+    targetSearchTimer.current = setTimeout(() => load(1, { filterTarget: val }), 350);
+  }
+  function handleAdminChange(val) { setFilterAdmin(val); load(1, { filterAdmin: val }); }
+  function handleActionChange(val) { setFilterAction(val); load(1, { filterAction: val }); }
+  function handleDateFromChange(val) { setFilterDateFrom(val); load(1, { filterDateFrom: val }); }
+  function handleDateToChange(val) { setFilterDateTo(val); load(1, { filterDateTo: val }); }
+  function clearFilters() {
+    setFilterAdmin(''); setFilterAction(''); setFilterTarget(''); setFilterDateFrom(''); setFilterDateTo('');
+    load(1, { filterAdmin: '', filterAction: '', filterTarget: '', filterDateFrom: '', filterDateTo: '' });
+  }
+  const hasActiveFilters = filterAdmin || filterAction || filterTarget || filterDateFrom || filterDateTo;
 
   return (
     <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
@@ -1801,6 +1914,30 @@ function AuditLogsPage() {
         }}>
           <RefreshCw size={14} /> Refresh
         </button>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+        <select value={filterAdmin} onChange={e => handleAdminChange(e.target.value)} style={inputStyle}>
+          <option value="">All admins</option>
+          {filterOptions.admins.map(a => <option key={a.admin_user_id} value={a.admin_email}>{a.admin_email}</option>)}
+        </select>
+        <select value={filterAction} onChange={e => handleActionChange(e.target.value)} style={inputStyle}>
+          <option value="">All actions</option>
+          {filterOptions.actions.map(a => <option key={a} value={a}>{ACTION_META[a]?.label || a}</option>)}
+        </select>
+        <input
+          value={filterTarget}
+          onChange={e => handleTargetSearch(e.target.value)}
+          placeholder="Search target username or email…"
+          style={{ ...inputStyle, width: 220 }}
+        />
+        <input type="date" value={filterDateFrom} onChange={e => handleDateFromChange(e.target.value)} style={inputStyle} title="From date" />
+        <input type="date" value={filterDateTo} onChange={e => handleDateToChange(e.target.value)} style={inputStyle} title="To date" />
+        {hasActiveFilters && (
+          <button onClick={clearFilters} style={{ background: 'none', border: 'none', color: isLight ? '#6b7280' : 'rgba(255,255,255,0.5)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', padding: '7px 4px' }}>
+            Clear filters
+          </button>
+        )}
       </div>
 
       {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, fontSize: 14 }}>{error}</div>}
@@ -1853,6 +1990,390 @@ function AuditLogsPage() {
         </table>
       </div>
       {pages > 1 && <Pagination page={page} pages={pages} onPage={p => { setPage(p); load(p); }} />}
+    </div>
+  );
+}
+
+// ─── Security Page (rate-limit trigger visibility) ───────────────────────────
+// Nothing was logged anywhere before this — see logRateLimitEvent in
+// server.js. This is automated system telemetry, deliberately its own page/
+// table rather than folded into Audit Logs (which is for human admin
+// actions) — see rate_limit_events' own migration comment for the full
+// reasoning.
+const LIMITER_LABELS = {
+  global: 'Global', login: 'Login', upload: 'Upload', roomCreate: 'Room Create',
+  contact: 'Contact Form', bugReport: 'Bug Report', dmRest: 'DM Send',
+  stream: 'Stream Upload', checkUsername: 'Username Check', thirdPartyProxy: 'TURN/Hyperbeam',
+  chatLock: 'Chat Lock', chatSocket: 'Chat (socket)', mediaControlSocket: 'Media Control (socket)',
+  joinSocket: 'Room Join (socket)', inviteResend: 'Invite Resend',
+};
+function SecurityPage() {
+  const isLight = React.useContext(AdminThemeCtx);
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [events, setEvents] = useState([]);
+  const [eventsTotal, setEventsTotal] = useState(0);
+  const [eventsPage, setEventsPage] = useState(1);
+  const [eventsPages, setEventsPages] = useState(1);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const loadSummary = useCallback(() => {
+    apiFetch('/api/admin/security/rate-limits/summary')
+      .then(d => { setSummary(d); setSummaryLoading(false); })
+      .catch(e => { setError(e.message); setSummaryLoading(false); });
+  }, []);
+  const loadEvents = useCallback((p = 1) => {
+    setEventsLoading(true);
+    apiFetch(`/api/admin/security/rate-limits/events?page=${p}&limit=25`)
+      .then(d => { setEvents(d.events); setEventsTotal(d.total); setEventsPage(d.page); setEventsPages(d.pages || 1); setEventsLoading(false); })
+      .catch(e => { setError(e.message); setEventsLoading(false); });
+  }, []);
+
+  useEffect(() => {
+    loadSummary(); loadEvents();
+    const id = setInterval(loadSummary, 30000);
+    return () => clearInterval(id);
+  }, [loadSummary, loadEvents]);
+
+  function refresh() { loadSummary(); loadEvents(eventsPage); }
+
+  const T = isLight
+    ? { text: '#111827', muted: '#6b7280', card: '#ffffff', cardBorder: '#e5e7eb', th: '#6b7280' }
+    : { text: '#fff', muted: 'rgba(255,255,255,0.5)', card: 'rgba(255,255,255,0.03)', cardBorder: 'rgba(255,255,255,0.08)', th: 'rgba(255,255,255,0.4)' };
+
+  const miniTable = (title, rows, keyLabel) => (
+    <div style={{ flex: 1, minWidth: 240, background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16 }}>
+      <h4 style={{ margin: '0 0 10px', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, color: T.muted }}>{title}</h4>
+      {rows.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 13, color: T.muted }}>None in the last 24h</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {rows.map((r, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: T.text }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r[keyLabel]}</span>
+              <span style={{ fontWeight: 700, color: T.muted, flexShrink: 0, marginLeft: 10 }}>{r.count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+      <div className="admin-reports-header" style={{ marginBottom: 24 }}>
+        <div className="admin-reports-header-left">
+          <div className="admin-reports-title-row">
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: T.text }}>Security</h1>
+            <button className="mobile-refresh-btn" onClick={refresh} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+              <RefreshCw size={14} /> Refresh
+            </button>
+          </div>
+          <p className="admin-reports-count" style={{ margin: '4px 0 0', color: T.muted, fontSize: 14 }}>Rate-limit triggers, last 24 hours</p>
+        </div>
+        <button className="desktop-refresh-btn" onClick={refresh} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </div>
+
+      {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, fontSize: 14 }}>{error}</div>}
+
+      {summaryLoading ? (
+        <p style={{ color: T.muted, fontSize: 14 }}>Loading…</p>
+      ) : summary && (
+        <>
+          <div className="admin-stat-row" style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
+            <StatCard label="Rate-limit hits (24h)" value={summary.totalLast24h.toLocaleString()} icon={ShieldAlert} color="#ef4444" />
+          </div>
+
+          <div style={{ background: T.card, border: `1px solid ${T.cardBorder}`, borderRadius: 14, padding: 16, marginBottom: 20 }}>
+            <h4 style={{ margin: '0 0 12px', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, color: T.muted }}>By Limiter</h4>
+            {summary.byLimiter.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 13, color: T.muted }}>No triggers in the last 24h</p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {summary.byLimiter.map(l => (
+                  <span key={l.limiter_name} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 99, fontSize: 12.5, fontWeight: 700, background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}>
+                    {LIMITER_LABELS[l.limiter_name] || l.limiter_name} · {l.count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 24 }}>
+            {miniTable('Top IPs', summary.topIps, 'ip')}
+            {miniTable('Top Accounts', summary.topAccounts, 'username')}
+          </div>
+        </>
+      )}
+
+      <h4 style={{ margin: '0 0 12px', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, color: T.muted }}>Recent Events ({eventsTotal.toLocaleString()})</h4>
+      <div style={{ borderRadius: 16, border: `1px solid ${T.cardBorder}`, overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 700 }}>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+              {['Timestamp', 'Limiter', 'IP', 'Account', 'Path'].map(h => (
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', color: T.th, fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {eventsLoading ? (
+              <tr><td colSpan={5} style={{ padding: '40px 0', textAlign: 'center', color: T.muted }}>Loading…</td></tr>
+            ) : events.length === 0 ? (
+              <tr><td colSpan={5} style={{ padding: '40px 0', textAlign: 'center', color: T.muted }}>No rate-limit events yet</td></tr>
+            ) : events.map(ev => (
+              <tr key={ev.id} style={{ borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '10px 16px', color: T.muted, fontSize: 12, whiteSpace: 'nowrap' }}>
+                  {new Date(ev.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </td>
+                <td style={{ padding: '10px 16px', fontSize: 12.5, color: T.text }}>{LIMITER_LABELS[ev.limiter_name] || ev.limiter_name}</td>
+                <td style={{ padding: '10px 16px', fontSize: 12, color: T.muted }}>{ev.ip || '—'}</td>
+                <td style={{ padding: '10px 16px', fontSize: 12, color: T.muted }}>{ev.username || '—'}</td>
+                <td style={{ padding: '10px 16px', fontSize: 12, color: T.muted, maxWidth: 260 }}>
+                  <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={ev.path || ''}>{ev.path || '—'}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {eventsPages > 1 && <Pagination page={eventsPage} pages={eventsPages} onPage={p => loadEvents(p)} />}
+    </div>
+  );
+}
+
+// ─── Legal / Data Requests Log ────────────────────────────────────────────────
+const LEGAL_REQUEST_STATUSES = ['pending', 'fulfilled', 'declined'];
+const legalStatusColors = (isLight) => (isLight ? {
+  pending:   { bg: 'rgba(245,158,11,0.12)', color: '#d97706', border: 'rgba(245,158,11,0.25)' },
+  fulfilled: { bg: 'rgba(16,185,129,0.12)', color: '#059669', border: 'rgba(16,185,129,0.25)' },
+  declined:  { bg: 'rgba(239,68,68,0.1)',   color: '#dc2626', border: 'rgba(239,68,68,0.25)' },
+} : {
+  pending:   { bg: 'rgba(245,158,11,0.15)', color: '#fbbf24', border: 'rgba(245,158,11,0.3)' },
+  fulfilled: { bg: 'rgba(16,185,129,0.15)', color: '#34d399', border: 'rgba(16,185,129,0.3)' },
+  declined:  { bg: 'rgba(239,68,68,0.15)',  color: '#f87171', border: 'rgba(239,68,68,0.3)' },
+});
+
+// Handles both create (POST) and edit (PATCH) — same field set either way,
+// matching this file's usual dedicated-modal-per-entity pattern (BanModal,
+// TerminateModal) rather than an inline-editable table row.
+function LegalRequestModal({ existing, onClose, onSaved }) {
+  const isLight = React.useContext(AdminThemeCtx);
+  const isEdit = !!existing;
+  const [dateReceived, setDateReceived] = useState(existing?.date_received ? existing.date_received.slice(0, 10) : '');
+  const [requestingAuthority, setRequestingAuthority] = useState(existing?.requesting_authority || '');
+  const [requestDetails, setRequestDetails] = useState(existing?.request_details || '');
+  const [providedDetails, setProvidedDetails] = useState(existing?.provided_details || '');
+  const [status, setStatus] = useState(existing?.status || 'pending');
+  const [internalNotes, setInternalNotes] = useState(existing?.internal_notes || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const canSave = dateReceived && requestingAuthority.trim() && requestDetails.trim();
+  const T = isLight
+    ? { text: '#111827', muted: '#6b7280', inputBg: '#ffffff', inputBorder: '#d1d5db' }
+    : { text: '#fff', muted: 'rgba(255,255,255,0.5)', inputBg: 'rgba(255,255,255,0.05)', inputBorder: 'rgba(255,255,255,0.12)' };
+  const fieldStyle = { width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${T.inputBorder}`, background: T.inputBg, color: T.text, fontSize: 13.5, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' };
+  const labelStyle = { display: 'block', fontSize: 11.5, fontWeight: 700, color: T.muted, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 6 };
+
+  async function save() {
+    if (!canSave) return;
+    setSaving(true); setError('');
+    try {
+      const body = { dateReceived, requestingAuthority: requestingAuthority.trim(), requestDetails: requestDetails.trim(), providedDetails: providedDetails.trim() || null, status, internalNotes: internalNotes.trim() || null };
+      if (isEdit) await apiFetch(`/api/admin/legal-requests/${existing.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      else await apiFetch('/api/admin/legal-requests', { method: 'POST', body: JSON.stringify(body) });
+      onSaved();
+      onClose();
+    } catch (e) { setError(e.message); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="admin-modal-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 10000, background: isLight ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.4)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div className="admin-modal-card" onClick={e => e.stopPropagation()} style={{ background: isLight ? '#ffffff' : '#111827', border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.1)', borderRadius: 18, width: '100%', maxWidth: 480, maxHeight: '88vh', overflowY: 'auto', padding: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.text }}>{isEdit ? 'Edit Legal Request' : 'New Legal Request'}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: T.muted, cursor: 'pointer', padding: 4, display: 'flex' }}><X size={20} /></button>
+        </div>
+
+        {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 10, padding: '10px 14px', color: '#f87171', marginBottom: 16, fontSize: 13 }}>{error}</div>}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={labelStyle}>Date Received</label>
+            <input type="date" value={dateReceived} onChange={e => setDateReceived(e.target.value)} style={fieldStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Requesting Authority</label>
+            <input value={requestingAuthority} onChange={e => setRequestingAuthority(e.target.value)} placeholder="e.g. FBI, Metropolitan Police…" style={fieldStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>What Was Requested</label>
+            <textarea value={requestDetails} onChange={e => setRequestDetails(e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical' }} />
+          </div>
+          <div>
+            <label style={labelStyle}>What Was Provided</label>
+            <textarea value={providedDetails} onChange={e => setProvidedDetails(e.target.value)} rows={3} style={{ ...fieldStyle, resize: 'vertical' }} />
+          </div>
+          <div>
+            <label style={labelStyle}>Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)} style={fieldStyle}>
+              {LEGAL_REQUEST_STATUSES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Internal Notes <span style={{ textTransform: 'none', fontWeight: 400 }}>(never shown externally)</span></label>
+            <textarea value={internalNotes} onChange={e => setInternalNotes(e.target.value)} rows={2} style={{ ...fieldStyle, resize: 'vertical' }} />
+          </div>
+        </div>
+
+        <button className="stay-white" onClick={save} disabled={!canSave || saving} style={{
+          width: '100%', marginTop: 22, padding: '12px 0', borderRadius: 12, border: 'none',
+          background: canSave && !saving ? 'var(--brand-1)' : (isLight ? '#e2e8f0' : 'rgba(var(--brand-1-rgb),0.25)'),
+          color: isLight ? (canSave && !saving ? '#fff' : '#000') : '#fff', fontWeight: 800, fontSize: 15, cursor: canSave && !saving ? 'pointer' : 'not-allowed',
+        }}>
+          {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Request'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LegalRequestsPage() {
+  const isLight = React.useContext(AdminThemeCtx);
+  const [requests, setRequests] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [modalMode, setModalMode] = useState(null); // null | 'create' | request object being edited
+  const [confirmModal, setConfirmModal] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  const STATUS_C = legalStatusColors(isLight);
+  const T = isLight
+    ? { text: '#111827', muted: '#6b7280', cardBorder: '#e5e7eb', th: '#6b7280', inputBg: '#ffffff', inputBorder: '#d1d5db' }
+    : { text: '#fff', muted: 'rgba(255,255,255,0.5)', cardBorder: 'rgba(255,255,255,0.08)', th: 'rgba(255,255,255,0.4)', inputBg: 'rgba(255,255,255,0.05)', inputBorder: 'rgba(255,255,255,0.12)' };
+
+  const load = useCallback((p = 1, sf = statusFilter) => {
+    setLoading(true);
+    const params = new URLSearchParams({ page: p, limit: 20 });
+    if (sf) params.set('status', sf);
+    apiFetch(`/api/admin/legal-requests?${params}`)
+      .then(d => { setRequests(d.requests); setTotal(d.total); setPage(d.page); setPages(d.pages || 1); setLoading(false); })
+      .catch(e => { setError(e.message); setLoading(false); });
+  }, [statusFilter]);
+
+  useEffect(() => { load(); }, []);
+
+  function handleStatusFilter(sf) { setStatusFilter(sf); load(1, sf); }
+
+  function askDelete(req) {
+    setConfirmModal({
+      title: 'Delete Legal Request',
+      message: `Remove the legal request from ${req.requesting_authority} (received ${new Date(req.date_received).toLocaleDateString()})? This can be restored by an engineer if needed, but will disappear from this list.`,
+      confirmWord: 'DELETE',
+      destructive: true,
+      onConfirm: async () => {
+        setConfirmLoading(true);
+        try { await apiFetch(`/api/admin/legal-requests/${req.id}`, { method: 'DELETE' }); load(page); setConfirmModal(null); }
+        catch (e) { alert(`Failed: ${e.message}`); }
+        setConfirmLoading(false);
+      }
+    });
+  }
+
+  return (
+    <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+      <div className="admin-reports-header" style={{ marginBottom: 24 }}>
+        <div className="admin-reports-header-left">
+          <div className="admin-reports-title-row">
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: T.text }}>Legal Requests</h1>
+            <button onClick={() => setModalMode('create')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--brand-1)', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+              <Plus size={14} /> New Request
+            </button>
+          </div>
+          <p className="admin-reports-count" style={{ margin: '4px 0 0', color: T.muted, fontSize: 14 }}>{total.toLocaleString()} total · government / law-enforcement data requests</p>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {['', ...LEGAL_REQUEST_STATUSES].map(s => (
+          <button key={s || 'all'} onClick={() => handleStatusFilter(s)} style={{
+            padding: '6px 14px', borderRadius: 99, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+            border: `1px solid ${statusFilter === s ? 'var(--brand-1)' : T.inputBorder}`,
+            background: statusFilter === s ? 'rgba(var(--brand-1-rgb),0.12)' : T.inputBg,
+            color: statusFilter === s ? 'var(--brand-1)' : T.muted,
+          }}>
+            {s ? s.charAt(0).toUpperCase() + s.slice(1) : 'All'}
+          </button>
+        ))}
+      </div>
+
+      {error && <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', color: '#f87171', marginBottom: 20, fontSize: 14 }}>{error}</div>}
+
+      <div style={{ borderRadius: 16, border: `1px solid ${T.cardBorder}`, overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 760 }}>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${T.cardBorder}` }}>
+              {['Date Received', 'Authority', 'Status', 'Requested', 'Actions'].map(h => (
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'left', color: T.th, fontWeight: 700, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={5} style={{ padding: '40px 0', textAlign: 'center', color: T.muted }}>Loading…</td></tr>
+            ) : requests.length === 0 ? (
+              <tr><td colSpan={5} style={{ padding: '40px 0', textAlign: 'center', color: T.muted }}>No legal requests logged yet</td></tr>
+            ) : requests.map(r => (
+              <tr key={r.id} style={{ borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '10px 16px', color: T.muted, fontSize: 12, whiteSpace: 'nowrap' }}>{new Date(r.date_received).toLocaleDateString()}</td>
+                <td style={{ padding: '10px 16px', color: T.text, fontSize: 13 }}>{r.requesting_authority}</td>
+                <td style={{ padding: '10px 16px' }}>
+                  <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700, background: STATUS_C[r.status]?.bg, color: STATUS_C[r.status]?.color, border: `1px solid ${STATUS_C[r.status]?.border}` }}>
+                    {r.status}
+                  </span>
+                </td>
+                <td style={{ padding: '10px 16px', color: T.muted, fontSize: 12, maxWidth: 260 }}>
+                  <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.request_details}>{r.request_details}</span>
+                </td>
+                <td style={{ padding: '10px 16px', whiteSpace: 'nowrap' }}>
+                  <button onClick={() => setModalMode(r)} style={{ background: 'none', border: 'none', color: 'var(--brand-1)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, marginRight: 12 }}>Edit</button>
+                  <button onClick={() => askDelete(r)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12.5, fontWeight: 700 }}>Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {pages > 1 && <Pagination page={page} pages={pages} onPage={p => load(p)} />}
+
+      {modalMode && (
+        <LegalRequestModal
+          existing={modalMode === 'create' ? null : modalMode}
+          onClose={() => setModalMode(null)}
+          onSaved={() => load(page)}
+        />
+      )}
+
+      {confirmModal && (
+        <ConfirmModal
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmWord={confirmModal.confirmWord}
+          destructive={confirmModal.destructive}
+          loading={confirmLoading}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => { setConfirmModal(null); setConfirmLoading(false); }}
+        />
+      )}
     </div>
   );
 }
@@ -3591,6 +4112,8 @@ const BASE_NAV = [
   { id: 'rooms', label: 'Active Rooms', icon: Activity, roles: ['super_admin', 'admin', 'moderator'] },
   { id: 'reports', label: 'Reports', icon: FileText, roles: ['super_admin', 'admin', 'moderator'] },
   { id: 'audit', label: 'Audit Logs', icon: Shield, roles: ['super_admin', 'admin'] },
+  { id: 'security', label: 'Security', icon: ShieldAlert, roles: ['super_admin', 'admin'] },
+  { id: 'legal', label: 'Legal Requests', icon: Scale, roles: ['super_admin', 'admin'] },
   { id: 'support', label: 'Support Inbox', icon: Inbox, roles: ['super_admin', 'admin', 'moderator', 'support'] },
   { id: 'team', label: 'Admin Team', icon: UserCog, roles: ['super_admin', 'admin', 'moderator', 'support'] },
 ];
@@ -3845,6 +4368,8 @@ export default function Admin() {
             {tab === 'rooms' && <ActiveRoomsPage />}
             {tab === 'reports' && <ReportsPage refreshBadges={refreshBadges} />}
             {tab === 'audit' && <AuditLogsPage />}
+            {tab === 'security' && <SecurityPage />}
+            {tab === 'legal' && <LegalRequestsPage />}
             {tab === 'support' && <SupportInboxPage refreshBadges={refreshBadges} initialTicketId={pendingTicketId} onInitialTicketConsumed={() => setPendingTicketId(null)} />}
             {tab === 'team' && <AdminTeamPage refreshBadges={refreshBadges} onOpenTicket={(id) => { setPendingTicketId(id); setTab('support'); }} />}
           </>
