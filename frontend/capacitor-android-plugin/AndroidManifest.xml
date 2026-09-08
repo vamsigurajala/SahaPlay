@@ -25,12 +25,23 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- windowSoftInputMode wasn't set at all before (this is the confirmed
+             unmodified `cap add android` default) — without it, the system decides
+             how the window reacts to the on-screen keyboard, and was leaving
+             Room.jsx's fixed-position full-screen layout sized to the full physical
+             screen with the keyboard just drawn on top of it, so the chat composer
+             pinned near its bottom rendered underneath the keyboard instead of
+             above it. adjustResize is what actually shrinks the window (and
+             therefore window.innerHeight / the WebView's layout) when the keyboard
+             opens, which Room.jsx's own visualViewport-based sizing (see the
+             room-container comment in Room.jsx) also now depends on. -->
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
             android:name=".MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
 
             <intent-filter>

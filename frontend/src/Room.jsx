@@ -3344,31 +3344,53 @@ const Room = () => {
   // for the in-room call view, not just movies/games.
   const canPeekGesture = isMobile && !isTvMode && !isMobileFsMode && (!!mediaUrl || isScreensharing || isViewer);
 
-  // Mobile "game/media above chat" layout: the player column sits at a fixed
-  // 260px (see .mob-media-active .room-player-col in index.css) regardless of
-  // the on-screen keyboard. When the keyboard opens for the chat composer
-  // below it, that fixed 260px was squeezing the remaining space so hard the
-  // composer ended up hidden behind the keyboard, with only wasted blank
-  // space (the game iframe not filling its own box) visible above it. Once
-  // the keyboard opens, shrink the player column down to a small strip via
-  // the same --peek-player-height channel the pull-to-expand gesture already
-  // drives, freeing that space back to the chat panel so its composer stays
-  // visible right above the keyboard. Not applied to isCallActivity — a call
-  // tile has its own much taller 62vh/340px floor for a reason (see
-  // getPeekBaseHeight above) and isn't usually being typed into at the same
-  // time as the keyboard is open.
-  const [isChatKeyboardOpen, setIsChatKeyboardOpen] = useState(false);
+  // The actual root cause of the whole keyboard family of bugs (composer
+  // hidden behind the keyboard, header flashing on top of the game for a
+  // frame, chat visibly "jumping"): the mobile root container below
+  // (position:fixed, inset 0) is sized against the LAYOUT viewport, which
+  // this custom AndroidManifest.xml (capacitor-android-plugin/AndroidManifest.xml,
+  // copied wholesale over Capacitor's own generated one — see
+  // android-capacitor-build.yml) never declares windowSoftInputMode for, and
+  // even where a WebView does shrink window.innerHeight, position:fixed's
+  // top/bottom:0 is classically NOT guaranteed to track the smaller visual
+  // viewport a keyboard leaves behind. Either way the fixed root's real
+  // height stayed the full physical screen with the keyboard just overlaid
+  // on top of it — so anything pinned to its bottom (the composer) rendered
+  // UNDER the keyboard, and the browser's own "scroll the focused input into
+  // view" compensation (which pans/scrolls content the app itself doesn't
+  // control) is what produced the header/composer glitching, not anything
+  // fixable by chasing scroll positions inside individual chat panels.
+  //
+  // The fix: track window.visualViewport.height directly and use it as the
+  // root container's explicit height on mobile (see the render below) —
+  // once the root box itself genuinely shrinks to the real visible area, the
+  // existing flex layout (room-player-col + room-right-column) naturally
+  // re-fits within it on its own, the composer always lands inside the
+  // visible region, and the browser never needs to auto-scroll anything to
+  // compensate — removing the glitch at its source rather than reacting to it.
+  const [visualViewportHeight, setVisualViewportHeight] = useState(() => (
+    typeof window !== 'undefined' ? (window.visualViewport?.height || window.innerHeight) : undefined
+  ));
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv || !isMobile) return;
-    const KEYBOARD_HEIGHT_THRESHOLD = 150;
-    const handler = () => {
-      setIsChatKeyboardOpen(window.innerHeight - vv.height > KEYBOARD_HEIGHT_THRESHOLD);
-    };
+    const handler = () => setVisualViewportHeight(vv.height);
     vv.addEventListener('resize', handler);
     handler();
     return () => vv.removeEventListener('resize', handler);
   }, [isMobile]);
+  // Once the root container above genuinely shrinks with the keyboard, the
+  // fixed 260px game strip (see .mob-media-active .room-player-col in
+  // index.css) can still eat most of what little height is left on a
+  // shorter phone. Shrinking it further while the keyboard is open — same
+  // --peek-player-height channel the pull-to-expand gesture already drives —
+  // gives chat (and specifically the composer) more breathing room instead
+  // of just barely clearing the keyboard. Not applied to isCallActivity — a
+  // call tile has its own much taller 62vh/340px floor for a reason (see
+  // getPeekBaseHeight above) and isn't usually being typed into at the same
+  // time as the keyboard is open.
+  const isChatKeyboardOpen = isMobile && typeof window !== 'undefined' && visualViewportHeight != null
+    && (window.screen.height - visualViewportHeight) > 150;
 
   const startPeekDrag = (e) => {
     if (!canPeekGesture) return;
@@ -10461,7 +10483,14 @@ const Room = () => {
       style={{
         position: isMobile ? 'fixed' : 'relative',
         ...(isMobile
-          ? { top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' }
+          // Explicit height bound to visualViewport instead of bottom:0 —
+          // see visualViewportHeight's own comment above for why bottom:0
+          // alone left this box sized to the full screen even with the
+          // keyboard open, hiding the composer underneath it. Falls back to
+          // 100dvh (dynamic viewport height, itself keyboard-aware on
+          // platforms that support it) for the one render before the
+          // visualViewport effect's first measurement lands.
+          ? { top: 0, left: 0, right: 0, height: visualViewportHeight ? `${visualViewportHeight}px` : '100dvh', overflow: 'hidden' }
           : { height: '100dvh' }
         ),
         display: 'flex', flexDirection: 'column',
