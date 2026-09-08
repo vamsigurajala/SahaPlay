@@ -2943,11 +2943,12 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
       {resolveConfirm && (
         <div className="admin-modal-overlay" onClick={() => { setResolveConfirm(null); setResolveMessage(''); }} style={{ position: 'fixed', inset: 0, background: isLight ? 'rgba(15,23,42,0.35)' : 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99998, padding: 20 }}>
           <div className="admin-modal-card" onClick={e => e.stopPropagation()} style={{
-            // Light mode: a frosted glass card (translucent + blurred), not a
-            // flat white box — matches what was asked for specifically here.
-            background: isLight ? 'rgba(255,255,255,0.78)' : 'linear-gradient(135deg,#0a1a12,#091310)',
-            backdropFilter: isLight ? 'blur(20px) saturate(180%)' : 'none',
-            WebkitBackdropFilter: isLight ? 'blur(20px) saturate(180%)' : 'none',
+            // Light mode: solid opaque white — the earlier translucent/blurred
+            // version read as a washed-out grey (its ~78% alpha blending with
+            // whatever showed through the backdrop blur), not the clean white
+            // this was corrected to. The surrounding overlay above still
+            // carries its own blur, dimming the page behind the modal.
+            background: isLight ? '#ffffff' : 'linear-gradient(135deg,#0a1a12,#091310)',
             border: isLight ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(16,185,129,0.35)',
             borderRadius: 20, padding: 32, maxWidth: 460, width: '100%',
             boxShadow: isLight ? '0 24px 64px rgba(15,23,42,0.18)' : '0 24px 64px rgba(0,0,0,0.5)',
