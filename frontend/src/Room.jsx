@@ -5897,7 +5897,14 @@ const Room = () => {
     };
 
     sock.on('webrtc_viewer_joined', async vid => {
+      // A viewer can send its join request in the same tick the host calls
+      // setIsScreensharing(true) — localStreamRef may not be populated for a
+      // few ms. Dropping the request outright (old behaviour) left that
+      // viewer on a permanently black screen. Wait briefly for the stream.
+      let tries = 0;
+      while (!localStreamRef.current && tries++ < 30) await new Promise(r => setTimeout(r, 100));
       if (!localStreamRef.current) return;
+      peerConnectionsRef.current[vid]?.close();
       const iceServers = await getSharedIceServers();
       const peer = new RTCPeerConnection({ iceServers });
       peerConnectionsRef.current[vid] = peer;
@@ -5905,6 +5912,18 @@ const Room = () => {
       localStreamRef.current.getTracks().forEach(t => peer.addTrack(t, localStreamRef.current));
       peer.onicecandidate = e => {
         if (e.candidate) sock.emit('webrtc_ice_candidate', { targetSocketId: vid, candidate: e.candidate });
+      };
+      let hostRestarted = false;
+      peer.oniceconnectionstatechange = async () => {
+        console.log(`[RTC host→${vid}] ice:`, peer.iceConnectionState);
+        if ((peer.iceConnectionState === 'failed' || peer.iceConnectionState === 'disconnected') && !hostRestarted) {
+          hostRestarted = true;
+          try {
+            const o = await peer.createOffer({ iceRestart: true });
+            await peer.setLocalDescription(o);
+            sock.emit('webrtc_offer', { targetSocketId: vid, offer: o });
+          } catch (e) { console.warn('[RTC] host ICE restart failed', e); }
+        }
       };
       peer.onconnectionstatechange = () => console.log(`[RTC host→${vid}] connection:`, peer.connectionState);
 
@@ -5914,6 +5933,9 @@ const Room = () => {
     });
 
     sock.on('webrtc_offer', async ({ senderSocketId, offer }) => {
+      // Close any prior PC for this sender (e.g. an ICE-restart re-offer) so we
+      // don't leak it and so the answer below isn't rejected for wrong state.
+      peerConnectionsRef.current[senderSocketId]?.close();
       const iceServers = await getSharedIceServers();
       const peer = new RTCPeerConnection({ iceServers });
       peerConnectionsRef.current[senderSocketId] = peer;
@@ -5928,6 +5950,15 @@ const Room = () => {
       };
       peer.onicecandidate = e => {
         if (e.candidate) sock.emit('webrtc_ice_candidate', { targetSocketId: senderSocketId, candidate: e.candidate });
+      };
+      let viewerRejoined = false;
+      peer.oniceconnectionstatechange = () => {
+        console.log(`[RTC viewer←${senderSocketId}] ice:`, peer.iceConnectionState);
+        if (peer.iceConnectionState === 'failed' && !viewerRejoined) {
+          viewerRejoined = true;
+          // Ask the host to start over (fresh PC + offer with new candidates).
+          sock.emit('webrtc_join_request', { targetSocketId: senderSocketId });
+        }
       };
       peer.onconnectionstatechange = () => console.log(`[RTC viewer←${senderSocketId}] connection:`, peer.connectionState);
 
