@@ -732,6 +732,13 @@ const getActiveMediaName = (mediaUrl) => {
       'yVywAGBQ6': 'Bubble Shooter',
       'UYiznUAya': 'Blazing Blades',
       'B1fSpMkP51m': 'Bottle Shot',
+      'ry8RYrWu4': 'Evil Wyrm',
+      'Skz4pzkDqyX': 'Escape Run',
+      'H1Tz6z1Dqym': 'Bouncy',
+      'NJ3xGOyfb5l': 'Tricky Trip',
+      'SyFcNzAX6': 'Shade Shuffle',
+      'PRbBrRtjr': 'Cricket Mania',
+      'Bk9ynTQqCB': 'Archery Champs',
     };
     for (const [id, name] of Object.entries(gamezopNames)) {
       if (mediaUrl.includes(id)) return name;
