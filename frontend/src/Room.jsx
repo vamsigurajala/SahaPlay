@@ -730,6 +730,8 @@ const getActiveMediaName = (mediaUrl) => {
       'H1Hgyn6XqAS': 'Carrom Hero',
       'UCS62KJ8c': 'Blocks Adventure',
       'yVywAGBQ6': 'Bubble Shooter',
+      'UYiznUAya': 'Blazing Blades',
+      'B1fSpMkP51m': 'Bottle Shot',
     };
     for (const [id, name] of Object.entries(gamezopNames)) {
       if (mediaUrl.includes(id)) return name;
