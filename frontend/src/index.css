@@ -198,6 +198,31 @@ body {
   animation: gradientPan 15s ease infinite alternate;
 }
 
+/* ── Desktop app (.exe / Tauri WebView2) scroll fixes ─────────────────────
+   1. The body's animated gradient background forces WebView2 to repaint the
+      whole page on every scroll frame (it can't composite a scroll whose
+      container has a running background animation), which made Account /
+      App Settings / Profile / Public Rooms scroll sluggish and sticky in
+      the desktop app. The animation is pure ambience — freeze it there so
+      those pages scroll smoothly. Mobile and web keep the animation. */
+html[data-desktop-app='true'] body {
+  animation: none !important;
+  background-position: 0% 50% !important;
+}
+
+/* 2. Inside a room, the desktop app is a fixed-viewport shell — the document
+      itself must never scroll. WebView2 otherwise lets a forced wheel scroll
+      rubber-band the whole page a few px, dragging the room header off-screen
+      over a blank strip. Scoped to desktop + room route (Room.jsx toggles
+      .sp-room-active) so page scrolling everywhere else is untouched. */
+html[data-desktop-app='true'].sp-room-active,
+html[data-desktop-app='true'].sp-room-active body {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
 /* react-hot-toast renders one shared container per <Toaster/> instance with
    this data attribute, hardcoded to `top: 16px` internally — overriding it
    here (needs !important since the library sets it as an inline style)

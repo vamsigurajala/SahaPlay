@@ -9649,6 +9649,23 @@ const Room = () => {
     };
   }, [isTouchPlayer, isMobileFsMode, mediaUrl]);
 
+  // Desktop (.exe / Tauri WebView2) only: while a room is open, hard-lock the
+  // document from scrolling. The room is a fixed-viewport shell with its own
+  // internal scroll panels, so window scroll should always be 0 — but in
+  // WebView2 a sub-pixel/`dvh` rounding difference lets the whole page rubber-
+  // band a few px on a forced wheel scroll, dragging the room header out of
+  // view over a blank strip. `overflow:hidden` on html+body kills that outright.
+  // Scoped to the desktop app + room route so it can't affect Public/Pinned/
+  // Account/Profile page scrolling (which lives on the document itself).
+  useEffect(() => {
+    document.documentElement.classList.add('sp-room-active');
+    document.body.classList.add('sp-room-active');
+    return () => {
+      document.documentElement.classList.remove('sp-room-active');
+      document.body.classList.remove('sp-room-active');
+    };
+  }, []);
+
   const isGuestForLock = localStorage.getItem('watch_is_guest') === 'true' && localStorage.getItem('watch_is_tv') !== 'true';
   const forceMembersOnlyLock = isGuestForLock && room?.settings?.onlyLoggedIn;
 
