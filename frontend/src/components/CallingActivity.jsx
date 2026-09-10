@@ -13,6 +13,7 @@ export default function CallingActivity({
   toggleMic,
   flipCamera,
   isCoarsePointer,
+  isMobile,
   username,
   isFullscreen,
   onToggleFullscreen,
@@ -47,6 +48,32 @@ export default function CallingActivity({
     } else {
       resetHideTimer();
     }
+  };
+
+  // Toggle on pointerup (fires on release, no ~300ms synthesized-click wait that
+  // made the controls feel unresponsive to the first tap on mobile). A move
+  // beyond ~10px is a scroll/drag, not a tap. suppressClickRef stops the
+  // trailing synthetic click from double-toggling it right back.
+  const tapDownRef = useRef(null);
+  const suppressClickRef = useRef(false);
+
+  const handleStagePointerDown = (e) => {
+    tapDownRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleStagePointerUp = (e) => {
+    const d = tapDownRef.current;
+    tapDownRef.current = null;
+    if (!d) return;
+    if (Math.abs(e.clientX - d.x) > 10 || Math.abs(e.clientY - d.y) > 10) return;
+    suppressClickRef.current = true;
+    setTimeout(() => { suppressClickRef.current = false; }, 400);
+    handleStageTap();
+  };
+
+  const handleStageClick = () => {
+    if (suppressClickRef.current) { suppressClickRef.current = false; return; }
+    handleStageTap();
   };
 
   useEffect(() => {
@@ -153,6 +180,11 @@ export default function CallingActivity({
   const isDuoVideo = mode === 'video' && participants.length === 2;
   const remoteParticipant = participants.find(p => !p.isLocal);
   const localParticipant = participants.find(p => p.isLocal);
+  // Mobile voice call: drop the tiny 2-up grid and show the other person's
+  // avatar filling the screen, like a normal phone call. Group voice (3+) and
+  // every video call keep their existing layouts.
+  const isVoiceSolo = isMobile && mode === 'voice' && joined && participants.length <= 2;
+  const soloParticipant = remoteParticipant || localParticipant;
   const effectiveMainId = (mainParticipantId && participants.some(p => p.id === mainParticipantId))
     ? mainParticipantId
     : (remoteParticipant ? remoteParticipant.id : localParticipant?.id);
@@ -266,7 +298,7 @@ export default function CallingActivity({
   const renderOverlayInfo = (p, compact) => (
     <div
       className={`tile-overlay-info ${compact ? 'compact' : ''}`}
-      style={{ opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: 'none' }}
+      style={{ opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.14s ease', pointerEvents: 'none' }}
     >
       <span className="p-name stay-white">{p.username}</span>
       <div className="p-icons">
@@ -283,7 +315,9 @@ export default function CallingActivity({
     <div
       className="calling-container"
       onMouseMove={joined ? resetHideTimer : undefined}
-      onClick={joined ? handleStageTap : undefined}
+      onPointerDown={joined ? handleStagePointerDown : undefined}
+      onPointerUp={joined ? handleStagePointerUp : undefined}
+      onClick={joined ? handleStageClick : undefined}
     >
 
       {/* E2EE badge — only in lobby, hidden once call is active */}
@@ -363,7 +397,12 @@ export default function CallingActivity({
         </div>
       ) : (
         <div className="call-grid-container">
-          {isDuoVideo && mainParticipant && pipParticipant ? (
+          {isVoiceSolo && soloParticipant ? (
+            <div className="call-solo-stage">
+              {renderParticipantMedia(soloParticipant)}
+              {renderOverlayInfo(soloParticipant, false)}
+            </div>
+          ) : isDuoVideo && mainParticipant && pipParticipant ? (
             <div className="call-stage" ref={stageRef}>
               <div className="stage-main-tile" style={{ background: cardBg, border: borderStyle }}>
                 {renderParticipantMedia(mainParticipant)}
@@ -402,7 +441,7 @@ export default function CallingActivity({
           <div
             className="call-controls-dock"
             onClick={(e) => e.stopPropagation()}
-            style={{ opacity: controlsVisible ? 1 : 0, pointerEvents: controlsVisible ? 'auto' : 'none', transition: 'opacity 0.3s ease' }}
+            style={{ opacity: controlsVisible ? 1 : 0, pointerEvents: controlsVisible ? 'auto' : 'none', transition: 'opacity 0.14s ease' }}
           >
             <button
               onClick={toggleMic}
@@ -607,6 +646,41 @@ export default function CallingActivity({
           border-radius: 14px;
           overflow: hidden;
         }
+
+        /* Mobile voice call: other person's avatar fills the screen */
+        .call-solo-stage {
+          position: relative;
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+        .call-solo-stage .avatar-img-mid,
+        .call-solo-stage .avatar-circle-mid {
+          width: min(56vw, 240px);
+          height: min(56vw, 240px);
+          font-size: 72px;
+        }
+        .call-solo-stage .voice-indicator {
+          height: 30px;
+          gap: 5px;
+          margin-top: 20px;
+        }
+        .call-solo-stage .wave-bar { width: 5px; }
+        .call-solo-stage .tile-overlay-info {
+          left: 50%;
+          right: auto;
+          transform: translateX(-50%);
+          bottom: 18px;
+          width: max-content;
+          max-width: 90%;
+          gap: 10px;
+          padding: 8px 16px;
+          border-radius: 22px;
+        }
+        .call-solo-stage .p-name { font-size: 15px; }
 
         .stage-main-tile {
           position: absolute;
@@ -869,6 +943,9 @@ export default function CallingActivity({
           }
           .participants-grid {
             gap: 8px;
+          }
+          .call-grid-container {
+            padding: 8px;
           }
         }
       `}</style>

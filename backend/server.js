@@ -7089,7 +7089,12 @@ app.post('/api/hyperbeam/create-session', authenticateToken, async (req, res) =>
         kiosk: !isGame,
         region: currentRegion,
         webgl: true,
-        adblock: true,
+        // adblock runs as an extension inside the VM and produces an
+        // ERR_BLOCKED_BY_CLIENT "blocked by an extension" page on ad/redirect-heavy
+        // sites (many free streaming sites), so a launched URL that should "just
+        // work" doesn't. Off = every URL loads; the trade-off is the VM may show
+        // that site's own ads/pop-ups.
+        adblock: false,
         fps: 30,
         quality: { mode: isGame ? 'smooth' : 'sharp' }
       };

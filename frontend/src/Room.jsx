@@ -12144,6 +12144,7 @@ const Room = () => {
                     toggleMic={toggleMic}
                     flipCamera={flipCamera}
                     isCoarsePointer={isCoarsePointer}
+                    isMobile={isMobile}
                     username={username}
                     isFullscreen={isFullscreen}
                     onToggleFullscreen={handleFullscreen}
