@@ -110,7 +110,7 @@ export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
         started = true;
         settled = true;
         rafId = requestAnimationFrame(pump);
-        const stream = canvas.captureStream(15);
+        const stream = canvas.captureStream(24);
         resolve({ stream, cleanup });
       }
     };

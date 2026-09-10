@@ -5652,6 +5652,10 @@ const Room = () => {
       if (!sharedIceServersPromise) sharedIceServersPromise = fetchIceServers(SOCKET_SERVER_URL);
       return sharedIceServersPromise;
     };
+    // Warm the TURN-credential fetch the moment we're in the room, so the first
+    // screen share / camera toggle doesn't pay that backend round-trip before it
+    // can even start negotiating.
+    getSharedIceServers();
     const camIceCandidateBuffer = {}; // { socketId: RTCIceCandidateInit[] }
     const drainCamIceCandidates = async (pc, sid) => {
       if (!camIceCandidateBuffer[sid]) return;
@@ -5906,10 +5910,26 @@ const Room = () => {
       if (!localStreamRef.current) return;
       peerConnectionsRef.current[vid]?.close();
       const iceServers = await getSharedIceServers();
-      const peer = new RTCPeerConnection({ iceServers });
+      // iceCandidatePoolSize pre-gathers candidates so the offer already carries
+      // them; max-bundle keeps it to a single transport = faster to connect.
+      const peer = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 4, bundlePolicy: 'max-bundle' });
       peerConnectionsRef.current[vid] = peer;
 
       localStreamRef.current.getTracks().forEach(t => peer.addTrack(t, localStreamRef.current));
+      // Screen content: hint the encoder to keep motion smooth, and lift the
+      // default bitrate/framerate caps so it isn't throttled to a crawl.
+      try {
+        const vt = localStreamRef.current.getVideoTracks()[0];
+        if (vt && 'contentHint' in vt) vt.contentHint = 'motion';
+        const vs = peer.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (vs) {
+          const params = vs.getParameters();
+          if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+          params.encodings[0].maxBitrate = 3_000_000;
+          params.encodings[0].maxFramerate = 24;
+          vs.setParameters(params).catch(() => {});
+        }
+      } catch (e) { console.warn('[RTC] screenshare sender tune skipped', e); }
       peer.onicecandidate = e => {
         if (e.candidate) sock.emit('webrtc_ice_candidate', { targetSocketId: vid, candidate: e.candidate });
       };
@@ -5937,7 +5957,7 @@ const Room = () => {
       // don't leak it and so the answer below isn't rejected for wrong state.
       peerConnectionsRef.current[senderSocketId]?.close();
       const iceServers = await getSharedIceServers();
-      const peer = new RTCPeerConnection({ iceServers });
+      const peer = new RTCPeerConnection({ iceServers, iceCandidatePoolSize: 4, bundlePolicy: 'max-bundle' });
       peerConnectionsRef.current[senderSocketId] = peer;
 
       peer.ontrack = e => {
@@ -12045,7 +12065,14 @@ const Room = () => {
                     transition: 'filter 0.4s ease',
                   }}
                 />
-                {isViewer && !isPlaying && (
+                {isViewer && !remoteStream && (
+                  <div style={{ position: 'absolute', inset: 0, zIndex: 3, display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0a0a0f, #111128)' }}>
+                    <div style={{ width: 46, height: 46, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.15)', borderTopColor: '#fff', animation: 'spin 0.9s linear infinite' }} />
+                    <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 600 }}>Connecting screen share…</div>
+                    <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+                  </div>
+                )}
+                {isViewer && remoteStream && !isPlaying && (
                   <div onClick={togglePlayPause} style={{ position: 'absolute', inset: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}>
                     <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.2)' }}>
                       <Play size={40} fill="#fff" style={{ marginLeft: 6 }} />
