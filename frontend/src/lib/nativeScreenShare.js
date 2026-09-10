@@ -59,6 +59,22 @@ export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
   let haveFrame = false;
   let rafId = 0;
 
+  // A raw phone screen is huge and often an odd pixel size (e.g. 1080x2400,
+  // or a status-bar-trimmed height like 1077). WebRTC's VP8/H.264 encoders
+  // require even dimensions, and some decoders — notably the WebView2 build
+  // Tauri uses on Windows — render a black frame for an over-large or
+  // odd-sized canvas.captureStream() track while Chrome tolerates it. That
+  // was exactly the one broken path (mobile share -> desktop .exe viewer).
+  // Cap the long edge and force both sides even so every viewer can decode.
+  const MAX_LONG_EDGE = 1600;
+  const fitDims = (w, h) => {
+    if (!w || !h) return [1280, 720];
+    const scale = Math.min(1, MAX_LONG_EDGE / Math.max(w, h));
+    const ew = Math.max(2, Math.round((w * scale) / 2) * 2);
+    const eh = Math.max(2, Math.round((h * scale) / 2) * 2);
+    return [ew, eh];
+  };
+
   // Native frames arrive over the Capacitor bridge at whatever cadence the
   // MediaProjection encoder + base64 hop can manage — often bursty and well
   // under the capture fps. canvas.captureStream() only emits a non-black
@@ -83,9 +99,10 @@ export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
     };
 
     img.onload = () => {
-      if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
-        canvas.width = img.naturalWidth || canvas.width || 1280;
-        canvas.height = img.naturalHeight || canvas.height || 720;
+      const [tw, th] = fitDims(img.naturalWidth, img.naturalHeight);
+      if (canvas.width !== tw || canvas.height !== th) {
+        canvas.width = tw;
+        canvas.height = th;
       }
       haveFrame = true;
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
