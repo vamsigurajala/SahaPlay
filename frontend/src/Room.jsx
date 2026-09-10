@@ -10573,7 +10573,11 @@ const Room = () => {
           // platforms that support it) for the one render before the
           // visualViewport effect's first measurement lands.
           ? { top: 0, left: 0, right: 0, height: visualViewportHeight ? `${visualViewportHeight}px` : '100dvh', overflow: 'hidden' }
-          : { height: '100dvh' }
+          // overflow:hidden here too — desktop had none, so any sub-pixel
+          // overflow from a child (title-bar area / font-metric differences in
+          // the Tauri WebView) let the whole page scroll, shifting the room
+          // out of view. Internal panels do their own scrolling.
+          : { height: '100dvh', overflow: 'hidden' }
         ),
         display: 'flex', flexDirection: 'column',
         backgroundColor: 'var(--room-main-bg)',
