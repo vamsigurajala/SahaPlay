@@ -170,7 +170,7 @@ export const OPTIONS = [
   { id: 'webbrowser', name: 'Virtual Browser', category: 'Web Chat', subtitle: 'Search and browse the web together', badge: 'Multiplayer', color: '#6366f1', icon: Globe, type: 'virtual_browser', skipWarning: true, url: 'https://www.google.com', image: '/images/apps/virtualbrowser.jpg' },
 
   // ── Social & Music ──
-  { id: 'soundcloud', name: 'SoundCloud', category: 'Social & Music', subtitle: 'Search and stream music playlists together', badge: 'Multiplayer', bgColor: '#ff5500', color: '#fff', icon: FaSoundcloud, type: 'direct', isWide: true, image: '/images/apps/soundcloud.jpg' },
+  { id: 'soundcloud', name: 'SoundCloud', category: 'Social & Music', subtitle: 'Search and stream music playlists together', badge: 'Multiplayer', bgColor: '#ff5500', color: '#fff', brandColor: '#ff5500', icon: FaSoundcloud, type: 'placeholder', url: 'https://soundcloud.com', isWide: true, image: '/images/apps/soundcloud.jpg' },
   { id: 'spotify', name: 'Spotify', category: 'Social & Music', subtitle: 'Stream Spotify tracks and playlists', badge: 'Multiplayer', bgColor: '#000', color: '#fff', brandColor: '#1DB954', icon: FaSpotify, type: 'placeholder', url: 'https://open.spotify.com', isWide: true, image: '/images/apps/spotify.jpg' },
   { id: 'apple', name: 'Apple Music', category: 'Social & Music', subtitle: 'Watch music videos and stream albums', badge: 'Multiplayer', bgColor: '#fff', color: '#000', icon: FaApple, type: 'placeholder', url: 'https://music.apple.com', isWide: true, image: '/images/apps/apple.jpg' },
   { id: 'tiktok', name: 'TikTok', category: 'Social & Music', subtitle: 'Co-watch trending shorts and videos', badge: 'Multiplayer', bgColor: '#000', color: '#fff', brandColor: '#EE1D52', icon: FaTiktok, type: 'placeholder', url: 'https://tiktok.com', isWide: true, image: '/images/apps/tiktok.jpg' },
@@ -453,8 +453,6 @@ export default function MediaSelectorModal({
     } else if (app.type === 'activity' || app.type === 'embed') {
       onSelectUrl(app.url);
       onClose();
-    } else if (app.type === 'direct') {
-      setShowUrlInput(true);
     } else if (app.type === 'placeholder') {
       if (isMobile) {
         // Mobile: skip the popup-window + screenshare guided flow AND the

@@ -8288,30 +8288,36 @@ const Room = () => {
       // a landscape video fine; the reverse isn't true.
       if (w < h) return;
       if (w < 256 || h < 256) return;
-      // el.clientWidth/Height are CSS pixels — requesting those 1:1 on a
-      // high-DPI phone/laptop under-resamples the stream relative to the
-      // screen's real pixel density, so the browser has to upscale the video
-      // to fill the box, which is a real (and fixable) source of the blur.
-      // Try device-pixel-density first (capped at 2x — diminishing returns
-      // above that, and more likely to fit this account's max-area quota),
-      // falling back to the plain CSS-pixel size if that gets rejected.
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const hiW = Math.round(w * dpr);
-      const hiH = Math.round(h * dpr);
+      // el.clientWidth/Height are CSS pixels — requesting those 1:1 makes the VM
+      // render below the screen's real pixel density, so the browser upscales the
+      // video to fill the box (a real source of the blur). This account's plan
+      // blocks a custom creation resolution, so resize() up to the SDK-reported
+      // max pixel-area quota (inst.maxArea) is the only lever — request the
+      // largest aspect-correct resolution that fits it, never smaller than the
+      // container's own CSS size, and fall back to the plain size if rejected.
+      const maxArea = inst.maxArea || (1280 * 720);
+      const aspect = w / h;
+      let tw = Math.round(Math.sqrt(maxArea * aspect));
+      let th = Math.round(tw / aspect);
+      tw = Math.max(tw, w);
+      th = Math.max(th, h);
+      if (tw * th > maxArea) {
+        const scale = Math.sqrt(maxArea / (tw * th));
+        tw = Math.floor(tw * scale);
+        th = Math.floor(th * scale);
+      }
+      // Skip churn from the ResizeObserver when the target barely moved.
+      if (Math.abs(tw - (inst.width || 0)) < 32 && Math.abs(th - (inst.height || 0)) < 32) return;
       try {
-        const ok = dpr > 1 ? await inst.resize(hiW, hiH) : await inst.resize(w, h);
+        const ok = await inst.resize(tw, th);
         if (!ok) throw new Error('resize rejected');
-        console.log('[HYPERBEAM] resize →', dpr > 1 ? `${hiW}x${hiH}` : `${w}x${h}`, `(${dpr}x)`);
+        console.log('[HYPERBEAM] resize →', `${tw}x${th}`, `(maxArea ${maxArea})`);
       } catch (e) {
-        if (dpr > 1) {
-          try {
-            await inst.resize(w, h);
-            console.log('[HYPERBEAM] resize (1x fallback) →', w, 'x', h);
-          } catch (e2) {
-            console.warn('[HYPERBEAM] resize skipped:', e2.message);
-          }
-        } else {
-          console.warn('[HYPERBEAM] resize skipped:', e.message);
+        try {
+          await inst.resize(w, h);
+          console.log('[HYPERBEAM] resize (CSS-size fallback) →', w, 'x', h);
+        } catch (e2) {
+          console.warn('[HYPERBEAM] resize skipped:', e2.message);
         }
       }
     };
@@ -8502,6 +8508,15 @@ const Room = () => {
     // All game/site URLs now load as plain iframes; user must manually click "Cloud Browser" if needed.
     const isVirtual = launchType === 'virtual_browser';
     if (isVirtual) {
+      // Only the room host / a promoted admin can open the shared Virtual Browser
+      // (Hyperbeam control credential is single-holder). Without this, a non-host
+      // would set the loading state + broadcast the media change but never launch
+      // — leaving everyone stuck on the "Loading page…" spinner forever. Bail
+      // before touching any state so they just get a clear explanation instead.
+      if (!isEffectiveHost) {
+        toast.error('Only the room host or an admin can open the Virtual Browser.');
+        return;
+      }
       // Already showing this exact Virtual Browser target — don't tear an active,
       // working session down and recreate it (that briefly nulls hyperbeamSession,
       // which is exactly what let the plain-iframe fallback/"blocks embedding"
@@ -8528,11 +8543,10 @@ const Room = () => {
       setBrowserBarInput(url);
       socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: url, browserUrl: url });
 
-      if (isEffectiveHost) {
-        setTimeout(() => {
-          handleOpenCloudBrowser(url);
-        }, 100);
-      }
+      // Launch straight away — the media picker is already unmounted by
+      // setShowMediaSelector(false) before changeMedia() runs, so the old 100ms
+      // "let the modal close first" delay was just dead latency on every launch.
+      handleOpenCloudBrowser(url);
       return;
     }
 
