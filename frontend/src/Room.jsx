@@ -3774,26 +3774,34 @@ const Room = () => {
   */
 
 
-  useEffect(() => {
-    if (!videoRef.current) return;
-    if (isViewer && remoteStream) {
-      videoRef.current.srcObject = remoteStream;
-      videoRef.current.play().catch(() => {
-        // Retry muted if autoplay is blocked
-        videoRef.current.muted = true;
-        videoRef.current.play().catch(console.error);
-      });
-    } else if (isScreensharing && localStreamRef.current) {
-      videoRef.current.srcObject = localStreamRef.current;
-      videoRef.current.muted = true; // sharer sees their own share muted to avoid feedback
-      videoRef.current.play().catch(console.error);
-    } else {
-      // Clear screenshare/remote stream when neither is active
-      if (!videoRef.current.srcObject?.active) {
-        videoRef.current.srcObject = null;
-      }
+  // Attach the right MediaStream to the screenshare/viewer <video>. Pulled out
+  // of a plain effect because the <video> is only mounted once isViewer/
+  // isScreensharing flips true — so an effect keyed on [remoteStream,...] could
+  // run while videoRef is still null (ontrack set remoteStream before the
+  // element existed), bail at the null-check, and never retry since its deps
+  // never change again → permanently black viewer. The callback ref below
+  // re-runs this the instant the element mounts.
+  const attachViewerStream = useCallback(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    const stream = (isViewer && remoteStream) ? remoteStream
+      : (isScreensharing && localStreamRef.current) ? localStreamRef.current
+      : null;
+    if (stream) {
+      if (el.srcObject !== stream) el.srcObject = stream;
+      if (isScreensharing) el.muted = true; // sharer sees their own share muted to avoid feedback
+      el.play().catch(() => { el.muted = true; el.play().catch(() => {}); });
+    } else if (!el.srcObject?.active) {
+      el.srcObject = null;
     }
   }, [remoteStream, isViewer, isScreensharing]);
+
+  useEffect(() => { attachViewerStream(); }, [attachViewerStream]);
+
+  const viewerVideoCbRef = useCallback((el) => {
+    videoRef.current = el;
+    if (el) attachViewerStream();
+  }, [attachViewerStream]);
 
   useEffect(() => { setHasMounted(true); }, []);
 
@@ -11993,9 +12001,10 @@ const Room = () => {
             {(isScreensharing || isViewer) ? (
               <>
                 <video
-                  ref={videoRef} autoPlay playsInline controls={false} muted={isScreensharing ? true : playerMuted}
+                  ref={viewerVideoCbRef} autoPlay playsInline controls={false} muted={isScreensharing ? true : playerMuted}
                   onPlay={() => setIsPlaying(true)} onPause={() => setIsPlaying(false)}
                   onDoubleClick={handleFullscreen}
+                  onClick={() => { if (isTouchPlayer) toggleControlsVisibility(); }}
                   style={{
                     width: '100%',
                     height: (isScreensharing && isFullscreen) ? 'calc(100% - 60px)' : '100%',
@@ -12056,16 +12065,16 @@ const Room = () => {
                   </div>
 
                   {/* ── Fullscreen + End Screen Share (Top-Right, auto-hides on idle) ── */}
-                  {(isScreensharing || isViewer) && (
+                  {(isScreensharing || isViewer) && (() => { const shareCtl = showControls || screenActive; return (
                     <div style={{
                       position: 'absolute',
                       top: 12,
                       right: 20,
                       zIndex: 100,
                       display: 'flex', alignItems: 'center', gap: 8,
-                      pointerEvents: showControls ? 'auto' : 'none',
-                      opacity: showControls ? 1 : 0,
-                      transform: showControls ? 'translateY(0)' : 'translateY(-12px)',
+                      pointerEvents: shareCtl ? 'auto' : 'none',
+                      opacity: shareCtl ? 1 : 0,
+                      transform: shareCtl ? 'translateY(0)' : 'translateY(-12px)',
                       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     }}>
                       <button
@@ -12111,7 +12120,7 @@ const Room = () => {
                         End
                       </button>
                     </div>
-                  )}
+                  ); })()}
                 </div>
                 {/* Removed local play/pause overlay and LIVE badge for cleaner screenshare */}
               </>
@@ -14205,7 +14214,11 @@ const Room = () => {
                   toast.success('All videos restored', { icon: '👁️' });
                 }}
                 style={{
-                  position: 'absolute', top: 20, right: 20,
+                  position: 'absolute',
+                  // Drop below the screenshare Fullscreen/End row (top:12, ~34px
+                  // tall) so it stops covering the End button while sharing.
+                  top: (isScreensharing || isViewer) ? 60 : 20,
+                  right: 20,
                   zIndex: 1100, padding: '8px 16px', borderRadius: 12,
                   background: isLight ? 'rgba(255, 255, 255, 0.95)' : 'rgba(15, 15, 15, 0.85)',
                   color: isLight ? '#000' : '#fff',
@@ -14213,9 +14226,9 @@ const Room = () => {
                   backdropFilter: 'blur(10px)',
                   display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
                   boxShadow: 'none', fontWeight: 600, fontSize: 12,
-                  opacity: showControls ? 1 : 0,
-                  visibility: showControls ? 'visible' : 'hidden',
-                  pointerEvents: showControls ? 'auto' : 'none',
+                  opacity: (showControls || screenActive) ? 1 : 0,
+                  visibility: (showControls || screenActive) ? 'visible' : 'hidden',
+                  pointerEvents: (showControls || screenActive) ? 'auto' : 'none',
                   animation: 'slideInRight 0.3s ease',
                   transition: 'all 0.2s ease, opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s'
                 }}

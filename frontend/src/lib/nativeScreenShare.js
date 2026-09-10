@@ -56,9 +56,27 @@ export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
   const img = new Image();
   let started = false;
   let settled = false;
+  let haveFrame = false;
+  let rafId = 0;
+
+  // Native frames arrive over the Capacitor bridge at whatever cadence the
+  // MediaProjection encoder + base64 hop can manage — often bursty and well
+  // under the capture fps. canvas.captureStream() only emits a non-black
+  // frame for a tick where the canvas was actually painted, so drawing only
+  // inside img.onload left the WebRTC track mostly black on the viewer side.
+  // A steady rAF loop re-blits the latest decoded frame every tick so the
+  // captured stream always has fresh pixels regardless of bridge jitter.
+  const pump = () => {
+    if (haveFrame) {
+      try { ctx.drawImage(img, 0, 0, canvas.width, canvas.height); } catch {}
+    }
+    rafId = requestAnimationFrame(pump);
+  };
 
   return new Promise((resolve, reject) => {
     const cleanup = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
       removeListenerSafe(frameListenerHandle);
       removeListenerSafe(stopListenerHandle);
       stopNativeScreenCapture();
@@ -66,14 +84,16 @@ export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
 
     img.onload = () => {
       if (canvas.width !== img.naturalWidth || canvas.height !== img.naturalHeight) {
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
+        canvas.width = img.naturalWidth || canvas.width || 1280;
+        canvas.height = img.naturalHeight || canvas.height || 720;
       }
-      ctx.drawImage(img, 0, 0);
+      haveFrame = true;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       if (!started) {
         started = true;
         settled = true;
-        const stream = canvas.captureStream(12);
+        rafId = requestAnimationFrame(pump);
+        const stream = canvas.captureStream(15);
         resolve({ stream, cleanup });
       }
     };
