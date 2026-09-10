@@ -167,9 +167,6 @@ html, body {
   overflow-x: hidden;
   /* Ensure touch scrolling always works on iOS/iPad/Android */
   -webkit-overflow-scrolling: touch;
-  /* Kill rubber-band / scroll-chaining to the window (the Tauri/.exe WebView
-     otherwise lets the whole page drift when a child briefly overflows). */
-  overscroll-behavior: none;
 }
 
 html {
