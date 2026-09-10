@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Lock, Maximize2, Minimize2, Grid, VolumeX, SwitchCamera } from 'lucide-react';
 import { getAvatarUrl } from '../utils/avatarUtils';
+import { useSpeakingDetection } from '../hooks/useSpeakingDetection';
 
 export default function CallingActivity({
   mode,
@@ -57,11 +58,20 @@ export default function CallingActivity({
   const tapDownRef = useRef(null);
   const suppressClickRef = useRef(false);
 
+  // A tap on the controls dock / PiP / any button must NOT reach the
+  // stage-tap toggle — otherwise the pointerup here fires first, hides the
+  // dock (pointer-events:none), and the button's own click then lands on
+  // nothing. This was why End Call / mute / fullscreen did nothing on touch.
+  const isChromeTarget = (e) =>
+    !!(e.target && e.target.closest && e.target.closest('button, .call-controls-dock, .stage-pip-tile'));
+
   const handleStagePointerDown = (e) => {
+    if (isChromeTarget(e)) { tapDownRef.current = null; return; }
     tapDownRef.current = { x: e.clientX, y: e.clientY };
   };
 
   const handleStagePointerUp = (e) => {
+    if (isChromeTarget(e)) return;
     const d = tapDownRef.current;
     tapDownRef.current = null;
     if (!d) return;
@@ -71,7 +81,8 @@ export default function CallingActivity({
     handleStageTap();
   };
 
-  const handleStageClick = () => {
+  const handleStageClick = (e) => {
+    if (isChromeTarget(e)) return;
     if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     handleStageTap();
   };
@@ -172,6 +183,17 @@ export default function CallingActivity({
     return name.slice(0, 2).toUpperCase();
   };
 
+  // Real "is this person talking right now" (measured audio level), so the
+  // green wave under an avatar only moves when sound is actually coming from
+  // that user — not merely because their mic is un-muted. Own muted mic is
+  // skipped (Chromium keeps feeding raw capture even with the track disabled).
+  const speakingStreams = {};
+  participants.forEach((p) => {
+    if (p.isMuted || !p.stream || !p.stream.getAudioTracks?.().length) return;
+    speakingStreams[p.id] = p.stream;
+  });
+  const speakingIds = useSpeakingDetection(speakingStreams);
+
   const cardBg = isLight ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)';
   const borderStyle = '1px solid rgba(255,255,255,0.1)';
 
@@ -259,21 +281,23 @@ export default function CallingActivity({
   };
 
   // Shared tile content: video, or avatar + (for remote participants) hidden audio playback
-  const renderParticipantMedia = (p) => (
-    mode === 'video' && p.hasVideo ? (
-      <>
-        <VideoTileRenderer stream={p.stream} isLocal={p.isLocal} />
-      </>
-    ) : (
+  const renderParticipantMedia = (p) => {
+    if (mode === 'video' && p.hasVideo) {
+      return <VideoTileRenderer stream={p.stream} isLocal={p.isLocal} />;
+    }
+    // Wave/pulse only while sound is actually coming from this person, not
+    // just because their mic is un-muted (speakingIds is measured audio level).
+    const isTalking = !p.isMuted && speakingIds.has(p.id);
+    return (
       <div className="participant-voice-avatar-wrapper">
         {p.avatarUrl ? (
           <img
             src={p.avatarUrl}
             alt={p.username}
-            className={`avatar-img-mid ${!p.isMuted ? 'active-pulse' : ''}`}
+            className={`avatar-img-mid ${isTalking ? 'active-pulse' : ''}`}
           />
         ) : (
-          <div className={`avatar-circle-mid ${!p.isMuted ? 'active-pulse' : ''}`} style={{
+          <div className={`avatar-circle-mid ${isTalking ? 'active-pulse' : ''}`} style={{
             background: p.isLocal
               ? 'linear-gradient(135deg, var(--brand-1), var(--brand-2))'
               : 'linear-gradient(135deg, #ec4899, #8b5cf6)'
@@ -281,7 +305,7 @@ export default function CallingActivity({
             {getInitials(p.username)}
           </div>
         )}
-        {!p.isMuted && (
+        {isTalking && (
           <div className="voice-indicator">
             <span className="wave-bar bar-1"></span>
             <span className="wave-bar bar-2"></span>
@@ -292,8 +316,8 @@ export default function CallingActivity({
             (voice calls, or video calls with the camera off) actually plays. */}
         {!p.isLocal && <AudioRenderer stream={p.stream} />}
       </div>
-    )
-  );
+    );
+  };
 
   const renderOverlayInfo = (p, compact) => (
     <div
@@ -441,6 +465,8 @@ export default function CallingActivity({
           <div
             className="call-controls-dock"
             onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
             style={{ opacity: controlsVisible ? 1 : 0, pointerEvents: controlsVisible ? 'auto' : 'none', transition: 'opacity 0.14s ease' }}
           >
             <button
