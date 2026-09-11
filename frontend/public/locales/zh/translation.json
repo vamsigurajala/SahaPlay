@@ -1,5 +1,8 @@
 {
   "2d": "2d",
+  "clearSearchHistory": "清除搜索历史",
+  "recentSearches": "最近搜索",
+  "removeFromHistory": "移除",
   "Unmuted": "Unmuted",
   "aboutUs": "关于我们",
   "acceptableUse": "可接受使用政策",

@@ -1,5 +1,8 @@
 {
   "2d": "2d",
+  "clearSearchHistory": "검색 기록 삭제",
+  "recentSearches": "최근 검색",
+  "removeFromHistory": "삭제",
   "Unmuted": "Unmuted",
   "aboutUs": "회사 소개",
   "acceptableUse": "허용 가능한 사용",

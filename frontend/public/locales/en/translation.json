@@ -1,5 +1,8 @@
 {
   "2d": "2d",
+  "clearSearchHistory": "Clear search history",
+  "recentSearches": "Recent",
+  "removeFromHistory": "Remove",
   "Unmuted": "Unmuted",
   "aboutUs": "About Us",
   "acceptableUse": "Acceptable Use",

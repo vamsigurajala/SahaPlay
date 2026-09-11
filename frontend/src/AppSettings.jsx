@@ -1561,7 +1561,7 @@ const AppSettings = () => {
                     <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 12 }}>No users found</div>
                   ) : searchHistory.length > 0 ? (
                     <>
-                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: isLight ? '#94a3b8' : '#6b7280', padding: '4px 8px 6px' }}>Recent</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: isLight ? '#94a3b8' : '#6b7280', padding: '4px 8px 6px' }}>{t('recentSearches', 'Recent')}</div>
                       {searchHistory.map(h => (
                         <div key={h.username} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
                              onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
@@ -1575,13 +1575,13 @@ const AppSettings = () => {
                               <div style={{ color: isLight ? '#666' : '#6b7280', fontSize: 11 }}>@{h.username}</div>
                             </div>
                           </div>
-                          <button onClick={() => removeFromSearchHistory(h.username)} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: isLight ? '#94a3b8' : '#6b7280', padding: 8, display: 'flex', flexShrink: 0 }}>
+                          <button onClick={() => removeFromSearchHistory(h.username)} title={t('removeFromHistory', 'Remove')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isLight ? '#94a3b8' : '#6b7280', padding: 8, display: 'flex', flexShrink: 0 }}>
                             <X size={14} />
                           </button>
                         </div>
                       ))}
                       <div onClick={clearSearchHistory} style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--brand-1-light)', padding: '10px 8px 2px', cursor: 'pointer' }}>
-                        Clear search history
+                        {t('clearSearchHistory', 'Clear search history')}
                       </div>
                     </>
                   ) : null}

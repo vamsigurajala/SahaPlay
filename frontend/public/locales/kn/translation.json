@@ -1,5 +1,8 @@
 {
   "2d": "2d",
+  "clearSearchHistory": "ಹುಡುಕಾಟ ಇತಿಹಾಸವನ್ನು ತೆರವುಗೊಳಿಸಿ",
+  "recentSearches": "ಇತ್ತೀಚಿನ ಹುಡುಕಾಟಗಳು",
+  "removeFromHistory": "ತೆಗೆದುಹಾಕಿ",
   "Unmuted": "Unmuted",
   "aboutUs": "ನಮ್ಮ ಬಗ್ಗೆ",
   "acceptableUse": "ಸ್ವೀಕಾರಾರ್ಹ ಬಳಕೆ",

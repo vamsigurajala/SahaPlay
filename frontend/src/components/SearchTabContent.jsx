@@ -103,7 +103,7 @@ export default function SearchTabContent({ t, onNavigate }) {
                   <div style={{ fontSize: 12, color: '#888' }}>@{h.username}</div>
                 </div>
               </div>
-              <button onClick={() => removeFromHistory(h.username)} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 8, display: 'flex', flexShrink: 0 }}>
+              <button onClick={() => removeFromHistory(h.username)} title={t('removeFromHistory', 'Remove')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 8, display: 'flex', flexShrink: 0 }}>
                 <X size={16} />
               </button>
             </div>

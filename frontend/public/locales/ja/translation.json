@@ -1,5 +1,8 @@
 {
   "2d": "2d",
+  "clearSearchHistory": "検索履歴を削除",
+  "recentSearches": "最近の検索",
+  "removeFromHistory": "削除",
   "Unmuted": "Unmuted",
   "aboutUs": "会社概要",
   "acceptableUse": "許容される使用",

@@ -1,5 +1,8 @@
 {
   "2d": "2d",
+  "clearSearchHistory": "Очистить историю поиска",
+  "recentSearches": "Недавние",
+  "removeFromHistory": "Удалить",
   "Unmuted": "Unmuted",
   "aboutUs": "О нас",
   "acceptableUse": "Правила допустимого использования",
