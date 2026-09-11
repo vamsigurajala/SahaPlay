@@ -193,6 +193,28 @@ body {
   animation: gradientPan 15s ease infinite alternate;
 }
 
+/* A background-position animation can never be composited — every frame is
+   a real repaint, and with background-attachment's default ('scroll', tied
+   to the document rather than the viewport) that repaint has to cover the
+   ENTIRE scrolled document each time, not just the visible viewport slice.
+   That's exactly the "sluggish scroll" the desktop-app rule two blocks down
+   already exists to fix on Tauri — regular desktop/tablet browser tabs pay
+   the same cost, it's just gone unnoticed until pages got tall enough (this
+   one especially, after Pinned Rooms/Room History) for it to show up as
+   real jank. background-attachment:fixed re-anchors the background to the
+   viewport instead of the document, so browsers can composite it as one
+   static layer that content simply scrolls over — the animation itself is
+   untouched, only how cheap it is to scroll past changes. Scoped to
+   pointer:fine (mouse/trackpad, i.e. desktop and most tablets) rather than
+   a width breakpoint: fixed-attachment has known jank/repaint quirks of its
+   own on some touch browsers, which is exactly the failure mode being
+   fixed here, so this deliberately doesn't touch phones. */
+@media (min-width: 768px) and (pointer: fine) {
+  body {
+    background-attachment: fixed;
+  }
+}
+
 /* ── Desktop app (.exe / Tauri WebView2) scroll fixes ─────────────────────
    1. The body's animated gradient background forces WebView2 to repaint the
       whole page on every scroll frame (it can't composite a scroll whose

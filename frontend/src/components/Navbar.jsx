@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -38,6 +38,28 @@ const Navbar = () => {
   const isAdminRole = ['super_admin', 'admin', 'moderator', 'support'].includes(watchRole);
 
   const [scrolled, setScrolled] = useState(false);
+  // .main-nav is position:fixed (see its CSS) so it stays pinned to the
+  // viewport regardless of any ancestor page's own layout — sticky was
+  // reported not actually sticking while scrolling on at least Home and
+  // Features, and fixed has no dependency on being the right scroll-
+  // container/stacking-context ancestor the way sticky does. Fixed removes
+  // it from document flow though, so every page would otherwise render its
+  // first content hidden underneath it — this ref+state pair measures the
+  // real nav's rendered height (it varies: mobile vs desktop layout, with/
+  // without the native status-bar inset) and a plain spacer div of that
+  // height is rendered right after it, so every page that mounts <Navbar/>
+  // automatically reserves the correct space with no per-page changes.
+  const navRef = useRef(null);
+  const [navHeight, setNavHeight] = useState(0);
+  useLayoutEffect(() => {
+    if (!navRef.current) return;
+    const measure = () => setNavHeight(navRef.current.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(navRef.current);
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
+  }, []);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showProfilePageMobile, setShowProfilePageMobile] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -379,7 +401,11 @@ const Navbar = () => {
     <>
       <style>{`
         .main-nav {
-          position: sticky; top: 0; z-index: 1000;
+          /* Fixed, not sticky — see navHeight's comment above the JSX for
+             why (sticky wasn't reliably pinning during scroll on at least
+             Home/Features), and the spacer div right after </nav> for how
+             the space this leaves in normal flow gets reserved. */
+          position: fixed; top: 0; left: 0; right: 0; width: 100%; z-index: 1000;
           transition: background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
           /* Reserves real space for the phone's status bar (clock/wifi/battery)
              instead of drawing under it — Android 15+ enforces edge-to-edge
@@ -441,7 +467,7 @@ const Navbar = () => {
           justify-content: flex-start !important;
         }
       `}</style>
-      <nav className={`main-nav${scrolled ? ' scrolled' : ''}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <nav ref={navRef} className={`main-nav${scrolled ? ' scrolled' : ''}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         {isMobileOrTablet ? (
           /* Mobile / Tablet Layout */
           <div className="nav-bar-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', position: 'relative' }}>
@@ -1018,8 +1044,11 @@ const Navbar = () => {
           </div>
         )}
       </nav>
+      {/* Reserves the space main-nav no longer occupies now that it's
+          position:fixed — see navHeight's own comment above. */}
+      <div aria-hidden="true" style={{ height: navHeight }} />
 
-      {/* Mobile/Tablet Drawer – rendered as a portal so it's outside the sticky nav */}
+      {/* Mobile/Tablet Drawer – rendered as a portal so it's outside the fixed nav */}
       {isMobileOrTablet && showMobileMenu && createPortal(
         <>
           {/* Backdrop */}
