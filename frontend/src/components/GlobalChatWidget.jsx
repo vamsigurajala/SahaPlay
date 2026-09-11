@@ -18,6 +18,7 @@ import PollBubble from './PollBubble';
 import PollVotesModal from './PollVotesModal';
 import VoiceRecorderBar from './VoiceRecorderBar';
 import { castPollVote } from '../lib/pollApi';
+import { getRecentMessagesCache, setRecentMessagesCache } from '../utils/recentMessagesCache';
 import { API } from '../lib/api';
 import { appCache } from '../cache/appCache.js';
 import toast from 'react-hot-toast';
@@ -5036,7 +5037,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
       if (requestId !== latestHistoryRequestRef.current) return;
       
       // Replace messages atomically — no merge needed since we cleared before fetching
-      setMessages(resolveReplyMessages(decrypted));
+      const resolved = resolveReplyMessages(decrypted);
+      setMessages(resolved);
+      // Refresh the instant-open cache with this thread's real tail so the
+      // NEXT open/reopen of this exact chat flashes accurate, current
+      // messages instead of whatever was cached before.
+      setRecentMessagesCache(type === 'room' ? 'room' : 'private', cleanPartner, resolved);
 
       // Sync the sidebar preview with the latest message from history — the
       // just-loaded thread is unambiguously correct, so use it to override
@@ -5073,7 +5079,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
     } catch(e) {
       if (requestId === latestHistoryRequestRef.current) console.error(e);
     } finally {
-      if (requestId === latestHistoryRequestRef.current) setLoading(false);
+      if (requestId === latestHistoryRequestRef.current) {
+        setLoading(false);
+        setHistoryLoading(false);
+      }
     }
   };
 
@@ -5246,7 +5255,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
     setShowEmojiPicker(false);
     setShowPollComposer(false);
     setEditingPollMsg(null);
-    setMessages([]); // Clear previous chat context immediately
+    // Instead of blanking the panel on every open (including reopening the
+    // SAME chat seconds later — e.g. tap a sender's avatar to view their
+    // profile, then go back), flash the last few already-decrypted messages
+    // from this chat's last successful load. It's replaced the moment the
+    // real fetch below resolves, so a reopen now reads as instant instead
+    // of "blank, then a beat of loading, then everything at once".
+    const cachedTail = getRecentMessagesCache(chat.type === 'room' ? 'room' : 'private', chatKey);
+    setMessages(cachedTail || []);
     // Set loading synchronously in the same batch as the clear above, so there is never
     // a render where messages is empty AND loading is false (that gap is what briefly
     // flashed "No messages yet" before the real history arrived) — fetchHistory's own
@@ -5256,7 +5272,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
     // guest_room_messages_updated sync effect below), never through fetchHistory, so
     // nothing would ever flip loading back to false for them.
     if (localStorage.getItem('watch_is_guest') !== 'true') {
-      setLoading(true);
+      setLoading(!cachedTail);
+      // Shows the same small top-of-list spinner used for "loading older
+      // messages" on scroll-up — here it doubles as "still fetching/
+      // reconciling the real history behind this flash", right above the
+      // flashed messages, until fetchHistory's finally clears it.
+      setHistoryLoading(true);
     }
     paginationStateRef.current[chatKey] = {
       hasMore: true,
