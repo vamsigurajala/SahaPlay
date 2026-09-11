@@ -17,12 +17,17 @@ import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 import { getPersistedGcwOpen } from '../utils/gcwPersist';
-import { isTauriApp, isStandalonePWA } from '../lib/platform';
+import { isTauriApp, isStandalonePWA, isCapacitorApp } from '../lib/platform';
 import { peekPendingNotificationTap, clearPendingNotificationTap } from '../lib/nativePush';
 
 const Navbar = () => {
   const isDesktopApp = isTauriApp();
   const standalone = isStandalonePWA();
+  // The native Android wrapper specifically (the installed .apk), not a
+  // plain mobile browser tab and not an installed PWA/TWA — those two keep
+  // the fixed/pinned nav as before, only the APK doesn't want it (reported:
+  // "do not stick top nav bar at all, only in apks not in browser").
+  const isApk = isCapacitorApp();
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
@@ -416,6 +421,12 @@ const Navbar = () => {
              plain browser tab where the var is never set. */
           padding-top: var(--sp-status-bar-inset, 0px);
         }
+        /* APK only — scrolls away with the page instead of staying pinned;
+           status-bar padding stays since the inset itself is unrelated to
+           whether the bar is fixed. */
+        .main-nav.nav-static {
+          position: static;
+        }
         .main-nav.scrolled {
           background: rgba(9,9,11,0.85) !important;
           backdrop-filter: blur(20px) !important;
@@ -467,7 +478,7 @@ const Navbar = () => {
           justify-content: flex-start !important;
         }
       `}</style>
-      <nav ref={navRef} className={`main-nav${scrolled ? ' scrolled' : ''}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+      <nav ref={navRef} className={`main-nav${scrolled ? ' scrolled' : ''}${isApk ? ' nav-static' : ''}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         {isMobileOrTablet ? (
           /* Mobile / Tablet Layout */
           <div className="nav-bar-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', position: 'relative' }}>
@@ -1045,8 +1056,10 @@ const Navbar = () => {
         )}
       </nav>
       {/* Reserves the space main-nav no longer occupies now that it's
-          position:fixed — see navHeight's own comment above. */}
-      <div aria-hidden="true" style={{ height: navHeight }} />
+          position:fixed — see navHeight's own comment above. Not needed in
+          the APK: nav-static keeps it in normal document flow there, so an
+          extra spacer would just double the gap. */}
+      {!isApk && <div aria-hidden="true" style={{ height: navHeight }} />}
 
       {/* Mobile/Tablet Drawer – rendered as a portal so it's outside the fixed nav */}
       {isMobileOrTablet && showMobileMenu && createPortal(

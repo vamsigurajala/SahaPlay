@@ -34,7 +34,18 @@ export default function PinnedRoomsGrid({ rooms, onUnpin, pinnedIds, onTogglePin
         const isPinned = historyMode ? pinnedIds.includes(room.id) : true;
         const handlePinClick = (e) => (historyMode ? onTogglePin(e, room.id, isPinned) : onUnpin(e, room.id));
         return (
-        <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
+        <div
+          key={room.id}
+          className="pinned-card"
+          onClick={() => navigate(`/room/${room.id}`)}
+          // Starts warming the Room route's lazy chunk the instant a finger/
+          // cursor presses down on the card — tens to a couple hundred ms
+          // before the click actually fires — instead of only starting on
+          // click, when the room chunk (large: player + chat + every
+          // game/media integration) may not be cached yet and its fetch+parse
+          // is what "takes a long time to load" was reported as.
+          onPointerDown={() => import('../Room').catch(() => {})}
+        >
           <div className="img-layer">
             <RoomThumbnail
               thumbnailPath={room.thumbnailPath}

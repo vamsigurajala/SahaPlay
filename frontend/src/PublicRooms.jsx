@@ -483,7 +483,16 @@ const PublicRooms = () => {
           <>
             <div className="rooms-grid">
               {filteredRooms.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((room, i) => (
-                <div key={room.id} className="pinned-card" style={{ '--card-i': i }} onClick={() => navigate(`/room/${room.id}`)}>
+                <div
+                  key={room.id}
+                  className="pinned-card"
+                  style={{ '--card-i': i }}
+                  onClick={() => navigate(`/room/${room.id}`)}
+                  // Same head-start as PinnedRoomsGrid's cards — warms the
+                  // Room route's (large) lazy chunk on press, before the
+                  // click/navigate actually fires.
+                  onPointerDown={() => import('./Room').catch(() => {})}
+                >
                   <div className="img-layer">
                     <RoomThumbnail
                       thumbnailPath={room.thumbnailPath}

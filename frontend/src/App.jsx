@@ -324,6 +324,29 @@ function App() {
   const { i18n } = useTranslation();
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
+  // Room.jsx is by far the largest lazy chunk in the app (the video
+  // player, chat, calling, and every game/media integration all live in
+  // it) — reported as "clicking a room takes a long time to load". Most
+  // room entries (Home's hero Join form, Pinned Rooms/Room History cards,
+  // Public Rooms cards, search) never open the chat widget first, so they
+  // never hit GlobalChatWidget.jsx's own existing prefetch of this same
+  // chunk (triggered only once a room-type chat is open there). Warming it
+  // once, here, as soon as the browser is idle after first paint — instead
+  // of waiting for any specific click — means by the time a user actually
+  // taps a room from anywhere, the chunk is very likely already fetched
+  // and parsed, so entering feels instant instead of paying that cost
+  // synchronously on the click. Cheap and harmless if never used (worst
+  // case: one extra chunk fetch on a session that never opens a room).
+  useEffect(() => {
+    const warm = () => { import('./Room').catch(() => {}); };
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(warm, { timeout: 4000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const id = setTimeout(warm, 2000);
+    return () => clearTimeout(id);
+  }, []);
+
   // See appUpdateCheck.js — proactively detects a new deploy going live
   // while this tab/window is still open, so the user gets a chance to
   // refresh on their own terms instead of the app silently going stale
