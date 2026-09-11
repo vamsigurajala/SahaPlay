@@ -71,12 +71,11 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
         /* Same underline-tab pattern as Home.jsx's desktop rooms-tab-row,
            scaled down — Pinned Rooms and Room History are one section here
            too, not two separately-titled blocks stacked on top of each
-           other. */
-        .home-tab-rooms-tabs { display: flex; gap: 22px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 16px; }
-        html[data-theme='light'] .home-tab-rooms-tabs { border-bottom-color: rgba(0,0,0,0.08); }
+           other. No full-width baseline, just the active tab's underline. */
+        .home-tab-rooms-tabs { display: flex; gap: 24px; margin-bottom: 16px; }
         .home-tab-rooms-tab-btn {
-          display: flex; align-items: center; gap: 7px; background: transparent; border: none; cursor: pointer;
-          padding: 2px 2px 12px; font-size: 14px; font-weight: 800; font-family: inherit;
+          display: flex; align-items: center; gap: 8px; background: transparent; border: none; cursor: pointer;
+          padding: 2px 2px 12px; font-size: 18px; font-weight: 800; font-family: inherit;
           color: #6b7280; position: relative; transition: color 0.18s;
         }
         .home-tab-rooms-tab-btn::after {
@@ -132,10 +131,10 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
           {showTabs ? (
             <div className="home-tab-rooms-tabs">
               <button className={`home-tab-rooms-tab-btn${activeTab === 'pinned' ? ' active' : ''}`} onClick={() => setRoomsTab('pinned')}>
-                <Pin size={14} /> {t('pinnedRooms', 'Pinned Rooms')}
+                <Pin size={16} /> {t('pinnedRooms', 'Pinned Rooms')}
               </button>
               <button className={`home-tab-rooms-tab-btn${activeTab === 'history' ? ' active' : ''}`} onClick={() => setRoomsTab('history')}>
-                <History size={14} /> {t('roomHistory', 'Room History')}
+                <History size={16} /> {t('roomHistory', 'Room History')}
               </button>
             </div>
           ) : (

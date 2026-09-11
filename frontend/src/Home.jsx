@@ -386,22 +386,25 @@ const Home = () => {
         /* Underline tab pair — same pattern as MediaSelectorModal's
            Multiplayer/Singleplayer tabs, reused here so Pinned Rooms and
            Room History read as two views of one section instead of two
-           separate stacked panels. */
-        .rooms-tab-row { display: flex; gap: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-        html[data-theme='light'] .rooms-tab-row { border-bottom-color: rgba(0,0,0,0.08); }
+           separate stacked panels. No full-width baseline under the row —
+           only the active tab gets an underline, same as the modal. Text
+           sized to match the old standalone section-heading (24px) instead
+           of reading as a small label now that it's the section's only title. */
+        .rooms-tab-row { display: flex; gap: 36px; }
         .rooms-tab-btn {
-          display: flex; align-items: center; gap: 8px;
+          display: flex; align-items: center; gap: 10px;
           background: transparent; border: none; cursor: pointer;
-          padding: 4px 2px 14px; font-size: 15px; font-weight: 800; font-family: inherit;
+          padding: 4px 2px 14px; font-size: 22px; font-weight: 800; font-family: inherit;
           color: #6b7280; position: relative; transition: color 0.18s;
         }
         .rooms-tab-btn::after {
-          content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px;
+          content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 3px;
           border-radius: 2px; background: var(--brand-1); transform: scaleX(0);
           transition: transform 0.2s cubic-bezier(0.4,0,0.2,1);
         }
         .rooms-tab-btn.active { color: #fff; }
         .rooms-tab-btn.active::after { transform: scaleX(1); }
+        html[data-theme='light'] .rooms-tab-btn { color: #94a3b8; }
         html[data-theme='light'] .rooms-tab-btn.active { color: #0f172a; }
         html[data-theme='light'] .pinned-rooms-section {
           background: #f8fafc !important;
@@ -572,7 +575,16 @@ const Home = () => {
       ) : (
       <>
       {/* ─── SECTION 1: HERO ─── */}
-      <section className="hero-section-pad" style={{ position: 'relative', padding: '100px 40px 80px', overflow: 'hidden' }}>
+      {/* overflowX (not overflow) hidden — the orbs below are huge blurred
+          circles positioned with negative left/right offsets purely to avoid
+          a horizontal scrollbar; clipping the Y axis too was cutting their
+          glow off with a hard rectangular edge exactly at this section's
+          bottom, right where Pinned Rooms/Room History now sits close
+          behind it — read as a flat black band starting abruptly under the
+          hero. Letting them bleed downward (they're z-index:0 and
+          pointer-events:none, so they sit harmlessly behind the next
+          section's own content) fades naturally into the page instead. */}
+      <section className="hero-section-pad" style={{ position: 'relative', padding: '100px 40px 80px', overflowX: 'hidden', overflowY: 'visible' }}>
         <div className="hero-orb orb-1" />
         <div className="hero-orb orb-2" />
         <div className="hero-orb orb-3" />
@@ -714,10 +726,10 @@ const Home = () => {
             {showRoomsTabs ? (
               <div className="rooms-tab-row">
                 <button className={`rooms-tab-btn${activeRoomsTab === 'pinned' ? ' active' : ''}`} onClick={() => setRoomsTab('pinned')}>
-                  <Pin size={15} /> {t('pinnedRooms', 'Pinned Rooms')}
+                  <Pin size={20} /> {t('pinnedRooms', 'Pinned Rooms')}
                 </button>
                 <button className={`rooms-tab-btn${activeRoomsTab === 'history' ? ' active' : ''}`} onClick={() => setRoomsTab('history')}>
-                  <History size={15} /> {t('roomHistory', 'Room History')}
+                  <History size={20} /> {t('roomHistory', 'Room History')}
                 </button>
               </div>
             ) : (
