@@ -4018,6 +4018,47 @@ const GlobalChatWidget = React.memo(forwardRef(({
     sock.on('global_new_chat_message', handleNewMsg);
     sock.on('private_message', handleNewMsg);
 
+    // A follower/following/DM contact renamed their username server-side —
+    // the backend has already cascaded follows/blocks/messages to the new
+    // name, but this client's conversations list, any currently-open chat
+    // with them, and their cached avatar/relation are still built from the
+    // old one. Without this, the other person's avatar looked "stuck" and,
+    // if a chat with them happened to be open, the follow-status refetch
+    // that gates DMs kept resolving against the now-dead old username —
+    // exactly the intermittent "Friendship required" flash on an otherwise
+    // still-mutual pair. Refresh both live instead of waiting on this
+    // page's next full reload or the 5-minute profile cache TTL.
+    sock.on('user_renamed', ({ oldUsername, newUsername }) => {
+      if (!oldUsername || !newUsername) return;
+      const oldLower = oldUsername.toLowerCase();
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
+        (c.partner || c.id || '').toLowerCase() === oldLower
+          ? { ...c, partner: newUsername, id: newUsername }
+          : c
+      ));
+      const active = activeChatRef.current;
+      const isActiveChatWithThem = !!active && active.type === 'private' &&
+        (active.partner || active.id || '').toLowerCase() === oldLower;
+      if (isActiveChatWithThem) {
+        setActiveChat(prev => (prev ? { ...prev, partner: newUsername, id: newUsername } : prev));
+      }
+      fetch(`${API}/api/users/${newUsername}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        .then(r => r.json())
+        .then(d => {
+          if (!d || d.error) return;
+          setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
+            (c.partner || c.id || '').toLowerCase() === newUsername.toLowerCase()
+              ? { ...c, displayName: d.displayName || c.displayName, partnerAvatar: d.avatarPath || c.partnerAvatar }
+              : c
+          ));
+          if (isActiveChatWithThem) {
+            setActiveChat(prev => (prev ? { ...prev, displayName: d.displayName || prev.displayName, partnerAvatar: d.avatarPath || prev.partnerAvatar } : prev));
+            setActiveRelation(d);
+          }
+        })
+        .catch(() => {});
+    });
+
     // Sync room permissions into conversations + activeChat when:
     // (a) widget first connects/reconnects — server sends a snapshot
     // (b) host changes room settings live

@@ -6249,20 +6249,79 @@ app.put('/api/profile/username', authenticateToken, async (req, res) => {
   if (cleaned.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
   if (cleaned.length > 30) return res.status(400).json({ error: 'Username must be 30 characters or less' });
   if (!/^[a-zA-Z0-9._]+$/.test(cleaned)) return res.status(400).json({ error: 'Username can only contain letters, numbers, dots, and underscores' });
+  const oldUsername = req.user.username;
+  // Username is used as a plain-string foreign key all over this schema —
+  // follows, blocks, messages (both DM directions), read receipts, hosted
+  // rooms, push registrations — instead of the stable users.id. Renaming
+  // only the users row (the old behavior) left every one of those pointing
+  // at a username that no longer existed: follow-status lookups for BOTH
+  // directions came back empty (the exact intermittent "friendship
+  // required" a still-mutual pair started seeing), DM history for this
+  // user became unreachable under their new name, and the other person's
+  // client kept trying to fetch /api/users/<old name>, which now 404s, so
+  // their avatar/name never refreshed either. This must all move together,
+  // atomically, in the same transaction as the rename itself. Deliberately
+  // NOT touched: bans/reports/admin_audit_logs/support_requests/
+  // legal_requests/admin_invites — those are historical records of what
+  // happened under the name at the time, not live identity state, and
+  // silently rewriting them would be the wrong kind of "consistent".
+  const client = await pool.connect();
   try {
-    const existing = await pool.query(
+    await client.query('BEGIN');
+    const existing = await client.query(
       'SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id != $2',
       [cleaned, req.user.id]
     );
-    if (existing.rows.length > 0) return res.status(409).json({ error: 'Username already taken' });
-    await pool.query('UPDATE users SET username = $1 WHERE id = $2', [cleaned, req.user.id]);
-    invalidateCacheForUser(req.user.username);
+    if (existing.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+    await client.query('UPDATE users SET username = $1 WHERE id = $2', [cleaned, req.user.id]);
+    await client.query('UPDATE follows SET "followerId" = $1 WHERE LOWER("followerId") = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE follows SET "followingId" = $1 WHERE LOWER("followingId") = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE blocks SET blocker = $1 WHERE LOWER(blocker) = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE blocks SET blocked = $1 WHERE LOWER(blocked) = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE messages SET "senderName" = $1 WHERE LOWER("senderName") = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE messages SET "targetName" = $1 WHERE LOWER("targetName") = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE message_seen SET username = $1 WHERE LOWER(username) = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE room_names SET "hostUsername" = $1 WHERE LOWER("hostUsername") = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE push_tokens SET username = $1 WHERE LOWER(username) = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE webpush_subscriptions SET username = $1 WHERE LOWER(username) = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('UPDATE pending_notifications SET username = $1 WHERE LOWER(username) = LOWER($2)', [cleaned, oldUsername]);
+    await client.query('COMMIT');
+
+    invalidateCacheForUser(oldUsername);
     invalidateCacheForUser(cleaned);
+
+    // Tell everyone who actually has a relationship with this account (a
+    // follow either direction, or DM history either direction) right now,
+    // not the whole userbase — so their conversations list, active chat
+    // header, and follow-status check update live instead of waiting on
+    // this app's 5-minute /api/users/:username cache TTL to age out.
+    try {
+      const related = await pool.query(
+        `SELECT DISTINCT u FROM (
+           SELECT "followerId" AS u FROM follows WHERE LOWER("followingId") = LOWER($1)
+           UNION SELECT "followingId" AS u FROM follows WHERE LOWER("followerId") = LOWER($1)
+           UNION SELECT "senderName" AS u FROM messages WHERE LOWER("targetName") = LOWER($1)
+           UNION SELECT "targetName" AS u FROM messages WHERE LOWER("senderName") = LOWER($1)
+         ) t WHERE LOWER(u) != LOWER($1)`,
+        [cleaned]
+      );
+      const payload = { oldUsername, newUsername: cleaned };
+      related.rows.forEach(r => { if (r.u) { invalidateCacheForUser(r.u); emitToUser(r.u, 'user_renamed', payload); } });
+    } catch (e) {
+      console.error('[username rename] related-user notify failed:', e.message);
+    }
+
     const newToken = jwt.sign({ id: req.user.id, username: cleaned }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ message: 'Username updated', username: cleaned, token: newToken });
   } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
     console.error('Username update error:', err);
     res.status(500).json({ error: 'Database error' });
+  } finally {
+    client.release();
   }
 });
 
