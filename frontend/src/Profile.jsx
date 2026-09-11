@@ -22,6 +22,9 @@ import { useBackIntercept } from './hooks/useBackIntercept';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
 import { isTauriApp, isStandalonePWA } from './lib/platform';
 import { useCrypto } from './contexts/CryptoContext';
+import { decryptPrivateKey, encryptPrivateKey } from './lib/crypto.js';
+import { encodeBase64 } from 'tweetnacl-util';
+import OAuthEncryptionModal from './components/OAuthEncryptionModal';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -32,7 +35,8 @@ const Profile = () => {
   const location = useLocation();
   const { username: viewingUsername } = useParams(); // if set, we're viewing another user
   const { t, i18n } = useTranslation();
-  const { clearKeys } = useCrypto();
+  const { clearKeys, keyPair, setKeyPair } = useCrypto();
+  const [showEncPassphraseModal, setShowEncPassphraseModal] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
   const isDesktopApp = isTauriApp();
@@ -790,7 +794,7 @@ const Profile = () => {
     return errs;
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     const errs = {};
     if (!currentPassword) errs.currentPassword = 'Current password is required';
     const pwValidation = validateNewPassword(newPassword);
@@ -805,15 +809,77 @@ const Profile = () => {
     setPwErrors(errs);
     if (Object.keys(errs).length > 0) return;
     setChangingPassword(true);
-    fetch(`${API}/api/profile/change-password`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ currentPassword, newPassword })
-    }).then(r => r.json()).then(data => {
+
+    // If this account is still on the legacy scheme (its stored encryption
+    // key is wrapped by the login password itself — see the encryption
+    // audit), the key must be re-wrapped with the NEW password here, before
+    // it changes server-side, or it silently becomes permanently
+    // undecryptable the next time this device's local session key is lost
+    // (new device, cleared storage, etc.) — the current password is the
+    // only chance to unwrap it. An account that already migrated to an
+    // independent encryption passphrase (see "Encryption passphrase" below)
+    // is untouched: its key-wrap has nothing to do with the login password.
+    let rewrap = null;
+    try {
+      const keysRes = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (keysRes.ok) {
+        const keysData = await keysRes.json();
+        if (keysData.encryptedPrivateKey) {
+          const secretKey = await decryptPrivateKey(keysData.encryptedPrivateKey, currentPassword);
+          rewrap = await encryptPrivateKey(secretKey, newPassword);
+        }
+      }
+    } catch (e) {
+      // Either already migrated (currentPassword no longer unwraps it —
+      // expected and fine) or the check failed for some other reason.
+      // Never block the password change on this.
+    }
+
+    try {
+      const res = await fetch(`${API}/api/profile/change-password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+      const data = await res.json();
       setChangingPassword(false);
       if (data.error) return toast.error(data.error);
+
+      if (rewrap) {
+        try {
+          await fetch(`${API}/api/auth/rekey`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ encryptedPrivateKey: rewrap })
+          });
+        } catch (e) {
+          console.warn('[Profile] Key re-wrap after password change failed:', e);
+        }
+      }
+
       toast.success(t('pwChangedToast', 'Password changed!'));
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setPwErrors({});
-    }).catch(() => { setChangingPassword(false); toast.error(t('failedToast', 'Failed')); });
+    } catch {
+      setChangingPassword(false);
+      toast.error(t('failedToast', 'Failed'));
+    }
+  };
+
+  /** 'Encryption passphrase' section — opt-in migration off password-derived
+   *  key wrapping onto an independent passphrase (see OAuthEncryptionModal's
+   *  doc comment and the encryption audit this closes). Reuses the SAME
+   *  keypair already unwrapped in memory (via useCrypto()) — never generates
+   *  a new one, never touches the recovery phrase already on file. */
+  const handleSetEncryptionPassphrase = async (passphrase) => {
+    if (!keyPair) throw new Error('Encryption keys are not ready yet. Please reload and try again.');
+    const encryptedPrivateKey = await encryptPrivateKey(keyPair.secretKey, passphrase);
+    const res = await fetch(`${API}/api/auth/setup-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ publicKey: encodeBase64(keyPair.publicKey), encryptedPrivateKey })
+    });
+    if (!res.ok) throw new Error('Failed to save your encryption passphrase. Please try again.');
+    await setKeyPair(keyPair);
+    setShowEncPassphraseModal(false);
+    toast.success(t('encPassphraseSetToast', 'Encryption passphrase set!'));
   };
 
   const handleDeleteAccount = () => {
@@ -2119,6 +2185,42 @@ const Profile = () => {
               </div>
             )}
           </div>
+
+          {/* Encryption passphrase — opt-in migration off password-derived E2EE
+              key wrapping onto an independent passphrase. See the encryption
+              audit: wrapping the private key with the account's login
+              password meant the server (which necessarily sees that password
+              on every login) could, in principle, derive the same wrapping
+              key. Not shown to guests — guest keys use a separate, unrelated
+              storage scheme (see CryptoContext.jsx). */}
+          {isOwnProfile && !isGuest && (
+            <div className="profile-card">
+              <div className="acc-header" onClick={() => toggleSection('encryption')}>
+                <h3><Shield size={18} color="#8b5cf6" /> {t('encryptionPassphraseTitle', 'Encryption Passphrase')}</h3>
+                <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'encryption' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+              </div>
+              {openSection === 'encryption' && (
+                <div className="acc-body">
+                  <div className="field-label">
+                    {t('encryptionPassphraseDesc', "Your encrypted messages are currently protected using your account password. Set an independent passphrase — never sent to us — so your login password alone is no longer enough to unlock them.")}
+                  </div>
+                  <button className="save-btn" onClick={() => setShowEncPassphraseModal(true)} style={{ alignSelf: 'flex-start', marginTop: 12 }}>
+                    {t('setEncryptionPassphrase', 'Set encryption passphrase')}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showEncPassphraseModal && (
+            <OAuthEncryptionModal
+              mode="set"
+              isMigration
+              isPasswordAccount
+              onSetPassphrase={handleSetEncryptionPassphrase}
+              onSkip={() => setShowEncPassphraseModal(false)}
+            />
+          )}
 
           {/* Blocked Users */}
           <div id="blocked-users-section" className="profile-card">

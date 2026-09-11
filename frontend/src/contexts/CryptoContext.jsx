@@ -197,6 +197,28 @@ export function CryptoProvider({ children }) {
     console.log('[CryptoContext] Keys restored from server ✅');
   }, []);
 
+  /**
+   * Escape hatch from KeyRecoveryModal's password prompt for an account that
+   * has migrated to an independent encryption passphrase (Profile.jsx's
+   * "Encryption passphrase" section) — the login password no longer unwraps
+   * this account's key by design, so KeyRecoveryModal's password field will
+   * never work for it. Hands off to EncryptionUnlockGate (mounted once at
+   * the App level) instead of guessing this from a decrypt failure, which
+   * would be ambiguous with a genuine password typo.
+   */
+  const switchToPassphraseUnlock = useCallback(async () => {
+    const token = localStorage.getItem('watch_token');
+    if (!token) throw new Error('Not authenticated');
+    const res = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) throw new Error('Failed to fetch key from server');
+    const data = await res.json();
+    if (!data.encryptedPrivateKey) throw new Error('No encrypted private key found on server. Please log out and back in.');
+    setNeedsReauth(false);
+    window.dispatchEvent(new CustomEvent('encryption_needs_passphrase', {
+      detail: { encryptedPrivateKey: data.encryptedPrivateKey, publicKey: data.publicKey, token }
+    }));
+  }, []);
+
   /** Clear key from memory + session (call on logout). */
   const clearKeys = useCallback(() => {
     setKeyPairState(null);
@@ -210,7 +232,7 @@ export function CryptoProvider({ children }) {
   }, []);
 
   return (
-    <CryptoContext.Provider value={{ keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword }}>
+    <CryptoContext.Provider value={{ keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock }}>
       {children}
     </CryptoContext.Provider>
   );

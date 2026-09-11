@@ -7,9 +7,19 @@
  * never reused from the account's login and deliberately never called a "PIN" —
  * used only to derive the AES-GCM key that wraps the private key client-side.
  *
- * Three views:
- *   'set'    — first-time key creation, or an existing account migrating off the
- *              old server-side wrapping onto this passphrase.
+ * Email/password accounts use this SAME modal (isPasswordAccount=true) for the
+ * identical reason, just phrased differently: their private key was originally
+ * wrapped with the account's login password, which the server necessarily sees
+ * on every login — so it could, in principle, derive the same wrapping key.
+ * An independent passphrase closes that gap the same way it does for OAuth.
+ *
+ * Four views:
+ *   'set'    — first-time key creation, or an existing account migrating off
+ *              password/server-side-derivable wrapping onto this passphrase.
+ *              Only THIS view supports onSkip (password accounts already have
+ *              a working — if weaker — scheme, so migrating is optional and
+ *              dismissible; OAuth's brand-new/legacy-migration cases have no
+ *              working alternative, so onSkip is simply omitted there).
  *   'unlock' — returning login on any device: decrypt the stored blob locally.
  *   'forgot' — reachable from 'unlock': recover via the account's recovery
  *              phrase (shown once at original key creation) and set a new
@@ -21,7 +31,7 @@ import { useTranslation } from 'react-i18next';
 
 const MIN_LENGTH = 8;
 
-export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, onSetPassphrase, onUnlock, onRecover }) {
+export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, isPasswordAccount, onSetPassphrase, onUnlock, onRecover, onSkip }) {
   const { t } = useTranslation();
   const [view, setView] = useState('main'); // 'main' | 'forgot'
   const [passphrase, setPassphrase] = useState('');
@@ -130,9 +140,13 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
                   : t('encSetNewTitle', 'Set an encryption passphrase')}
               </h2>
               <p style={{ margin: '8px 0 0', color: descColor, fontSize: 13.5, lineHeight: 1.5 }}>
-                {isMigration
-                  ? t('encSetMigrationDesc', `Your ${oauthLabel} account's encrypted messages are currently protected by this server. Set a passphrase that only you know — never sent to us — to close that gap.`, { oauthLabel })
-                  : t('encSetNewDesc', `Since you signed in with ${oauthLabel}, choose a separate passphrase to protect your encrypted messages. This is not your ${oauthLabel} password, and it's different from your chat-lock PIN.`, { oauthLabel })}
+                {isPasswordAccount
+                  ? (isMigration
+                      ? t('encSetMigrationDescPw', "Your encrypted messages are currently protected using your account password — which this server necessarily sees on every login. Set a separate passphrase that only you know, never sent to us, to close that gap.")
+                      : t('encSetNewDescPw', "Choose a passphrase to protect your encrypted messages. This is separate from your account password — never sent to us — and different from your chat-lock PIN."))
+                  : (isMigration
+                      ? t('encSetMigrationDesc', `Your ${oauthLabel} account's encrypted messages are currently protected by this server. Set a passphrase that only you know — never sent to us — to close that gap.`, { oauthLabel })
+                      : t('encSetNewDesc', `Since you signed in with ${oauthLabel}, choose a separate passphrase to protect your encrypted messages. This is not your ${oauthLabel} password, and it's different from your chat-lock PIN.`, { oauthLabel }))}
               </p>
             </>
           )}
@@ -204,6 +218,12 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, on
             <button type="submit" disabled={isSubmitting} className="stay-white" style={submitBtnStyle(isSubmitting)}>
               {isSubmitting ? t('encSaving', 'Saving...') : t('encSetContinue', 'Set passphrase & continue')}
             </button>
+            {onSkip && (
+              <button type="button" onClick={onSkip} disabled={isSubmitting}
+                style={{ background: 'none', border: 'none', color: labelColor, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                {t('encSkipForNow', 'Not now')}
+              </button>
+            )}
           </form>
         )}
 

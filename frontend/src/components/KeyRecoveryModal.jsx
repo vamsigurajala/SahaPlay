@@ -15,14 +15,31 @@ import { useTranslation } from 'react-i18next';
 import { useCrypto } from '../contexts/CryptoContext';
 
 export default function KeyRecoveryModal() {
-  const { needsReauth, reloadPrivateKeyWithPassword } = useCrypto();
+  const { needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock } = useCrypto();
   const { t } = useTranslation();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   if (!needsReauth) return null;
+
+  // Explicit, user-initiated only — never inferred from a decrypt failure,
+  // which would be ambiguous with a genuine password typo. For an account
+  // that has migrated to an independent encryption passphrase (see
+  // Profile.jsx), the login password entered above will never unwrap the
+  // key, so this hands off to that flow instead (EncryptionUnlockGate).
+  const handleUsePassphraseInstead = async () => {
+    setSwitching(true);
+    setError('');
+    try {
+      await switchToPassphraseUnlock();
+    } catch (err) {
+      setError(err.message || t('somethingWentWrongError', 'Something went wrong. Please try again.'));
+      setSwitching(false);
+    }
+  };
 
   const isLight = typeof document !== 'undefined' &&
     document.documentElement.getAttribute('data-theme') === 'light';
@@ -105,6 +122,14 @@ export default function KeyRecoveryModal() {
           }}
         >
           {isSubmitting ? t('unlocking', 'Unlocking…') : t('unlock', 'Unlock')}
+        </button>
+        <button
+          type="button"
+          onClick={handleUsePassphraseInstead}
+          disabled={switching}
+          style={{ background: 'none', border: 'none', color: 'var(--brand-1-light)', fontSize: 12.5, cursor: 'pointer', fontWeight: 600, padding: 0 }}
+        >
+          {switching ? t('encSwitching', 'One moment…') : t('encUsePassphraseInstead', 'Have an encryption passphrase instead of a password? Use that.')}
         </button>
       </form>
     </div>

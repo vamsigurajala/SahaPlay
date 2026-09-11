@@ -99,22 +99,15 @@ const Signup = () => {
       const secretKey = new Uint8Array(hashBuf);
       const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
 
-      const encryptedPrivateKey = await encryptPrivateKey(keyPair.secretKey, password);
-      const recoveryKeyHash = await hashRecoveryPhrase(phrase);
-
-      const token = data.token;
-      const setupHeaders = { 'Content-Type': 'application/json' };
-      if (token) setupHeaders['Authorization'] = `Bearer ${token}`;
-
-      await fetch(`${API}/api/auth/setup-keys`, {
-        method: 'POST',
-        headers: setupHeaders,
-        body: JSON.stringify({ username, publicKey: encodeBase64(keyPair.publicKey), encryptedPrivateKey, recoveryKeyHash })
-      });
-
-      await setKeyPair(keyPair);
-      setRecoveryPhrase(phrase);
-      setShowRecoveryModal(true);
+      // The private key is wrapped with a dedicated encryption passphrase —
+      // NOT the account password — collected via the same modal Google/Apple
+      // accounts already use (handleOAuthSetPassphrase below, which uses
+      // this pre-built keyPair/phrase instead of generating its own). See
+      // the encryption audit: wrapping with the login password meant the
+      // server, which necessarily sees that password on every login, could
+      // in principle derive the same wrapping key.
+      setOauthModalCtx({ data, isMigration: false, isPasswordAccount: true, keyPair, phrase });
+      setOauthModalMode('set');
     } catch (err) {
       console.error('Signup error:', err);
       setGlobalError(t('networkError', 'Network error. Please try again.'));
@@ -165,26 +158,28 @@ const Signup = () => {
   // 'set' view of OAuthEncryptionModal — covers both brand-new key creation and
   // migrating an existing legacy-wrapped key onto a passphrase.
   const handleOAuthSetPassphrase = async (passphrase) => {
-    const { data, isMigration } = oauthModalCtx;
-    let keyPair;
-    let phrase = null;
-    if (isMigration) {
-      // Migration reuses the account's existing key, so its original recovery
-      // phrase (if the user still has it) already recovers it — nothing new to
-      // generate or hash. Omitting recoveryKeyHash below relies on setup-keys'
-      // COALESCE to leave the previously-stored hash untouched.
-      keyPair = nacl.box.keyPair.fromSecretKey(decodeBase64(data.migrationRawKeyB64));
-    } else {
-      // Same compact 24-letter recovery key as password-account signup (see
-      // handleSignup above) instead of the legacy 24-word BIP39 mnemonic — the
-      // phrase itself is the seed, hashed to derive the secret key.
-      const chars = 'abcdefghijklmnopqrstuvwxyz';
-      let phraseStr = '';
-      const randBytes = crypto.getRandomValues(new Uint8Array(24));
-      for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
-      phrase = phraseStr.toUpperCase();
-      const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
-      keyPair = nacl.box.keyPair.fromSecretKey(new Uint8Array(hashBuf));
+    const { data, isMigration, keyPair: providedKeyPair, phrase: providedPhrase } = oauthModalCtx;
+    let keyPair = providedKeyPair;
+    let phrase = providedPhrase ?? null;
+    if (!keyPair) {
+      if (isMigration) {
+        // Migration reuses the account's existing key, so its original recovery
+        // phrase (if the user still has it) already recovers it — nothing new to
+        // generate or hash. Omitting recoveryKeyHash below relies on setup-keys'
+        // COALESCE to leave the previously-stored hash untouched.
+        keyPair = nacl.box.keyPair.fromSecretKey(decodeBase64(data.migrationRawKeyB64));
+      } else {
+        // Same compact 24-letter recovery key as password-account signup (see
+        // handleSignup above) instead of the legacy 24-word BIP39 mnemonic — the
+        // phrase itself is the seed, hashed to derive the secret key.
+        const chars = 'abcdefghijklmnopqrstuvwxyz';
+        let phraseStr = '';
+        const randBytes = crypto.getRandomValues(new Uint8Array(24));
+        for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
+        phrase = phraseStr.toUpperCase();
+        const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(phrase.toLowerCase()));
+        keyPair = nacl.box.keyPair.fromSecretKey(new Uint8Array(hashBuf));
+      }
     }
 
     const encryptedPrivKey = await encryptPrivateKey(keyPair.secretKey, passphrase);
@@ -333,6 +328,7 @@ const Signup = () => {
           mode={oauthModalMode}
           oauthLabel={oauthModalCtx?.oauthLabel}
           isMigration={!!oauthModalCtx?.isMigration}
+          isPasswordAccount={!!oauthModalCtx?.isPasswordAccount}
           onSetPassphrase={handleOAuthSetPassphrase}
           onUnlock={handleOAuthUnlock}
           onRecover={handleOAuthRecover}

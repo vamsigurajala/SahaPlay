@@ -160,24 +160,29 @@ const Login = () => {
           const kp = nacl.box.keyPair.fromSecretKey(secretKey);
           await setKeyPair(kp);
         } catch (cryptoErr) {
-          console.warn('[Login] Key decryption failed — wrong password or corrupted blob. Regenerating fresh key.', cryptoErr);
-          try {
-            const { encryptPrivateKey, secretKeyToMnemonic, hashRecoveryPhrase } = await import('./lib/crypto.js');
-            const kp                = generateKeyPair();
-            const encryptedPrivKey  = await encryptPrivateKey(kp.secretKey, password);
-            const phrase            = await secretKeyToMnemonic(kp.secretKey);
-            const recoveryKeyHash   = await hashRecoveryPhrase(phrase);
-
-            await fetch(`${API}/api/auth/setup-keys`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-              body: JSON.stringify({ username: data.username, publicKey: encodeBase64(kp.publicKey), encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash })
-            });
-            await setKeyPair(kp);
-            console.log('[Login] Fresh E2EE key pair generated and synchronized successfully.');
-          } catch (repairErr) {
-            console.error('[Login] Key repair failed:', repairErr);
-          }
+          // The login password no longer unwraps this account's stored key
+          // blob. This used to be treated as "corrupted, regenerate a fresh
+          // key" — which silently overwrote the account's public key
+          // server-side, permanently orphaning every message anyone had
+          // ever encrypted to the OLD key (on every device, including this
+          // account's own sent history). That is never the right response
+          // to a decrypt failure here.
+          //
+          // The real cause, now that email/password accounts can migrate to
+          // an independent encryption passphrase (see Profile.jsx's
+          // "Encryption passphrase" section — the same fix this closes:
+          // wrapping with the login password meant the server, which sees
+          // it on every login, could in principle derive the same wrapping
+          // key): this account has already migrated, so the login password
+          // is no longer the right secret. Ask for the passphrase instead —
+          // dispatched as an event (not rendered here) because navigate()
+          // above already unmounts this component before this async block
+          // resolves; EncryptionUnlockGate (mounted once at the App level)
+          // picks it up and renders the unlock/recover flow.
+          console.warn('[Login] Login password did not unwrap the stored key — likely migrated to an independent passphrase.', cryptoErr);
+          window.dispatchEvent(new CustomEvent('encryption_needs_passphrase', {
+            detail: { encryptedPrivateKey: data.encryptedPrivateKey, publicKey: data.publicKey, token: data.token }
+          }));
         }
       } else {
         try {

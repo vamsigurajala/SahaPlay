@@ -423,29 +423,59 @@ export function decryptDMSenderCopy(senderCiphertextBase64, nonceBase64, ephemer
 
 
 // ─── Session Storage (encrypted, survives page refresh) ──────────────────────
+// Was localStorage (survives indefinitely, even across a full browser
+// restart) — the encryption audit flagged that the wrapped private key
+// (wt_sk) and the only secret that unwraps it (wt_spw) sat in the exact same
+// storage, readable together by anything with JS execution on the page, for
+// as long as the user's account existed. Real sessionStorage narrows that
+// window to "while this tab is actually open": closing the tab/browser wipes
+// both, and CryptoContext.jsx's existing needsReauth flow (already exercised
+// in production today, e.g. whenever a mobile browser reclaims a background
+// tab's storage) is what asks for the password again on next open — no new
+// code path, just relying on one that already exists and already works.
+//
+// readMigrated() is the one-time bridge off the old location: an existing
+// logged-in user's key currently sits in localStorage, and this fix must not
+// force everyone straight into a re-auth prompt the moment it deploys. On
+// first read after this change, if sessionStorage doesn't have it yet but
+// localStorage does, it's moved over (and removed from localStorage) so this
+// tab's *current* session carries on uninterrupted — the tightened lifetime
+// only takes effect from the next full close onward.
 const SESSION_KEY_NAME = 'wt_sk';
 const SESSION_PW_NAME  = 'wt_spw';
 
+function readMigrated(name) {
+  const v = sessionStorage.getItem(name);
+  if (v) return v;
+  const legacy = localStorage.getItem(name);
+  if (legacy) {
+    sessionStorage.setItem(name, legacy);
+    localStorage.removeItem(name);
+    return legacy;
+  }
+  return null;
+}
+
 function getOrCreateSessionPassword() {
-  let pw = localStorage.getItem(SESSION_PW_NAME);
+  let pw = readMigrated(SESSION_PW_NAME);
   if (!pw) {
     const arr = crypto.getRandomValues(new Uint8Array(32));
     pw = bufToB64(arr.buffer);
-    localStorage.setItem(SESSION_PW_NAME, pw);
+    sessionStorage.setItem(SESSION_PW_NAME, pw);
   }
   return pw;
 }
 
-/** Saves encrypted private key to localStorage (password is random, stored in same session). */
+/** Saves encrypted private key to sessionStorage (password is random, stored alongside). */
 export async function saveKeyToSession(secretKeyBytes) {
   const pw   = getOrCreateSessionPassword();
   const blob = await encryptPrivateKey(secretKeyBytes, pw);
-  localStorage.setItem(SESSION_KEY_NAME, blob);
+  sessionStorage.setItem(SESSION_KEY_NAME, blob);
 }
 
-/** Loads + decrypts saved key from localStorage. Returns null if not found. */
+/** Loads + decrypts saved key from sessionStorage (migrating off localStorage if needed). Returns null if not found. */
 export async function loadKeyFromSession() {
-  const blob = localStorage.getItem(SESSION_KEY_NAME);
+  const blob = readMigrated(SESSION_KEY_NAME);
   if (!blob) return null;
   try {
     const pw = getOrCreateSessionPassword();
@@ -456,8 +486,12 @@ export async function loadKeyFromSession() {
   }
 }
 
-/** Clears the session key (call on logout). */
+/** Clears the session key (call on logout). Clears both storages — the old
+ *  localStorage location included, in case a tab never got the chance to
+ *  migrate off it. */
 export function clearSessionKey() {
+  sessionStorage.removeItem(SESSION_KEY_NAME);
+  sessionStorage.removeItem(SESSION_PW_NAME);
   localStorage.removeItem(SESSION_KEY_NAME);
   localStorage.removeItem(SESSION_PW_NAME);
 }

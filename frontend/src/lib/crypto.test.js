@@ -189,6 +189,54 @@ describe('Guest key at-rest wrapping (encryptGuestKey/decryptGuestKey)', () => {
   });
 });
 
+describe('Password-account key-wrap migration (Phase 4 — independent encryption passphrase)', () => {
+  test('a key wrapped by the login password can be migrated to an independent passphrase, preserving the exact same keypair', async () => {
+    const kp = generateKeyPair();
+    const loginPassword = 'the-account-login-password-123!';
+    const encryptionPassphrase = 'a totally different secret only the user knows';
+
+    // Step 1: legacy scheme — wrapped with the login password (what
+    // Signup.jsx used to do, and what every pre-migration account still has).
+    const legacyBlob = await encryptPrivateKey(kp.secretKey, loginPassword);
+
+    // Step 2: migration (Login.jsx unwraps with the password it already has
+    // from the just-completed login; Profile.jsx's "Encryption passphrase"
+    // section re-wraps the SAME already-in-memory keypair) — re-wrap with
+    // the new, independent passphrase.
+    const recoveredSecretKey = await decryptPrivateKey(legacyBlob, loginPassword);
+    expect(Array.from(recoveredSecretKey)).toEqual(Array.from(kp.secretKey));
+    const migratedBlob = await encryptPrivateKey(recoveredSecretKey, encryptionPassphrase);
+
+    // Step 3: the migrated blob unwraps with the NEW passphrase to the exact
+    // same keypair — decryption of every message ever sent/received under
+    // this identity keeps working, since the public/private key never
+    // changed, only what protects the private key at rest.
+    const finalSecretKey = await decryptPrivateKey(migratedBlob, encryptionPassphrase);
+    expect(Array.from(finalSecretKey)).toEqual(Array.from(kp.secretKey));
+  });
+
+  test('after migration, the OLD login password no longer unwraps the key — proving the server can no longer derive it from a password it sees on login', async () => {
+    const kp = generateKeyPair();
+    const loginPassword = 'the-account-login-password-123!';
+    const encryptionPassphrase = 'a totally different secret only the user knows';
+    const migratedBlob = await encryptPrivateKey(kp.secretKey, encryptionPassphrase);
+
+    // This is the actual security property Phase 4 buys: a server that sees
+    // every login password (as any password-auth server necessarily does)
+    // gains nothing from it once an account has migrated — the password is
+    // cryptographically unrelated to the blob it would need to unwrap.
+    await expect(decryptPrivateKey(migratedBlob, loginPassword)).rejects.toBeTruthy();
+  });
+
+  test('a not-yet-migrated blob still unwraps with the login password (existing accounts keep working)', async () => {
+    const kp = generateKeyPair();
+    const loginPassword = 'unchanged-existing-password';
+    const legacyBlob = await encryptPrivateKey(kp.secretKey, loginPassword);
+    const recovered = await decryptPrivateKey(legacyBlob, loginPassword);
+    expect(Array.from(recovered)).toEqual(Array.from(kp.secretKey));
+  });
+});
+
 describe('sanitizeReplyToForWire — the reply-preview privacy fix', () => {
   test('strips plaintext/ciphertext message content, keeps only non-sensitive fields', () => {
     const localSnapshot = {
