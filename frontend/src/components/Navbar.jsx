@@ -15,7 +15,7 @@ import NotificationsPanelContent from './NotificationsPanelContent';
 import ProfileActionMenu from './ProfileActionMenu';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
-import { useBackIntercept } from '../hooks/useBackIntercept';
+import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 import { getPersistedGcwOpen } from '../utils/gcwPersist';
 import { isTauriApp, isStandalonePWA } from '../lib/platform';
 import { peekPendingNotificationTap, clearPendingNotificationTap } from '../lib/nativePush';
@@ -141,6 +141,13 @@ const Navbar = () => {
     searchBack.skipNextClose();
     setShowSearch(false);
     setPersistedNavbarSearchOpen(true);
+    // Tells the shared back-listener that the popstate this navigate()
+    // eventually consumes on the way back isn't the still-inert search-open
+    // entry above — without this, swiping back off the profile misattributes
+    // that swipe to it, fires closeSearch(), and clears the persisted-open
+    // flag we just set, so search never reopens (same fix as
+    // GlobalChatWidget's leaveChatToViewProfile).
+    suppressNextPop();
     navigate(`/profile/${user.username}`);
   };
 

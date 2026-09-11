@@ -6,7 +6,7 @@ import { isStandalonePWA, isTauriApp } from '../lib/platform';
 import { clearUserSession } from '../lib/authUtils.js';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
-import { useBackIntercept } from '../hooks/useBackIntercept';
+import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 import { getPersistedSearchOpen, setPersistedSearchOpen } from '../utils/searchTabPersist';
 import { peekPendingNotificationTap, clearPendingNotificationTap } from '../lib/nativePush';
 import GlobalChatWidget from './GlobalChatWidget';
@@ -220,7 +220,8 @@ export default function BottomNav() {
   // router's pushState and silently undoes the navigation, which is why
   // "Account"/"App Settings" inside the drawer previously did nothing.
   const navigateFrom = (path, opts = {}) => {
-    if (showSearch || showProfile) skipNextClose();
+    const hadOverlayOpen = showSearch || showProfile;
+    if (hadOverlayOpen) skipNextClose();
     const wasSearchOpen = showSearch;
     closeAll();
     // A search RESULT click (as opposed to tapping Home/Public/the profile
@@ -229,6 +230,14 @@ export default function BottomNav() {
     // makes swiping back from the profile/room just opened land back on the
     // search overlay instead of skipping past it to whatever page hosted it.
     if (opts.keepSearchOpen && wasSearchOpen) setPersistedSearchOpen(true);
+    // Tells the shared back-listener that the popstate this navigate()
+    // eventually consumes on the way back isn't the still-inert
+    // Search/Profile entry left above by skipNextClose() — without this, the
+    // real swipe off the profile/room page gets misattributed to that entry,
+    // firing closeOverlays() and clearing the persisted-open flag we just
+    // set, so search silently never reopens (same fix as GlobalChatWidget's
+    // leaveChatToViewProfile / RoomChatPanel's goToProfile).
+    if (hadOverlayOpen) suppressNextPop();
     navigate(path);
   };
 
@@ -351,13 +360,13 @@ export default function BottomNav() {
                 isGuest={isGuest}
                 isAdminRole={isAdminRole}
                 isDesktopApp={isDesktopApp}
-                onProfileClick={() => { skipNextClose(); setShowProfile(false); navigate('/profile'); }}
-                onAppSettingsClick={() => { skipNextClose(); setShowProfile(false); navigate('/app-settings'); }}
+                onProfileClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/profile'); }}
+                onAppSettingsClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/app-settings'); }}
                 onContactSupportClick={() => { setShowProfile(false); setShowSupportModal(true); }}
                 onGetDesktopAppClick={() => { setShowProfile(false); setShowDownloadAppModal(true); }}
-                onAdminClick={() => { skipNextClose(); setShowProfile(false); navigate('/admin'); }}
-                onSignInClick={() => { skipNextClose(); clearUserSession(); setShowProfile(false); navigate('/login'); }}
-                onSignUpClick={() => { skipNextClose(); setShowProfile(false); navigate('/signup'); }}
+                onAdminClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/admin'); }}
+                onSignInClick={() => { skipNextClose(); suppressNextPop(); clearUserSession(); setShowProfile(false); navigate('/login'); }}
+                onSignUpClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/signup'); }}
                 onLogoutClick={() => { skipNextClose(); setShowProfile(false); handleLogout(); }}
                 t={t}
               />
