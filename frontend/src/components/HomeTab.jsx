@@ -11,12 +11,17 @@ import PinnedRoomsGrid from './PinnedRoomsGrid';
 // app's home screen. Relies on Home.jsx's own <style> block (always mounted
 // regardless of which branch renders) for the shared .pinned-card/.img-layer/
 // etc rules that PinnedRoomsGrid's markup depends on.
-export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pinnedRooms, onUnpin, roomHistory, pinnedRoomIds, onTogglePin, t }) {
+export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pinnedRooms, isPinnedLoading, onUnpin, roomHistory, isHistoryLoading, pinnedRoomIds, onTogglePin, t }) {
   const hasPinned = pinnedRooms && pinnedRooms.length > 0;
   const hasHistory = roomHistory && roomHistory.length > 0;
-  const showTabs = hasPinned && hasHistory;
+  // Tabs only ever appear once BOTH fetches have actually settled and BOTH
+  // turned out non-empty — see Home.jsx's identical comment on its own
+  // showRoomsTabs for why (this is the same "flashes in then disappears"
+  // fix, just for the standalone app's Home tab).
+  const bothSettled = !isPinnedLoading && !isHistoryLoading;
+  const showTabs = bothSettled && hasPinned && hasHistory;
   const [roomsTab, setRoomsTab] = useState('pinned');
-  const activeTab = showTabs ? roomsTab : (hasPinned ? 'pinned' : 'history');
+  const activeTab = !bothSettled ? 'pinned' : (showTabs ? roomsTab : (hasPinned ? 'pinned' : 'history'));
   return (
     <div style={{
       padding: '20px 16px 100px', maxWidth: 640, margin: '0 auto',

@@ -27,11 +27,19 @@ const PinnedRooms = () => {
     refetchPinnedRooms();
   };
 
-  const hasPinnedContent = isLoading || pinnedRooms.length > 0;
-  const hasHistoryContent = isHistoryLoading || roomHistory.length > 0;
-  const showTabs = hasPinnedContent && hasHistoryContent;
+  const hasPinnedRooms = pinnedRooms.length > 0;
+  const hasHistoryRooms = roomHistory.length > 0;
+  // Tabs only ever appear once BOTH fetches have actually settled and BOTH
+  // turned out non-empty — showing the tab pair speculatively while Room
+  // History is still loading (then hiding it again the moment it resolves
+  // empty, which it legitimately can be for an account that's never
+  // created a room) is exactly the "tab flashes in then disappears" bug
+  // reported here. Settled-but-empty in either bucket just falls back to
+  // the single-heading layout, same as before tabs existed.
+  const bothSettled = !isLoading && !isHistoryLoading;
+  const showTabs = bothSettled && hasPinnedRooms && hasHistoryRooms;
   const [tab, setTab] = useState('pinned');
-  const activeTab = showTabs ? tab : (hasHistoryContent && !hasPinnedContent ? 'history' : 'pinned');
+  const activeTab = !bothSettled ? 'pinned' : (showTabs ? tab : (hasPinnedRooms ? 'pinned' : 'history'));
 
   return (
     <PullToRefresh>

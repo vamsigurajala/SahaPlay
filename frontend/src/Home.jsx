@@ -94,11 +94,25 @@ const Home = () => {
   const [roomsTab, setRoomsTab] = useState('pinned');
   const showPinnedTabData = isLoggedIn || isGuest;
   const showHistoryTabData = isLoggedIn;
-  const hasPinnedContent = isPinnedLoading || (pinnedRooms && pinnedRooms.length > 0);
-  const hasHistoryContent = isHistoryLoading || (roomHistory && roomHistory.length > 0);
-  const showRoomsSection = (showPinnedTabData && hasPinnedContent) || (showHistoryTabData && hasHistoryContent);
-  const showRoomsTabs = showPinnedTabData && showHistoryTabData && hasPinnedContent && hasHistoryContent;
-  const activeRoomsTab = showRoomsTabs ? roomsTab : (hasPinnedContent && showPinnedTabData ? 'pinned' : 'history');
+  const hasPinnedRooms = pinnedRooms && pinnedRooms.length > 0;
+  const hasHistoryRooms = roomHistory && roomHistory.length > 0;
+  // Tabs only ever appear once BOTH fetches have actually settled and BOTH
+  // turned out non-empty — showing the tab pair speculatively while a fetch
+  // is still in flight (then hiding the History tab again the moment it
+  // resolves empty) is exactly the "tab flashes in then disappears" bug
+  // reported on the desktop app, where Room History legitimately can be
+  // empty for a given account. Settled-but-empty in EITHER bucket just
+  // falls back to the single-heading layout, same as before tabs existed.
+  const pinnedSettled = !isPinnedLoading;
+  const historySettled = !isHistoryLoading;
+  const bothSettled = pinnedSettled && historySettled;
+  const showRoomsSection = !bothSettled || (showPinnedTabData && hasPinnedRooms) || (showHistoryTabData && hasHistoryRooms);
+  const showRoomsTabs = bothSettled && showPinnedTabData && showHistoryTabData && hasPinnedRooms && hasHistoryRooms;
+  const activeRoomsTab = !bothSettled
+    ? 'pinned'
+    : showRoomsTabs
+      ? roomsTab
+      : ((showPinnedTabData && hasPinnedRooms) ? 'pinned' : 'history');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   useEffect(() => {
@@ -576,8 +590,10 @@ const Home = () => {
           handleJoin={handleJoin}
           createRoom={createRoom}
           pinnedRooms={(isLoggedIn || isGuest) ? pinnedRooms : []}
+          isPinnedLoading={(isLoggedIn || isGuest) && isPinnedLoading}
           onUnpin={unpinRoom}
           roomHistory={isLoggedIn ? roomHistory : []}
+          isHistoryLoading={isLoggedIn && isHistoryLoading}
           pinnedRoomIds={pinnedRoomIds}
           onTogglePin={toggleHistoryPin}
           t={t}
