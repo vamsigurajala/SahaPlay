@@ -32,7 +32,50 @@ function normalizeRecoveryKey(key) {
   return key.replace(/[-\s]/g, '').toUpperCase();
 }
 
+/**
+ * Used by the pre-login password-reset flow (/api/reset-password) to decide
+ * whether a client-submitted "recovery" — a re-derived publicKey/
+ * encryptedPrivateKey/recoveryKeyHash, computed client-side from whatever
+ * recovery phrase the user just typed — actually recovers THIS account's
+ * existing E2EE identity, or is an unrelated keypair derived from a wrong
+ * (but still well-formed) phrase.
+ *
+ * The recovery phrase itself is never sent to or seen by the server — only
+ * its SHA-256 hash. That hash was recorded once, at the moment the account's
+ * REAL key was created, and is never supposed to change just because someone
+ * later submits a different phrase. Comparing the freshly-submitted hash
+ * against that untouched, previously-stored value is what cryptographically
+ * binds "this recovery attempt" to "the account's actual identity" — before
+ * this check existed, the submitted hash was only ever used to overwrite the
+ * stored one, never to verify against it, so ANY well-formed phrase (right
+ * or wrong) was accepted and silently replaced the real key.
+ *
+ * @param {{ existingRecoveryKeyHash: string|null, existingPublicKey: string|null,
+ *           submittedRecoveryKeyHash: string, submittedPublicKey: string }} args
+ * @returns {{ ok: true } | { ok: false, reason: string }}
+ */
+function verifyRecoveryIdentityMatch({ existingRecoveryKeyHash, existingPublicKey, submittedRecoveryKeyHash, submittedPublicKey }) {
+  if (!existingRecoveryKeyHash) {
+    // Nothing on file to safely compare against for this account — an
+    // unverifiable "recovery" must not be trusted to replace the encryption
+    // identity, same as if no recovery data had been submitted at all.
+    return { ok: false, reason: 'no-existing-verifier' };
+  }
+  if (submittedRecoveryKeyHash !== existingRecoveryKeyHash) {
+    return { ok: false, reason: 'hash-mismatch' };
+  }
+  // Defense in depth: the derivation is deterministic, so a genuinely
+  // matching phrase must reproduce the exact same public key. It should
+  // never fail to match once the hash already matched — treat it as a bug
+  // or tamper attempt if it somehow does, not a reason to proceed anyway.
+  if (existingPublicKey && submittedPublicKey !== existingPublicKey) {
+    return { ok: false, reason: 'publickey-mismatch' };
+  }
+  return { ok: true };
+}
+
 module.exports = {
   validateE2EEMessage,
-  normalizeRecoveryKey
+  normalizeRecoveryKey,
+  verifyRecoveryIdentityMatch
 };

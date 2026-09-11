@@ -143,6 +143,13 @@ const ResetPassword = () => {
         } else if (data.error === 'Token and new password are required') {
           errorKey = 'somethingWentWrongError';
           defaultMsg = 'Something went wrong. Please try again.';
+        } else if (data.error === "That recovery phrase doesn't match this account. Your password has not been changed.") {
+          // Own translation key so this specific, actionable message isn't
+          // swallowed by the generic 'passwordResetFailed' fallback below
+          // (which already has its own translated string and would win over
+          // data.error otherwise).
+          errorKey = 'recoveryPhraseMismatchOnReset';
+          defaultMsg = data.error;
         }
         setGlobalError(t(errorKey, data.error || defaultMsg));
         return;

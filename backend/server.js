@@ -25,7 +25,7 @@ const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const appleSignin = require('apple-signin-auth');
 const emailTranslations = require('./email-translations');
-const { validateE2EEMessage, normalizeRecoveryKey } = require('./lib/crypto-helpers');
+const { validateE2EEMessage, normalizeRecoveryKey, verifyRecoveryIdentityMatch } = require('./lib/crypto-helpers');
 const { sanitizeRoomPermissions } = require('./lib/roomPermissions');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
 const { getCallActiveUsernames, isActiveCallParticipant } = require('./lib/callRoster');
@@ -3506,7 +3506,7 @@ app.post('/api/reset-password', async (req, res) => {
   try {
     // Look up user by reset token
     const result = await pool.query(
-      'SELECT id, username, "resetToken", "resetTokenExpiry" FROM users WHERE "resetToken" = $1',
+      'SELECT id, username, "resetToken", "resetTokenExpiry", "recoveryKeyHash", "publicKey" FROM users WHERE "resetToken" = $1',
       [token]
     );
     const user = result.rows[0];
@@ -3515,6 +3515,26 @@ app.post('/api/reset-password', async (req, res) => {
 
     if (Date.now() > Number(user.resetTokenExpiry)) {
       return res.status(400).json({ error: 'Reset token has expired. Please request a new one.' });
+    }
+
+    // If a "recovery" is being submitted, it must actually recover THIS
+    // account's existing E2EE identity before we touch anything — see
+    // verifyRecoveryIdentityMatch's doc comment. A wrong-but-well-formed
+    // phrase used to be indistinguishable from a correct one here, and would
+    // silently overwrite the real publicKey/encryptedPrivateKey, permanently
+    // orphaning every message ever encrypted to the old key. This check runs
+    // BEFORE any write (password included), so a rejection leaves the
+    // account completely untouched — safe to retry.
+    if (publicKey && encryptedPrivateKey && recoveryKeyHash) {
+      const verification = verifyRecoveryIdentityMatch({
+        existingRecoveryKeyHash: user.recoveryKeyHash,
+        existingPublicKey: user.publicKey,
+        submittedRecoveryKeyHash: recoveryKeyHash,
+        submittedPublicKey: publicKey,
+      });
+      if (!verification.ok) {
+        return res.status(400).json({ error: "That recovery phrase doesn't match this account. Your password has not been changed." });
+      }
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
