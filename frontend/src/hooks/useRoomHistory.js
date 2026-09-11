@@ -35,5 +35,23 @@ export function useRoomHistory() {
     return () => window.removeEventListener('focus', fetchHistory);
   }, [fetchHistory]);
 
+  // Deleting a room (as its host, or an admin) doesn't otherwise touch this
+  // hook at all — it only ever refetches on mount/focus, so a room deleted
+  // while already sitting on Home kept showing here until something else
+  // happened to trigger a refetch. GlobalChatWidget rebroadcasts the
+  // server's delete confirmation as this plain window event (it's the one
+  // thing already guaranteed to receive it regardless of which page is
+  // open); pruning it here immediately is simpler and faster than waiting
+  // on a full refetch.
+  useEffect(() => {
+    const onRoomDeleted = (e) => {
+      const deletedId = (e.detail?.roomId || '').toLowerCase();
+      if (!deletedId) return;
+      setRoomHistory(prev => prev.filter(r => (r.id || '').toLowerCase() !== deletedId));
+    };
+    window.addEventListener('room_deleted', onRoomDeleted);
+    return () => window.removeEventListener('room_deleted', onRoomDeleted);
+  }, []);
+
   return { roomHistory, isLoading, fetchHistory };
 }

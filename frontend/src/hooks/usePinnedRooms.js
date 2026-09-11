@@ -61,6 +61,26 @@ export function usePinnedRooms({ limit } = {}) {
     return () => window.removeEventListener('focus', fetchRooms);
   }, [fetchRooms]);
 
+  // Deleting a room (as its host, or an admin) doesn't otherwise touch this
+  // hook — if the deleted room happened to be pinned, it stayed listed here
+  // (and in the 'pinned_rooms' localStorage id list) until something else
+  // triggered a refetch. Same window event useRoomHistory.js listens for —
+  // see GlobalChatWidget's admin_room_deleted/room_permanently_deleted
+  // handlers for where it's dispatched from.
+  useEffect(() => {
+    const onRoomDeleted = (e) => {
+      const deletedId = e.detail?.roomId;
+      if (!deletedId) return;
+      setPinnedRooms(prev => prev.filter(r => r.id !== deletedId));
+      try {
+        const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
+        localStorage.setItem('pinned_rooms', JSON.stringify(stored.filter(r => r !== deletedId)));
+      } catch {}
+    };
+    window.addEventListener('room_deleted', onRoomDeleted);
+    return () => window.removeEventListener('room_deleted', onRoomDeleted);
+  }, []);
+
   useEffect(() => {
     if (isGuest || !token || token === 'null' || token === 'undefined') return;
     fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })

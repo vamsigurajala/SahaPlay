@@ -4233,6 +4233,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
     sock.on('admin_room_deleted', ({ roomId }) => {
       const roomLower = (roomId || '').toLowerCase();
 
+      // Home.jsx's Pinned Rooms / Room History (usePinnedRooms.js /
+      // useRoomHistory.js) have no socket of their own and only ever refetch
+      // on mount/focus — without this, a deleted room stayed listed there
+      // (and, if it happened to be pinned, in the 'pinned_rooms' localStorage
+      // list this widget never otherwise touches) until something else
+      // happened to trigger a refetch. This widget is the one thing already
+      // guaranteed to receive the delete event regardless of which page is
+      // open, so it's the natural place to rebroadcast it as a plain DOM
+      // event those hooks can listen for with no socket of their own.
+      window.dispatchEvent(new CustomEvent('room_deleted', { detail: { roomId } }));
+
       // If the user is currently viewing this chat, kick them back to the list
       if (activeChatRef.current && activeChatRef.current.type === 'room' &&
           (activeChatRef.current.partner || '').toLowerCase() === roomLower) {
@@ -4287,6 +4298,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
     // Same cleanup as admin_room_deleted but triggered by the room host via socket
     sock.on('room_permanently_deleted', ({ roomId }) => {
       const roomLower = (roomId || '').toLowerCase();
+
+      // See the identical dispatch in admin_room_deleted just above — same
+      // reason, same fix, just the host-initiated delete path instead of
+      // the admin one.
+      window.dispatchEvent(new CustomEvent('room_deleted', { detail: { roomId } }));
 
       if (activeChatRef.current && activeChatRef.current.type === 'room' &&
           (activeChatRef.current.partner || '').toLowerCase() === roomLower) {
