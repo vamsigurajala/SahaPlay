@@ -74,8 +74,36 @@ function verifyRecoveryIdentityMatch({ existingRecoveryKeyHash, existingPublicKe
   return { ok: true };
 }
 
+/**
+ * Sanitizes a client-supplied replyTo object before it is ever persisted or
+ * broadcast. sanitizeReplyToForWire (frontend/src/lib/crypto.js) already
+ * strips this down to a safe preview on the client — see its own comment,
+ * "the reply-preview privacy fix" — but the server must not trust that a
+ * client actually did so. /api/chats/send previously stored whatever shape
+ * of replyTo the request body carried, verbatim and with no field allowlist,
+ * which would silently reopen the original plaintext-reply-preview leak the
+ * moment any client (a modified one, or a future regression) sent a raw
+ * `.message` field again. Only these four fields are ever safe to keep —
+ * none of them are message content, matching the same policy the Socket.io
+ * group-chat handler's own replyTo allowlist uses for id/username/mediaType/
+ * mediaFileName.
+ *
+ * @param {*} replyTo - the client-supplied replyTo value, of unknown shape
+ * @returns {{id: *, username: string|null, mediaType: string|null, mediaFileName: string|null} | null}
+ */
+function sanitizeReplyToServer(replyTo) {
+  if (!replyTo || typeof replyTo !== 'object') return null;
+  return {
+    id: replyTo.id ?? null,
+    username: typeof replyTo.username === 'string' ? replyTo.username.slice(0, 60) : null,
+    mediaType: typeof replyTo.mediaType === 'string' ? replyTo.mediaType.slice(0, 100) : null,
+    mediaFileName: typeof replyTo.mediaFileName === 'string' ? replyTo.mediaFileName.slice(0, 255) : null,
+  };
+}
+
 module.exports = {
   validateE2EEMessage,
   normalizeRecoveryKey,
-  verifyRecoveryIdentityMatch
+  verifyRecoveryIdentityMatch,
+  sanitizeReplyToServer
 };

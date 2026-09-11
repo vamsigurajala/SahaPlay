@@ -25,7 +25,7 @@ const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const appleSignin = require('apple-signin-auth');
 const emailTranslations = require('./email-translations');
-const { validateE2EEMessage, normalizeRecoveryKey, verifyRecoveryIdentityMatch } = require('./lib/crypto-helpers');
+const { validateE2EEMessage, normalizeRecoveryKey, verifyRecoveryIdentityMatch, sanitizeReplyToServer } = require('./lib/crypto-helpers');
 const { sanitizeRoomPermissions } = require('./lib/roomPermissions');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
 const { getCallActiveUsernames, isActiveCallParticipant } = require('./lib/callRoster');
@@ -5402,6 +5402,11 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   if (senderMessageVal) {
     senderMessageVal = truncateToWordLimit(senderMessageVal, 250);
   }
+  // E2E audit Phase 2/§10: this endpoint used to store whatever replyTo shape
+  // the request body carried, verbatim — see sanitizeReplyToServer's own
+  // comment. Sanitized once here, used for both persistence and broadcast
+  // below, for both the 'private' and 'room' branches.
+  const safeReplyTo = sanitizeReplyToServer(replyTo);
   const ts = Date.now();
   try {
     const senderUser = await queryGet('SELECT "avatarPath" FROM users WHERE username = ?', [username]);
@@ -5447,7 +5452,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessageVal,
          mediaUrl || null, mediaType || null, ts,
-         replyTo ? JSON.stringify(replyTo) : null,
+         safeReplyTo ? JSON.stringify(safeReplyTo) : null,
          nonce || null, ephemeralPublicKey || null,
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
@@ -5479,7 +5484,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         mediaExpiresAt: dmExpiry ? dmExpiry.toISOString() : null,
         timestamp: ts,
         isMe: false,
-        replyTo: replyTo || null,
+        replyTo: safeReplyTo,
         tempId: tempId || null,
         nonce: nonce || null,
         ephemeralPublicKey: ephemeralPublicKey || null,
@@ -5563,7 +5568,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
         [partner, 'group', String(req.user.id || 'http_client'), username,
          actualMessage, mediaUrl || null, mediaType || null, ts,
-         replyTo ? JSON.stringify(replyTo) : null,
+         safeReplyTo ? JSON.stringify(safeReplyTo) : null,
          nonce || null,
          ephemText || null,
          mediaUrl ? computeMediaExpiry(mediaType) : null,
@@ -5598,7 +5603,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         mediaExpiresAt: roomExpiry ? roomExpiry.toISOString() : null,
         timestamp: ts,
         reactions: {},
-        replyTo: replyTo || null,
+        replyTo: safeReplyTo,
         tempId: tempId || null,
         nonce: nonce || null,
         e2ee: e2eeBroadcast,
