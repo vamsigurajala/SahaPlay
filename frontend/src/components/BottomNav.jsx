@@ -7,6 +7,7 @@ import { clearUserSession } from '../lib/authUtils.js';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
+import { getPersistedSearchOpen, setPersistedSearchOpen } from '../utils/searchTabPersist';
 import { peekPendingNotificationTap, clearPendingNotificationTap } from '../lib/nativePush';
 import GlobalChatWidget from './GlobalChatWidget';
 import SearchTabContent from './SearchTabContent';
@@ -57,7 +58,7 @@ export default function BottomNav() {
   }, [fetchAvatar]);
 
   const [showChat, setShowChat] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
+  const [showSearch, setShowSearch] = useState(getPersistedSearchOpen);
   const [showProfile, setShowProfile] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
@@ -191,7 +192,7 @@ export default function BottomNav() {
     return () => window.removeEventListener('open_chat_from_notification', handler);
   }, []);
 
-  const closeOverlays = () => { setShowSearch(false); setShowProfile(false); };
+  const closeOverlays = () => { setShowSearch(false); setShowProfile(false); setPersistedSearchOpen(false); };
   // Swipe-back closes Search/Profile instead of navigating away — Chat is
   // excluded since GlobalChatWidget already owns its own back-intercept
   // level for its isOpen state (see its onClose prop below).
@@ -218,9 +219,16 @@ export default function BottomNav() {
   // history.go() cleanup (triggered by the overlay closing) races the
   // router's pushState and silently undoes the navigation, which is why
   // "Account"/"App Settings" inside the drawer previously did nothing.
-  const navigateFrom = (path) => {
+  const navigateFrom = (path, opts = {}) => {
     if (showSearch || showProfile) skipNextClose();
+    const wasSearchOpen = showSearch;
     closeAll();
+    // A search RESULT click (as opposed to tapping Home/Public/the profile
+    // drawer while search happened to be open) should leave the "search was
+    // open" marker restorable — see searchTabPersist.js for why: it's what
+    // makes swiping back from the profile/room just opened land back on the
+    // search overlay instead of skipping past it to whatever page hosted it.
+    if (opts.keepSearchOpen && wasSearchOpen) setPersistedSearchOpen(true);
     navigate(path);
   };
 
@@ -245,7 +253,7 @@ export default function BottomNav() {
     ...(isLoggedIn ? [
       { key: 'chat', label: t('chats', 'Chats'), icon: MessageSquare, active: showChat, onClick: () => { const next = !showChat; closeAll(); setShowChat(next); } },
     ] : []),
-    { key: 'search', label: t('search', 'Search'), icon: SearchIcon, active: showSearch, onClick: () => { const next = !showSearch; closeAll(); setShowSearch(next); } },
+    { key: 'search', label: t('search', 'Search'), icon: SearchIcon, active: showSearch, onClick: () => { const next = !showSearch; closeAll(); setShowSearch(next); setPersistedSearchOpen(next); } },
     { key: 'profile', label: t('profile', 'Profile'), icon: User, active: showProfile, isAvatar: true, onClick: () => { const next = !showProfile; closeAll(); setShowProfile(next); } },
   ];
 
@@ -319,10 +327,10 @@ export default function BottomNav() {
         <div className="bottom-nav-overlay">
           <div className="bottom-nav-overlay-header">
             <h2 className="bottom-nav-overlay-title">{t('search', 'Search')}</h2>
-            <button className="bottom-nav-overlay-close" onClick={() => setShowSearch(false)} aria-label="Close"><X size={20} /></button>
+            <button className="bottom-nav-overlay-close" onClick={() => { setShowSearch(false); setPersistedSearchOpen(false); }} aria-label="Close"><X size={20} /></button>
           </div>
           <div className="bottom-nav-overlay-body">
-            <SearchTabContent t={t} onNavigate={navigateFrom} />
+            <SearchTabContent t={t} onNavigate={(path) => navigateFrom(path, { keepSearchOpen: true })} />
           </div>
         </div>
       )}
