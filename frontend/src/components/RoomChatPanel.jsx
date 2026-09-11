@@ -14,6 +14,7 @@ import {
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
 import { getMenuFloorY } from '../lib/chatMenuPlacement';
 import CameraCapture from './CameraCapture';
+import DoubleTapBurst from './DoubleTapBurst';
 import VoiceRecorderBar from './VoiceRecorderBar';
 import PollComposer from './PollComposer';
 import PollBubble from './PollBubble';
@@ -1760,6 +1761,16 @@ export default function RoomChatPanel({ p }) {
   const messageMenuRef = React.useRef(null);
 
   const [hoveredMsgId, setHoveredMsgId] = React.useState(null);
+  // Instagram-style double-tap-to-like burst (DoubleTapBurst.jsx) — shared
+  // across both group + DM tabs, same reasoning as hoveredMsgId below: only
+  // one message can be actively bursting at a time.
+  const [burstMsgId, setBurstMsgId] = React.useState(null);
+  const burstTimeoutRef = React.useRef(null);
+  const triggerReactionBurst = (key) => {
+    clearTimeout(burstTimeoutRef.current);
+    setBurstMsgId(key);
+    burstTimeoutRef.current = setTimeout(() => setBurstMsgId(null), 900);
+  };
   // Shared across the whole panel (both group + DM tabs) — only one message
   // can be mid-swipe or long-pressed at a time, so a single instance is enough.
   const swipe = useSwipeToReply();
@@ -3687,7 +3698,8 @@ export default function RoomChatPanel({ p }) {
                         }}
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                         onMouseLeave={() => setHoveredMsgId(null)}
-                        onDoubleClick={(e) => { e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, '❤️'); }}>
+                        onDoubleClick={(e) => { e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, '❤️'); triggerReactionBurst(msg.id || msg.timestamp); }}>
+                          {burstMsgId === (msg.id || msg.timestamp) && <DoubleTapBurst />}
                           {/* Captioned media renders its image/video first (flush, full
                               width) — the caption+tick row below renders after it instead
                               of before, so it lands underneath, not on top. */}
@@ -4671,7 +4683,8 @@ export default function RoomChatPanel({ p }) {
                               }}
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
-                              onDoubleClick={(e) => { e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, '❤️'); }}>
+                              onDoubleClick={(e) => { e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, '❤️'); triggerReactionBurst(msg.id || msg.timestamp); }}>
+                                {burstMsgId === (msg.id || msg.timestamp) && <DoubleTapBurst />}
                                 {/* Captioned media renders its image/video first (flush, full
                                     width) — the caption+tick row below renders after it
                                     instead of before, so it lands underneath, not on top. */}

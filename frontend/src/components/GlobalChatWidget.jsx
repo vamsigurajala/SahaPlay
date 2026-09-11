@@ -8,6 +8,7 @@ import { useCall, CALL_LOG_PREFIX } from '../contexts/CallContext';
 import ChatLockScreen from './ChatLockScreen';
 import ForgotPinModal from './ForgotPinModal';
 import ReportMessageModal from './ReportMessageModal';
+import DoubleTapBurst from './DoubleTapBurst';
 import CameraCapture from './CameraCapture';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { blockPullToRefresh, unblockPullToRefresh } from '../lib/pullToRefreshGate';
@@ -2246,6 +2247,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const MAX_FORWARD_CHATS = 5;
   const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [hoveredRowId, setHoveredRowId] = useState(null);
+  // Instagram-style double-tap-to-like burst — see DoubleTapBurst.jsx. Only
+  // one message ever bursts at a time; the timeout mirrors the component's
+  // own ~0.85s pop+fade animation so the overlay unmounts right as it
+  // finishes rather than lingering invisibly.
+  const [burstMsgId, setBurstMsgId] = useState(null);
+  const burstTimeoutRef = useRef(null);
+  const triggerReactionBurst = (key) => {
+    clearTimeout(burstTimeoutRef.current);
+    setBurstMsgId(key);
+    burstTimeoutRef.current = setTimeout(() => setBurstMsgId(null), 900);
+  };
   // 'up' = long-press menu opens above the touched row, 'down' = below —
   // derived from raw touch Y at press-start so it tracks the row's actual
   // on-screen position (mirrors the same pattern in RoomChatPanel.jsx).
@@ -8786,6 +8798,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                onTouchStart={gestureHandlers.onTouchStart}
                                onTouchMove={gestureHandlers.onTouchMove}
                                onTouchEnd={gestureHandlers.onTouchEnd}>
+                            {burstMsgId === (msg.id || i) && <DoubleTapBurst />}
                             <div className="swipe-reply-icon" style={{
                               position:'absolute', [isMe ? 'right' : 'left']: 8, top:'50%',
                               transform: `translateY(-50%) scale(${rowThresholdMet ? 1 : 0})`,
@@ -8812,7 +8825,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 : (activeWallpaper && wallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`}
                               onMouseEnter={() => setHoveredMsgId(msg.id || i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
-                              onDoubleClick={(e) => { e.stopPropagation(); handleReact(msg.id, '❤️'); }}
+                              onDoubleClick={(e) => { e.stopPropagation(); handleReact(msg.id, '❤️'); triggerReactionBurst(msg.id || i); }}
                               style={{
                                 position: 'relative',
                                 zIndex: 2,
