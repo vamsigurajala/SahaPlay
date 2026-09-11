@@ -19,7 +19,7 @@ import PollBubble from './PollBubble';
 import PollVotesModal from './PollVotesModal';
 import VoiceRecorderBar from './VoiceRecorderBar';
 import { castPollVote } from '../lib/pollApi';
-import { getRecentMessagesCache, setRecentMessagesCache } from '../utils/recentMessagesCache';
+import { getRecentMessagesCache, setRecentMessagesCache, clearRecentMessagesCache } from '../utils/recentMessagesCache';
 import { API } from '../lib/api';
 import { appCache } from '../cache/appCache.js';
 import toast from 'react-hot-toast';
@@ -4135,6 +4135,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
       );
       const targetLower = (targetUsername || '').toLowerCase();
 
+      // Server-authoritative confirmation of the clear (fired back to the
+      // actor's own socket on every path — see backend's clear_dm handler),
+      // so this is the one place guaranteed to run regardless of which UI
+      // triggered it. Without this, the stale last-4 tail this same chat
+      // wrote to localStorage before the clear survives untouched — reopening
+      // the chat after a reload flashes those old messages for a beat before
+      // the real (now-empty) fetch overwrites them, reading as "cleared, but
+      // reload brought it back".
+      clearRecentMessagesCache('private', targetLower);
+
       // Only clear messages — keep the conversation entry in the list
       // Prevent loadMoreHistory from fetching pre-clear pages
       paginationStateRef.current[targetLower] = { hasMore: false, isLoading: false };
@@ -4175,6 +4185,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
 
     sock.on('room_chat_cleared', ({ roomId }) => {
       const roomLower = (roomId || '').toLowerCase();
+      // Same reasoning as the dm_cleared handler above — this is the one
+      // place guaranteed to fire regardless of whether the clear was
+      // triggered from this widget's own modal or RoomChatPanel's.
+      clearRecentMessagesCache('room', roomLower);
       if (activeChatRef.current && activeChatRef.current.type === 'room' &&
           (activeChatRef.current.partner || '').toLowerCase() === roomLower) {
         setMessages([]);
