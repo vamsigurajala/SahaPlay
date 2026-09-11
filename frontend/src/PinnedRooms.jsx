@@ -1,20 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Pin } from 'lucide-react';
+import { Pin, History } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import PinnedRoomsGrid from './components/PinnedRoomsGrid';
 import RoomCardSkeleton from './components/RoomCardSkeleton';
 import { usePinnedRooms } from './hooks/usePinnedRooms';
+import { useRoomHistory } from './hooks/useRoomHistory';
 import PullToRefresh from './components/PullToRefresh';
 
 // Standalone "Pinned Rooms" page — the desktop (Tauri) Navbar links here directly
 // instead of showing this grid inline on the Dashboard, matching how Public Rooms
 // already gets its own page rather than being mixed into the home view.
+// Room History (rooms you've created, whether pinned or not) lives alongside
+// it as a second tab — same underline-tab pattern as Home.jsx's web version,
+// so the desktop app doesn't lose the one place a never-pinned, never-
+// chatted-in room stays reachable.
 const PinnedRooms = () => {
   const { t } = useTranslation();
-  const { pinnedRooms, unpinRoom, isLoading } = usePinnedRooms();
+  const { pinnedRooms, unpinRoom, pinRoom, fetchRooms: refetchPinnedRooms, isLoading } = usePinnedRooms();
+  const { roomHistory, isLoading: isHistoryLoading } = useRoomHistory();
+  const pinnedRoomIds = pinnedRooms.map(r => r.id);
+  const toggleHistoryPin = async (e, id, isPinned) => {
+    await (isPinned ? unpinRoom : pinRoom)(e, id);
+    refetchPinnedRooms();
+  };
+
+  const hasPinnedContent = isLoading || pinnedRooms.length > 0;
+  const hasHistoryContent = isHistoryLoading || roomHistory.length > 0;
+  const showTabs = hasPinnedContent && hasHistoryContent;
+  const [tab, setTab] = useState('pinned');
+  const activeTab = showTabs ? tab : (hasHistoryContent && !hasPinnedContent ? 'history' : 'pinned');
 
   return (
     <PullToRefresh>
@@ -55,6 +72,26 @@ const PinnedRooms = () => {
         html[data-theme='light'] .section-heading { color:#000 !important; }
         html[data-theme='light'] .section-desc { color:#4a5568 !important; }
 
+        /* Same underline-tab pattern as Home.jsx's web version — Pinned
+           Rooms and Room History are two views of one page, not two
+           separately-titled sections. */
+        .rooms-tab-row { display: flex; gap: 36px; margin-bottom: 10px; }
+        .rooms-tab-btn {
+          display: flex; align-items: center; gap: 10px;
+          background: transparent; border: none; cursor: pointer;
+          padding: 4px 2px 14px; font-size: 22px; font-weight: 800; font-family: inherit;
+          color: #6b7280; position: relative; transition: color 0.18s;
+        }
+        .rooms-tab-btn::after {
+          content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 3px;
+          border-radius: 2px; background: var(--brand-1); transform: scaleX(0);
+          transition: transform 0.2s cubic-bezier(0.4,0,0.2,1);
+        }
+        .rooms-tab-btn.active { color: #fff; }
+        .rooms-tab-btn.active::after { transform: scaleX(1); }
+        html[data-theme='light'] .rooms-tab-btn { color: #94a3b8; }
+        html[data-theme='light'] .rooms-tab-btn.active { color: #0f172a; }
+
         @media (max-width: 640px) {
           .rooms-grid { grid-template-columns:repeat(2, 1fr); gap:12px; }
           .img-layer { height:100px; }
@@ -69,29 +106,69 @@ const PinnedRooms = () => {
 
       <section style={{ width: '100%', padding: '40px 0 80px' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '0 40px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-            <h2 className="section-heading" style={{ fontSize: '32px', fontWeight: 800, margin: 0, color: '#fff' }}>{t('pinnedRooms', 'Pinned Rooms')}</h2>
-          </div>
-          <p className="section-desc" style={{ color: '#a0aab2', fontSize: '16px', marginBottom: '30px' }}>{t('pinnedRoomsDesc', 'Rooms you\'ve pinned for quick access.')}</p>
-
-          {isLoading ? (
-            <div className="rooms-grid">
-              <RoomCardSkeleton count={6} />
-            </div>
-          ) : pinnedRooms.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
-              <Pin size={28} style={{ opacity: 0.4, marginBottom: 12 }} />
-              <h3 style={{ margin: '0 0 10px', color: '#fff', fontSize: '18px' }}>{t('noPinnedRooms', 'No pinned rooms yet')}</h3>
-              <p style={{ color: '#888', margin: 0 }}>{t('noPinnedRoomsDesc', 'Pin a room from its menu to see it here for quick access.')}</p>
+          {showTabs ? (
+            <div className="rooms-tab-row">
+              <button className={`rooms-tab-btn${activeTab === 'pinned' ? ' active' : ''}`} onClick={() => setTab('pinned')}>
+                <Pin size={20} /> {t('pinnedRooms', 'Pinned Rooms')}
+              </button>
+              <button className={`rooms-tab-btn${activeTab === 'history' ? ' active' : ''}`} onClick={() => setTab('history')}>
+                <History size={20} /> {t('roomHistory', 'Room History')}
+              </button>
             </div>
           ) : (
-            <PinnedRoomsGrid
-              rooms={pinnedRooms}
-              onUnpin={unpinRoom}
-              gridClassName="rooms-grid"
-              fadeIn
-              titleColor="#fff"
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+              <h2 className="section-heading" style={{ fontSize: '32px', fontWeight: 800, margin: 0, color: '#fff' }}>
+                {activeTab === 'pinned' ? t('pinnedRooms', 'Pinned Rooms') : t('roomHistory', 'Room History')}
+              </h2>
+            </div>
+          )}
+          <p className="section-desc" style={{ color: '#a0aab2', fontSize: '16px', marginBottom: '30px' }}>
+            {activeTab === 'pinned'
+              ? t('pinnedRoomsDesc', 'Rooms you\'ve pinned for quick access.')
+              : t('roomHistoryDesc', "Rooms you've created. Pin one to keep it in Pinned Rooms permanently.")}
+          </p>
+
+          {activeTab === 'pinned' ? (
+            isLoading ? (
+              <div className="rooms-grid">
+                <RoomCardSkeleton count={6} />
+              </div>
+            ) : pinnedRooms.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                <Pin size={28} style={{ opacity: 0.4, marginBottom: 12 }} />
+                <h3 style={{ margin: '0 0 10px', color: '#fff', fontSize: '18px' }}>{t('noPinnedRooms', 'No pinned rooms yet')}</h3>
+                <p style={{ color: '#888', margin: 0 }}>{t('noPinnedRoomsDesc', 'Pin a room from its menu to see it here for quick access.')}</p>
+              </div>
+            ) : (
+              <PinnedRoomsGrid
+                rooms={pinnedRooms}
+                onUnpin={unpinRoom}
+                gridClassName="rooms-grid"
+                fadeIn
+                titleColor="#fff"
+              />
+            )
+          ) : (
+            isHistoryLoading ? (
+              <div className="rooms-grid">
+                <RoomCardSkeleton count={6} />
+              </div>
+            ) : roomHistory.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                <History size={28} style={{ opacity: 0.4, marginBottom: 12 }} />
+                <h3 style={{ margin: '0 0 10px', color: '#fff', fontSize: '18px' }}>{t('noRoomHistory', 'No rooms created yet')}</h3>
+                <p style={{ color: '#888', margin: 0 }}>{t('noRoomHistoryDesc', 'Rooms you create will show up here, even if you never pin or chat in them.')}</p>
+              </div>
+            ) : (
+              <PinnedRoomsGrid
+                rooms={roomHistory}
+                pinnedIds={pinnedRoomIds}
+                onTogglePin={toggleHistoryPin}
+                gridClassName="rooms-grid"
+                fadeIn
+                titleColor="#fff"
+              />
+            )
           )}
         </div>
       </section>

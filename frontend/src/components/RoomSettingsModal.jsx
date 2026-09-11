@@ -175,10 +175,22 @@ export default function RoomSettingsModal({
     }
   };
 
+  // Was only clear_room_chat (hide messages for me) + leave_room — despite
+  // the Danger Zone copy ('Delete Forever', 'permanent action... will be
+  // destroyed') promising an actual deletion, this never touched room_names
+  // at all, so the room silently kept existing — reachable again via its
+  // link/ID, and still listed forever in Room History (which reads directly
+  // from room_names), exactly what was reported. The backend has a real,
+  // host-authorization-checked 'delete_room' handler that removes the room
+  // everywhere (room_names, messages, bans) and broadcasts
+  // room_permanently_deleted to every connected client — nothing in the
+  // frontend actually emitted it before this. That broadcast is also what
+  // GlobalChatWidget already rebroadcasts as the 'room_deleted' window event
+  // usePinnedRooms/useRoomHistory listen for, so Room History updates
+  // immediately with no extra work needed here.
   const handleDeleteRoom = () => {
     const rId = (roomId || '').toLowerCase();
-    socket.emit('clear_room_chat', { roomId: rId });
-    socket.emit('leave_room', { roomId: rId });
+    socket.emit('delete_room', { roomId: rId });
     try {
       const pinned = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
       localStorage.setItem('pinned_rooms', JSON.stringify(pinned.filter(id => id !== roomId)));
@@ -188,7 +200,7 @@ export default function RoomSettingsModal({
       localStorage.setItem('watch_recent_chats', JSON.stringify(chats.filter(c => (c.id || '').toLowerCase() !== rId)));
       window.dispatchEvent(new Event('conversations_updated'));
     } catch(e) {}
-    toast.success('Room removed from your view');
+    toast.success(t('roomDeletedForever', 'Room deleted forever'));
     setShowDeleteConfirm(false);
     onBeforeLeaveNavigate && onBeforeLeaveNavigate();
     onClose();
@@ -582,7 +594,7 @@ export default function RoomSettingsModal({
                     <div style={{ flex: 1 }}>
                       <h4 style={{ fontSize: 16, fontWeight: 800, color: '#ef4444', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{t('dangerZone', 'Danger Zone')}</h4>
                       <p style={{ fontSize: 13, color: isLight ? '#991b1b' : '#fca5a5', margin: '8px 0 20px', lineHeight: 1.6 }}>
-                        {t('dangerZoneDesc', 'This will remove the room and clear all chat history from your view only. Other members will not be affected.')}
+                        {t('dangerZoneDesc', 'Deleting this room is a permanent action. All metadata, pinned status, and chat messages hosted here will be destroyed.')}
                       </p>
                       <button 
                         onClick={() => setShowDeleteConfirm(true)}
@@ -705,9 +717,9 @@ export default function RoomSettingsModal({
               <div style={{ width: 72, height: 72, borderRadius: '24px', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', marginBottom: 8, transform: 'rotate(-5deg)' }}>
                 <Trash2 size={36} />
               </div>
-              <h3 style={{ fontSize: 24, fontWeight: 900, color: isLight ? '#111827' : '#fff', margin: 0, letterSpacing: '-0.5px' }}>{t('deleteRoomQuestion', 'Remove this room?')}</h3>
+              <h3 style={{ fontSize: 24, fontWeight: 900, color: isLight ? '#111827' : '#fff', margin: 0, letterSpacing: '-0.5px' }}>{t('deleteRoomQuestion', 'Delete this room?')}</h3>
               <p style={{ fontSize: 15, color: isLight ? '#6b7280' : '#aaa', lineHeight: 1.6, margin: 0 }}>
-                {t('deleteRoomWarningText', 'This will remove the room and clear all chat history from your view. Other members won\'t be affected.')}
+                {t('deleteRoomWarningText', 'This is a permanent action. All chats, history, and room metadata will be destroyed forever.')}
               </p>
 
               <label style={{
@@ -731,7 +743,7 @@ export default function RoomSettingsModal({
                   style={{ width: 18, height: 18, marginTop: 2, accentColor: '#ef4444', cursor: 'pointer', flexShrink: 0 }}
                 />
                 <span style={{ fontSize: 13, color: isLight ? (isDeleteConfirmed ? '#374151' : '#6b7280') : (isDeleteConfirmed ? '#eee' : '#bbb'), fontWeight: 500, lineHeight: 1.4 }}>
-                  {t('deleteRoomAcknowledgeCheckbox', 'I understand this will remove the room and clear my chat history from my view only.')}
+                  {t('deleteRoomAcknowledgeCheckbox', 'I understand that all chats and room data will be permanently deleted.')}
                 </span>
               </label>
 
