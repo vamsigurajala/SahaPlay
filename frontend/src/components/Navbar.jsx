@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertCircle, Maximize, Minimize, ArrowLeft, X, Home, Compass, Sparkles, Download, Pin, Globe } from 'lucide-react';
 import { useDebounce } from '../hooks/useDebounce';
 import { useFollowRequests } from '../hooks/useFollowRequests';
+import { useSearchHistory } from '../hooks/useSearchHistory';
 import { clearUserSession } from '../lib/authUtils.js';
 import GlobalChatWidget from './GlobalChatWidget';
 import SupportModal from './SupportModal';
@@ -43,6 +44,7 @@ const Navbar = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState([]);
+  const { history: searchHistory, addToHistory: addToSearchHistory, removeFromHistory: removeFromSearchHistory, clearHistory: clearSearchHistory } = useSearchHistory();
   const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
   const [showNotifications, setShowNotifications] = useState(false);
   const { followRequests, allowRequest, followBack } = useFollowRequests();
@@ -489,7 +491,7 @@ const Navbar = () => {
                         <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                           {searchResults.length > 0 ? (
                             searchResults.map(u => (
-                              <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
+                              <div key={u.username} onClick={() => { addToSearchHistory(u); setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
                                    onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -501,9 +503,34 @@ const Navbar = () => {
                                 </div>
                               </div>
                             ))
-                          ) : (
-                            searchQuery ? <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 12 }}>{t('noUsersFound', 'No users found')}</div> : null
-                          )}
+                          ) : searchQuery ? (
+                            <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 12 }}>{t('noUsersFound', 'No users found')}</div>
+                          ) : searchHistory.length > 0 ? (
+                            <>
+                              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: isLight ? '#94a3b8' : '#6b7280', padding: '4px 8px 6px' }}>{t('recentSearches', 'Recent')}</div>
+                              {searchHistory.map(h => (
+                                <div key={h.username} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
+                                     onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
+                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                  <div onClick={() => { addToSearchHistory(h); setShowSearch(false); navigate(`/profile/${h.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 8, cursor: 'pointer' }}>
+                                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                      {h.avatarPath ? <img src={getAvatarUrl(h.avatarPath)} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{h.displayName || h.username}</div>
+                                      <div style={{ color: isLight ? '#666' : '#6b7280', fontSize: 11 }}>@{h.username}</div>
+                                    </div>
+                                  </div>
+                                  <button onClick={() => removeFromSearchHistory(h.username)} title={t('removeFromHistory', 'Remove')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: isLight ? '#94a3b8' : '#6b7280', padding: 8, display: 'flex', flexShrink: 0 }}>
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                              ))}
+                              <div onClick={clearSearchHistory} style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--brand-1-light)', padding: '10px 8px 2px', cursor: 'pointer' }}>
+                                {t('clearSearchHistory', 'Clear search history')}
+                              </div>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     )}
@@ -667,7 +694,7 @@ const Navbar = () => {
                           <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                             {searchResults.length > 0 ? (
                               searchResults.map(u => (
-                                <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
+                                <div key={u.username} onClick={() => { addToSearchHistory(u); setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
                                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -679,14 +706,39 @@ const Navbar = () => {
                                   </div>
                                 </div>
                               ))
-                            ) : (
-                              searchQuery ? <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>{t('noUsersFound', 'No users found')}</div> : null
-                            )}
+                            ) : searchQuery ? (
+                              <div style={{ textAlign: 'center', color: '#444', fontSize: 12, padding: 12 }}>{t('noUsersFound', 'No users found')}</div>
+                            ) : searchHistory.length > 0 ? (
+                              <>
+                                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: '#6b7280', padding: '4px 8px 6px' }}>{t('recentSearches', 'Recent')}</div>
+                                {searchHistory.map(h => (
+                                  <div key={h.username} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
+                                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                    <div onClick={() => { addToSearchHistory(h); setShowSearch(false); navigate(`/profile/${h.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 8, cursor: 'pointer' }}>
+                                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        {h.avatarPath ? <img src={getAvatarUrl(h.avatarPath)} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
+                                      </div>
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{h.displayName || h.username}</div>
+                                        <div style={{ color: '#6b7280', fontSize: 11 }}>@{h.username}</div>
+                                      </div>
+                                    </div>
+                                    <button onClick={() => removeFromSearchHistory(h.username)} title={t('removeFromHistory', 'Remove')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: 8, display: 'flex', flexShrink: 0 }}>
+                                      <X size={14} />
+                                    </button>
+                                  </div>
+                                ))}
+                                <div onClick={clearSearchHistory} style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--brand-1-light)', padding: '10px 8px 2px', cursor: 'pointer' }}>
+                                  {t('clearSearchHistory', 'Clear search history')}
+                                </div>
+                              </>
+                            ) : null}
                           </div>
                         </div>
                       )}
                     </div>
-      
+
                     {/* Chats Trigger */}
                     <div style={{ position: 'relative' }}>
                       <button 

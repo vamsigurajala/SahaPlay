@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, User, Hash, Users } from 'lucide-react';
+import { Search, User, Hash, Users, X } from 'lucide-react';
 import { useDebounce } from '../hooks/useDebounce';
+import { useSearchHistory } from '../hooks/useSearchHistory';
 import { getAvatarUrl, getRoomThumbnailUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 
@@ -24,6 +25,7 @@ export default function SearchTabContent({ t, onNavigate }) {
   const [allRooms, setAllRooms] = useState(null);
   const [userResults, setUserResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const { history, addToHistory, removeFromHistory, clearHistory } = useSearchHistory();
 
   useEffect(() => {
     fetch(`${API}/api/rooms/public`).then(r => r.json()).then(d => setAllRooms(Array.isArray(d) ? d : [])).catch(() => setAllRooms([]));
@@ -76,9 +78,36 @@ export default function SearchTabContent({ t, onNavigate }) {
         />
       </div>
 
-      {!hasQuery && (
+      {!hasQuery && history.length === 0 && (
         <div style={{ textAlign: 'center', color: '#666', fontSize: 13, padding: '40px 20px' }}>
           {t('searchPrompt', 'Search for a room by name/ID, or a user by username.')}
+        </div>
+      )}
+
+      {!hasQuery && history.length > 0 && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 10px' }}>
+            <div className="search-tab-section-title" style={{ padding: 0 }}>{t('recentSearches', 'Recent')}</div>
+            <span onClick={clearHistory} style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-1-light)', cursor: 'pointer' }}>
+              {t('clearSearchHistory', 'Clear search history')}
+            </span>
+          </div>
+          {history.map(h => (
+            <div key={h.username} className="search-tab-row" style={{ paddingRight: 4 }}>
+              <div onClick={() => { addToHistory(h); goTo(`/profile/${h.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                <div className="search-tab-thumb" style={{ borderRadius: '50%' }}>
+                  {h.avatarPath ? <img src={getAvatarUrl(h.avatarPath)} alt="" /> : <User size={18} color="#888" />}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'inherit' }}>{h.displayName || h.username}</div>
+                  <div style={{ fontSize: 12, color: '#888' }}>@{h.username}</div>
+                </div>
+              </div>
+              <button onClick={() => removeFromHistory(h.username)} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 8, display: 'flex', flexShrink: 0 }}>
+                <X size={16} />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -116,7 +145,7 @@ export default function SearchTabContent({ t, onNavigate }) {
         <div>
           <div className="search-tab-section-title">{t('users', 'Users')}</div>
           {userResults.slice(0, 20).map(u => (
-            <div key={u.username} className="search-tab-row" onClick={() => goTo(`/profile/${u.username}`)}>
+            <div key={u.username} className="search-tab-row" onClick={() => { addToHistory(u); goTo(`/profile/${u.username}`); }}>
               <div className="search-tab-thumb" style={{ borderRadius: '50%' }}>
                 {u.avatarPath ? <img src={getAvatarUrl(u.avatarPath)} alt="" /> : <User size={18} color="#888" />}
               </div>

@@ -6314,6 +6314,37 @@ app.put('/api/profile/username', authenticateToken, async (req, res) => {
       console.error('[username rename] related-user notify failed:', e.message);
     }
 
+    // Any room this account is CURRENTLY sitting in has its own in-memory
+    // member list (room.users), snapshotted at join time and otherwise only
+    // refreshed on join/leave — so everyone else already in that room with
+    // them (its live "who's watching" panel, room chat sender labels) kept
+    // showing the old username until someone left and rejoined. Patch the
+    // live entry and re-broadcast the room's user list the same way a
+    // join/leave already does.
+    try {
+      const renamerSockets = connectedSockets.get(oldUsername.toLowerCase());
+      if (renamerSockets) {
+        const patchedRoomIds = new Set();
+        renamerSockets.forEach(sid => {
+          const s = io.sockets.sockets.get(sid);
+          if (!s) return;
+          s.rooms.forEach(roomId => {
+            const room = rooms.get(roomId);
+            if (!room || patchedRoomIds.has(roomId)) return;
+            const entry = room.users.find(u => u.socketId === sid);
+            if (entry) entry.username = cleaned;
+            patchedRoomIds.add(roomId);
+          });
+        });
+        patchedRoomIds.forEach(roomId => {
+          const room = rooms.get(roomId);
+          if (room) io.in(roomId).emit('user_list', { users: buildUserList(room), hostId: room.hostId });
+        });
+      }
+    } catch (e) {
+      console.error('[username rename] live room member-list patch failed:', e.message);
+    }
+
     const newToken = jwt.sign({ id: req.user.id, username: cleaned }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ message: 'Username updated', username: cleaned, token: newToken });
   } catch (err) {

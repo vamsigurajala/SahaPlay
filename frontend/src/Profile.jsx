@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
 import { appCache } from './cache/appCache.js';
 import { resetPrefetchCooldown } from './cache/prefetch.js';
+import { useSearchHistory } from './hooks/useSearchHistory';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban, Sparkles, AtSign, Upload, Download } from 'lucide-react';
@@ -182,6 +183,7 @@ const Profile = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const { history: searchHistory, addToHistory: addToSearchHistory, removeFromHistory: removeFromSearchHistory, clearHistory: clearSearchHistory } = useSearchHistory();
   const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState(() => {
@@ -1355,7 +1357,7 @@ const Profile = () => {
                 <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                   {searchResults.length > 0 ? (
                     searchResults.map(u => (
-                      <div key={u.username} onClick={() => { setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
+                      <div key={u.username} onClick={() => { addToSearchHistory(u); setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
                            onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                         <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1367,9 +1369,34 @@ const Profile = () => {
                         </div>
                       </div>
                     ))
-                  ) : (
-                    searchQuery ? <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 12 }}>No users found</div> : null
-                  )}
+                  ) : searchQuery ? (
+                    <div style={{ textAlign: 'center', color: isLight ? '#666' : '#444', fontSize: 12, padding: 12 }}>No users found</div>
+                  ) : searchHistory.length > 0 ? (
+                    <>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: isLight ? '#94a3b8' : '#6b7280', padding: '4px 8px 6px' }}>Recent</div>
+                      {searchHistory.map(h => (
+                        <div key={h.username} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
+                             onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
+                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          <div onClick={() => { addToSearchHistory(h); setShowSearch(false); navigate(`/profile/${h.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 8, cursor: 'pointer' }}>
+                            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              {h.avatarPath ? <img src={getAvatarUrl(h.avatarPath)} loading="lazy" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <UserIcon size={14} color="#fff" />}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ color: isLight ? '#111' : '#fff', fontSize: 13, fontWeight: 700 }}>{h.displayName || h.username}</div>
+                              <div style={{ color: isLight ? '#666' : '#6b7280', fontSize: 11 }}>@{h.username}</div>
+                            </div>
+                          </div>
+                          <button onClick={() => removeFromSearchHistory(h.username)} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: isLight ? '#94a3b8' : '#6b7280', padding: 8, display: 'flex', flexShrink: 0 }}>
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ))}
+                      <div onClick={clearSearchHistory} style={{ textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--brand-1-light)', padding: '10px 8px 2px', cursor: 'pointer' }}>
+                        Clear search history
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               </div>
             )}
