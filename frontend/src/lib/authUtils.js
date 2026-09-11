@@ -31,7 +31,8 @@ export const clearUserSession = () => {
         'blocking_me_',
         'pinned_room_chats_',
         'wt_pk_',
-        'e2e_keypair_'
+        'e2e_keypair_',
+        'sp_recent_msgs_'
     ];
 
     keysToRemove.forEach(k => localStorage.removeItem(k));

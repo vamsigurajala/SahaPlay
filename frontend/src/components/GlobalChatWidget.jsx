@@ -5276,8 +5276,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
       // Shows the same small top-of-list spinner used for "loading older
       // messages" on scroll-up — here it doubles as "still fetching/
       // reconciling the real history behind this flash", right above the
-      // flashed messages, until fetchHistory's finally clears it.
-      setHistoryLoading(true);
+      // flashed messages, until fetchHistory's finally clears it. Only
+      // when there IS a flash to sit above — with nothing cached yet
+      // (first-ever open of this chat since login), showing this AND the
+      // centered `loading` spinner at once was just two redundant spinners
+      // stacked on an empty panel; the centered one alone already covers
+      // that case.
+      setHistoryLoading(!!cachedTail);
     }
     paginationStateRef.current[chatKey] = {
       hasMore: true,
