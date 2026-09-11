@@ -13,16 +13,36 @@ import { isCapacitorApp } from '../lib/platform';
 // remounts on route navigation — only on a real page load / app launch).
 // Purely a visual overlay layered on top of whatever's rendering underneath;
 // nothing else waits on it, so it never delays auth checks or data fetches.
-// Timeline: logo animates in (~700ms) -> brief hold -> overlay fades out
-// (~450ms), unmounting once fully transparent. Total stays under 1.5s so it
-// reads as a native-style launch flourish rather than something that makes
-// repeat opens feel slow.
-const HOLD_UNTIL_MS = 1050; // when the fade-out begins
-const REMOVE_AT_MS = 1500;  // when the overlay unmounts entirely
+// Timeline: logo animates in (~550ms) -> brief hold -> overlay fades out
+// (~350ms), unmounting once fully transparent. Tightened from an earlier
+// ~1.5s version — every single app open (not just first-ever install) sits
+// through this, so shaving it down reads as noticeably snappier on daily
+// repeat opens instead of "sluggish".
+const HOLD_UNTIL_MS = 700;  // when the fade-out begins
+const REMOVE_AT_MS = 1050;  // when the overlay unmounts entirely
+
+// Was a hardcoded white background — fine while the native OS splash
+// underneath is also forced white (see android-capacitor-build.yml), but it
+// meant fading THIS overlay out was a hard white -> dark cut to the app's
+// actual (near-black) background, on every single launch: exactly what read
+// as a "flicker" right as the app became usable. Matching the same
+// --bg-color the app itself boots into (read synchronously from the same
+// localStorage key App.jsx's own theme effect uses, so this never needs to
+// wait for that effect to run) makes the fade-out genuinely invisible —
+// nothing changes at removal, it just stops being on top.
+const BG_BY_THEME = { dark: '#0b0c10', light: '#f7fafc' };
+function getBootBg() {
+  try {
+    return BG_BY_THEME[localStorage.getItem('watch_theme')] || BG_BY_THEME.dark;
+  } catch {
+    return BG_BY_THEME.dark;
+  }
+}
 
 export default function AnimatedSplash() {
   const [mounted, setMounted] = useState(isCapacitorApp());
   const [fadingOut, setFadingOut] = useState(false);
+  const [bootBg] = useState(getBootBg);
 
   useEffect(() => {
     if (!isCapacitorApp()) return;
@@ -47,7 +67,7 @@ export default function AnimatedSplash() {
         position: 'fixed',
         inset: 0,
         zIndex: 2147483647,
-        background: '#FFFFFF',
+        background: bootBg,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
