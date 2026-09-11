@@ -399,6 +399,18 @@ const Profile = () => {
     toast.remove(); // Fully purge all toasts from the global store (prevents replay by this page's Toaster)
     const handleClickOutside = (e) => {
       if (chatWidgetRef.current && chatWidgetRef.current.contains(e.target)) return;
+      // The chat widget portals several of its own overlays straight to
+      // document.body (outside chatWidgetRef's own DOM tree) — the media
+      // lightbox, the "Customize" theme sheet, the "install the app to
+      // call" prompt, and the Report Message modal. Without excluding
+      // them here too, clicking inside any of them (e.g. the report
+      // modal's reason dropdown, or its Details textarea) read as "outside
+      // the widget" and closed the whole chat window underneath it —
+      // matches Navbar.jsx's version of this same check.
+      if (e.target.closest?.('.media-lightbox-overlay')) return;
+      if (e.target.closest?.('.chat-theme-sheet-overlay')) return;
+      if (e.target.closest?.('.download-app-modal-overlay')) return;
+      if (e.target.closest?.('.report-modal-overlay')) return;
       if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
         setShowSearch(false);
         setShowRecentChats(false);

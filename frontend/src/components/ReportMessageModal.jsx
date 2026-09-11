@@ -6,6 +6,21 @@ const MAX_IMAGES = 5;
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
+// A poll message's decryptedText/message IS the raw poll definition JSON
+// ({question, options, allowMultiple} — see sendPollMessage in
+// GlobalChatWidget.jsx). Without this check that JSON leaked straight into
+// the report preview instead of a readable label, matching the same
+// shape-detection GlobalChatWidget.jsx and messagePreview.jsx already use.
+function isPollJSON(text) {
+  if (!text || typeof text !== "string" || text[0] !== "{") return false;
+  try {
+    const obj = JSON.parse(text);
+    return !!(obj && typeof obj.question === "string" && Array.isArray(obj.options));
+  } catch {
+    return false;
+  }
+}
+
 const REPORT_REASONS = [
   { value: "harassment", label: "Harassment / Abuse" },
   { value: "spam", label: "Spam / Advertising" },
@@ -19,6 +34,7 @@ export default function ReportMessageModal({ msg, roomId, reporterUsername, onCl
   const isLight = !isDark;
   const resolvedText = (() => {
     let txt = msg.decryptedText || msg.message || "";
+    if (msg.isPoll || isPollJSON(txt)) return "Poll";
     if (!txt && msg.mediaType) {
       const mt = msg.mediaType;
       txt = mt.startsWith('image/') ? '[Photo]'

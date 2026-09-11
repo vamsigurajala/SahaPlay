@@ -207,6 +207,13 @@ const Navbar = () => {
       // tree, so closing just that prompt (its own X, or its backdrop) was
       // falling through here and closing the whole chat widget underneath it.
       if (e.target.closest?.('.download-app-modal-overlay')) return;
+      // Same reason again — the "Report Message" modal (flag icon on a
+      // chat bubble) is also portalled to document.body, outside
+      // chatWidgetRef's DOM tree. Without this, clicking into its reason
+      // dropdown or its Details textarea to type registered as "outside
+      // the widget" and closed the report modal AND the chat window
+      // underneath it before a single keystroke landed.
+      if (e.target.closest?.('.report-modal-overlay')) return;
       if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
         setShowSearch(false);
         setShowRecentChats(false);

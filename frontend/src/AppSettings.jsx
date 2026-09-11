@@ -527,7 +527,16 @@ const AppSettings = () => {
       // Don't close if clicking inside the nav icons area OR inside the chat widget itself
       const inNavArea = navIconsRef.current && navIconsRef.current.contains(e.target);
       const inChatWidget = chatWidgetRef.current && chatWidgetRef.current.contains(e.target);
-      if (!inNavArea && !inChatWidget) {
+      // The chat widget portals several of its own overlays straight to
+      // document.body (outside chatWidgetRef's own DOM tree) — the media
+      // lightbox, the "Customize" theme sheet, the "install the app to
+      // call" prompt, and the Report Message modal. Without excluding
+      // them here too, clicking inside any of them (e.g. the report
+      // modal's reason dropdown, or its Details textarea) read as
+      // "outside the widget" and closed the whole chat window underneath
+      // it — matches Navbar.jsx's version of this same check.
+      const inPortaledOverlay = !!e.target.closest?.('.media-lightbox-overlay, .chat-theme-sheet-overlay, .download-app-modal-overlay, .report-modal-overlay');
+      if (!inNavArea && !inChatWidget && !inPortaledOverlay) {
         setShowSearch(false);
         setShowNotifications(false);
         setShowUserMenu(false);
