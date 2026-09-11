@@ -379,9 +379,19 @@ const Home = () => {
           background: linear-gradient(180deg, #f0f4ff 0%, #ffffff 100%) !important;
           border-bottom: 1px solid rgba(var(--brand-1-rgb),0.08);
         }
+        /* A solid panel, same treatment as every other content section on
+           this page (.chat-demo-section, .marquee-section, .faq-section) —
+           not a transparent window onto body's own ambient gradient, which
+           is what produced the "half cut" look: that gradient is sized to
+           look right near the hero and just runs thin everywhere else, so a
+           transparent section here read as an inconsistent, accidental
+           edge rather than a deliberate one. A flat color right after the
+           hero (mirroring 'See It in Action' below it) reads as intentional
+           instead. */
         .pinned-rooms-section {
           position: relative;
           z-index: 10;
+          background: #13131f;
         }
         /* Underline tab pair — same pattern as MediaSelectorModal's
            Multiplayer/Singleplayer tabs, reused here so Pinned Rooms and
@@ -575,16 +585,16 @@ const Home = () => {
       ) : (
       <>
       {/* ─── SECTION 1: HERO ─── */}
-      {/* overflowX (not overflow) hidden — the orbs below are huge blurred
-          circles positioned with negative left/right offsets purely to avoid
-          a horizontal scrollbar; clipping the Y axis too was cutting their
-          glow off with a hard rectangular edge exactly at this section's
-          bottom, right where Pinned Rooms/Room History now sits close
-          behind it — read as a flat black band starting abruptly under the
-          hero. Letting them bleed downward (they're z-index:0 and
-          pointer-events:none, so they sit harmlessly behind the next
-          section's own content) fades naturally into the page instead. */}
-      <section className="hero-section-pad" style={{ position: 'relative', padding: '100px 40px 80px', overflowX: 'hidden', overflowY: 'visible' }}>
+      {/* Reverted a prior attempt at overflowX:hidden/overflowY:visible here:
+          per spec, a UA computes overflow-y as 'auto' (not 'visible') the
+          moment overflow-x isn't 'visible' — that silently turned the hero
+          into its own scroll container, which is the stray inner scrollbar
+          reported inside the hero. Back to plain overflow:hidden (its
+          original job — containing the orbs' negative left/right offsets so
+          they don't cause a horizontal scrollbar), and Pinned Rooms/Room
+          History now gets its own solid panel background instead of relying
+          on the hero's glow bleeding into it — see .pinned-rooms-section. */}
+      <section className="hero-section-pad" style={{ position: 'relative', padding: '100px 40px 80px', overflow: 'hidden' }}>
         <div className="hero-orb orb-1" />
         <div className="hero-orb orb-2" />
         <div className="hero-orb orb-3" />

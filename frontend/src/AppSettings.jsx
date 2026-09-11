@@ -1306,7 +1306,7 @@ const AppSettings = () => {
         `}</style>
 
         {/* Skeleton Navbar */}
-        <nav style={{ padding: isMobile ? '12px 16px' : '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.05)', background: isLight ? '#fff' : 'transparent' }}>
+        <nav style={{ position: 'sticky', top: 0, zIndex: 1000, padding: isMobile ? '12px 16px' : '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.05)', background: isLight ? '#fff' : 'var(--bg-color)' }}>
           <div style={{ flex: 1, display: 'flex' }}>
             <div className="sk-shim" style={{ width: isMobile ? 38 : 100, height: 38, borderRadius: isMobile ? '50%' : 16 }} />
           </div>
@@ -1484,8 +1484,12 @@ const AppSettings = () => {
         }
       `}</style>
 
-      {/* Navbar */}
-      <nav style={{ padding: isMobile ? '12px 16px' : '16px 40px', paddingTop: `calc(${isMobile ? '12px' : '16px'} + var(--sp-status-bar-inset, 0px))`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'relative', zIndex: 1000 }}>
+      {/* Navbar — this page hand-rolls its own instead of reusing the shared
+          <Navbar/> (it needs the back-button layout instead of the logo),
+          so it never picked up that component's position:sticky. Was
+          position:'relative' — scrolled away with the page instead of
+          staying pinned like every page using the shared Navbar does. */}
+      <nav style={{ position: 'sticky', top: 0, background: 'var(--bg-color)', padding: isMobile ? '12px 16px' : '16px 40px', paddingTop: `calc(${isMobile ? '12px' : '16px'} + var(--sp-status-bar-inset, 0px))`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', zIndex: 1000 }}>
         {/* Left: Back Button */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <button className="back-btn" onClick={() => navigate(-1)}>

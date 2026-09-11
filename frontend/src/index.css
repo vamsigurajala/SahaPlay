@@ -15,45 +15,26 @@ html.pwa-standalone * {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Native app / installed PWA on mobile & tablet: every page stays
-   scrollable, but a visible track/thumb reads as a stray desktop-browser
-   artifact inside what's meant to feel like a native app. !important (and
-   targeting every element, not just html/body) matches the exact pattern
-   this file already uses for .no-scrollbar/.sp-hidden-scroll below —
-   without it, a plain declaration here can lose a cascade tie to whatever
-   scrollbar rule a specific page/component's own <style> tag happens to
-   inject later in document order. Hidden in both light and dark theme;
-   regular mobile/desktop web keeps the normal scrollbar untouched. */
-html.pwa-standalone,
-html.pwa-standalone * {
+/* Every page stays fully scrollable, just with no visible track/thumb —
+   was installed-app-only plus a mobile-web-width carve-out (a visible
+   scrollbar there read as a stray desktop-browser artifact inside what's
+   meant to feel like a native app), now applied unconditionally: the
+   desktop/tablet browser scrollbar on the right edge of every page reads
+   the same way once you're looking for it. !important (and targeting every
+   element, not just html/body) matches the exact pattern this file already
+   uses for .no-scrollbar/.sp-hidden-scroll below — without it, a plain
+   declaration here can lose a cascade tie to whatever scrollbar rule a
+   specific page/component's own <style> tag happens to inject later in
+   document order. Hidden in both light and dark theme, every platform. */
+html,
+html * {
   scrollbar-width: none !important;
 }
-html.pwa-standalone::-webkit-scrollbar,
-html.pwa-standalone *::-webkit-scrollbar {
+html::-webkit-scrollbar,
+html *::-webkit-scrollbar {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
-}
-
-/* Same "still scrolls, just no visible track/thumb" treatment as the
-   installed-app rule above, but for plain mobile web too — regular Home,
-   Public Rooms, Pinned Rooms, Account, App Settings, etc. all render their
-   own page-level scroll on a bare mobile browser tab (not just the
-   installed PWA/TWA/APK), and that scrollbar read the same as the one the
-   rule above already exists to remove. Scoped to a mobile-width viewport so
-   desktop/tablet-with-a-mouse browsing keeps its normal, expected
-   scrollbar — this is purely about the phone-width browser tab case. */
-@media (max-width: 767px) {
-  html:not(.pwa-standalone),
-  html:not(.pwa-standalone) * {
-    scrollbar-width: none !important;
-  }
-  html:not(.pwa-standalone)::-webkit-scrollbar,
-  html:not(.pwa-standalone) *::-webkit-scrollbar {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-  }
 }
 
 /* Room cards with no host-set thumbnail (RoomThumbnail.jsx) — plain "no
