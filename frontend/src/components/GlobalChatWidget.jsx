@@ -713,7 +713,7 @@ import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
 import { useStableViewportHeight } from '../hooks/useStableViewportHeight';
 import { useDebounce } from '../hooks/useDebounce';
 import { useCrypto } from '../contexts/CryptoContext';
-import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia, packMediaKeyAndCaption, unpackMediaKeyAndCaption } from '../lib/crypto';
+import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia, packMediaKeyAndCaption, unpackMediaKeyAndCaption, sanitizeReplyToForWire } from '../lib/crypto';
 import { isSahaplayOfficialGroup } from '../lib/sahaplayOfficial';
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
@@ -5691,7 +5691,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
         ephemeralPublicKey: ephemeralKey,
         e2eeKeys: e2eeKeysGroup,
         encrypted: isEncrypted,
-        replyTo: optimisticMsg.replyTo,
+        replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo),
         tempId: tempId
       };
 
@@ -6094,7 +6094,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
           ephemeralPublicKey: mediaEphemeral,
           e2eeKeys: e2eeKeysGroup,
           encrypted: isEncrypted,
-          replyTo: buildReplySnapshot(replyToMsg, activeChat?.displayName),
+          replyTo: sanitizeReplyToForWire(buildReplySnapshot(replyToMsg, activeChat?.displayName)),
           tempId: tempId,
           mediaFileName: file.name || null,
           mediaFileSize: file.size || null,

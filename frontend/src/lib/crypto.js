@@ -22,6 +22,46 @@ const PBKDF2_ITERATIONS = 600_000;
 const SALT_LENGTH = 16;   // bytes
 const IV_LENGTH   = 12;   // bytes for AES-GCM
 
+// ─── Reply-preview privacy ────────────────────────────────────────────────────
+// Room.jsx / GlobalChatWidget.jsx each build a local "reply snapshot" object
+// (id, username, mediaType, mediaFileName, message) for the sender's own
+// instant on-screen preview when replying — that local object legitimately
+// carries the already-decrypted preview text so the sender's own bubble
+// renders immediately, with no wire trip involved.
+//
+// The bug (found in the SahaPlay encryption audit): that SAME object,
+// including its plaintext `message` field, was then reused verbatim as the
+// `replyTo` sent to the server — so every reply leaked up to ~150 chars of
+// the original message's plaintext into the `messages.replyTo` DB column,
+// completely bypassing E2EE for that content.
+//
+// This is the one function that must sit between "the local snapshot" and
+// "what actually goes over the wire" at every send call site (chat_message
+// socket emits, /api/chats/send POSTs) — it strips the object down to only
+// what the server legitimately needs (which original message this refers
+// to, who sent it, and a media type/filename for a media-only label).
+// Recipients never lose the preview text: resolveReplyMessages (Room.jsx /
+// GlobalChatWidget.jsx) already resolves it locally, from their own
+// already-decrypted copy of the original message, for every message they
+// receive, live or from history — it only falls back to a generic "Message"
+// label on the rare case the original isn't loaded locally at all.
+//
+// Older rows written before this fix still have a real (plaintext)
+// replyTo.message already stored server-side — resolveReplyMessages' own
+// backward-compatible check (an explicit, non-ciphertext-looking message
+// string is trusted and displayed as-is) keeps those displaying exactly as
+// before. This function only stops NEW messages from repeating the leak;
+// it does not, and cannot, retroactively scrub already-stored rows.
+export function sanitizeReplyToForWire(replyTo) {
+  if (!replyTo) return null;
+  return {
+    id: replyTo.id,
+    username: replyTo.username,
+    mediaType: replyTo.mediaType || null,
+    mediaFileName: replyTo.mediaFileName || null,
+  };
+}
+
 // ─── Media caption packing ──────────────────────────────────────────────────
 // A media message's "message" field is normally just the encrypted media key
 // (a plain base64 string) — there was nowhere for a WhatsApp-style caption to
@@ -420,4 +460,39 @@ export async function loadKeyFromSession() {
 export function clearSessionKey() {
   localStorage.removeItem(SESSION_KEY_NAME);
   localStorage.removeItem(SESSION_PW_NAME);
+}
+
+// ─── Guest key storage (encrypted at rest) ───────────────────────────────────
+// Guests have no password/passphrase at all, so — same as the session-key
+// wrapping above — the wrapping secret is a random value generated once per
+// device and stored alongside the wrapped key. This does NOT protect against
+// an attacker who can read this origin's localStorage wholesale (that
+// attacker gets the wrapping secret too — the same inherent limitation
+// saveKeyToSession above has); it protects against the strictly worse thing
+// it replaces, which was the guest's raw NaCl secret key sitting in
+// localStorage with no encryption at all.
+const GUEST_PW_NAME = 'wt_guest_spw';
+
+function getOrCreateGuestSessionPassword() {
+  let pw = localStorage.getItem(GUEST_PW_NAME);
+  if (!pw) {
+    const arr = crypto.getRandomValues(new Uint8Array(32));
+    pw = bufToB64(arr.buffer);
+    localStorage.setItem(GUEST_PW_NAME, pw);
+  }
+  return pw;
+}
+
+/** Wraps a guest's raw NaCl secret key for at-rest storage. */
+export async function encryptGuestKey(secretKeyBytes) {
+  return encryptPrivateKey(secretKeyBytes, getOrCreateGuestSessionPassword());
+}
+
+/** Unwraps a guest's saved key blob. Returns null if missing/corrupted. */
+export async function decryptGuestKey(blob64) {
+  try {
+    return await decryptPrivateKey(blob64, getOrCreateGuestSessionPassword());
+  } catch {
+    return null;
+  }
 }

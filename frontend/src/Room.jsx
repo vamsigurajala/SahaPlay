@@ -39,7 +39,7 @@ const ReactPlayer = ReactPlayerRaw.default || ReactPlayerRaw;
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 import { useCrypto } from './contexts/CryptoContext';
-import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode, packMediaKeyAndCaption, unpackMediaKeyAndCaption } from './lib/crypto.js';
+import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode, packMediaKeyAndCaption, unpackMediaKeyAndCaption, sanitizeReplyToForWire } from './lib/crypto.js';
 import { castPollVote } from './lib/pollApi';
 import crownImg from './assets/crown.svg';
 import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
@@ -6994,7 +6994,7 @@ const Room = () => {
       roomId: (roomId || '').toLowerCase(),
       message: encryptedPayload.ciphertext,
       e2ee: { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) },
-      username, tempId, replyTo: replyTo || null
+      username, tempId, replyTo: sanitizeReplyToForWire(replyTo)
     });
   };
 
@@ -7160,7 +7160,7 @@ const Room = () => {
       },
       username,
       tempId,
-      replyTo: optimisticMsg.replyTo
+      replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo)
     });
 
     setGroupReplyTo(null);
@@ -7443,7 +7443,7 @@ const Room = () => {
       mediaGroupId: mediaGroupId || null,
       tempId,
       e2ee: encryptedPayload ? { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) } : null,
-      replyTo: optimisticMsg.replyTo
+      replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo)
     });
   };
   sendGroupMediaRef.current = sendMediaGroupChat;
@@ -7621,7 +7621,7 @@ const Room = () => {
           nonce: nonceVal,
           ephemeralPublicKey: ephKeyVal,
           encrypted: true,
-          replyTo: optimisticMsg.replyTo,
+          replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo),
           tempId
         })
       });
@@ -8027,7 +8027,7 @@ const Room = () => {
           nonce: nonceVal,
           ephemeralPublicKey: ephKeyVal,
           encrypted: isEncrypted,
-          replyTo: buildReplySnapshot(replyTo),
+          replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo),
           tempId
         })
       });

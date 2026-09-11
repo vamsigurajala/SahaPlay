@@ -12,10 +12,63 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
-import { generateKeyPair, saveKeyToSession, loadKeyFromSession, clearSessionKey, decryptPrivateKey, encryptPrivateKey } from '../lib/crypto.js';
+import { generateKeyPair, saveKeyToSession, loadKeyFromSession, clearSessionKey, decryptPrivateKey, encryptPrivateKey, encryptGuestKey, decryptGuestKey } from '../lib/crypto.js';
 import { API } from '../lib/api';
 
 const CryptoContext = createContext(null);
+
+// Loads (or creates) a guest's NaCl keypair. Two storage formats are handled:
+//   NEW: { pk: number[], blob: <encryptGuestKey output> } — secret key wrapped
+//        at rest (AES-256-GCM, device-random password — see crypto.js).
+//   OLD: { pk: number[], sk: number[] } — raw, unencrypted secret key, from
+//        before this fix. Still honored so an existing guest keeps the SAME
+//        identity (and can still decrypt their existing E2EE history) — it's
+//        just silently re-saved in the new wrapped format right away, a
+//        one-time, transparent upgrade with no visible behavior change.
+async function loadOrCreateGuestKeyPair(cleanUser) {
+  const guestKey = `wt_guest_kp_${cleanUser}`;
+  const saved = localStorage.getItem(guestKey);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (parsed && parsed.blob && parsed.pk) {
+        const sk = await decryptGuestKey(parsed.blob);
+        if (sk && sk.length === 32) {
+          return { publicKey: new Uint8Array(parsed.pk), secretKey: sk };
+        }
+        // Corrupted/unreadable wrapped blob — fall through to generating a
+        // fresh identity below (guest identities have no server-side backup
+        // to recover from either way, same as a corrupted legacy blob always
+        // resulted in before this fix).
+      } else if (parsed && parsed.sk && parsed.pk) {
+        const kp = { publicKey: new Uint8Array(parsed.pk), secretKey: new Uint8Array(parsed.sk) };
+        try {
+          const blob = await encryptGuestKey(kp.secretKey);
+          localStorage.setItem(guestKey, JSON.stringify({ pk: parsed.pk, blob }));
+        } catch (e) {
+          console.warn('[CryptoContext] Guest key at-rest upgrade failed (keeping legacy format):', e);
+        }
+        return kp;
+      }
+    } catch (e) {
+      console.warn('[CryptoContext] Failed to parse saved guest key, generating a new one:', e);
+    }
+  }
+  const kp = generateKeyPair();
+  try {
+    const blob = await encryptGuestKey(kp.secretKey);
+    localStorage.setItem(guestKey, JSON.stringify({ pk: Array.from(kp.publicKey), blob }));
+  } catch (e) {
+    // Wrapping failed (e.g. WebCrypto unavailable) — still persist the raw
+    // legacy format rather than not persisting at all, so this guest
+    // identity survives a reload the same way it always has. Worse than the
+    // wrapped format, but strictly no worse than this code's behavior before
+    // this fix, and never silently drops the identity.
+    console.warn('[CryptoContext] Guest key at-rest wrap failed, saving unwrapped:', e);
+    localStorage.setItem(guestKey, JSON.stringify({ pk: Array.from(kp.publicKey), sk: Array.from(kp.secretKey) }));
+  }
+  return kp;
+}
 
 export function CryptoProvider({ children }) {
   const [keyPair, setKeyPairState] = useState(null);
@@ -30,36 +83,11 @@ export function CryptoProvider({ children }) {
         const isGuest  = localStorage.getItem('watch_is_guest') === 'true';
 
         if (isGuest || !localStorage.getItem('watch_token')) {
-          // Guests: key persisted in localStorage so E2EE messages survive tab close + reopen.
+          // Guests: key persisted (encrypted at rest, see loadOrCreateGuestKeyPair)
+          // in localStorage so E2EE messages survive tab close + reopen.
           const cleanUser = (username || 'anon').toLowerCase();
-          const guestKey = `wt_guest_kp_${cleanUser}`;
-          const saved    = localStorage.getItem(guestKey);
-          if (saved) {
-            try {
-              const { pk, sk } = JSON.parse(saved);
-              const kp = {
-                publicKey: new Uint8Array(pk),
-                secretKey: new Uint8Array(sk)
-              };
-              setKeyPairState(kp);
-            } catch {
-              const kp = generateKeyPair();
-              const cleanUser = (username || 'anon').toLowerCase();
-              localStorage.setItem(`wt_guest_kp_${cleanUser}`, JSON.stringify({
-                pk: Array.from(kp.publicKey),
-                sk: Array.from(kp.secretKey)
-              }));
-              setKeyPairState(kp);
-            }
-          } else {
-            const kp = generateKeyPair();
-            const cleanUser = (username || 'anon').toLowerCase();
-            localStorage.setItem(`wt_guest_kp_${cleanUser}`, JSON.stringify({
-              pk: Array.from(kp.publicKey),
-              sk: Array.from(kp.secretKey)
-            }));
-            setKeyPairState(kp);
-          }
+          const kp = await loadOrCreateGuestKeyPair(cleanUser);
+          setKeyPairState(kp);
           setIsReady(true);
           return;
         }
