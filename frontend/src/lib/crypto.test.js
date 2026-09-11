@@ -15,6 +15,8 @@ import {
   encryptGuestKey,
   decryptGuestKey,
   sanitizeReplyToForWire,
+  secretKeyToMnemonic,
+  mnemonicToSecretKey,
 } from './crypto.js';
 
 // These exercise the actual client-side E2EE primitives end to end (no
@@ -234,6 +236,112 @@ describe('Password-account key-wrap migration (Phase 4 — independent encryptio
     const legacyBlob = await encryptPrivateKey(kp.secretKey, loginPassword);
     const recovered = await decryptPrivateKey(legacyBlob, loginPassword);
     expect(Array.from(recovered)).toEqual(Array.from(kp.secretKey));
+  });
+});
+
+describe('Password reset via recovery phrase (Bug B — must never re-wrap with the new login password)', () => {
+  // Mirrors ResetPassword.jsx's performReset(): recover the SAME keypair from
+  // the recovery phrase, then re-wrap it with an independent encryption
+  // passphrase (never the newPassword field being set on the login form).
+  async function simulateRecoveryReset(originalKp, recoveryPhrase, encPassphrase) {
+    const recoveredSecretKey = await mnemonicToSecretKey(recoveryPhrase);
+    const nacl = (await import('tweetnacl')).default;
+    const recoveredKp = nacl.box.keyPair.fromSecretKey(recoveredSecretKey);
+    const encryptedPrivateKey = await encryptPrivateKey(recoveredKp.secretKey, encPassphrase);
+    // The local verify-before-send step ResetPassword.jsx performs.
+    const verify = await decryptPrivateKey(encryptedPrivateKey, encPassphrase);
+    if (encodeBase64(verify) !== encodeBase64(recoveredKp.secretKey)) {
+      throw new Error('verification failed');
+    }
+    return { recoveredKp, encryptedPrivateKey };
+  }
+
+  test('recovering + resetting preserves the exact same public/private keypair', async () => {
+    const original = generateKeyPair();
+    const phrase = await secretKeyToMnemonic(original.secretKey);
+    const { recoveredKp } = await simulateRecoveryReset(original, phrase, 'new-encryption-passphrase-1');
+    expect(encodeBase64(recoveredKp.publicKey)).toBe(encodeBase64(original.publicKey));
+    expect(encodeBase64(recoveredKp.secretKey)).toBe(encodeBase64(original.secretKey));
+  });
+
+  test('old encrypted DM sent before the reset still decrypts after it', async () => {
+    const alice = generateKeyPair();
+    const bob = generateKeyPair();
+    const enc = encryptDM('pre-reset secret', encodeBase64(bob.publicKey), encodeBase64(alice.publicKey));
+
+    const phrase = await secretKeyToMnemonic(bob.secretKey);
+    const { recoveredKp } = await simulateRecoveryReset(bob, phrase, 'passphrase-after-reset');
+
+    const plain = decryptDM(enc.ciphertext, enc.nonce, enc.ephemeralPublicKey, encodeBase64(recoveredKp.secretKey));
+    expect(plain).toBe('pre-reset secret');
+  });
+
+  test('old group message sent before the reset still decrypts after it', async () => {
+    const alice = generateKeyPair();
+    const bob = generateKeyPair();
+    const enc = encryptGroupMessage(
+      'group history before reset',
+      [{ username: 'bob', publicKey: bob.publicKey }],
+      alice, 'alice'
+    );
+
+    const phrase = await secretKeyToMnemonic(bob.secretKey);
+    const { recoveredKp } = await simulateRecoveryReset(bob, phrase, 'passphrase-after-reset');
+
+    const plain = decryptGroupMessage(enc.ciphertext, enc.nonce, enc.keys['bob'], alice.publicKey, recoveredKp.secretKey);
+    expect(plain).toBe('group history before reset');
+  });
+
+  test('old encrypted media still decrypts with the same media key after the reset (media keys are unaffected by keypair recovery)', async () => {
+    const original = new TextEncoder().encode('pre-reset media file contents');
+    const { encryptedBlob, mediaKeyBytes } = await encryptMedia(original.buffer);
+    // Recovering the identity keypair doesn't touch per-media keys at all —
+    // included to confirm the reset flow doesn't disturb this independent path.
+    const packed = await encryptedBlob.arrayBuffer();
+    const decryptedBlob = await decryptMedia(packed, mediaKeyBytes);
+    const decrypted = new Uint8Array(await decryptedBlob.arrayBuffer());
+    expect(Array.from(decrypted)).toEqual(Array.from(original));
+  });
+
+  test('the NEW LOGIN PASSWORD does NOT unwrap the re-wrapped key blob', async () => {
+    const original = generateKeyPair();
+    const phrase = await secretKeyToMnemonic(original.secretKey);
+    const newLoginPassword = 'BrandNewLoginPassw0rd!';
+    const encPassphrase = 'totally-independent-passphrase';
+    const { encryptedPrivateKey } = await simulateRecoveryReset(original, phrase, encPassphrase);
+
+    await expect(decryptPrivateKey(encryptedPrivateKey, newLoginPassword)).rejects.toBeTruthy();
+  });
+
+  test('the encryption passphrase DOES unwrap the re-wrapped key blob', async () => {
+    const original = generateKeyPair();
+    const phrase = await secretKeyToMnemonic(original.secretKey);
+    const encPassphrase = 'totally-independent-passphrase';
+    const { encryptedPrivateKey } = await simulateRecoveryReset(original, phrase, encPassphrase);
+
+    const secretKey = await decryptPrivateKey(encryptedPrivateKey, encPassphrase);
+    expect(encodeBase64(secretKey)).toBe(encodeBase64(original.secretKey));
+  });
+
+  test('a wrong recovery phrase produces a different (wrong) keypair, never silently reusing the original', async () => {
+    const original = generateKeyPair();
+    const wrongPhrase = await secretKeyToMnemonic(generateKeyPair().secretKey);
+    const { recoveredKp } = await simulateRecoveryReset(original, wrongPhrase, 'some-passphrase');
+    expect(encodeBase64(recoveredKp.publicKey)).not.toBe(encodeBase64(original.publicKey));
+  });
+
+  test('a malformed recovery phrase throws rather than silently producing a usable key', async () => {
+    await expect(mnemonicToSecretKey('not a valid recovery phrase at all !!!')).rejects.toBeTruthy();
+  });
+
+  test('the local verification step catches a mismatched wrap (simulated corruption) before it would ever reach the server', async () => {
+    const original = generateKeyPair();
+    const phrase = await secretKeyToMnemonic(original.secretKey);
+    const recoveredSecretKey = await mnemonicToSecretKey(phrase);
+    const encryptedPrivateKey = await encryptPrivateKey(recoveredSecretKey, 'passphrase-a');
+    // Simulate verifying with the WRONG passphrase, as if a bug re-wrapped
+    // with the wrong secret — the verify step must reject, not silently pass.
+    await expect(decryptPrivateKey(encryptedPrivateKey, 'passphrase-b')).rejects.toBeTruthy();
   });
 });
 

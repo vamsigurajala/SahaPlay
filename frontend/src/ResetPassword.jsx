@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff, Key, LogIn, CheckCircle, Shield } from 'lucide-react';
-import { mnemonicToSecretKey, encryptPrivateKey, hashRecoveryPhrase } from './lib/crypto.js';
+import { Eye, EyeOff, Key, LogIn, CheckCircle, Shield, Lock } from 'lucide-react';
+import { mnemonicToSecretKey, encryptPrivateKey, decryptPrivateKey, hashRecoveryPhrase } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
 import nacl from 'tweetnacl';
 import PasswordResetWarningModal from './components/PasswordResetWarningModal';
@@ -14,6 +14,17 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword]   = useState(false);
   const [showConfirm, setShowConfirm]     = useState(false);
   const [recoveryKey, setRecoveryKey]     = useState('');
+  // Independent secret from both the login password above and the recovery
+  // phrase — wraps the E2EE private key going forward. Only relevant when a
+  // recovery key is supplied (see the security verification pass, "Bug B":
+  // this used to silently re-wrap the recovered key with the NEW LOGIN
+  // PASSWORD, re-coupling E2EE protection to a secret the server sees on
+  // every login — exactly what an encryption passphrase exists to avoid,
+  // mirroring Profile.jsx's "Encryption passphrase" section and the OAuth
+  // migration flow).
+  const [encPassphrase, setEncPassphrase] = useState('');
+  const [encConfirmPassphrase, setEncConfirmPassphrase] = useState('');
+  const [showEncPassphrase, setShowEncPassphrase] = useState(false);
   const [token, setToken]                 = useState('');
   const [errors, setErrors]               = useState({});
   const [isSubmitting, setIsSubmitting]   = useState(false);
@@ -42,6 +53,17 @@ const ResetPassword = () => {
     else if (!/(?=.*[A-Z])/.test(password)) errs.password = t('resetPasswordUppercase', 'Must include at least one uppercase letter');
     else if (!/(?=.*\d)/.test(password)) errs.password = t('resetPasswordNumber', 'Must include at least one number');
     if (password !== confirmPassword) errs.confirmPassword = t('passwordsMismatch', 'Passwords do not match');
+
+    // Only relevant when recovering via the recovery key — see encPassphrase's
+    // declaration above for why this can't just reuse `password`.
+    if (recoveryKey.trim()) {
+      if (!encPassphrase) errs.encPassphrase = t('encPassphraseRequired', 'Enter an encryption passphrase');
+      else if (encPassphrase.length < 8) errs.encPassphrase = t('encPassphraseTooShort', 'Must be at least 8 characters');
+      if (!errs.encPassphrase && encPassphrase !== encConfirmPassphrase) {
+        errs.encConfirmPassphrase = t('encPassphraseMismatch', 'Passphrases do not match');
+      }
+    }
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -62,14 +84,33 @@ const ResetPassword = () => {
     try {
       let payload = { token, newPassword: password };
 
-      // If user provides a recovery key, regenerate their keys so they don't lose data
+      // If user provides a recovery key, recover their EXISTING keypair (never
+      // regenerated) so they don't lose data. The recovered key is re-wrapped
+      // with the independent encryption passphrase entered above — NOT with
+      // `password` (the login password being reset here). Wrapping with the
+      // login password would re-couple E2EE key protection to a secret the
+      // server necessarily sees on every login, silently undoing the point of
+      // the encryption-passphrase migration for any account that had one.
       if (recoveryKey.trim()) {
         try {
           const secretKey = await mnemonicToSecretKey(recoveryKey.trim());
           const keyPair = nacl.box.keyPair.fromSecretKey(secretKey);
-          
+
           const publicKeyBase64 = encodeBase64(keyPair.publicKey);
-          const encryptedPrivKey = await encryptPrivateKey(keyPair.secretKey, password);
+          const encryptedPrivKey = await encryptPrivateKey(keyPair.secretKey, encPassphrase);
+
+          // Verify the just-wrapped blob actually unwraps back to the SAME
+          // secret key, locally, before this ever reaches the server — never
+          // replace the server's blob with something that turns out to be
+          // unrecoverable.
+          const verifySecretKey = await decryptPrivateKey(encryptedPrivKey, encPassphrase);
+          const matches = verifySecretKey
+            && verifySecretKey.length === keyPair.secretKey.length
+            && encodeBase64(verifySecretKey) === encodeBase64(keyPair.secretKey);
+          if (!matches) {
+            throw new Error('Re-wrapped key failed local verification');
+          }
+
           const recKeyHash = await hashRecoveryPhrase(recoveryKey.trim());
 
           payload.publicKey = publicKeyBase64;
@@ -363,10 +404,62 @@ const ResetPassword = () => {
                   <div style={{ marginTop: '10px', display: 'flex', alignItems: 'flex-start', gap: '8px', background: 'rgba(var(--brand-1-rgb),0.1)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(var(--brand-1-rgb),0.2)' }}>
                     <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.3)', color: '#c7d2fe', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>i</div>
                     <p style={{ margin: 0, fontSize: '12px', color: 'var(--brand-1-light)', lineHeight: 1.5 }}>
-                      {t('recoveryKeyInfoText', 'If you enter your recovery key, your password will be updated without losing any data. If you leave this blank, your old encrypted messages will be permanently erased for your security.')}
+                      {t('recoveryKeyInfoText', "If you enter your recovery key, your existing encrypted messages will be kept — you'll set a separate encryption passphrase below to protect them. If you leave this blank, your old encrypted messages will be permanently erased for your security.")}
                     </p>
                   </div>
                 </div>
+
+                {/* Encryption Passphrase (only relevant when recovering via Recovery Key) */}
+                {recoveryKey.trim() && (
+                  <>
+                    <div>
+                      <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>
+                        {t('encPassphraseLabel', 'Encryption passphrase')}
+                      </label>
+                      <div style={{ position: 'relative' }}>
+                        <Lock size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#666' }} />
+                        <input
+                          type={showEncPassphrase ? 'text' : 'password'}
+                          className="login-input"
+                          style={{ paddingRight: '48px', borderColor: errors.encPassphrase ? '#ef4444' : undefined }}
+                          placeholder={t('encPassphrasePlaceholder', 'Min 8 characters')}
+                          value={encPassphrase}
+                          onChange={e => { setEncPassphrase(e.target.value); if (errors.encPassphrase) setErrors({ ...errors, encPassphrase: null }); }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEncPassphrase(p => !p)}
+                          style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: 0, display: 'flex' }}
+                        >
+                          {showEncPassphrase ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {errors.encPassphrase && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.encPassphrase}</span>}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '13px', color: '#a0aab2', marginBottom: '8px', display: 'block', fontWeight: 600 }}>
+                        {t('encConfirmPassphraseLabel', 'Confirm passphrase')}
+                      </label>
+                      <input
+                        type={showEncPassphrase ? 'text' : 'password'}
+                        className="login-input"
+                        style={{ borderColor: errors.encConfirmPassphrase ? '#ef4444' : undefined }}
+                        placeholder={t('encConfirmPassphrasePlaceholder', 'Re-enter passphrase')}
+                        value={encConfirmPassphrase}
+                        onChange={e => { setEncConfirmPassphrase(e.target.value); if (errors.encConfirmPassphrase) setErrors({ ...errors, encConfirmPassphrase: null }); }}
+                      />
+                      {errors.encConfirmPassphrase && <span style={{ color: '#ef4444', fontSize: '12px', marginTop: '6px', display: 'block' }}>{errors.encConfirmPassphrase}</span>}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', background: 'rgba(var(--brand-1-rgb),0.1)', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(var(--brand-1-rgb),0.2)' }}>
+                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'rgba(var(--brand-1-rgb),0.3)', color: '#c7d2fe', fontSize: '10px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>i</div>
+                      <p style={{ margin: 0, fontSize: '12px', color: 'var(--brand-1-light)', lineHeight: 1.5 }}>
+                        {t('encPassphraseResetInfoText', "This protects your encrypted messages going forward. It's separate from your new password above and from your recovery key — never sent to us, and not recoverable if you forget it (unless you still have your recovery key).")}
+                      </p>
+                    </div>
+                  </>
+                )}
 
                 <button type="submit" disabled={isSubmitting || !token} className="login-submit-btn">
                   {isSubmitting

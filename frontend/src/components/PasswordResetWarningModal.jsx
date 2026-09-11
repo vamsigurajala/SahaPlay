@@ -3,8 +3,10 @@
  *
  * Shown right before a password reset is submitted. The consequence differs
  * sharply depending on whether the user supplied their E2EE recovery key:
- *   - With a valid recovery key: the same key pair is re-wrapped under the new
- *     password. Nothing is lost.
+ *   - With a valid recovery key: the same key pair is re-wrapped under the
+ *     independent encryption passphrase entered on that page (NOT the new
+ *     login password — see ResetPassword.jsx's comment on why). Nothing is
+ *     lost.
  *   - Without one: the old encrypted private key can no longer be unwrapped, so
  *     (per this app's existing, deliberate server-side behavior) ALL messages the
  *     user ever sent or received — with everyone, not just their own copy — are
@@ -59,7 +61,7 @@ export default function PasswordResetWarningModal({ hasRecoveryKey, onCancel, on
 
         {hasRecoveryKey ? (
           <p style={{ margin: '0 0 24px', color: descColor, fontSize: 14, lineHeight: 1.6, textAlign: 'center' }}>
-            {t('resetConfirmDescSafe', "Since you've entered your recovery key, your encryption keys will be re-wrapped with your new password — no messages will be lost. Chat Lock settings are unaffected. Your password will change immediately. This cannot be undone.")}
+            {t('resetConfirmDescSafe', "Since you've entered your recovery key, your encryption keys will be re-wrapped with the encryption passphrase you just set — no messages will be lost. Chat Lock settings are unaffected. Your password will change immediately. This cannot be undone.")}
           </p>
         ) : (
           <div style={{

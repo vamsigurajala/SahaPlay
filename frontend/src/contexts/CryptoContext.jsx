@@ -231,6 +231,23 @@ export function CryptoProvider({ children }) {
     }
   }, []);
 
+  // authUtils.js's clearUserSession() — the single function nearly every
+  // logout/sign-out path in the app calls — clears the sessionStorage-level
+  // key material itself (see its own comment) and dispatches this event so
+  // that, too, drops the in-memory keyPair/needsReauth state immediately,
+  // without every one of those ~15 call sites having to also import and call
+  // clearKeys() directly. Calling clearKeys() explicitly (as Profile.jsx's
+  // logout button does) still works fine alongside this — both are
+  // idempotent.
+  useEffect(() => {
+    const handler = () => {
+      setKeyPairState(null);
+      setNeedsReauth(false);
+    };
+    window.addEventListener('wt_session_cleared', handler);
+    return () => window.removeEventListener('wt_session_cleared', handler);
+  }, []);
+
   return (
     <CryptoContext.Provider value={{ keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock }}>
       {children}

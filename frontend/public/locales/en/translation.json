@@ -1045,7 +1045,7 @@
   "recoveryFailed": "Recovery failed",
   "recoveryKeyDesc": "Use the 32-character key you saved during setup",
   "recoveryKeyFormat": "Recovery Key (XXXX-XXXX-XXXX-XXXX)",
-  "recoveryKeyInfoText": "If you enter your recovery key, your password will be updated without losing any data. If you leave this blank, your old encrypted messages will be permanently erased for your security.",
+  "recoveryKeyInfoText": "If you enter your recovery key, your existing encrypted messages will be kept — you'll set a separate encryption passphrase below to protect them. If you leave this blank, your old encrypted messages will be permanently erased for your security.",
   "recoveryKeyLabel": "Recovery Key",
   "recoveryKeyLengthError": "Recovery key must be 32 characters",
   "recoveryKeyMethod": "Recovery Key",
