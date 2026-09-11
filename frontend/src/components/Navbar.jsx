@@ -6,6 +6,7 @@ import { User, LogOut, Settings, HelpCircle, Search, MessageSquare, Bell, AlertC
 import { useDebounce } from '../hooks/useDebounce';
 import { useFollowRequests } from '../hooks/useFollowRequests';
 import { useSearchHistory } from '../hooks/useSearchHistory';
+import { getPersistedNavbarSearchOpen, setPersistedNavbarSearchOpen } from '../utils/navbarSearchPersist';
 import { clearUserSession } from '../lib/authUtils.js';
 import GlobalChatWidget from './GlobalChatWidget';
 import SupportModal from './SupportModal';
@@ -40,7 +41,7 @@ const Navbar = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showProfilePageMobile, setShowProfilePageMobile] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
+  const [showSearch, setShowSearch] = useState(getPersistedNavbarSearchOpen);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [searchResults, setSearchResults] = useState([]);
@@ -124,6 +125,25 @@ const Navbar = () => {
     setShowMobileMenu(false);
   }, [mobileMenuBack, navigate]);
 
+  // Search dropdown is an overlay on whatever page hosts Navbar, not its own
+  // route — same swipe-back treatment as the mobile menu drawer above, plus
+  // sessionStorage persistence (navbarSearchPersist.js) for the one case the
+  // hook's own history trick can't cover on its own: tapping a result
+  // navigates to a real route (their profile) on TOP of the still-inert
+  // "search was open" marker, so swiping back from there lands on this
+  // page's own history entry — which then needs to be TOLD to restore the
+  // dropdown open, or it just remounts freshly closed and reads as "swiped
+  // back and landed on Home instead of back on my search".
+  const closeSearch = () => { setShowSearch(false); setPersistedNavbarSearchOpen(false); };
+  const searchBack = useBackIntercept(showSearch ? 1 : 0, (newLevel) => { if (newLevel === 0) closeSearch(); });
+  const goToSearchResult = (user) => {
+    addToSearchHistory(user);
+    searchBack.skipNextClose();
+    setShowSearch(false);
+    setPersistedNavbarSearchOpen(true);
+    navigate(`/profile/${user.username}`);
+  };
+
   const [unreadCounts, setUnreadCounts] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }
   });
@@ -154,7 +174,7 @@ const Navbar = () => {
     const handler = (e) => {
       if (!isFriendTap(e.detail)) return;
       setShowNotifications(true);
-      setShowSearch(false);
+      closeSearch();
       setShowRecentChats(false);
     };
     window.addEventListener('open_chat_from_notification', handler);
@@ -184,7 +204,7 @@ const Navbar = () => {
       const chatData = e.detail;
       if (!chatData?.chatId) return;
       setShowNotifications(false);
-      setShowSearch(false);
+      closeSearch();
       setPendingOpenChat({ partner: chatData.chatId, type: chatData.type === 'dm' ? 'private' : 'room' });
       setShowRecentChats(true);
     };
@@ -217,7 +237,7 @@ const Navbar = () => {
       // underneath it before a single keystroke landed.
       if (e.target.closest?.('.report-modal-overlay')) return;
       if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
-        setShowSearch(false);
+        closeSearch();
         setShowRecentChats(false);
         setShowNotifications(false);
         setShowUserMenu(false);
@@ -452,7 +472,7 @@ const Navbar = () => {
                     <button 
                       className={`nav-icon-btn${showSearch ? ' active' : ''}`}
                       title={t('search', 'Search')}
-                      onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); }}
+                      onClick={() => { const next = !showSearch; if (!next) setPersistedNavbarSearchOpen(false); setShowSearch(next); setShowRecentChats(false); setShowNotifications(false); }}
                     >
                       <Search size={18} />
                     </button>
@@ -491,7 +511,7 @@ const Navbar = () => {
                         <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                           {searchResults.length > 0 ? (
                             searchResults.map(u => (
-                              <div key={u.username} onClick={() => { addToSearchHistory(u); setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
+                              <div key={u.username} onClick={() => goToSearchResult(u)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
                                    onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -512,7 +532,7 @@ const Navbar = () => {
                                 <div key={h.username} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
                                      onMouseEnter={e => e.currentTarget.style.background = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'}
                                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                  <div onClick={() => { addToSearchHistory(h); setShowSearch(false); navigate(`/profile/${h.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 8, cursor: 'pointer' }}>
+                                  <div onClick={() => goToSearchResult(h)} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 8, cursor: 'pointer' }}>
                                     <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                       {h.avatarPath ? <img src={getAvatarUrl(h.avatarPath)} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
                                     </div>
@@ -543,7 +563,7 @@ const Navbar = () => {
                     <button
                       className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
                       title={t('chats', 'Chats')}
-                      onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); }}
+                      onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); closeSearch(); }}
                     >
                       <MessageSquare size={18} />
                       {totalUnread > 0 && (
@@ -562,7 +582,7 @@ const Navbar = () => {
                      bottom nav (or, for fullscreen, the OS shell itself)
                      already covers them. */
                   <div style={{ position: 'relative' }}>
-                    <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
+                    <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); closeSearch(); setShowRecentChats(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
                       <Bell size={18} />
                       {followRequests.filter(r => r.status === 'pending').length > 0 && (
                         <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -677,7 +697,7 @@ const Navbar = () => {
                       <button 
                         className={`nav-icon-btn${showSearch ? ' active' : ''}`}
                         title={t('search', 'Search')}
-                        onClick={() => { setShowSearch(!showSearch); setShowRecentChats(false); setShowNotifications(false); setShowUserMenu(false); }}
+                        onClick={() => { const next = !showSearch; if (!next) setPersistedNavbarSearchOpen(false); setShowSearch(next); setShowRecentChats(false); setShowNotifications(false); setShowUserMenu(false); }}
                       >
                         <Search size={18} />
                       </button>
@@ -694,7 +714,7 @@ const Navbar = () => {
                           <div style={{ maxHeight: 240, overflowY: 'auto' }}>
                             {searchResults.length > 0 ? (
                               searchResults.map(u => (
-                                <div key={u.username} onClick={() => { addToSearchHistory(u); setShowSearch(false); navigate(`/profile/${u.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
+                                <div key={u.username} onClick={() => goToSearchResult(u)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, cursor: 'pointer', transition: 'background 0.2s' }}
                                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -715,7 +735,7 @@ const Navbar = () => {
                                   <div key={h.username} style={{ display: 'flex', alignItems: 'center', gap: 6, borderRadius: 10 }}
                                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                    <div onClick={() => { addToSearchHistory(h); setShowSearch(false); navigate(`/profile/${h.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 8, cursor: 'pointer' }}>
+                                    <div onClick={() => goToSearchResult(h)} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: 8, cursor: 'pointer' }}>
                                       <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                         {h.avatarPath ? <img src={getAvatarUrl(h.avatarPath)} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : <User size={14} color="#fff" />}
                                       </div>
@@ -744,7 +764,7 @@ const Navbar = () => {
                       <button 
                         className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
                         title={t('chats', 'Chats')}
-                        onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); setShowUserMenu(false); }}
+                        onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); closeSearch(); setShowUserMenu(false); }}
                       >
                         <MessageSquare size={18} />
                         {totalUnread > 0 && (
@@ -757,7 +777,7 @@ const Navbar = () => {
       
                     {/* Notifications */}
                     <div style={{ position: 'relative' }}>
-                      <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); setShowSearch(false); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
+                      <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); closeSearch(); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
                         <Bell size={18} />
                         {followRequests.filter(r => r.status === 'pending').length > 0 && (
                           <div className="unread-badge stay-white" style={{ position: 'absolute', top: 4, right: 4, background: '#ef4444', borderRadius: '50%', color: '#fff', fontSize: 10, fontWeight: 'bold', width: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -834,7 +854,7 @@ const Navbar = () => {
                   {/* User Menu Dropdown */}
                   <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }} onMouseLeave={() => setShowUserMenu(false)}>
                     <div className="profile-pill"
-                      onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
+                      onMouseEnter={() => { setShowUserMenu(true); closeSearch(); setShowRecentChats(false); setShowNotifications(false); }}
                       style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
                     >
                       <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -918,7 +938,7 @@ const Navbar = () => {
                   {isGuest && (
                     <div style={{ display: 'flex', alignItems: 'center', position: 'relative', marginRight: 8 }} onMouseLeave={() => setShowUserMenu(false)}>
                       <div className="profile-pill"
-                        onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
+                        onMouseEnter={() => { setShowUserMenu(true); closeSearch(); setShowRecentChats(false); setShowNotifications(false); }}
                         style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
                       >
                         <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

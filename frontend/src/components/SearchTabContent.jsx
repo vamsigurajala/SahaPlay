@@ -92,22 +92,34 @@ export default function SearchTabContent({ t, onNavigate }) {
               {t('clearSearchHistory', 'Clear search history')}
             </span>
           </div>
-          {history.map(h => (
-            <div key={h.username} className="search-tab-row" style={{ paddingRight: 4 }}>
-              <div onClick={() => { addToHistory(h); goTo(`/profile/${h.username}`); }} style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                <div className="search-tab-thumb" style={{ borderRadius: '50%' }}>
-                  {h.avatarPath ? <img src={getAvatarUrl(h.avatarPath)} alt="" /> : <User size={18} color="#888" />}
+          {history.map(h => {
+            const isRoom = h.type === 'room';
+            return (
+              <div key={isRoom ? `room:${h.roomId}` : `user:${h.username}`} className="search-tab-row" style={{ paddingRight: 4 }}>
+                <div
+                  onClick={() => { addToHistory(h); goTo(isRoom ? `/room/${h.roomId}` : `/profile/${h.username}`); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0, cursor: 'pointer' }}
+                >
+                  <div className="search-tab-thumb" style={isRoom ? undefined : { borderRadius: '50%' }}>
+                    {isRoom ? (
+                      h.thumbnailPath ? <img src={getRoomThumbnailUrl(h.thumbnailPath)} alt="" /> : <Users size={18} color="#888" />
+                    ) : (
+                      h.avatarPath ? <img src={getAvatarUrl(h.avatarPath)} alt="" /> : <User size={18} color="#888" />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'inherit', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{isRoom ? h.roomName : (h.displayName || h.username)}</div>
+                    <div style={{ fontSize: 12, color: '#888', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {isRoom ? (<><Hash size={10} />{h.roomId}</>) : `@${h.username}`}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'inherit' }}>{h.displayName || h.username}</div>
-                  <div style={{ fontSize: 12, color: '#888' }}>@{h.username}</div>
-                </div>
+                <button onClick={() => removeFromHistory(h)} title={t('removeFromHistory', 'Remove')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 8, display: 'flex', flexShrink: 0 }}>
+                  <X size={16} />
+                </button>
               </div>
-              <button onClick={() => removeFromHistory(h.username)} title={t('removeFromHistory', 'Remove')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 8, display: 'flex', flexShrink: 0 }}>
-                <X size={16} />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -121,7 +133,7 @@ export default function SearchTabContent({ t, onNavigate }) {
         <div style={{ marginBottom: 24 }}>
           <div className="search-tab-section-title">{t('rooms', 'Rooms')}</div>
           {roomResults.slice(0, 20).map(room => (
-            <div key={room.id} className="search-tab-row" onClick={() => goTo(`/room/${room.id}`)}>
+            <div key={room.id} className="search-tab-row" onClick={() => { addToHistory({ type: 'room', roomId: room.id, roomName: room.name, thumbnailPath: room.thumbnailPath }); goTo(`/room/${room.id}`); }}>
               <div className="search-tab-thumb">
                 {room.thumbnailPath ? (
                   <img src={getRoomThumbnailUrl(room.thumbnailPath)} alt="" />

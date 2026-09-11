@@ -29,9 +29,9 @@ export default function DoubleTapBurst({ emoji = '❤️' }) {
           overflow: visible;
         }
         .dtap-burst-emoji {
-          font-size: 60px;
+          font-size: 32px;
           line-height: 1;
-          filter: drop-shadow(0 6px 16px rgba(0,0,0,0.4));
+          filter: drop-shadow(0 3px 10px rgba(0,0,0,0.4));
           animation: dtapBurstPop 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
           will-change: transform, opacity;
         }

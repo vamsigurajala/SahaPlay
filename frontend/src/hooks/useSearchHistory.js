@@ -1,20 +1,33 @@
 import { useState, useCallback } from 'react';
 
-// Backs "recently searched users" on every user-search surface in the app —
-// Navbar's search dropdown (desktop and its own mobile-width block),
-// Profile.jsx's and AppSettings.jsx's own copies of that same dropdown, and
+// Backs "recently searched" on every search surface in the app — Navbar's
+// search dropdown (desktop and its own mobile-width block), Profile.jsx's
+// and AppSettings.jsx's own copies of that same dropdown (users only), and
 // the mobile/tablet full-screen Search tab (SearchTabContent.jsx via
-// BottomNav). One shared localStorage list so searching from any of them
-// builds (and clears) the same history everywhere, instead of five
-// independent ones that all show something different.
+// BottomNav, which also searches rooms). One shared localStorage list so
+// searching from any of them builds (and clears) the same history
+// everywhere, instead of several independent ones that all show something
+// different. Entries are either a user ({ username, displayName,
+// avatarPath }) or a room ({ type: 'room', roomId, roomName,
+// thumbnailPath }) — the surfaces that only ever deal in users can keep
+// passing plain user objects with no `type` field at all.
 const KEY = 'sp_user_search_history';
 const MAX_ENTRIES = 10;
+
+// Accepts either a full entry object or (for backward-compat call sites
+// that only ever dealt with users) a bare username string.
+function entryKey(e) {
+  if (!e) return null;
+  if (typeof e === 'string') return 'user:' + e.toLowerCase();
+  if (e.type === 'room') return 'room:' + String(e.roomId || '').toLowerCase();
+  return 'user:' + String(e.username || '').toLowerCase();
+}
 
 function readHistory() {
   try {
     const raw = localStorage.getItem(KEY);
     const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr.filter(e => e && e.username) : [];
+    return Array.isArray(arr) ? arr.filter(e => e && (e.username || (e.type === 'room' && e.roomId))) : [];
   } catch {
     return [];
   }
@@ -29,24 +42,30 @@ export function useSearchHistory() {
 
   // Call when the user actually opens a result from search (not on every
   // keystroke) — same "recently visited" semantics as a browser's own
-  // address-bar history. Re-searching someone already in the list bumps
-  // them back to the top instead of creating a second entry.
-  const addToHistory = useCallback((user) => {
-    if (!user || !user.username) return;
+  // address-bar history. Re-opening something already in the list bumps it
+  // back to the top instead of creating a second entry.
+  const addToHistory = useCallback((entry) => {
+    if (!entry) return;
+    const isRoom = entry.type === 'room';
+    if (isRoom ? !entry.roomId : !entry.username) return;
+    const key = entryKey(entry);
     setHistory(prev => {
-      const filtered = prev.filter(e => e.username.toLowerCase() !== user.username.toLowerCase());
-      const next = [
-        { username: user.username, displayName: user.displayName || null, avatarPath: user.avatarPath || null },
-        ...filtered,
-      ].slice(0, MAX_ENTRIES);
+      const filtered = prev.filter(e => entryKey(e) !== key);
+      const normalized = isRoom
+        ? { type: 'room', roomId: entry.roomId, roomName: entry.roomName || entry.roomId, thumbnailPath: entry.thumbnailPath || null }
+        : { username: entry.username, displayName: entry.displayName || null, avatarPath: entry.avatarPath || null };
+      const next = [normalized, ...filtered].slice(0, MAX_ENTRIES);
       writeHistory(next);
       return next;
     });
   }, []);
 
-  const removeFromHistory = useCallback((username) => {
+  // Accepts either a full entry (preferred — needed to tell a room and a
+  // user with the same id apart) or a bare username string (older callers).
+  const removeFromHistory = useCallback((entryOrUsername) => {
+    const key = entryKey(entryOrUsername);
     setHistory(prev => {
-      const next = prev.filter(e => e.username.toLowerCase() !== username.toLowerCase());
+      const next = prev.filter(e => entryKey(e) !== key);
       writeHistory(next);
       return next;
     });
