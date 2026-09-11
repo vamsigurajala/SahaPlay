@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Play, Pin, History } from 'lucide-react';
 import PinnedRoomsGrid from './PinnedRoomsGrid';
+import RoomCardSkeleton from './RoomCardSkeleton';
 
 // The standalone-PWA/TWA "Home" tab — a compact app-shell view combining
 // create/join (reusing Home.jsx's own createRoom()/handleJoin() and its
@@ -11,21 +12,23 @@ import PinnedRoomsGrid from './PinnedRoomsGrid';
 // app's home screen. Relies on Home.jsx's own <style> block (always mounted
 // regardless of which branch renders) for the shared .pinned-card/.img-layer/
 // etc rules that PinnedRoomsGrid's markup depends on.
-export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pinnedRooms, isPinnedLoading, onUnpin, roomHistory, isHistoryLoading, pinnedRoomIds, onTogglePin, t }) {
+export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pinnedRooms, isPinnedLoading, showPinnedTab = true, onUnpin, roomHistory, isHistoryLoading, showHistoryTab = true, pinnedRoomIds, onTogglePin, t }) {
   const hasPinned = pinnedRooms && pinnedRooms.length > 0;
   const hasHistory = roomHistory && roomHistory.length > 0;
-  // Tabs only ever appear once BOTH fetches have actually settled and BOTH
-  // turned out non-empty — see Home.jsx's identical comment on its own
-  // showRoomsTabs for why (this is the same "flashes in then disappears"
-  // fix, just for the standalone app's Home tab).
-  const bothSettled = !isPinnedLoading && !isHistoryLoading;
-  const showTabs = bothSettled && hasPinned && hasHistory;
+  // Whether each tab is shown depends only on whether the feature applies
+  // to this user (guests don't get Room History, since it needs an
+  // account) — never on whether that tab's bucket is currently empty. An
+  // empty bucket renders its own "no rooms yet" empty state below instead
+  // of the tab (or the whole section) disappearing, which was the reported
+  // bug: a fresh account with zero created rooms lost the Room History tab
+  // entirely instead of showing it empty.
+  const showTabs = showPinnedTab && showHistoryTab;
   const [roomsTab, setRoomsTab] = useState('pinned');
-  const activeTab = !bothSettled ? 'pinned' : (showTabs ? roomsTab : (hasPinned ? 'pinned' : 'history'));
+  const activeTab = showTabs ? roomsTab : (showPinnedTab ? 'pinned' : 'history');
   return (
     <div style={{
       padding: '20px 16px 100px', maxWidth: 640, margin: '0 auto',
-      ...((hasPinned || hasHistory) ? {} : { minHeight: 'calc(100dvh - 130px)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }),
+      ...((showPinnedTab || showHistoryTab) ? {} : { minHeight: 'calc(100dvh - 130px)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }),
     }}>
       <style>{`
         .home-tab-hero { text-align: center; margin-bottom: 22px; }
@@ -131,7 +134,7 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
         </form>
       </div>
 
-      {(hasPinned || hasHistory) && (
+      {(showPinnedTab || showHistoryTab) && (
         <div style={{ marginTop: 32 }}>
           {showTabs ? (
             <div className="home-tab-rooms-tabs">
@@ -155,14 +158,32 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
           )}
 
           {activeTab === 'pinned' ? (
-            <PinnedRoomsGrid rooms={pinnedRooms} onUnpin={onUnpin} gridClassName="home-tab-pinned-grid" />
+            isPinnedLoading ? (
+              <div className="home-tab-pinned-grid"><RoomCardSkeleton count={2} /></div>
+            ) : hasPinned ? (
+              <PinnedRoomsGrid rooms={pinnedRooms} onUnpin={onUnpin} gridClassName="home-tab-pinned-grid" />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '32px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
+                <Pin size={22} style={{ opacity: 0.4, marginBottom: 8 }} />
+                <p style={{ margin: 0, fontSize: 13, color: '#888' }}>{t('noPinnedRooms', 'No pinned rooms yet')}</p>
+              </div>
+            )
           ) : (
-            <PinnedRoomsGrid
-              rooms={roomHistory}
-              pinnedIds={pinnedRoomIds}
-              onTogglePin={onTogglePin}
-              gridClassName="home-tab-pinned-grid"
-            />
+            isHistoryLoading ? (
+              <div className="home-tab-pinned-grid"><RoomCardSkeleton count={2} /></div>
+            ) : hasHistory ? (
+              <PinnedRoomsGrid
+                rooms={roomHistory}
+                pinnedIds={pinnedRoomIds}
+                onTogglePin={onTogglePin}
+                gridClassName="home-tab-pinned-grid"
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '32px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
+                <History size={22} style={{ opacity: 0.4, marginBottom: 8 }} />
+                <p style={{ margin: 0, fontSize: 13, color: '#888' }}>{t('noRoomHistory', 'No rooms created yet')}</p>
+              </div>
+            )
           )}
         </div>
       )}

@@ -94,25 +94,17 @@ const Home = () => {
   const [roomsTab, setRoomsTab] = useState('pinned');
   const showPinnedTabData = isLoggedIn || isGuest;
   const showHistoryTabData = isLoggedIn;
-  const hasPinnedRooms = pinnedRooms && pinnedRooms.length > 0;
-  const hasHistoryRooms = roomHistory && roomHistory.length > 0;
-  // Tabs only ever appear once BOTH fetches have actually settled and BOTH
-  // turned out non-empty — showing the tab pair speculatively while a fetch
-  // is still in flight (then hiding the History tab again the moment it
-  // resolves empty) is exactly the "tab flashes in then disappears" bug
-  // reported on the desktop app, where Room History legitimately can be
-  // empty for a given account. Settled-but-empty in EITHER bucket just
-  // falls back to the single-heading layout, same as before tabs existed.
-  const pinnedSettled = !isPinnedLoading;
-  const historySettled = !isHistoryLoading;
-  const bothSettled = pinnedSettled && historySettled;
-  const showRoomsSection = !bothSettled || (showPinnedTabData && hasPinnedRooms) || (showHistoryTabData && hasHistoryRooms);
-  const showRoomsTabs = bothSettled && showPinnedTabData && showHistoryTabData && hasPinnedRooms && hasHistoryRooms;
-  const activeRoomsTab = !bothSettled
-    ? 'pinned'
-    : showRoomsTabs
-      ? roomsTab
-      : ((showPinnedTabData && hasPinnedRooms) ? 'pinned' : 'history');
+  // The section (and, within it, the tab pair) is shown whenever the user
+  // can conceptually have pinned rooms and/or room history — never based on
+  // whether either bucket is currently empty. An empty bucket renders its
+  // own "no rooms yet" empty state below instead of making the tab (or the
+  // whole section) disappear — hiding it on empty was the reported bug: a
+  // fresh account with zero created rooms lost the Room History tab
+  // entirely instead of showing it empty, same for a new account with no
+  // pinned rooms.
+  const showRoomsSection = showPinnedTabData || showHistoryTabData;
+  const showRoomsTabs = showPinnedTabData && showHistoryTabData;
+  const activeRoomsTab = showRoomsTabs ? roomsTab : (showPinnedTabData ? 'pinned' : 'history');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   useEffect(() => {
@@ -591,9 +583,11 @@ const Home = () => {
           createRoom={createRoom}
           pinnedRooms={(isLoggedIn || isGuest) ? pinnedRooms : []}
           isPinnedLoading={(isLoggedIn || isGuest) && isPinnedLoading}
+          showPinnedTab={showPinnedTabData}
           onUnpin={unpinRoom}
           roomHistory={isLoggedIn ? roomHistory : []}
           isHistoryLoading={isLoggedIn && isHistoryLoading}
+          showHistoryTab={showHistoryTabData}
           pinnedRoomIds={pinnedRoomIds}
           onTogglePin={toggleHistoryPin}
           t={t}
@@ -777,6 +771,12 @@ const Home = () => {
                   <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
                     <RoomCardSkeleton count={3} />
                   </div>
+                ) : pinnedRooms.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px 24px', background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
+                    <Pin size={26} style={{ opacity: 0.4, marginBottom: 10 }} />
+                    <h3 style={{ margin: '0 0 8px', color: '#fff', fontSize: 17 }}>{t('noPinnedRooms', 'No pinned rooms yet')}</h3>
+                    <p style={{ color: '#888', margin: 0, fontSize: 14 }}>{t('noPinnedRoomsDesc', 'Pin a room from its menu to see it here for quick access.')}</p>
+                  </div>
                 ) : (
                   <PinnedRoomsGrid
                     rooms={pinnedRooms.slice(0, 6)}
@@ -789,6 +789,12 @@ const Home = () => {
                 isHistoryLoading ? (
                   <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
                     <RoomCardSkeleton count={3} />
+                  </div>
+                ) : roomHistory.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '48px 24px', background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
+                    <History size={26} style={{ opacity: 0.4, marginBottom: 10 }} />
+                    <h3 style={{ margin: '0 0 8px', color: '#fff', fontSize: 17 }}>{t('noRoomHistory', 'No rooms created yet')}</h3>
+                    <p style={{ color: '#888', margin: 0, fontSize: 14 }}>{t('noRoomHistoryDesc', 'Rooms you create will show up here, even if you never pin or chat in them.')}</p>
                   </div>
                 ) : (
                   <PinnedRoomsGrid
