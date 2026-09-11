@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pin } from 'lucide-react';
+import { Play, Pin, History } from 'lucide-react';
 import PinnedRoomsGrid from './PinnedRoomsGrid';
 
 // The standalone-PWA/TWA "Home" tab — a compact app-shell view combining
@@ -11,12 +11,13 @@ import PinnedRoomsGrid from './PinnedRoomsGrid';
 // app's home screen. Relies on Home.jsx's own <style> block (always mounted
 // regardless of which branch renders) for the shared .pinned-card/.img-layer/
 // etc rules that PinnedRoomsGrid's markup depends on.
-export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pinnedRooms, onUnpin, t }) {
+export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pinnedRooms, onUnpin, roomHistory, pinnedRoomIds, onTogglePin, t }) {
   const hasPinned = pinnedRooms && pinnedRooms.length > 0;
+  const hasHistory = roomHistory && roomHistory.length > 0;
   return (
     <div style={{
       padding: '20px 16px 100px', maxWidth: 640, margin: '0 auto',
-      ...(hasPinned ? {} : { minHeight: 'calc(100dvh - 130px)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }),
+      ...((hasPinned || hasHistory) ? {} : { minHeight: 'calc(100dvh - 130px)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }),
     }}>
       <style>{`
         .home-tab-hero { text-align: center; margin-bottom: 22px; }
@@ -113,6 +114,23 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
             <span className="home-tab-pinned-count">{pinnedRooms.length}</span>
           </div>
           <PinnedRoomsGrid rooms={pinnedRooms} onUnpin={onUnpin} gridClassName="home-tab-pinned-grid" />
+        </div>
+      )}
+
+      {hasHistory && (
+        <div style={{ marginTop: 32 }}>
+          <div className="home-tab-pinned-header">
+            <div className="home-tab-pinned-title">
+              <History size={16} />
+              <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{t('roomHistory', 'Room History')}</h2>
+            </div>
+          </div>
+          <PinnedRoomsGrid
+            rooms={roomHistory}
+            pinnedIds={pinnedRoomIds}
+            onTogglePin={onTogglePin}
+            gridClassName="home-tab-pinned-grid"
+          />
         </div>
       )}
     </div>

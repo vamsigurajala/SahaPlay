@@ -6794,6 +6794,42 @@ app.get('/api/rooms/info', async (req, res) => {
   }
 });
 
+// "Room History" — rooms the caller has created, most-recent-first. Distinct
+// from /api/rooms/info (looked up by a known list of IDs — what pinned rooms
+// uses) and /api/rooms/public (the browsable catalog): this is "what have I
+// made", the durable fallback for a room that's neither pinned nor has ever
+// had a message sent in it, which until now had no way back to it at all
+// once its own link/tab was gone. hostUsername on room_names is already
+// written at creation time (see /api/rooms/create below) and survives a
+// later username change (the rename cascade in /api/profile/username keeps
+// it in sync), so this needs no new schema.
+app.get('/api/rooms/mine', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT "roomId", "roomName", category, "thumbnailPath"
+       FROM room_names
+       WHERE LOWER("hostUsername") = LOWER($1)
+       ORDER BY created_at DESC NULLS LAST
+       LIMIT 12`,
+      [req.user.username]
+    );
+    const data = result.rows.map(row => {
+      const activeRoom = rooms.get(row.roomId);
+      return {
+        id: row.roomId,
+        name: row.roomName || 'Room Chat',
+        userCount: activeRoom ? activeRoom.users.length : 0,
+        category: row.category || 'other',
+        thumbnailPath: row.thumbnailPath || null,
+      };
+    });
+    res.json(data);
+  } catch (err) {
+    console.error('[rooms/mine] query error:', err);
+    res.json([]);
+  }
+});
+
 
 
 

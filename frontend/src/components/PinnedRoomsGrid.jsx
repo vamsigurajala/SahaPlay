@@ -16,13 +16,24 @@ const getCategoryLabel = (id, t) => {
 // etc in their own <style> blocks; this component just reuses those class names,
 // so both host pages keep rendering pixel-identical to before this extraction.
 // `gridClassName`/`gridStyle` and `fadeIn` let each host pass its own prior values.
-export default function PinnedRoomsGrid({ rooms, onUnpin, gridClassName = 'pinned-grid', gridStyle, fadeIn = false, titleColor }) {
+//
+// `pinnedIds` + `onTogglePin` turn the corner button from an always-visible
+// "Unpin" (the Pinned Rooms grid's only use before Room History existed) into
+// a real pin/unpin toggle per room — pass both together for a grid that can
+// contain a mix of pinned/unpinned rooms (Room History); omit both and keep
+// using `onUnpin` alone for a grid that's ALWAYS all-pinned (Pinned Rooms
+// itself), which is exactly the original behavior, unchanged.
+export default function PinnedRoomsGrid({ rooms, onUnpin, pinnedIds, onTogglePin, gridClassName = 'pinned-grid', gridStyle, fadeIn = false, titleColor }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const historyMode = Array.isArray(pinnedIds);
 
   return (
     <div className={gridClassName} style={gridStyle}>
-      {rooms.map(room => (
+      {rooms.map(room => {
+        const isPinned = historyMode ? pinnedIds.includes(room.id) : true;
+        const handlePinClick = (e) => (historyMode ? onTogglePin(e, room.id, isPinned) : onUnpin(e, room.id));
+        return (
         <div key={room.id} className="pinned-card" onClick={() => navigate(`/room/${room.id}`)}>
           <div className="img-layer">
             <RoomThumbnail
@@ -33,8 +44,8 @@ export default function PinnedRoomsGrid({ rooms, onUnpin, gridClassName = 'pinne
             />
             <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>
             <div className="room-id-badge"><Hash size={9} /> {room.id}</div>
-            <button className="unpin-btn" onClick={(e) => onUnpin(e, room.id)} title="Unpin Room">
-              <Pin className="unpin-icon" size={16} />
+            <button className="unpin-btn" onClick={handlePinClick} title={isPinned ? t('unpinRoom', 'Unpin Room') : t('pinRoom', 'Pin Room')}>
+              <Pin className="unpin-icon" size={16} fill={isPinned ? 'currentColor' : 'none'} />
             </button>
           </div>
           <div className="footer-layer">
@@ -47,7 +58,8 @@ export default function PinnedRoomsGrid({ rooms, onUnpin, gridClassName = 'pinne
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

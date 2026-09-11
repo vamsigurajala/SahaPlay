@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, Zap, Globe, MessageSquare, Pin, Lock, Share2, Mic, ChevronDown, ChevronUp, Paperclip, Heart, CornerUpLeft, Smile, Send } from 'lucide-react';
+import { Play, Zap, Globe, MessageSquare, Pin, Lock, Share2, Mic, ChevronDown, ChevronUp, Paperclip, Heart, CornerUpLeft, Smile, Send, Compass, History } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import CreateRoomModal from './components/CreateRoomModal';
 import Navbar from './components/Navbar';
@@ -12,6 +12,7 @@ import RoomCardSkeleton from './components/RoomCardSkeleton';
 import HomeTab from './components/HomeTab';
 import PullToRefresh from './components/PullToRefresh';
 import { usePinnedRooms } from './hooks/usePinnedRooms';
+import { useRoomHistory } from './hooks/useRoomHistory';
 import { isStandalonePWA } from './lib/platform';
 
 const GROUP_SCRIPT = [
@@ -70,7 +71,19 @@ const Home = () => {
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   const isLoggedIn = !!token && token !== 'null' && token !== 'undefined' && !isGuest;
   const standalone = isStandalonePWA();
-  const { pinnedRooms, unpinRoom, isLoading: isPinnedLoading } = usePinnedRooms({ limit: 6 });
+  const { pinnedRooms, unpinRoom, pinRoom, fetchRooms: refetchPinnedRooms, isLoading: isPinnedLoading } = usePinnedRooms({ limit: 6 });
+  const { roomHistory, isLoading: isHistoryLoading } = useRoomHistory();
+  const pinnedRoomIds = pinnedRooms.map(r => r.id);
+  // Same pin icon Pinned Rooms itself uses, just able to go either direction
+  // here since a history room may or may not already be pinned — pinRoom/
+  // unpinRoom already own the localStorage + /api/profile/pinned-rooms
+  // write; this just picks the right one and refreshes the Pinned Rooms
+  // section above so a newly-pinned room appears there immediately instead
+  // of only after a reload.
+  const toggleHistoryPin = async (e, id, isPinned) => {
+    await (isPinned ? unpinRoom : pinRoom)(e, id);
+    refetchPinnedRooms();
+  };
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   useEffect(() => {
@@ -209,6 +222,13 @@ const Home = () => {
         html[data-theme='light'] .hero-join-btn:hover { background:#e2e8f0 !important; }
         .hero-join-input { background:transparent;border:none;outline:none;padding:16px 20px;font-size:15px;width:200px;color:#fff; }
         html[data-theme='light'] .hero-join-input { color:#111 !important; }
+        /* A real (if visibly third-tier) button, not a colored line of text —
+           some users didn't register the old plain-text link as clickable at
+           all. Outline style keeps it from competing with Create Room. */
+        .hero-browse-btn { display:flex;align-items:center;gap:9px;background:transparent;border:1.5px solid rgba(255,255,255,0.16);color:#e2e8f0;cursor:pointer;padding:15px 24px;font-size:15px;font-weight:700;border-radius:14px;transition:background 0.2s,border-color 0.2s,transform 0.2s; }
+        .hero-browse-btn:hover { background:rgba(255,255,255,0.06);border-color:rgba(var(--brand-1-rgb),0.5);transform:scale(1.03); }
+        html[data-theme='light'] .hero-browse-btn { border-color:rgba(15,23,42,0.14);color:#334155; }
+        html[data-theme='light'] .hero-browse-btn:hover { background:#f1f5f9;border-color:rgba(var(--brand-1-rgb),0.4); }
         .hero-link-btn { background:none;border:none;color:var(--brand-2);cursor:pointer;font-weight:600;padding:0 4px;font-size:14px;text-decoration:none;transition:color 0.2s; }
         .hero-link-btn:hover { text-decoration:underline; }
         html[data-theme='light'] .hero-link-btn { color:var(--brand-1-dark) !important; }
@@ -484,10 +504,12 @@ const Home = () => {
           .pinned-grid{grid-template-columns:repeat(2, 1fr) !important; gap:12px !important;}
           /* hero */
           .hero-section-pad{ padding: 72px 16px 60px !important; }
-          /* hero join form — stack on tiny screens */
+          /* hero CTAs — stack full-width on tiny screens */
+          .hero-ctas{ flex-direction:column !important; align-items:stretch !important; }
           .hero-join-form{ flex-direction:column !important; border-radius:12px !important; }
           .hero-join-input{ width:100% !important; padding:14px 16px !important; border-bottom:1px solid rgba(255,255,255,0.08); }
           .hero-join-btn{ width:100% !important; padding:14px !important; justify-content:center !important; text-align:center; }
+          .hero-browse-btn{ width:100% !important; justify-content:center !important; }
           /* sections */
           .home-section-pad{ padding-left:16px !important; padding-right:16px !important; }
           .chat-demo-inner{ flex-direction:column !important; gap:32px !important; }
@@ -507,6 +529,9 @@ const Home = () => {
           createRoom={createRoom}
           pinnedRooms={(isLoggedIn || isGuest) ? pinnedRooms : []}
           onUnpin={unpinRoom}
+          roomHistory={isLoggedIn ? roomHistory : []}
+          pinnedRoomIds={pinnedRoomIds}
+          onTogglePin={toggleHistoryPin}
           t={t}
         />
       ) : (
@@ -545,10 +570,9 @@ const Home = () => {
                 <input type="text" placeholder={t('enterRoomId', 'Enter Room ID...')} value={roomId} onChange={e => setRoomId(e.target.value)} className="hero-join-input" />
                 <button type="submit" className="hero-join-btn">{t('join', 'Join')}</button>
               </form>
-            </div>
-            <div>
-              <span className="hero-party-text">{t('lookingForRoom', 'Looking for a room?')} </span>
-              <button className="hero-link-btn" onClick={() => navigate('/public')}>{t('browsePublicRooms', 'Browse public rooms')}</button>
+              <button className="hero-browse-btn" onClick={() => navigate('/public')}>
+                <Compass size={17} /> {t('browsePublicRooms', 'Browse Public Rooms')}
+              </button>
             </div>
           </div>
 
@@ -650,7 +674,7 @@ const Home = () => {
       {/* ─── PINNED ROOMS (if any) ─── */}
 
       {(isLoggedIn || isGuest) && (isPinnedLoading || (pinnedRooms && pinnedRooms.length > 0)) && (
-        <section className="pinned-rooms-section home-section-pad" style={{ padding: '80px 40px' }}>
+        <section className="pinned-rooms-section home-section-pad" style={{ padding: '32px 40px 48px' }}>
           <div style={{ maxWidth: 1100, margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
               <div className="section-icon-badge"><Pin size={18} /></div>
@@ -664,6 +688,36 @@ const Home = () => {
               <PinnedRoomsGrid
                 rooms={pinnedRooms.slice(0, 6)}
                 onUnpin={unpinRoom}
+                gridClassName="pinned-grid"
+                gridStyle={{ display: 'grid', gap: 20 }}
+              />
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ─── ROOM HISTORY (rooms you've created — the fallback once a room is
+           neither pinned nor has ever had a message sent in it, which used to
+           mean it just vanished the moment its link/tab was gone) ─── */}
+      {isLoggedIn && (isHistoryLoading || (roomHistory && roomHistory.length > 0)) && (
+        <section className="pinned-rooms-section home-section-pad" style={{ padding: '8px 40px 80px' }}>
+          <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div className="section-icon-badge"><History size={18} /></div>
+              <h2 className="section-heading">{t('roomHistory', 'Room History')}</h2>
+            </div>
+            <p className="section-desc" style={{ fontSize: 14, marginBottom: 24, maxWidth: 560 }}>
+              {t('roomHistoryDesc', "Rooms you've created. Pin one to keep it in Pinned Rooms permanently.")}
+            </p>
+            {isHistoryLoading ? (
+              <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
+                <RoomCardSkeleton count={3} />
+              </div>
+            ) : (
+              <PinnedRoomsGrid
+                rooms={roomHistory}
+                pinnedIds={pinnedRoomIds}
+                onTogglePin={toggleHistoryPin}
                 gridClassName="pinned-grid"
                 gridStyle={{ display: 'grid', gap: 20 }}
               />

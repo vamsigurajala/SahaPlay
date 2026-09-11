@@ -95,5 +95,30 @@ export function usePinnedRooms({ limit } = {}) {
     } catch (err) { }
   }, [token, isGuest, fetchRooms]);
 
-  return { pinnedRooms, unpinRoom, fetchRooms, isLoading };
+  // Symmetric to unpinRoom, for pinning a room from somewhere OTHER than this
+  // hook's own list — e.g. Room History (rooms you've created, whether or not
+  // they're pinned yet), where tapping the same pin icon should add rather
+  // than remove. Prepends rather than appends so a newly-pinned room shows up
+  // first, matching how a fresh pin reads everywhere else pin order is
+  // user-visible.
+  const pinRoom = useCallback(async (e, id) => {
+    e.stopPropagation();
+    try {
+      const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
+      if (stored.includes(id)) return;
+      const updated = [id, ...stored];
+      localStorage.setItem('pinned_rooms', JSON.stringify(updated));
+      if (token && !isGuest) {
+        await fetch(`${API}/api/profile/pinned-rooms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ pinnedRooms: updated }),
+        });
+      }
+      toast.success('Room pinned');
+      fetchRooms();
+    } catch (err) { }
+  }, [token, isGuest, fetchRooms]);
+
+  return { pinnedRooms, unpinRoom, pinRoom, fetchRooms, isLoading };
 }
