@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { clearUserSession } from './lib/authUtils.js';
+import { appCache } from './cache/appCache.js';
+import { resetPrefetchCooldown } from './cache/prefetch.js';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban, Sparkles, AtSign, Upload, Download } from 'lucide-react';
@@ -753,7 +755,20 @@ const Profile = () => {
       setEditingUsername(false);
       setUsernameStatus(null);
       toast.success('Username updated!');
-      fetchProfile();
+      // A username change is an identity change everywhere in the app at
+      // once — the cached /api/profile, /api/rooms/*, /api/chats/recent,
+      // etc. responses (and every already-mounted component's own React
+      // state built from them: Navbar's avatar, Pinned/Public Rooms lists,
+      // this page itself) were all fetched under the old identity. Just
+      // calling fetchProfile() here only ever refreshed this one page,
+      // which is exactly why those other views kept showing stale/never-
+      // resolving placeholders after a rename. Wiping the shared response
+      // cache and doing one clean reload re-fetches everything, everywhere,
+      // under the new identity in one shot instead of chasing each stale
+      // spot individually.
+      appCache.clear();
+      resetPrefetchCooldown();
+      setTimeout(() => window.location.reload(), 500);
     } catch {
       toast.error('Failed to update username');
     } finally {

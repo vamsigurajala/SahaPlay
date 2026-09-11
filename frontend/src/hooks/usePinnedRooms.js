@@ -29,7 +29,15 @@ export function usePinnedRooms({ limit } = {}) {
       if (stored.length > 0) {
         if (!isRetry) setIsLoading(true);
         const ids = limit ? stored.slice(0, limit) : stored;
-        fetch(`${API}/api/rooms/info?ids=${ids.join(',')}`)
+        // Bounded wait — without this, a request that never settles at all
+        // (a genuine network hang, as opposed to a fast failure) left the
+        // skeleton grid up indefinitely: nothing here was actually broken,
+        // there was just no ceiling on how long "still loading" could mean.
+        // Aborting after 12s routes it into the exact same retry-once path
+        // a fast failure already takes.
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        fetch(`${API}/api/rooms/info?ids=${ids.join(',')}`, { signal: controller.signal })
           .then(r => { if (!r.ok) throw new Error('bad response'); return r.json(); })
           .then(data => {
             if (Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]);
@@ -38,7 +46,8 @@ export function usePinnedRooms({ limit } = {}) {
           .catch(() => {
             if (isRetry !== true) setTimeout(() => fetchRooms(true), 4000);
             else setIsLoading(false);
-          });
+          })
+          .finally(() => clearTimeout(timeoutId));
       } else {
         setPinnedRooms([]);
         setIsLoading(false);
