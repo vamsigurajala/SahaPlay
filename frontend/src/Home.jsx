@@ -84,6 +84,21 @@ const Home = () => {
     await (isPinned ? unpinRoom : pinRoom)(e, id);
     refetchPinnedRooms();
   };
+  // Pinned Rooms and Room History share one section, switched by tab
+  // (matching MediaSelectorModal's Multiplayer/Singleplayer underline tabs)
+  // instead of stacking as two separate sections — that stacking was the
+  // "two backgrounds" seam reported: each section drew its own top/bottom
+  // padding edge, so scrolling past the join between them looked like two
+  // different panels instead of one continuous area whose height just
+  // changes with whichever grid is showing.
+  const [roomsTab, setRoomsTab] = useState('pinned');
+  const showPinnedTabData = isLoggedIn || isGuest;
+  const showHistoryTabData = isLoggedIn;
+  const hasPinnedContent = isPinnedLoading || (pinnedRooms && pinnedRooms.length > 0);
+  const hasHistoryContent = isHistoryLoading || (roomHistory && roomHistory.length > 0);
+  const showRoomsSection = (showPinnedTabData && hasPinnedContent) || (showHistoryTabData && hasHistoryContent);
+  const showRoomsTabs = showPinnedTabData && showHistoryTabData && hasPinnedContent && hasHistoryContent;
+  const activeRoomsTab = showRoomsTabs ? roomsTab : (hasPinnedContent && showPinnedTabData ? 'pinned' : 'history');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   useEffect(() => {
@@ -368,6 +383,26 @@ const Home = () => {
           position: relative;
           z-index: 10;
         }
+        /* Underline tab pair — same pattern as MediaSelectorModal's
+           Multiplayer/Singleplayer tabs, reused here so Pinned Rooms and
+           Room History read as two views of one section instead of two
+           separate stacked panels. */
+        .rooms-tab-row { display: flex; gap: 28px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        html[data-theme='light'] .rooms-tab-row { border-bottom-color: rgba(0,0,0,0.08); }
+        .rooms-tab-btn {
+          display: flex; align-items: center; gap: 8px;
+          background: transparent; border: none; cursor: pointer;
+          padding: 4px 2px 14px; font-size: 15px; font-weight: 800; font-family: inherit;
+          color: #6b7280; position: relative; transition: color 0.18s;
+        }
+        .rooms-tab-btn::after {
+          content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px;
+          border-radius: 2px; background: var(--brand-1); transform: scaleX(0);
+          transition: transform 0.2s cubic-bezier(0.4,0,0.2,1);
+        }
+        .rooms-tab-btn.active { color: #fff; }
+        .rooms-tab-btn.active::after { transform: scaleX(1); }
+        html[data-theme='light'] .rooms-tab-btn.active { color: #0f172a; }
         html[data-theme='light'] .pinned-rooms-section {
           background: #f8fafc !important;
           border-bottom: 1px solid rgba(0,0,0,0.05);
@@ -671,57 +706,63 @@ const Home = () => {
            </div>
       </section>
 
-      {/* ─── PINNED ROOMS (if any) ─── */}
+      {/* ─── PINNED ROOMS / ROOM HISTORY — one section, tab-switched ─── */}
 
-      {(isLoggedIn || isGuest) && (isPinnedLoading || (pinnedRooms && pinnedRooms.length > 0)) && (
-        <section className="pinned-rooms-section home-section-pad" style={{ padding: '32px 40px 48px' }}>
+      {showRoomsSection && (
+        <section className="pinned-rooms-section home-section-pad" style={{ padding: '32px 40px 80px' }}>
           <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-              <div className="section-icon-badge"><Pin size={18} /></div>
-              <h2 className="section-heading">{t('pinnedRooms', 'Pinned Rooms')}</h2>
-            </div>
-            {isPinnedLoading ? (
-              <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
-                <RoomCardSkeleton count={3} />
+            {showRoomsTabs ? (
+              <div className="rooms-tab-row">
+                <button className={`rooms-tab-btn${activeRoomsTab === 'pinned' ? ' active' : ''}`} onClick={() => setRoomsTab('pinned')}>
+                  <Pin size={15} /> {t('pinnedRooms', 'Pinned Rooms')}
+                </button>
+                <button className={`rooms-tab-btn${activeRoomsTab === 'history' ? ' active' : ''}`} onClick={() => setRoomsTab('history')}>
+                  <History size={15} /> {t('roomHistory', 'Room History')}
+                </button>
               </div>
             ) : (
-              <PinnedRoomsGrid
-                rooms={pinnedRooms.slice(0, 6)}
-                onUnpin={unpinRoom}
-                gridClassName="pinned-grid"
-                gridStyle={{ display: 'grid', gap: 20 }}
-              />
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* ─── ROOM HISTORY (rooms you've created — the fallback once a room is
-           neither pinned nor has ever had a message sent in it, which used to
-           mean it just vanished the moment its link/tab was gone) ─── */}
-      {isLoggedIn && (isHistoryLoading || (roomHistory && roomHistory.length > 0)) && (
-        <section className="pinned-rooms-section home-section-pad" style={{ padding: '8px 40px 80px' }}>
-          <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <div className="section-icon-badge"><History size={18} /></div>
-              <h2 className="section-heading">{t('roomHistory', 'Room History')}</h2>
-            </div>
-            <p className="section-desc" style={{ fontSize: 14, marginBottom: 24, maxWidth: 560 }}>
-              {t('roomHistoryDesc', "Rooms you've created. Pin one to keep it in Pinned Rooms permanently.")}
-            </p>
-            {isHistoryLoading ? (
-              <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
-                <RoomCardSkeleton count={3} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div className="section-icon-badge">{activeRoomsTab === 'pinned' ? <Pin size={18} /> : <History size={18} />}</div>
+                <h2 className="section-heading">{activeRoomsTab === 'pinned' ? t('pinnedRooms', 'Pinned Rooms') : t('roomHistory', 'Room History')}</h2>
               </div>
-            ) : (
-              <PinnedRoomsGrid
-                rooms={roomHistory}
-                pinnedIds={pinnedRoomIds}
-                onTogglePin={toggleHistoryPin}
-                gridClassName="pinned-grid"
-                gridStyle={{ display: 'grid', gap: 20 }}
-              />
             )}
+
+            <div style={{ marginTop: showRoomsTabs ? 24 : 0 }}>
+              {activeRoomsTab === 'history' && (
+                <p className="section-desc" style={{ fontSize: 14, margin: '0 0 24px', maxWidth: 560 }}>
+                  {t('roomHistoryDesc', "Rooms you've created. Pin one to keep it in Pinned Rooms permanently.")}
+                </p>
+              )}
+
+              {activeRoomsTab === 'pinned' ? (
+                isPinnedLoading ? (
+                  <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
+                    <RoomCardSkeleton count={3} />
+                  </div>
+                ) : (
+                  <PinnedRoomsGrid
+                    rooms={pinnedRooms.slice(0, 6)}
+                    onUnpin={unpinRoom}
+                    gridClassName="pinned-grid"
+                    gridStyle={{ display: 'grid', gap: 20 }}
+                  />
+                )
+              ) : (
+                isHistoryLoading ? (
+                  <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
+                    <RoomCardSkeleton count={3} />
+                  </div>
+                ) : (
+                  <PinnedRoomsGrid
+                    rooms={roomHistory}
+                    pinnedIds={pinnedRoomIds}
+                    onTogglePin={toggleHistoryPin}
+                    gridClassName="pinned-grid"
+                    gridStyle={{ display: 'grid', gap: 20 }}
+                  />
+                )
+              )}
+            </div>
           </div>
         </section>
       )}

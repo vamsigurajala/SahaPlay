@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Play, Pin, History } from 'lucide-react';
 import PinnedRoomsGrid from './PinnedRoomsGrid';
 
@@ -14,6 +14,9 @@ import PinnedRoomsGrid from './PinnedRoomsGrid';
 export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pinnedRooms, onUnpin, roomHistory, pinnedRoomIds, onTogglePin, t }) {
   const hasPinned = pinnedRooms && pinnedRooms.length > 0;
   const hasHistory = roomHistory && roomHistory.length > 0;
+  const showTabs = hasPinned && hasHistory;
+  const [roomsTab, setRoomsTab] = useState('pinned');
+  const activeTab = showTabs ? roomsTab : (hasPinned ? 'pinned' : 'history');
   return (
     <div style={{
       padding: '20px 16px 100px', maxWidth: 640, margin: '0 auto',
@@ -64,6 +67,26 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
         .home-tab-pinned-title { display: flex; align-items: center; gap: 10px; }
         .home-tab-pinned-count { background: rgba(var(--brand-1-rgb),0.15); color: var(--brand-1-light); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
         .home-tab-pinned-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+        /* Same underline-tab pattern as Home.jsx's desktop rooms-tab-row,
+           scaled down — Pinned Rooms and Room History are one section here
+           too, not two separately-titled blocks stacked on top of each
+           other. */
+        .home-tab-rooms-tabs { display: flex; gap: 22px; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 16px; }
+        html[data-theme='light'] .home-tab-rooms-tabs { border-bottom-color: rgba(0,0,0,0.08); }
+        .home-tab-rooms-tab-btn {
+          display: flex; align-items: center; gap: 7px; background: transparent; border: none; cursor: pointer;
+          padding: 2px 2px 12px; font-size: 14px; font-weight: 800; font-family: inherit;
+          color: #6b7280; position: relative; transition: color 0.18s;
+        }
+        .home-tab-rooms-tab-btn::after {
+          content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 2px;
+          border-radius: 2px; background: var(--brand-1); transform: scaleX(0);
+          transition: transform 0.2s cubic-bezier(0.4,0,0.2,1);
+        }
+        .home-tab-rooms-tab-btn.active { color: #fff; }
+        .home-tab-rooms-tab-btn.active::after { transform: scaleX(1); }
+        html[data-theme='light'] .home-tab-rooms-tab-btn.active { color: #0f172a; }
       `}</style>
 
       <div className="home-tab-hero">
@@ -104,33 +127,39 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
         </form>
       </div>
 
-      {hasPinned && (
+      {(hasPinned || hasHistory) && (
         <div style={{ marginTop: 32 }}>
-          <div className="home-tab-pinned-header">
-            <div className="home-tab-pinned-title">
-              <Pin size={16} />
-              <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{t('pinnedRooms', 'Pinned Rooms')}</h2>
+          {showTabs ? (
+            <div className="home-tab-rooms-tabs">
+              <button className={`home-tab-rooms-tab-btn${activeTab === 'pinned' ? ' active' : ''}`} onClick={() => setRoomsTab('pinned')}>
+                <Pin size={14} /> {t('pinnedRooms', 'Pinned Rooms')}
+              </button>
+              <button className={`home-tab-rooms-tab-btn${activeTab === 'history' ? ' active' : ''}`} onClick={() => setRoomsTab('history')}>
+                <History size={14} /> {t('roomHistory', 'Room History')}
+              </button>
             </div>
-            <span className="home-tab-pinned-count">{pinnedRooms.length}</span>
-          </div>
-          <PinnedRoomsGrid rooms={pinnedRooms} onUnpin={onUnpin} gridClassName="home-tab-pinned-grid" />
-        </div>
-      )}
+          ) : (
+            <div className="home-tab-pinned-header">
+              <div className="home-tab-pinned-title">
+                {activeTab === 'pinned' ? <Pin size={16} /> : <History size={16} />}
+                <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>
+                  {activeTab === 'pinned' ? t('pinnedRooms', 'Pinned Rooms') : t('roomHistory', 'Room History')}
+                </h2>
+              </div>
+              {activeTab === 'pinned' && <span className="home-tab-pinned-count">{pinnedRooms.length}</span>}
+            </div>
+          )}
 
-      {hasHistory && (
-        <div style={{ marginTop: 32 }}>
-          <div className="home-tab-pinned-header">
-            <div className="home-tab-pinned-title">
-              <History size={16} />
-              <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{t('roomHistory', 'Room History')}</h2>
-            </div>
-          </div>
-          <PinnedRoomsGrid
-            rooms={roomHistory}
-            pinnedIds={pinnedRoomIds}
-            onTogglePin={onTogglePin}
-            gridClassName="home-tab-pinned-grid"
-          />
+          {activeTab === 'pinned' ? (
+            <PinnedRoomsGrid rooms={pinnedRooms} onUnpin={onUnpin} gridClassName="home-tab-pinned-grid" />
+          ) : (
+            <PinnedRoomsGrid
+              rooms={roomHistory}
+              pinnedIds={pinnedRoomIds}
+              onTogglePin={onTogglePin}
+              gridClassName="home-tab-pinned-grid"
+            />
+          )}
         </div>
       )}
     </div>

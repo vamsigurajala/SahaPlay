@@ -190,11 +190,25 @@ body {
      viewport instead; vh stays as the fallback for older browsers. */
   min-height: 100vh;
   min-height: 100dvh;
-  /* GenZ Animated Mesh-like Gradient Background */
+  /* GenZ Animated Mesh-like Gradient Background.
+     background-size used to be 200% 200% — sized relative to body's own
+     (scrollable, not viewport) box. On a short page that put both blobs
+     comfortably on screen; once a page grows taller (e.g. Home.jsx gaining
+     the Pinned Rooms/Room History section), the SAME two blobs get stretched
+     across the now-much-taller box, so most of the page in between fell
+     outside both radial-gradient's `transparent 50%` falloff and just
+     rendered flat --bg-color — read as "one background near the top, plain
+     black everywhere else, doesn't look like one continuous background".
+     Sizing the tile to the viewport height and repeating it down the page
+     (background-repeat: repeat-y) keeps the same two-blob motif recurring
+     every viewport height no matter how tall the document gets, instead of
+     thinning out. background-position's Y stays a fixed 50% (only X pans,
+     via gradientPan below) so this repeat tiles cleanly. */
   background: radial-gradient(circle at 15% 50%, var(--bg-gradient-1), transparent 50%),
     radial-gradient(circle at 85% 30%, var(--bg-gradient-2), transparent 50%);
   background-color: var(--bg-color);
-  background-size: 200% 200%;
+  background-size: 200% 200vh;
+  background-repeat: repeat-y;
   animation: gradientPan 15s ease infinite alternate;
 }
 
