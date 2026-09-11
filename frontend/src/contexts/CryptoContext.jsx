@@ -111,6 +111,7 @@ export function CryptoProvider({ children }) {
           // device needs the password to recover the SAME identity (via
           // reloadPrivateKeyWithPassword) instead of minting a new one.
           const tkn = localStorage.getItem('watch_token');
+          let serverCheckOk = false;
           let serverHasExistingKey = false;
           if (tkn) {
             try {
@@ -118,12 +119,37 @@ export function CryptoProvider({ children }) {
               if (res.ok) {
                 const data = await res.json();
                 serverHasExistingKey = !!data.publicKey;
+                serverCheckOk = true;
               }
             } catch (e) { console.warn('[CryptoContext] my-keys check failed:', e); }
           }
 
-          if (serverHasExistingKey) {
-            console.log('[CryptoContext] Local key missing but account already has one server-side — need password to recover it.');
+          // A THROWN fetch (network failure, timeout, CORS, server down, etc.)
+          // used to leave serverHasExistingKey at its default `false` and fall
+          // straight through to "genuinely brand new" below — silently
+          // minting a fresh keypair and overwriting a REAL, EXISTING
+          // account's public key server-side the moment its my-keys check
+          // merely failed to complete, not because the server actually
+          // confirmed no key exists. Confirmed live: a network failure here
+          // reliably corrupts an existing account's publicKey (encryptedPrivateKey
+          // is untouched, since save-public-key below never writes it — but the
+          // two columns end up describing two different keypairs). Treating
+          // "couldn't check" the same as "server confirmed a key" (i.e. asking
+          // for recovery) is always safe: KeyRecoveryModal's own retry paths
+          // (reloadPrivateKeyWithPassword / switchToPassphraseUnlock) just
+          // re-run this same my-keys fetch, so a transient failure only costs
+          // the user a retry — never a silently corrupted identity. A
+          // genuinely brand-new account only ever reaches here via a REAL
+          // network outage (a new row's my-keys always resolves 200 with
+          // publicKey: null, which does NOT throw), and "log out and back in"
+          // (surfaced by reloadPrivateKeyWithPassword's own error message)
+          // correctly falls through to Login.jsx's normal first-time key setup.
+          if (serverHasExistingKey || !serverCheckOk) {
+            if (!serverCheckOk) {
+              console.warn('[CryptoContext] Could not verify key status with server (network failure) — treating as needing recovery rather than risking an incorrect new keypair.');
+            } else {
+              console.log('[CryptoContext] Local key missing but account already has one server-side — need password to recover it.');
+            }
             setNeedsReauth(true);
           } else {
             // Genuinely brand new — no key anywhere yet. Safe to generate one.

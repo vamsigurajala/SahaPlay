@@ -3639,14 +3639,30 @@ app.post('/api/auth/rekey', async (req, res) => {
 /**
  * POST /api/auth/save-public-key
  * Lightweight endpoint for clients to persist their own public key to the database.
- * Called on Room join to ensure encryption works for DMs even for older accounts.
+ * Called on Room join to ensure encryption works for DMs even for older accounts
+ * that never had a publicKey saved yet — a one-time backfill, not a rotation
+ * mechanism. The WHERE guard below only allows the write when there's no
+ * existing publicKey (or it already matches) — a client-side bug (confirmed
+ * live: CryptoContext treating a network failure on its own key-existence
+ * check the same as "no key exists" and minting a fresh one) previously could
+ * silently overwrite a real, current identity with an unrelated keypair's
+ * public half here, permanently mismatching it against the account's actual
+ * encryptedPrivateKey (which this endpoint never touches). This endpoint has
+ * no legitimate reason to ever replace an existing DIFFERENT publicKey —
+ * key rotation isn't implemented — so the guard makes that impossible
+ * regardless of what any client sends.
  */
 app.post('/api/auth/save-public-key', authenticateToken, async (req, res) => {
   const { publicKey } = req.body;
   if (!publicKey) return res.status(400).json({ error: 'publicKey required' });
   try {
-    await pool.query('UPDATE users SET "publicKey" = $1 WHERE id = $2', [publicKey, req.user.id]);
-    publicKeyCache.set(req.user.username.toLowerCase(), publicKey);
+    const result = await pool.query(
+      'UPDATE users SET "publicKey" = $1 WHERE id = $2 AND ("publicKey" IS NULL OR "publicKey" = $1)',
+      [publicKey, req.user.id]
+    );
+    if (result.rowCount > 0) {
+      publicKeyCache.set(req.user.username.toLowerCase(), publicKey);
+    }
     res.json({ success: true });
   } catch (err) {
     console.error('[save-public-key] DB error:', err);
