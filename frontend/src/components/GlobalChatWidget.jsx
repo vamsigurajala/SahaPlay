@@ -9057,7 +9057,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               )}
 
                                 {activeReactionMsg === msg.id && !showAllEmojis && (
-                                  <div className="emoji-picker-container" style={{position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
+                                  <div className="emoji-picker-container" style={isMediaOnly
+                                    // Media bubbles have no text to push down for — anchoring
+                                    // above the bubble (like a text message does) puts the picker
+                                    // a whole row away from what was actually tapped, past the
+                                    // sender name / previous message on a laptop/tablet-width
+                                    // panel. Laid directly over the media's own top edge instead,
+                                    // the same way the "..." hover menu already overlays its
+                                    // corner (msg-hover-menu, just above).
+                                    ? {position:'absolute', top:8, [isMe?'right':'left']:8, zIndex:100}
+                                    : {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
                                     <div style={{
                                       background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
                                       backdropFilter:'blur(12px)',
