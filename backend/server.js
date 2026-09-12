@@ -27,6 +27,7 @@ const appleSignin = require('apple-signin-auth');
 const emailTranslations = require('./email-translations');
 const { validateE2EEMessage, normalizeRecoveryKey, verifyRecoveryIdentityMatch, sanitizeReplyToServer } = require('./lib/crypto-helpers');
 const { sanitizeRoomPermissions } = require('./lib/roomPermissions');
+const { canHideMessage } = require('./lib/messageAuth');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
 const { getCallActiveUsernames, isActiveCallParticipant } = require('./lib/callRoster');
 const { isUserAdmin, buildUserList, isRoomHostMatch } = require('./lib/roomUsers');
@@ -527,6 +528,18 @@ async function getRoomParticipantUsernames(roomId) {
     console.error('[FCM] getRoomParticipantUsernames error:', e.message);
     return [];
   }
+}
+
+// E2E audit Fix 2: gates the "hide this message for me" action on
+// DELETE /api/chats/message/:id — see lib/messageAuth.js's canHideMessage
+// for the actual (unit-tested) relationship rule. Resolves room membership
+// via getRoomParticipantUsernames only when the fast, DB-free checks
+// (sender / DM recipient) don't already settle it.
+async function isAuthorizedToHideMessage(username, msg) {
+  if (canHideMessage(username, msg, [])) return true;
+  if (msg.type === 'private') return false; // sender/target already ruled out above
+  const members = await getRoomParticipantUsernames(msg.roomId);
+  return canHideMessage(username, msg, members);
 }
 
 function formatSenderList(senders) {
@@ -5804,7 +5817,12 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
              memoryMsgFound = true;
              return res.json({ success: true, deletedId: removedMsg.id });
           } else {
-             // Local delete — update memory AND update DB
+             // Local delete — E2E audit Fix 2: only the sender or a
+             // participant of this room may hide it for themselves.
+             if (!(await isAuthorizedToHideMessage(username, m))) {
+               return res.status(403).json({ error: 'forbidden' });
+             }
+             // update memory AND update DB
              m.hiddenFor = m.hiddenFor || [];
              if (!m.hiddenFor.includes(username)) m.hiddenFor.push(username);
              const dbIdForUpdate = m.dbId || m.id;
@@ -5827,7 +5845,12 @@ app.delete('/api/chats/message/:id', authenticateToken, async (req, res) => {
 
     // Now working with a DB message
     if (action === 'local' || (msg.senderName || '').toLowerCase() !== (username || '').toLowerCase()) {
-       // Local Hide Delete
+       // Local Hide Delete — E2E audit Fix 2: only the sender, the DM
+       // recipient, or (for room/group messages) a participant of that
+       // room may hide it for themselves.
+       if (!(await isAuthorizedToHideMessage(username, msg))) {
+         return res.status(403).json({ error: 'forbidden' });
+       }
        let hidden = [];
        try { hidden = JSON.parse(msg.hiddenFor || '[]'); } catch(e){}
        if (!hidden.includes(username)) hidden.push(username);
