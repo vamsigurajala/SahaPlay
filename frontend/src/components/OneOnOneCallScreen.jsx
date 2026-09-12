@@ -379,7 +379,13 @@ export default function OneOnOneCallScreen({
   const isPoorConnection = networkStatus === 'poor';
 
   return (
-    <div className="ooc-root" onClick={handleStageTap}>
+    // onMouseMove keeps/reveals the chrome on desktop mouse movement, same as
+    // CallingActivity.jsx's own auto-hide dock — without it, a desktop user
+    // who lets the mouse sit idle for 6s gets the dock hidden behind
+    // pointer-events:none, and their first click on End Call/Mute/Video is
+    // swallowed by the stage underneath (it only reveals the dock); a touch
+    // user is unaffected since touch input never fires mousemove.
+    <div className="ooc-root" onClick={handleStageTap} onMouseMove={resetHideTimer}>
       <style>{`
         /* color-scheme: dark tells the WebView this surface already handles
            its own (permanently dark, by design) styling — without it, some
