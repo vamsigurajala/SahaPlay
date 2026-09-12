@@ -3006,7 +3006,15 @@ const Room = () => {
         // version of this same check.
         const inThemeSheet = !!e.target.closest?.('.chat-theme-sheet-overlay');
         const inInstallPrompt = !!e.target.closest?.('.download-app-modal-overlay');
-        if (!inNavArea && !inFsGlobalChatBtn && !inLightbox && !inReportModal && !inThemeSheet && !inInstallPrompt) setShowRecentChats(false);
+        // Same reason again — the "who reacted" sheet is also portalled
+        // outside chatWidgetRef's DOM tree. Without this, clicking its own
+        // backdrop to close JUST that sheet fell through here and closed the
+        // whole chat widget underneath it too, before the sheet's own click
+        // handler ever got to clear its own state — so reopening the widget
+        // showed the reactions sheet again instead of the chat. Matches
+        // Navbar.jsx's own version of this same check.
+        const inReactorsSheet = !!e.target.closest?.('.reactors-sheet-overlay');
+        if (!inNavArea && !inFsGlobalChatBtn && !inLightbox && !inReportModal && !inThemeSheet && !inInstallPrompt && !inReactorsSheet) setShowRecentChats(false);
       }
       // Close room menus if clicking outside
       if (showGroupMenu && groupMenuRef.current && !groupMenuRef.current.contains(e.target)) {

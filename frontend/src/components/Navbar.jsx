@@ -270,6 +270,15 @@ const Navbar = () => {
       // the widget" and closed the report modal AND the chat window
       // underneath it before a single keystroke landed.
       if (e.target.closest?.('.report-modal-overlay')) return;
+      // Same reason again — the "who reacted" sheet (tapping a reaction pill
+      // under a message) is also portalled to document.body, outside
+      // chatWidgetRef's DOM tree. Without this, clicking its own backdrop to
+      // close JUST that sheet fell through here and closed the whole chat
+      // widget underneath it too — reopening the widget then showed the
+      // reactions sheet again instead of the chat, since the widget itself
+      // never actually closed, just repainted hidden behind this handler's
+      // premature setShowRecentChats(false).
+      if (e.target.closest?.('.reactors-sheet-overlay')) return;
       if (navIconsRef.current && !navIconsRef.current.contains(e.target)) {
         closeSearch();
         setShowRecentChats(false);
