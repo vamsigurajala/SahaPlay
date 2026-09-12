@@ -1039,6 +1039,19 @@ function isPollJSON(text) {
   }
 }
 
+// Resolves a poll voter's avatar for someone who's neither the poll's own
+// sender nor me nor (in a DM) the other party — a group poll's other voters
+// have no dedicated avatar source at all otherwise (knownAvatars only covers
+// current room members, and a DM partner who isn't a room member never even
+// makes it into knownAvatars). Any OTHER message this same conversation
+// already decrypted from that username carries their real senderAvatar, so
+// reusing it here is the same trick GlobalChatWidget.jsx's own blocked-user-
+// avatar lookup already relies on.
+function findAvatarFromMessages(uname, msgs) {
+  const m = (msgs || []).find(mm => (mm.senderName || mm.username || '').toLowerCase() === uname && mm.senderAvatar);
+  return m ? getAvatarUrl(m.senderAvatar) : null;
+}
+
 function getInitials(name) { return (name||'?').slice(0,2).toUpperCase(); }
 function getAvatarColor(name) {
   const colors = ['#6366f1','#a855f7','#ec4899','#ef4444','#f97316','#10b981','#3b82f6','#06b6d4'];
@@ -2840,14 +2853,21 @@ export default function RoomChatPanel({ p }) {
         if (!poll) return null;
         const resolveAvatar = (u) => {
           const uname = (u || '').toLowerCase();
+          const pollMsgs = pollVotesTarget.chatType === 'dm' ? dmMessages : p.groupMessages;
           // Sender check has to come first — pollVotesTarget.msg.senderAvatar
           // is only ever the SENDER's avatar, so checking "is this me" first
           // and falling back to it leaked the sender's own avatar onto MY
           // vote on someone else's poll whenever they had one set.
           if (uname === (pollVotesTarget.msg.senderName || pollVotesTarget.msg.username || '').toLowerCase()) return getAvatarUrl(pollVotesTarget.msg.senderAvatar);
           if (uname === myUser) return p.knownAvatars?.[uname] || p.knownAvatars?.[myUser] || null;
-          if (pollVotesTarget.chatType === 'dm' && uname === (p.dmTarget || '').toLowerCase()) return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]);
-          return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || null;
+          if (pollVotesTarget.chatType === 'dm' && uname === (p.dmTarget || '').toLowerCase()) {
+            return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]) || findAvatarFromMessages(uname, pollMsgs);
+          }
+          // Any other voter (a group member other than the sender/me): a
+          // room member not covered by knownAvatars yet — see
+          // findAvatarFromMessages's own comment — still shows up here if
+          // they've sent even one other message in this conversation.
+          return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || findAvatarFromMessages(uname, pollMsgs) || null;
         };
         const resolveDisplayName = (u) => {
           const uname = (u || '').toLowerCase();
@@ -3509,7 +3529,9 @@ export default function RoomChatPanel({ p }) {
                 onTouchStart: (e) => {
                   if (e.target.closest && e.target.closest('.long-press-menu')) return;
                   if (longPress.activeId === rowKey) { longPress.close(); }
-                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - touch.clientY) < 260 ? 'up' : 'down'); }
+                  // Measured from the ROW's own bottom edge, not the touch point — see
+                  // the identical comment on GlobalChatWidget.jsx's own copy for why.
+                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - e.currentTarget.getBoundingClientRect().bottom) < 260 ? 'up' : 'down'); }
                   swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
                 },
                 onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
@@ -3785,7 +3807,11 @@ export default function RoomChatPanel({ p }) {
                                   // msg.senderAvatar never does (not for our own optimistic send,
                                   // and not for anyone else's poll at all).
                                   if (uname === myUser) return p.knownAvatars?.[uname] || p.knownAvatars?.[myUser] || null;
-                                  return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || null;
+                                  // Any other voter: knownAvatars may not have caught up with a
+                                  // room member's avatar yet — findAvatarFromMessages (any OTHER
+                                  // message they've sent in this room) is the same fallback used
+                                  // by the poll-votes modal above.
+                                  return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || findAvatarFromMessages(uname, p.groupMessages) || null;
                                 };
                                 return (
                                   <PollBubble
@@ -3821,7 +3847,14 @@ export default function RoomChatPanel({ p }) {
 
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                             <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                              <button className={(isLight && msg.mediaType) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowHeaderMenu(false); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                              <button className={(isLight && msg.mediaType) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) {
+                                // Measured from the ROW's own bottom edge, not the click point —
+                                // see the identical long-press/dropdown fix comment on
+                                // GlobalChatWidget.jsx's own copy of this button.
+                                const rowEl = e.currentTarget.closest('.msg-row');
+                                const floorRef = rowEl ? rowEl.getBoundingClientRect().bottom : e.clientY;
+                                setDropdownPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - floorRef) < 240 ? 'up' : 'down');
+                              } setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowHeaderMenu(false); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                 <ChevronDown size={14}/>
                               </button>
                               {activeMessageMenu === msg.id && (
@@ -4623,7 +4656,9 @@ export default function RoomChatPanel({ p }) {
                       onTouchStart: (e) => {
                         if (e.target.closest && e.target.closest('.long-press-menu')) return;
                         if (longPress.activeId === rowKey) { longPress.close(); }
-                        else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - touch.clientY) < 260 ? 'up' : 'down'); }
+                        // Measured from the ROW's own bottom edge, not the touch point — see
+                  // the identical comment on GlobalChatWidget.jsx's own copy for why.
+                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - e.currentTarget.getBoundingClientRect().bottom) < 260 ? 'up' : 'down'); }
                         swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
                       },
                       onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
@@ -4792,7 +4827,9 @@ export default function RoomChatPanel({ p }) {
                                         // on the group tab's own resolveAvatar above.
                                         if (uname === (msg.senderName || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
                                         if (uname === myUser) return p.knownAvatars?.[uname] || p.knownAvatars?.[myUser] || null;
-                                        if (uname === (p.dmTarget || '').toLowerCase()) return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]);
+                                        if (uname === (p.dmTarget || '').toLowerCase()) {
+                                          return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]) || findAvatarFromMessages(uname, dmMessages);
+                                        }
                                         return null;
                                       };
                                       return (
@@ -4847,7 +4884,14 @@ export default function RoomChatPanel({ p }) {
                                     <button
                                       className={(isLight && msg.mediaType) ? 'stay-white' : ''}
                                       ref={activeMessageMenu === msg.id ? messageMenuRef : null}
-                                      onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowDmMenu(null); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                      onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) {
+                                        // Measured from the ROW's own bottom edge, not the click
+                                        // point — see the identical fix comment on the group tab's
+                                        // own copy of this button.
+                                        const rowEl = e.currentTarget.closest('.msg-row');
+                                        const floorRef = rowEl ? rowEl.getBoundingClientRect().bottom : e.clientY;
+                                        setDropdownPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - floorRef) < 240 ? 'up' : 'down');
+                                      } setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowDmMenu(null); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                       <ChevronDown size={14}/>
                                     </button>
                                     {activeMessageMenu === msg.id && (

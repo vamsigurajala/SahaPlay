@@ -1360,6 +1360,17 @@ function buildReplySnapshot(src, fallbackUsername) {
   };
 }
 
+// Resolves a poll voter's avatar for someone who's neither the poll's own
+// sender nor me — a group poll's other voters have no dedicated avatar
+// source otherwise. Any OTHER message already decrypted in this chat from
+// that username carries their real senderAvatar, so reusing it here is the
+// same trick this file's own blocked-user-avatar lookup already relies on
+// (see the `fromMsg` lookup a few hundred lines below).
+function findAvatarFromMessages(uname, msgs) {
+  const m = (msgs || []).find(mm => (mm.senderName || mm.username || '').toLowerCase() === uname && mm.senderAvatar);
+  return m ? getAvatarUrl(m.senderAvatar) : null;
+}
+
 function truncateToFewWords(str) {
   if (!str) return 'New message';
   const lines = str.split('\n');
@@ -8813,7 +8824,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     onTouchStart: (e) => {
                       if (e.target.closest && e.target.closest('.long-press-menu')) return;
                       if (longPress.activeId === rowKey) { longPress.close(); }
-                      else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, wrapperRef.current) - touch.clientY) < 260 ? 'up' : 'down'); }
+                      // Measured from the ROW's own bottom edge, not the touch point —
+                      // for a tall row (a poll, an image) a touch near the row's TOP can
+                      // still be far from the composer while the row's bottom (where the
+                      // menu actually anchors via top:'100%'/bottom:'100%') is right up
+                      // against it, which the old touch.clientY-based distance never
+                      // caught: it read "plenty of room" and opened the menu downward
+                      // straight under the composer.
+                      else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, wrapperRef.current) - e.currentTarget.getBoundingClientRect().bottom) < 260 ? 'up' : 'down'); }
                       swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
                     },
                     onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
@@ -9106,8 +9124,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                       // someone else sent never carries mine at all — myAvatarUrl
                                       // (fetched once above) is the only correct source here.
                                       if (uname === myUsername.toLowerCase()) return myAvatarUrl;
-                                      if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) return getAvatarUrl(activeChat.partnerAvatar);
-                                      return null;
+                                      if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) {
+                                        return getAvatarUrl(activeChat.partnerAvatar) || findAvatarFromMessages(uname, messages);
+                                      }
+                                      // Any other voter (a group poll's other members): reuse
+                                      // their avatar from any OTHER message they've sent in this
+                                      // chat, same fallback the poll-votes modal below uses.
+                                      return findAvatarFromMessages(uname, messages);
                                     };
                                     return (
                                       <PollBubble
@@ -9160,7 +9183,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               
                               {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                                 <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                                  <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) setDropdownPlacement((getMenuFloorY(e.currentTarget, wrapperRef.current) - e.clientY) < 240 ? 'up' : 'down'); setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (!isMe && isLight) ? 'rgba(0,0,0,0.4)' : ((isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)')),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                  <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) {
+                                    // Measured from the ROW's own bottom edge, not the click
+                                    // point — this chevron sits pinned near the row's TOP
+                                    // corner regardless of the row's actual height, so for a
+                                    // tall row (a poll, an image) e.clientY here reads roughly
+                                    // as the row's TOP position even when its bottom — where a
+                                    // "down"-opening menu actually renders — is right up
+                                    // against the composer. See the identical long-press fix.
+                                    const rowEl = e.currentTarget.closest('.msg-row');
+                                    const floorRef = rowEl ? rowEl.getBoundingClientRect().bottom : e.clientY;
+                                    setDropdownPlacement((getMenuFloorY(e.currentTarget, wrapperRef.current) - floorRef) < 240 ? 'up' : 'down');
+                                  } setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (!isMe && isLight) ? 'rgba(0,0,0,0.4)' : ((isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)')),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                     <ChevronDown size={14}/>
                                   </button>
                                   {activeMessageMenu === msg.id && (
@@ -9893,8 +9927,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
             // resolveAvatar above — sender check has to come first.
             if (uname === (pollVotesTarget.senderName || '').toLowerCase()) return getAvatarUrl(pollVotesTarget.senderAvatar);
             if (uname === myUsername.toLowerCase()) return myAvatarUrl;
-            if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) return getAvatarUrl(activeChat.partnerAvatar);
-            return null;
+            if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) {
+              return getAvatarUrl(activeChat.partnerAvatar) || findAvatarFromMessages(uname, messages);
+            }
+            return findAvatarFromMessages(uname, messages);
           };
           const resolveDisplayName = (u) => {
             const uname = (u || '').toLowerCase();
