@@ -766,23 +766,28 @@ const MenuStyles = () => (
     @keyframes wave-bar { from { height: 3px; } to { height: 100%; } }
     @keyframes reactorsFade { from { opacity: 0; } to { opacity: 1; } }
     @keyframes reactorsSlideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    /* ── Document card text: override msg-sent/stay-white !important rules in light mode ── */
+    /* ── Document card text: override msg-sent/stay-white !important rules in
+       light mode ── these are the selectors that actually win the cascade
+       (GlobalChatWidget.jsx has its own identical copy, for its own reasons
+       — see its comment), so they're the ones that have to read --fc-name-c/
+       --fc-sub-c (set by FileCard/AudioPlayerBubble when a Chat Theme color
+       is active) instead of just hardcoding the unthemed default. */
     html[data-theme='light'] .fc-name,
     html[data-theme='light'] .msg-sent .fc-name,
-    html[data-theme='light'] .stay-white .fc-name { color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
+    html[data-theme='light'] .stay-white .fc-name { color: var(--fc-name-c, #111111) !important; -webkit-text-fill-color: var(--fc-name-c, #111111) !important; }
     html[data-theme='light'] .fc-sub,
     html[data-theme='light'] .msg-sent .fc-sub,
-    html[data-theme='light'] .stay-white .fc-sub { color: rgba(0,0,0,0.65) !important; -webkit-text-fill-color: rgba(0,0,0,0.65) !important; }
+    html[data-theme='light'] .stay-white .fc-sub { color: var(--fc-sub-c, rgba(0,0,0,0.65)) !important; -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.65)) !important; }
     html[data-theme='light'] .fc-expiry,
     html[data-theme='light'] .msg-sent .fc-expiry,
-    html[data-theme='light'] .stay-white .fc-expiry { color: rgba(0,0,0,0.62) !important; -webkit-text-fill-color: rgba(0,0,0,0.62) !important; }
+    html[data-theme='light'] .stay-white .fc-expiry { color: var(--fc-sub-c, rgba(0,0,0,0.62)) !important; -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.62)) !important; }
     /* ── Voice note time and expiry: override stay-white / msg-sent forcing ── */
     html[data-theme='light'] .rcp-vn-time,
     html[data-theme='light'] .msg-sent .rcp-vn-time,
-    html[data-theme='light'] .stay-white .rcp-vn-time { color: rgba(0,0,0,0.6) !important; -webkit-text-fill-color: rgba(0,0,0,0.6) !important; }
+    html[data-theme='light'] .stay-white .rcp-vn-time { color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important; -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important; }
     html[data-theme='light'] .rcp-vn-expiry,
     html[data-theme='light'] .msg-sent .rcp-vn-expiry,
-    html[data-theme='light'] .stay-white .rcp-vn-expiry { color: rgba(0,0,0,0.6) !important; -webkit-text-fill-color: rgba(0,0,0,0.6) !important; }
+    html[data-theme='light'] .stay-white .rcp-vn-expiry { color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important; -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important; }
     /* On a wallpaper, file-card/voice-note text is always white — same as
        dark mode already renders it — instead of a color keyed to the
        light/dark theme toggle. This was tied in specificity with the

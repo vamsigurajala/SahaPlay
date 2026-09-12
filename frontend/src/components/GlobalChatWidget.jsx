@@ -1068,37 +1068,48 @@ const typingCss = `
 
   /* Voice note text overrides inside message bubbles in light mode — only
      when there's no wallpaper; a wallpaper's own per-image color (see
-     .on-wallpaper block below) takes over otherwise. */
+     .on-wallpaper block below) takes over otherwise. Reads --fc-sub-c (set
+     by AudioPlayerBubble alongside FileCard's own vars) so a themed sent
+     voice note's time/expiry turn white the same way fc-name/fc-sub do
+     below — this stylesheet (not App.jsx's) is the one that actually wins
+     the cascade for these two classes (see the comment just below), so it's
+     the one that has to carry the var, not just a hardcoded default. */
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-time,
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-time * {
-    color: rgba(0,0,0,0.6) !important;
-    -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
+    color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important;
+    -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important;
   }
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-expiry,
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-expiry * {
-    color: rgba(0,0,0,0.6) !important;
-    -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
+    color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important;
+    -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important;
   }
 
   /* Document card text overrides — on a sent (msg-sent/stay-white) bubble in
      light mode, App.jsx's global .fc-name/.fc-sub rule alone wasn't winning
      against the white-text-forcing those classes apply here, so pin all three
      locally the same way RoomChatPanel.jsx already does. Skipped on a
-     wallpaper (see .on-wallpaper block below) for the same reason as above. */
+     wallpaper (see .on-wallpaper block below) for the same reason as above.
+     Reads --fc-name-c/--fc-sub-c (set by FileCard when a Chat Theme color is
+     active) so a themed sent card's text turns white — this stylesheet ties
+     App.jsx's own copy of these same three selectors on specificity, and
+     (being a component-local <style> tag mounted after App.jsx's) wins the
+     tie in practice, so THIS is the copy that has to carry the var, not
+     just App.jsx's. */
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-name,
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-name * {
-    color: #111111 !important;
-    -webkit-text-fill-color: #111111 !important;
+    color: var(--fc-name-c, #111111) !important;
+    -webkit-text-fill-color: var(--fc-name-c, #111111) !important;
   }
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-sub,
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-sub * {
-    color: rgba(0,0,0,0.65) !important;
-    -webkit-text-fill-color: rgba(0,0,0,0.65) !important;
+    color: var(--fc-sub-c, rgba(0,0,0,0.65)) !important;
+    -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.65)) !important;
   }
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-expiry,
   html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-expiry * {
-    color: rgba(0,0,0,0.62) !important;
-    -webkit-text-fill-color: rgba(0,0,0,0.62) !important;
+    color: var(--fc-sub-c, rgba(0,0,0,0.62)) !important;
+    -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.62)) !important;
   }
 
   /* On a wallpaper, file-card/voice-note text is always white — same as

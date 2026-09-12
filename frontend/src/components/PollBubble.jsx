@@ -54,12 +54,15 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
   const accentSoftBg = accentColor ? `${accentColor}1a` : `rgba(var(--brand-1-rgb),${isLight ? '0.1' : '0.18'})`;
 
   return (
-    // --poll-accent-c/-heading-c/-sub-c: read by App.jsx's light-mode
-    // .poll-view-votes/.poll-question/.poll-subtitle overrides, which
-    // otherwise can't reach these text colors — see the .stay-white
-    // cascade-war comment on poll-question below. Only set when themed;
-    // App.jsx's own hardcoded fallback covers the neutral-card case.
-    <div style={{ minWidth: 220, maxWidth: 280, ...(themed ? { '--poll-accent-c': accentColor, '--poll-heading-c': '#ffffff', '--poll-sub-c': 'rgba(255,255,255,0.55)' } : {}) }}>
+    // --poll-heading-c/-sub-c: read by App.jsx's light-mode .poll-question/
+    // .poll-subtitle/.poll-view-votes overrides, which otherwise can't reach
+    // these text colors — see the .stay-white cascade-war comment on
+    // poll-question below. Only set when themed; App.jsx's own hardcoded
+    // fallback covers the neutral-card case. "View votes" reuses -heading-c
+    // (plain white) rather than the accentColor itself — the user asked for
+    // that link to always read white on a themed card, not tinted to match
+    // the theme the way the selected-option border/checkbox/leading-bar do.
+    <div style={{ minWidth: 220, maxWidth: 280, ...(themed ? { '--poll-heading-c': '#ffffff', '--poll-sub-c': 'rgba(255,255,255,0.55)' } : {}) }}>
       {/* App.jsx's runtime light-mode stylesheet has a blanket
           `html[data-theme='light'] .msg-sent, .msg-sent * { color: #fff
           !important; -webkit-text-fill-color: #fff !important; }` rule —
@@ -138,7 +141,7 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
           className="poll-view-votes"
           onClick={onViewVotes}
           style={{
-            marginTop: 10, background: 'transparent', border: 'none', color: accentColor || 'var(--brand-1-light)', WebkitTextFillColor: accentColor || 'var(--brand-1-light)',
+            marginTop: 10, background: 'transparent', border: 'none', color: themed ? '#ffffff' : 'var(--brand-1-light)', WebkitTextFillColor: themed ? '#ffffff' : 'var(--brand-1-light)',
             fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: '4px 0',
           }}
         >

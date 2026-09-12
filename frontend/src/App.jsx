@@ -500,8 +500,8 @@ function App() {
         -webkit-text-fill-color: var(--poll-sub-c, rgba(15,23,42,0.55)) !important;
       }
       html[data-theme='light'] .msg-sent .poll-view-votes {
-        color: var(--poll-accent-c, var(--brand-1-light)) !important;
-        -webkit-text-fill-color: var(--poll-accent-c, var(--brand-1-light)) !important;
+        color: var(--poll-heading-c, var(--brand-1-light)) !important;
+        -webkit-text-fill-color: var(--poll-heading-c, var(--brand-1-light)) !important;
       }
 
       /* ── Navbar, panels, cards – force bg to white/light ── */
