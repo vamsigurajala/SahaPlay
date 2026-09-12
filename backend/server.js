@@ -3518,6 +3518,101 @@ ${L.emailResetFooter || '© 2026 SahaPlay · All rights reserved'}`;
   }
 });
 
+// Adds `username` to the hiddenFor array of a set of messages, in both
+// PostgreSQL and SQLite (message history is read from either depending on
+// the code path — see clear_dm/clear_room_chat, whose existing "soft hide"
+// logic this generalizes). Soft-hiding instead of deleting is what makes
+// this "for me only": the row, and everyone else's ability to read it,
+// is completely untouched — only this one user's own hiddenFor array grows.
+// `pgWhereSql`/`sqliteWhereSql` must reference the SAME rows and can use
+// their own placeholders starting at $1/? respectively (the username itself
+// is passed separately, not part of these params, since the Postgres CASE
+// expression needs it as its own arg).
+async function hideMessagesForUser(username, pgWhereSql, pgWhereParams, sqliteWhereSql, sqliteWhereParams) {
+  const usernameLower = username.toLowerCase();
+  try {
+    await pool.query(
+      `UPDATE messages
+       SET "hiddenFor" = CASE
+         WHEN "hiddenFor" IS NULL OR "hiddenFor"::text IN ('', 'null', '[]')
+           THEN jsonb_build_array($1::text)::text
+         WHEN NOT ("hiddenFor"::jsonb @> jsonb_build_array($1::text))
+           THEN ("hiddenFor"::jsonb || jsonb_build_array($1::text))::text
+         ELSE "hiddenFor"::text
+       END
+       WHERE ${pgWhereSql}`,
+      [username, ...pgWhereParams]
+    );
+  } catch (err) {
+    console.error('[hideMessagesForUser] PostgreSQL UPDATE failed:', err.message);
+  }
+
+  await new Promise((resolve) => {
+    db.all(
+      `SELECT id, hiddenFor FROM messages WHERE ${sqliteWhereSql}`,
+      sqliteWhereParams,
+      (err, rows) => {
+        if (err || !rows?.length) { resolve(); return; }
+        let pending = rows.length;
+        rows.forEach(row => {
+          let arr = [];
+          try { arr = JSON.parse(row.hiddenFor || '[]'); } catch { arr = []; }
+          if (!Array.isArray(arr)) arr = [];
+          if (!arr.map(x => (x || '').toLowerCase()).includes(usernameLower)) arr.push(username);
+          db.run(`UPDATE messages SET hiddenFor = ? WHERE id = ?`,
+            [JSON.stringify(arr), row.id],
+            () => { if (--pending === 0) resolve(); }
+          );
+        });
+      }
+    );
+  });
+}
+
+// Soft-hides EVERY message this user can currently see — every DM thread
+// (sent or received) and every message (theirs and everyone else's) in
+// every room they've sent at least one message to — for their view only.
+// Used when a password reset without a recovery key leaves an account's
+// old E2EE identity unrecoverable: see the isNewAccount-adjacent comment at
+// this function's one call site for why "for them only" matters here.
+// Limitation: a room this user only ever silently read (never posted a
+// message in) can't be discovered this way — there's no persistent room-
+// membership table, only message history to infer participation from.
+async function hideAllMessagesForUser(username) {
+  const usernameLower = username.toLowerCase();
+
+  // DMs: every thread this user sent to OR received from, in one pass.
+  await hideMessagesForUser(
+    username,
+    `type = 'private' AND (LOWER("senderName") = $2 OR LOWER("targetName") = $2)`,
+    [usernameLower],
+    `type = 'private' AND (LOWER(senderName) = ? OR LOWER(targetName) = ?)`,
+    [usernameLower, usernameLower]
+  );
+
+  // Group/room chats: find every room they've participated in, then hide
+  // the WHOLE room's history for them — not just the messages they sent.
+  let roomIds = [];
+  try {
+    const rows = await pool.query(
+      `SELECT DISTINCT "roomId" FROM messages WHERE type IN ('group','room') AND LOWER("senderName") = $1`,
+      [usernameLower]
+    );
+    roomIds = rows.rows.map(r => r.roomId).filter(Boolean);
+  } catch (err) {
+    console.error('[hideAllMessagesForUser] listing rooms failed:', err.message);
+  }
+  for (const roomId of roomIds) {
+    await hideMessagesForUser(
+      username,
+      `"roomId" = $2 AND type IN ('group','room')`,
+      [roomId],
+      `roomId = ? AND type IN ('group','room')`,
+      [roomId]
+    );
+  }
+}
+
 app.post('/api/reset-password', async (req, res) => {
   const { token, newPassword, publicKey, encryptedPrivateKey, recoveryKeyHash } = req.body;
   if (!token || !newPassword) return res.status(400).json({ error: 'Token and new password are required' });
@@ -3575,11 +3670,22 @@ app.post('/api/reset-password', async (req, res) => {
         [hashedPassword, user.id]
       );
 
-      // The user failed to provide a recovery key. As requested, clear all their messages to ensure safety and start fresh.
-      await pool.query(
-        'DELETE FROM messages WHERE "senderName" = $1 OR "targetName" = $1',
-        [user.username]
-      );
+      // The user failed to provide a recovery key — their old E2EE identity
+      // (and everything encrypted to it) is now unrecoverable, so hide every
+      // chat they can see, private and group alike, for THEIR view only.
+      // This used to be a hard DELETE scoped to "senderName = them OR
+      // targetName = them" — for a DM that deleted the row outright, wiping
+      // the OTHER participant's copy of every message this account ever
+      // sent them too, and for a group it left every OTHER member's own
+      // messages fully intact and visible (targetName is never set on a
+      // group row, so it could never match), which read as "my sent
+      // messages are gone but everyone else's are still right there" —
+      // correct in that no one else's access was touched, but not the
+      // "erase everything, for me" the reset warning promised. Soft-hiding
+      // (the same hiddenFor mechanism clear_dm/clear_room_chat already use)
+      // clears this account's own view of every chat, sent or received,
+      // group or private, without touching a single other person's.
+      await hideAllMessagesForUser(user.username);
     }
 
     console.log(`[RESET] Password successfully reset for @${user.username}`);

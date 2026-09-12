@@ -8,9 +8,9 @@
  *     login password — see ResetPassword.jsx's comment on why). Nothing is
  *     lost.
  *   - Without one: the old encrypted private key can no longer be unwrapped, so
- *     (per this app's existing, deliberate server-side behavior) ALL messages the
- *     user ever sent or received — with everyone, not just their own copy — are
- *     permanently deleted.
+ *     every chat the user can currently see — every DM thread and every group
+ *     chat, sent or received — is hidden from THEIR view only. No one else in
+ *     those conversations loses anything; their own copies are untouched.
  * Chat Lock (PIN) settings are never touched by password reset either way.
  */
 import React from 'react';
@@ -55,7 +55,7 @@ export default function PasswordResetWarningModal({ hasRecoveryKey, onCancel, on
           <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: titleColor, fontFamily: "'Outfit', sans-serif" }}>
             {hasRecoveryKey
               ? t('resetConfirmTitleSafe', 'Confirm Password Reset')
-              : t('resetConfirmTitleDanger', 'This Will Permanently Delete Your Messages')}
+              : t('resetConfirmTitleDanger', 'This Will Erase Your Chat History')}
           </h2>
         </div>
 
@@ -69,7 +69,7 @@ export default function PasswordResetWarningModal({ hasRecoveryKey, onCancel, on
             borderRadius: 12, padding: '14px 16px', marginBottom: 24
           }}>
             <p style={{ margin: 0, color: isLight ? '#b91c1c' : '#fca5a5', fontSize: 14, lineHeight: 1.6 }}>
-              {t('resetConfirmDescDanger', "You haven't entered a recovery key. Without it, your old encrypted private key can't be reused with your new password — so, as a safety measure, every message you've ever sent or received will be permanently deleted from the server. This affects the other people in those conversations too, not just your own copy. Chat Lock settings are unaffected either way. This cannot be undone.")}
+              {t('resetConfirmDescDanger', "You haven't entered a recovery key. Without it, your old encrypted private key can't be reused with your new password — so, as a safety measure, every chat you can currently see (every private and group conversation, sent and received) will be erased from your own view. This only affects you — no one else in those conversations loses anything. Chat Lock settings are unaffected either way. This cannot be undone.")}
             </p>
           </div>
         )}
@@ -100,7 +100,7 @@ export default function PasswordResetWarningModal({ hasRecoveryKey, onCancel, on
           >
             {hasRecoveryKey
               ? t('resetConfirmBtnSafe', 'Yes, reset my password')
-              : t('resetConfirmBtnDanger', 'Yes, delete my messages and reset password')}
+              : t('resetConfirmBtnDanger', 'Yes, erase my chat history and reset password')}
           </button>
         </div>
       </div>
