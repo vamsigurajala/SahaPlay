@@ -494,6 +494,7 @@ function App() {
         -webkit-text-fill-color: #0f172a !important;
       }
       html[data-theme='light'] .msg-sent .poll-subtitle,
+      html[data-theme='light'] .msg-sent .poll-subtitle *,
       html[data-theme='light'] .msg-sent .poll-count {
         color: rgba(15,23,42,0.55) !important;
         -webkit-text-fill-color: rgba(15,23,42,0.55) !important;

@@ -63,7 +63,11 @@ export default function PollVotesModal({ poll, pollVotes, onClose, isLight, reso
                           {avatar ? (
                             <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
-                            <span style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{(username || '?').charAt(0).toUpperCase()}</span>
+                            // stay-white: sits on the brand-colored circle above, not this
+                            // sheet's own white/dark background — always needs to read white
+                            // regardless of theme (see the matching comment in PollBubble.jsx's
+                            // VoterAvatar; same rule, same fix).
+                            <span className="stay-white" style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{(username || '?').charAt(0).toUpperCase()}</span>
                           )}
                         </div>
                         <span style={{ fontSize: 14, fontWeight: 600 }}>{displayName}</span>

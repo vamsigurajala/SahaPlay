@@ -140,7 +140,14 @@ function VoterAvatar({ username, avatar, style }) {
       {avatar ? (
         <img src={avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (
-        <span style={{ fontSize: 9, fontWeight: 800, color: '#fff' }}>{initial}</span>
+        // stay-white: this letter sits on the brand-colored circle above,
+        // never on the poll's own white/dark card, so it always needs to
+        // read white regardless of theme — without this class, App.jsx's
+        // light-mode stylesheet has a blanket rule that rewrites any
+        // literal white inline color (this one included) to near-black,
+        // same bug as the poll text fix, just via its "force white text
+        // dark" rule instead of its "force sent-bubble text white" one.
+        <span className="stay-white" style={{ fontSize: 9, fontWeight: 800, color: '#fff' }}>{initial}</span>
       )}
     </div>
   );
