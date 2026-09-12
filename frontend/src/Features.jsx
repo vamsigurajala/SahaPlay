@@ -818,7 +818,7 @@ const Features = () => {
               t('privateAndSafe', 'Private & Safe'),
               t('noDataLeaks', 'No Data Leaks'),
               t('secureChats', 'Secure Chats'),
-              t('signalLevelSecurity', 'Signal-Level Security')
+              t('strongEncryption', 'Strong Encryption')
             ].map((badge, idx) => (
               <span key={idx} className="privacy-badge">
                 {badge}
