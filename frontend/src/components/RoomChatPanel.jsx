@@ -2821,9 +2821,10 @@ export default function RoomChatPanel({ p }) {
         if (!poll) return null;
         const resolveAvatar = (u) => {
           const uname = (u || '').toLowerCase();
+          if (uname === myUser) return getAvatarUrl(pollVotesTarget.msg.senderAvatar) || p.knownAvatars?.[uname] || p.knownAvatars?.[myUser];
           if (uname === (pollVotesTarget.msg.senderName || pollVotesTarget.msg.username || '').toLowerCase()) return getAvatarUrl(pollVotesTarget.msg.senderAvatar);
           if (pollVotesTarget.chatType === 'dm' && uname === (p.dmTarget || '').toLowerCase()) return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]);
-          return null;
+          return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || null;
         };
         const resolveDisplayName = (u) => {
           const uname = (u || '').toLowerCase();
@@ -3646,14 +3647,27 @@ export default function RoomChatPanel({ p }) {
                           // specifically, rather than the bold opaque dominant-color fill sent
                           // normally gets — so this one bubble gets the received branch's own
                           // translucent frosted treatment instead.
+                          // Polls get their own neutral white/dark card when there's no
+                          // wallpaper — same reasoning as GlobalChatWidget's isPoll
+                          // background override (this file's own copy had drifted from
+                          // that and was painting sent polls in the plain gradient
+                          // instead, unreadable once poll-question also had to be dark
+                          // for the neutral-card case elsewhere — the "room chats has a
+                          // color problem" report). A picked Chat Theme is the one
+                          // exception: PollBubble's own text/track/option colors flip to
+                          // white-on-dark whenever it's handed accentColor (isMe &&
+                          // isGroupCustomTheme && !wallpaper, same condition as here), so
+                          // the card follows the theme's gradient too in that case.
                           background: isMediaOnly ? 'transparent' : (groupWallpaper && (msg.isPoll || msg.mediaType)
                             ? (groupWallpaperColor || groupWallpaper.brightColor)
                             : ((isMe && !paintGroupSentAsReceived) ? (
                                 groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) :
-                                (isGroupCustomTheme && groupTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
+                                (msg.isPoll
+                                  ? (isGroupCustomTheme && groupTheme ? groupTheme.gradient : (isLight ? '#ffffff' : '#1b1b25'))
+                                  : (isGroupCustomTheme && groupTheme ? groupTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))'))
                               ) : (
                                 groupWallpaper ? groupWallpaperReceivedBg :
-                                (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
+                                (msg.isPoll ? (isLight ? '#ffffff' : '#1b1b25') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)'))
                               ))
                           ),
                           // Skipped for captioned media/polls too (not just media-only) —
@@ -3738,8 +3752,13 @@ export default function RoomChatPanel({ p }) {
                                 if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} />;
                                 const resolveAvatar = (u) => {
                                   const uname = (u || '').toLowerCase();
+                                  // My own vote: the message's own senderAvatar only covers the
+                                  // case where I sent this poll, and even then never covers our
+                                  // own optimistic send — knownAvatars (the room roster) always
+                                  // has my own avatar regardless of who sent the poll.
+                                  if (uname === myUser) return getAvatarUrl(msg.senderAvatar) || p.knownAvatars?.[uname] || p.knownAvatars?.[myUser];
                                   if (uname === (msg.senderName || msg.username || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
-                                  return null;
+                                  return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || null;
                                 };
                                 return (
                                   <PollBubble
@@ -4666,14 +4685,19 @@ export default function RoomChatPanel({ p }) {
                                 position: 'relative',
                                 zIndex: 2,
                                 // See the identical comment on the group thread's bubble above.
+                                // Polls get their own neutral white/dark card when there's no
+                                // wallpaper — see the identical comment on the group thread's
+                                // bubble above.
                                 background: isMediaOnly ? 'transparent' : (dmWallpaper && (msg.isPoll || msg.mediaType)
                                   ? (dmWallpaperColor || dmWallpaper.brightColor)
                                   : ((isMe && !paintDmSentAsReceived) ? (
                                       dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) :
-                                      (isDMCustomTheme && dmTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
+                                      (msg.isPoll
+                                        ? (isDMCustomTheme && dmTheme ? dmTheme.gradient : (isLight ? '#ffffff' : '#1b1b25'))
+                                        : (isDMCustomTheme && dmTheme ? dmTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))'))
                                     ) : (
                                       dmWallpaper ? dmWallpaperReceivedBg :
-                                      (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)')
+                                      (msg.isPoll ? (isLight ? '#ffffff' : '#1b1b25') : (isLight ? '#f3f4f6' : 'rgba(255,255,255,0.1)'))
                                     ))
                                 ),
                                 // See the identical comment on the group thread's bubble above
@@ -4737,6 +4761,7 @@ export default function RoomChatPanel({ p }) {
                                       if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} />;
                                       const resolveAvatar = (u) => {
                                         const uname = (u || '').toLowerCase();
+                                        if (uname === myUser) return getAvatarUrl(msg.senderAvatar) || p.knownAvatars?.[uname] || p.knownAvatars?.[myUser];
                                         if (uname === (msg.senderName || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
                                         if (uname === (p.dmTarget || '').toLowerCase()) return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]);
                                         return null;

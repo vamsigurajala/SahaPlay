@@ -29,14 +29,21 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
     }
   };
 
-  // The poll card itself is always a neutral surface (see the isPoll override
-  // in GlobalChatWidget's bubble background) regardless of isMe/wallpaper/
-  // custom theme — these colors just need to read clearly against THAT plain
-  // card, not against the vivid sent-bubble gradient the rest of the app uses.
-  const textColor = isLight ? '#0f172a' : '#fff';
-  const subColor = isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.55)';
-  const trackColor = isLight ? 'rgba(15,23,42,0.09)' : 'rgba(255,255,255,0.14)';
-  const optionBg = isLight ? 'rgba(15,23,42,0.03)' : 'rgba(255,255,255,0.045)';
+  // The poll card is a neutral white/dark surface UNLESS this is my own sent
+  // poll and I've picked a non-default Chat Theme — the caller only ever
+  // passes accentColor in exactly that case (see the isMe/isCustomTheme/
+  // !wallpaper condition at every call site), and when it does, the card's
+  // own background switches to the theme's gradient too (see the isPoll
+  // background override in GlobalChatWidget/RoomChatPanel). A colored card
+  // needs the same white-on-dark text/track/option treatment dark mode's
+  // neutral card already gets — reusing that exact value set (rather than
+  // inventing new ones) is what makes a themed poll in light mode "look
+  // like dark mode", same as the user asked.
+  const themed = !!accentColor;
+  const textColor = themed ? '#ffffff' : (isLight ? '#0f172a' : '#fff');
+  const subColor = themed ? 'rgba(255,255,255,0.55)' : (isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.55)');
+  const trackColor = themed ? 'rgba(255,255,255,0.14)' : (isLight ? 'rgba(15,23,42,0.09)' : 'rgba(255,255,255,0.14)');
+  const optionBg = themed ? 'rgba(255,255,255,0.045)' : (isLight ? 'rgba(15,23,42,0.03)' : 'rgba(255,255,255,0.045)');
   // A selected option's own highlight (border/background/checkbox/leading-
   // bar) is the one thing on this otherwise-neutral card that's always
   // brand-purple regardless of which Chat Theme color is picked — this is
@@ -47,10 +54,12 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
   const accentSoftBg = accentColor ? `${accentColor}1a` : `rgba(var(--brand-1-rgb),${isLight ? '0.1' : '0.18'})`;
 
   return (
-    // --poll-accent-c: read by App.jsx's light-mode .poll-view-votes
-    // override (which otherwise can't reach this text color — see the
-    // .stay-white cascade-war comment on poll-question above).
-    <div style={{ minWidth: 220, maxWidth: 280, ...(accentColor ? { '--poll-accent-c': accentColor } : {}) }}>
+    // --poll-accent-c/-heading-c/-sub-c: read by App.jsx's light-mode
+    // .poll-view-votes/.poll-question/.poll-subtitle overrides, which
+    // otherwise can't reach these text colors — see the .stay-white
+    // cascade-war comment on poll-question below. Only set when themed;
+    // App.jsx's own hardcoded fallback covers the neutral-card case.
+    <div style={{ minWidth: 220, maxWidth: 280, ...(themed ? { '--poll-accent-c': accentColor, '--poll-heading-c': '#ffffff', '--poll-sub-c': 'rgba(255,255,255,0.55)' } : {}) }}>
       {/* App.jsx's runtime light-mode stylesheet has a blanket
           `html[data-theme='light'] .msg-sent, .msg-sent * { color: #fff
           !important; -webkit-text-fill-color: #fff !important; }` rule —
@@ -129,7 +138,7 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
           className="poll-view-votes"
           onClick={onViewVotes}
           style={{
-            marginTop: 10, background: 'transparent', border: 'none', color: 'var(--brand-1-light)', WebkitTextFillColor: 'var(--brand-1-light)',
+            marginTop: 10, background: 'transparent', border: 'none', color: accentColor || 'var(--brand-1-light)', WebkitTextFillColor: accentColor || 'var(--brand-1-light)',
             fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: '4px 0',
           }}
         >

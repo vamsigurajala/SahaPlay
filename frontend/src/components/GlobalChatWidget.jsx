@@ -1730,6 +1730,24 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const location = useLocation();
   const vaultMenuRef = useRef(null);
   const myUsername = (localStorage.getItem('watch_username') || '').toLowerCase();
+  // My own avatar, used to resolve poll-vote avatars for MYSELF specifically
+  // (see resolveAvatar in the poll bubble/view-votes renders below) — a poll's
+  // own message object only ever carries `senderAvatar`, which is absent on
+  // our own optimistic send and, for group polls someone else sent, never
+  // describes my own vote at all. Fetched once and cached for the session;
+  // failures just leave it null (resolveAvatar falls back to initials, same
+  // as today).
+  const [myAvatarUrl, setMyAvatarUrl] = useState(null);
+  useEffect(() => {
+    if (!myUsername) return;
+    let cancelled = false;
+    const selfToken = localStorage.getItem('watch_token');
+    fetch(`${API}/api/users/${myUsername}`, { headers: selfToken ? { Authorization: `Bearer ${selfToken}` } : {} })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d?.avatarPath) setMyAvatarUrl(getAvatarUrl(d.avatarPath)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [myUsername]);
   // ─── E2EE Keys ───
   const { keyPair, setKeyPair, needsReauth, reloadPrivateKeyWithPassword, isReady } = useCrypto();
   const call = useCall();
@@ -8940,21 +8958,28 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 position: 'relative',
                                 zIndex: 2,
                                 // Polls get their own neutral card background when there's no
-                                // wallpaper — the vivid sent-bubble gradient (fine for a line of
-                                // text) made option rows/vote bars unreadable once a poll's whole
-                                // card was painted in it. Once a wallpaper IS active, polls (and
-                                // a captioned image's caption row, and — see AudioPlayerBubble/
-                                // FileCard's own wallpaperBg — voice notes/documents) instead
-                                // follow the wallpaper's own opaque dominant color, the SAME value
-                                // for both sent and received (unlike plain text's received bubble,
-                                // which stays the translucent frosted wallpaperReceivedBg — these
-                                // "card" UI types looked half-see-through with that treatment).
+                                // wallpaper/theme — the vivid sent-bubble gradient (fine for a line
+                                // of text) made option rows/vote bars unreadable once a poll's
+                                // whole card was painted in it. A picked Chat Theme is the one
+                                // exception: PollBubble's own text/track/option colors already
+                                // flip to their white-on-dark set whenever it's handed accentColor
+                                // (isMe && isCustomTheme && !wallpaper, same condition as here), so
+                                // painting the card in the theme's gradient too is what actually
+                                // makes a themed sent poll "look like dark mode" instead of just
+                                // matching dark mode's neutral card by coincidence. Once a
+                                // wallpaper IS active, polls (and a captioned image's caption row,
+                                // and — see AudioPlayerBubble/FileCard's own wallpaperBg — voice
+                                // notes/documents) instead follow the wallpaper's own opaque
+                                // dominant color, the SAME value for both sent and received (unlike
+                                // plain text's received bubble, which stays the translucent frosted
+                                // wallpaperReceivedBg — these "card" UI types looked half-see-
+                                // through with that treatment).
                                 background: isMediaOnly ? 'transparent' : (activeWallpaper ? (
                                   (msg.isPoll || msg.mediaType)
                                     ? (wallpaperColor || 'rgba(255,255,255,0.25)')
                                     : ((isMe && !paintSentAsReceived) ? (wallpaperColor || 'rgba(255,255,255,0.25)') : wallpaperReceivedBg)
                                 ) : (
-                                  msg.isPoll ? (isLight ? '#ffffff' : '#1b1b25') : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
+                                  msg.isPoll ? ((isMe && isCustomTheme) ? activeTheme.gradient : (isLight ? '#ffffff' : '#1b1b25')) : (transparentMode ? 'rgba(0,0,0,0.3)' : (isMe
                                     ? (isCustomTheme ? activeTheme.gradient : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))')
                                     : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.1)')))
                                 )),
@@ -9043,6 +9068,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                     if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} isLight={isLight} />;
                                     const resolveAvatar = (u) => {
                                       const uname = (u || '').toLowerCase();
+                                      // My own vote: prefer the message's own senderAvatar (set
+                                      // when I'm the poll's sender and it came from the server),
+                                      // but our own optimistic send never carries one, and a
+                                      // group poll someone ELSE sent never carries mine at all —
+                                      // myAvatarUrl (fetched once above) covers both.
+                                      if (uname === myUsername.toLowerCase()) return getAvatarUrl(msg.senderAvatar) || myAvatarUrl;
                                       if (uname === (msg.senderName || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
                                       if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) return getAvatarUrl(activeChat.partnerAvatar);
                                       return null;
@@ -9827,6 +9858,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
           if (!poll) return null;
           const resolveAvatar = (u) => {
             const uname = (u || '').toLowerCase();
+            if (uname === myUsername.toLowerCase()) return getAvatarUrl(pollVotesTarget.senderAvatar) || myAvatarUrl;
             if (uname === (pollVotesTarget.senderName || '').toLowerCase()) return getAvatarUrl(pollVotesTarget.senderAvatar);
             if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) return getAvatarUrl(activeChat.partnerAvatar);
             return null;

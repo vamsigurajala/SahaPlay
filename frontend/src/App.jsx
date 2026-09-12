@@ -490,14 +490,14 @@ function App() {
          out to the same colors PollBubble already computes for isLight. ── */
       html[data-theme='light'] .msg-sent .poll-question,
       html[data-theme='light'] .msg-sent .poll-option-label {
-        color: #0f172a !important;
-        -webkit-text-fill-color: #0f172a !important;
+        color: var(--poll-heading-c, #0f172a) !important;
+        -webkit-text-fill-color: var(--poll-heading-c, #0f172a) !important;
       }
       html[data-theme='light'] .msg-sent .poll-subtitle,
       html[data-theme='light'] .msg-sent .poll-subtitle *,
       html[data-theme='light'] .msg-sent .poll-count {
-        color: rgba(15,23,42,0.55) !important;
-        -webkit-text-fill-color: rgba(15,23,42,0.55) !important;
+        color: var(--poll-sub-c, rgba(15,23,42,0.55)) !important;
+        -webkit-text-fill-color: var(--poll-sub-c, rgba(15,23,42,0.55)) !important;
       }
       html[data-theme='light'] .msg-sent .poll-view-votes {
         color: var(--poll-accent-c, var(--brand-1-light)) !important;
