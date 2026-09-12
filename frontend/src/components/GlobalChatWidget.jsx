@@ -9325,11 +9325,29 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               </div>
                             )}
 
-                                                    <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className={`react-btn-${msg.id||i} react-btn-container`}>
+                                                    <div style={isMediaOnly
+                                      // A media bubble commonly renders near the panel's own
+                                      // max-width (a laptop-embedded room/floating chat panel is
+                                      // much narrower than a full-width mobile screen), so
+                                      // floating this outside the bubble via left/right:100% (the
+                                      // plain-text branch below) had nowhere left to go — it ran
+                                      // past the panel's own edge and got clipped by its
+                                      // overflow, same root cause as the "..." hover-menu's own
+                                      // isMediaOnly branch just above. Overlay it on the media
+                                      // itself instead, at the opposite (bottom) corner from that
+                                      // menu so the two never collide.
+                                      ? {position:'absolute', bottom:4, [isMe?'right':'left']:4, opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}
+                                      : {position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className={`react-btn-${msg.id||i} react-btn-container`}>
                               {/* Wallpaper active — stay fully white, not the dimmer
                                   '#aaa' meant for plain dark mode, which still read as
-                                  too dark against a wallpaper backdrop. */}
-                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: activeWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#111' : '#aaa'),padding:2}}>
+                                  too dark against a wallpaper backdrop. On a media overlay
+                                  (isMediaOnly), always white-on-a-dark-circle the same way
+                                  the "..." hover-menu button already treats itself, instead
+                                  of a background-less dark/grey icon that would disappear
+                                  against a photo. */}
+                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={isMediaOnly
+                                ? {background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)', border:'none', borderRadius:'50%', width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#fff'}
+                                : {background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: activeWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#111' : '#aaa'),padding:2}}>
                                 <SmilePlus size={16}/>
                               </button>
                             </div>

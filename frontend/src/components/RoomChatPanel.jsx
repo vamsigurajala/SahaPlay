@@ -3985,12 +3985,29 @@ export default function RoomChatPanel({ p }) {
                           </div>
                         )}
                         {!blockingMe.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === (msg.username || msg.senderName || '').toLowerCase()) && (
-                          <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
+                          <div style={isMediaOnly
+                            // A media bubble commonly renders near the panel's own max-width
+                            // (a laptop-embedded room chat panel is much narrower than a
+                            // full-width mobile screen), so floating this outside the bubble
+                            // via left/right:100% (the plain-text branch below) had nowhere
+                            // left to go — it ran past the panel's own edge and got clipped
+                            // by its overflow, same root cause as the "..." hover-menu's own
+                            // isMediaOnly branch above. Overlay it on the media itself
+                            // instead, at the opposite (bottom) corner from that menu so the
+                            // two never collide.
+                            ? {position:'absolute', bottom:4, [isMe?'right':'left']:4, opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}
+                            : {position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
                             {/* Wallpaper active — stay fully white always, not just
                                 on hover: the mouseleave/idle color below (a
                                 medium grey meant for plain dark mode) still
-                                read as too dark against a wallpaper backdrop. */}
-                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: groupWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af'),padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= groupWallpaper ? '#fff' : (metaIsLight ? '#111' : '#fff')}} onMouseLeave={(e)=>{e.currentTarget.style.color= groupWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af')}}>
+                                read as too dark against a wallpaper backdrop. On a media
+                                overlay (isMediaOnly), always white-on-a-dark-circle the
+                                same way the "..." hover-menu button already treats
+                                itself, instead of a background-less icon that would
+                                disappear against a photo. */}
+                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={isMediaOnly
+                              ? {background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)', border:'none', borderRadius:'50%', width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#fff'}
+                              : {background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: groupWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af'),padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{if(isMediaOnly)return; e.currentTarget.style.color= groupWallpaper ? '#fff' : (metaIsLight ? '#111' : '#fff')}} onMouseLeave={(e)=>{if(isMediaOnly)return; e.currentTarget.style.color= groupWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af')}}>
                               <SmilePlus size={16}/>
                             </button>
                           </div>
@@ -5013,10 +5030,16 @@ export default function RoomChatPanel({ p }) {
                                   </div>
                                 )}
                                 {!blockingMe.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === p.dmTarget.toLowerCase()) && (
-                                  <div style={{position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
+                                  <div style={isMediaOnly
+                                    // See the identical comment on the group thread's
+                                    // react-btn-container above — same fix, same reason.
+                                    ? {position:'absolute', bottom:4, [isMe?'right':'left']:4, opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}
+                                    : {position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
                                     {/* Wallpaper active — see the identical comment on the
                                         group thread's react-btn; same fix, same reason. */}
-                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: dmWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af'),padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= dmWallpaper ? '#fff' : (metaIsLight ? '#111' : '#fff')}} onMouseLeave={(e)=>{e.currentTarget.style.color= dmWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af')}}>
+                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={isMediaOnly
+                                      ? {background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)', border:'none', borderRadius:'50%', width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#fff'}
+                                      : {background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: dmWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af'),padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{if(isMediaOnly)return; e.currentTarget.style.color= dmWallpaper ? '#fff' : (metaIsLight ? '#111' : '#fff')}} onMouseLeave={(e)=>{if(isMediaOnly)return; e.currentTarget.style.color= dmWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af')}}>
                                       <SmilePlus size={16}/>
                                     </button>
                                   </div>
