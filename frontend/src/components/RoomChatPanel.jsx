@@ -425,9 +425,12 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
   const sizeLabel = formatFileSize(fileSize);
   const iconBg = getFileIconBg(type);
   const subtitle = isLoading ? (isMe ? 'Sending…' : 'Loading…') : (isExpired ? 'Expired' : [typeLabel, sizeLabel].filter(Boolean).join(' • '));
+  // Computed early (normally declared below, alongside cardBg/fileNameColor)
+  // — see the matching comment on GlobalChatWidget.jsx's own copy for why.
+  const onColoredCard = isMe && !!(wallpaperBg || themeGradient);
   // Same color as the expiry line below — no background pill, just muted text
   // matching the existing "Expires in X days" color pattern in both themes.
-  const infoColor = isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.6)';
+  const infoColor = onColoredCard ? 'rgba(255,255,255,0.75)' : (isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.6)');
 
   let expiryLine = null;
   if (expiresAt && !isExpired) {
@@ -458,7 +461,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
   // A picked Chat Theme (a "Colors" gradient, not a wallpaper) gets the same
   // treatment a sent text bubble already gets — see the matching comment on
   // GlobalChatWidget.jsx's own copy of this component.
-  const onColoredCard = isMe && !!(wallpaperBg || themeGradient);
+  // (onColoredCard itself is declared earlier, above infoColor.)
   const cardBg = wallpaperBg || themeGradient || (isLight ? '#ffffff' : (isMe ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)'));
   const cardBorder = (wallpaperBg || themeGradient) ? 'transparent' : (isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)'));
   const fileNameColor = onColoredCard ? '#ffffff' : (isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0'));
@@ -1231,8 +1234,15 @@ function ReadReceipt({ msg, isGroup, username, userList, isLight }) {
               const avatar = r.avatar || uObj?.avatarPath;
               const avatarSrc = getAvatarUrl(avatar);
               return (
-                <div 
-                  key={r.username} 
+                <div
+                  key={r.username}
+                  // stay-white: this letter sits on the brand-colored circle
+                  // above, never on a plain light-mode card, so it always
+                  // needs to read white — without this class, App.jsx's
+                  // light-mode stylesheet has a blanket rule that rewrites
+                  // any literal white inline color (this one included) to
+                  // near-black, same bug as the poll voter-avatar letter fix.
+                  className="stay-white"
                   style={{
                     marginLeft: idx > 0 ? -8 : 0,
                     border: isLight ? '1.5px solid #fff' : '1.5px solid var(--room-chat-bg, #0f0f1a)',
@@ -1258,7 +1268,8 @@ function ReadReceipt({ msg, isGroup, username, userList, isLight }) {
               );
             })}
             {readers.length > 3 && (
-              <div 
+              <div
+                className="stay-white"
                 style={{
                   marginLeft: -8,
                   border: isLight ? '1.5px solid #fff' : '1.5px solid var(--room-chat-bg, #0f0f1a)',
@@ -1319,7 +1330,10 @@ function ReadReceipt({ msg, isGroup, username, userList, isLight }) {
               const avatarSrc = getAvatarUrl(avatar);
               return (
                 <div key={r.username} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div 
+                  {/* stay-white: same fallback-letter-on-brand-circle case as
+                      the avatar stack above. */}
+                  <div
+                    className="stay-white"
                     style={{
                       borderRadius: '50%',
                       overflow: 'hidden',
@@ -2826,8 +2840,12 @@ export default function RoomChatPanel({ p }) {
         if (!poll) return null;
         const resolveAvatar = (u) => {
           const uname = (u || '').toLowerCase();
-          if (uname === myUser) return getAvatarUrl(pollVotesTarget.msg.senderAvatar) || p.knownAvatars?.[uname] || p.knownAvatars?.[myUser];
+          // Sender check has to come first — pollVotesTarget.msg.senderAvatar
+          // is only ever the SENDER's avatar, so checking "is this me" first
+          // and falling back to it leaked the sender's own avatar onto MY
+          // vote on someone else's poll whenever they had one set.
           if (uname === (pollVotesTarget.msg.senderName || pollVotesTarget.msg.username || '').toLowerCase()) return getAvatarUrl(pollVotesTarget.msg.senderAvatar);
+          if (uname === myUser) return p.knownAvatars?.[uname] || p.knownAvatars?.[myUser] || null;
           if (pollVotesTarget.chatType === 'dm' && uname === (p.dmTarget || '').toLowerCase()) return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]);
           return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || null;
         };
@@ -3757,12 +3775,16 @@ export default function RoomChatPanel({ p }) {
                                 if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} />;
                                 const resolveAvatar = (u) => {
                                   const uname = (u || '').toLowerCase();
-                                  // My own vote: the message's own senderAvatar only covers the
-                                  // case where I sent this poll, and even then never covers our
-                                  // own optimistic send — knownAvatars (the room roster) always
-                                  // has my own avatar regardless of who sent the poll.
-                                  if (uname === myUser) return getAvatarUrl(msg.senderAvatar) || p.knownAvatars?.[uname] || p.knownAvatars?.[myUser];
+                                  // Sender check has to come first — msg.senderAvatar is only
+                                  // ever the SENDER's avatar, so checking "is this me" first and
+                                  // falling back to it leaked the sender's own avatar onto MY
+                                  // vote on someone else's poll whenever they had one set.
                                   if (uname === (msg.senderName || msg.username || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
+                                  // My own vote on a poll I did NOT send: knownAvatars (the room
+                                  // roster) always has my own avatar regardless of who sent it —
+                                  // msg.senderAvatar never does (not for our own optimistic send,
+                                  // and not for anyone else's poll at all).
+                                  if (uname === myUser) return p.knownAvatars?.[uname] || p.knownAvatars?.[myUser] || null;
                                   return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || null;
                                 };
                                 return (
@@ -4766,8 +4788,10 @@ export default function RoomChatPanel({ p }) {
                                       if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} />;
                                       const resolveAvatar = (u) => {
                                         const uname = (u || '').toLowerCase();
-                                        if (uname === myUser) return getAvatarUrl(msg.senderAvatar) || p.knownAvatars?.[uname] || p.knownAvatars?.[myUser];
+                                        // Sender check first — see the identical ordering comment
+                                        // on the group tab's own resolveAvatar above.
                                         if (uname === (msg.senderName || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
+                                        if (uname === myUser) return p.knownAvatars?.[uname] || p.knownAvatars?.[myUser] || null;
                                         if (uname === (p.dmTarget || '').toLowerCase()) return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]);
                                         return null;
                                       };

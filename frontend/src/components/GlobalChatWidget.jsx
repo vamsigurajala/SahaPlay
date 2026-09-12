@@ -150,9 +150,14 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
   const sizeLabel = formatFileSize(fileSize);
   const iconBg = getFileIconBg(type);
   const subtitle = isLoading ? (isMe ? 'Sending…' : 'Loading…') : (isExpired ? 'Expired' : [typeLabel, sizeLabel].filter(Boolean).join(' • '));
+  // Computed early (normally declared below, alongside cardBg/fileNameColor)
+  // because infoColor — and the Clock/Forward icons that use it as their SVG
+  // `color` prop, unreachable by the .fc-expiry CSS class override — needs
+  // it before expiryLine is built just below.
+  const onColoredCard = isMe && !!(wallpaperBg || themeGradient);
   // Same color as the expiry line below — no background pill, just muted text
   // matching the existing "Expires in X days" color pattern in both themes.
-  const infoColor = isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.6)';
+  const infoColor = onColoredCard ? 'rgba(255,255,255,0.75)' : (isLight ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.6)');
 
   let expiryLine = null;
   if (expiresAt && !isExpired) {
@@ -186,7 +191,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
   // this card kept its plain white/dark surface regardless, since nothing
   // here ever looked at the theme at all. themeGradient/themeColor (passed
   // only for isMe) make this card and its accents follow suit.
-  const onColoredCard = isMe && !!(wallpaperBg || themeGradient);
+  // (onColoredCard itself is declared earlier, above infoColor.)
   const cardBg = wallpaperBg || themeGradient || (isLight ? '#ffffff' : (isMe ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)'));
   const cardBorder = (wallpaperBg || themeGradient) ? 'transparent' : (isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)'));
   const fileNameColor = onColoredCard ? '#ffffff' : (isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0'));
@@ -1443,8 +1448,15 @@ function ReadReceipt({ msg, isGroup, username, isLight }) {
               const avatar = r.avatar;
               const avatarSrc = getAvatarUrl(avatar);
               return (
-                <div 
-                  key={r.username} 
+                <div
+                  key={r.username}
+                  // stay-white: this letter sits on the brand-colored circle
+                  // above, never on a plain light-mode card, so it always
+                  // needs to read white — without this class, App.jsx's
+                  // light-mode stylesheet has a blanket rule that rewrites
+                  // any literal white inline color (this one included) to
+                  // near-black, same bug as the poll voter-avatar letter fix.
+                  className="stay-white"
                   style={{
                     marginLeft: idx > 0 ? -8 : 0,
                     border: isLight ? '1.5px solid #fff' : '1.5px solid var(--room-chat-bg, #0f0f1a)',
@@ -1470,7 +1482,8 @@ function ReadReceipt({ msg, isGroup, username, isLight }) {
               );
             })}
             {readers.length > 3 && (
-              <div 
+              <div
+                className="stay-white"
                 style={{
                   marginLeft: -8,
                   border: isLight ? '1.5px solid #fff' : '1.5px solid var(--room-chat-bg, #0f0f1a)',
@@ -1530,7 +1543,10 @@ function ReadReceipt({ msg, isGroup, username, isLight }) {
               const avatarSrc = getAvatarUrl(avatar);
               return (
                 <div key={r.username} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <div 
+                  {/* stay-white: same fallback-letter-on-brand-circle case as
+                      the avatar stack above. */}
+                  <div
+                    className="stay-white"
                     style={{
                       borderRadius: '50%',
                       overflow: 'hidden',
@@ -9079,13 +9095,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                     if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} isLight={isLight} />;
                                     const resolveAvatar = (u) => {
                                       const uname = (u || '').toLowerCase();
-                                      // My own vote: prefer the message's own senderAvatar (set
-                                      // when I'm the poll's sender and it came from the server),
-                                      // but our own optimistic send never carries one, and a
-                                      // group poll someone ELSE sent never carries mine at all —
-                                      // myAvatarUrl (fetched once above) covers both.
-                                      if (uname === myUsername.toLowerCase()) return getAvatarUrl(msg.senderAvatar) || myAvatarUrl;
+                                      // Check "is this voter the poll's SENDER" first — msg.
+                                      // senderAvatar is only ever that person's avatar, so using
+                                      // it for "is this voter me" instead (checked first) leaked
+                                      // the sender's own avatar onto MY vote on someone ELSE's
+                                      // poll whenever they happened to have one set.
                                       if (uname === (msg.senderName || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
+                                      // My own vote on a poll I did NOT send: our own optimistic
+                                      // send never carries a senderAvatar, and a group poll
+                                      // someone else sent never carries mine at all — myAvatarUrl
+                                      // (fetched once above) is the only correct source here.
+                                      if (uname === myUsername.toLowerCase()) return myAvatarUrl;
                                       if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) return getAvatarUrl(activeChat.partnerAvatar);
                                       return null;
                                     };
@@ -9869,8 +9889,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
           if (!poll) return null;
           const resolveAvatar = (u) => {
             const uname = (u || '').toLowerCase();
-            if (uname === myUsername.toLowerCase()) return getAvatarUrl(pollVotesTarget.senderAvatar) || myAvatarUrl;
+            // See the identical ordering comment on the poll bubble's own
+            // resolveAvatar above — sender check has to come first.
             if (uname === (pollVotesTarget.senderName || '').toLowerCase()) return getAvatarUrl(pollVotesTarget.senderAvatar);
+            if (uname === myUsername.toLowerCase()) return myAvatarUrl;
             if (activeChat?.type === 'private' && uname === (activeChat.partner || '').toLowerCase()) return getAvatarUrl(activeChat.partnerAvatar);
             return null;
           };
