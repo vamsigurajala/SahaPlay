@@ -3198,7 +3198,17 @@ app.post('/api/auth/google', async (req, res) => {
         replyTo: EMAILS.contact,
       });
 
-      return res.json({ message: 'Signup successful', token, username: finalUsername, needsKeySetup: true });
+      // isNewAccount: tells the frontend this account is freshly created with
+      // isVerified=0 — unlike every OTHER response this endpoint can return
+      // (an existing account already failed the isVerified===0 check above
+      // before reaching here), so it's the one case the frontend must NOT
+      // treat as an actual logged-in session yet. The token above is still
+      // handed back (short-lived, 10 min) purely so the client can call
+      // /api/auth/setup-keys to generate and upload this brand-new account's
+      // E2EE keypair right now — the one-time step that can't be deferred
+      // until after verification — without that upload being mistaken for
+      // "the user is now logged in".
+      return res.json({ message: 'Signup successful', token, username: finalUsername, needsKeySetup: true, isNewAccount: true });
     }
 
   } catch (error) {

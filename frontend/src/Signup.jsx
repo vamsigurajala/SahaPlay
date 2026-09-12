@@ -132,16 +132,29 @@ const Signup = () => {
       const { clearUserSession } = await import('./lib/authUtils.js');
       clearUserSession();
     } catch (e) {}
-    localStorage.setItem('watch_token', data.token);
-    localStorage.setItem('watch_username', data.username);
-    resyncPushTokenAfterLogin();
-    // useInactivityLogout only mounts on protected routes, so watch_last_activity can
-    // be stale from a session that ended 20+ minutes ago — reset it here so the first
-    // protected-route mount after this login doesn't immediately force-logout.
-    localStorage.setItem('watch_last_activity', String(Date.now()));
+    // isNewAccount (see /api/auth/google): this account was just created with
+    // isVerified=0 and a verification email on the way — it is NOT a logged-in
+    // session yet, unlike every other response this function handles (an
+    // existing unverified account is rejected with 403 before ever reaching
+    // here). Persisting a working token/username right now, before the
+    // passphrase step below even finishes, is exactly what let an unverified
+    // Google account use the app immediately: any other page's "already
+    // logged in" check only ever looks for this token's presence, never the
+    // server's isVerified flag it has no way to see. A password-account
+    // signup never touches localStorage until a real, isVerified-checked
+    // /api/login — deferred the same way here.
+    if (!data.isNewAccount) {
+      localStorage.setItem('watch_token', data.token);
+      localStorage.setItem('watch_username', data.username);
+      resyncPushTokenAfterLogin();
+      // useInactivityLogout only mounts on protected routes, so watch_last_activity can
+      // be stale from a session that ended 20+ minutes ago — reset it here so the first
+      // protected-route mount after this login doesn't immediately force-logout.
+      localStorage.setItem('watch_last_activity', String(Date.now()));
+    }
 
     if (data.needsKeySetup) {
-      setOauthModalCtx({ data, oauthLabel, isMigration: false });
+      setOauthModalCtx({ data, oauthLabel, isMigration: false, needsVerification: !!data.isNewAccount });
       setOauthModalMode('set');
     } else if (data.needsPassphraseMigration) {
       setOauthModalCtx({ data, oauthLabel, isMigration: true });
@@ -158,7 +171,7 @@ const Signup = () => {
   // 'set' view of OAuthEncryptionModal — covers both brand-new key creation and
   // migrating an existing legacy-wrapped key onto a passphrase.
   const handleOAuthSetPassphrase = async (passphrase) => {
-    const { data, isMigration, keyPair: providedKeyPair, phrase: providedPhrase } = oauthModalCtx;
+    const { data, isMigration, keyPair: providedKeyPair, phrase: providedPhrase, needsVerification } = oauthModalCtx;
     let keyPair = providedKeyPair;
     let phrase = providedPhrase ?? null;
     if (!keyPair) {
@@ -198,13 +211,20 @@ const Signup = () => {
     await setKeyPair(keyPair);
     setOauthModalMode(null);
     setOauthModalCtx(null);
-    window.dispatchEvent(new Event('login_success'));
+    // needsVerification (a brand-new, unverified Google account): no
+    // logged-in session actually exists yet — see the identical comment in
+    // completeOAuthSignup above — so don't announce one here either.
+    // handlePhraseConfirmed below still routes this case to /login with the
+    // "check your email" message once the recovery phrase is dismissed.
+    if (!needsVerification) window.dispatchEvent(new Event('login_success'));
 
     if (phrase) {
       setRecoveryPhrase(phrase);
       setShowRecoveryModal(true);
-    } else {
+    } else if (!needsVerification) {
       navigate('/');
+    } else {
+      navigate('/login', { state: { message: t('accountCreatedVerify', 'Account created! Please check your email to verify your account.') } });
     }
   };
 

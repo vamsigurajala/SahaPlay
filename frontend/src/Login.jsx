@@ -230,16 +230,26 @@ const Login = () => {
   //                               decrypt the stored blob locally.
   const completeOAuthLogin = async (data, oauthLabel) => {
     clearUserSession();
-    localStorage.setItem('watch_token', data.token);
-    localStorage.setItem('watch_username', data.username);
-    localStorage.setItem('watch_role', data.role || 'user');
-    resyncPushTokenAfterLogin();
-    // See handleLogin's comment above — resets the inactivity clock so the
-    // first protected-route mount after login doesn't see a stale timestamp.
-    localStorage.setItem('watch_last_activity', String(Date.now()));
+    // isNewAccount (see /api/auth/google): clicking "Continue with Google" on
+    // the LOGIN page for an email Google has never sent us before creates the
+    // account right here, same as the Signup page's own Google button would
+    // — and it's just as unverified. Persisting a working session before the
+    // passphrase step below finishes let that brand-new, unverified account
+    // straight into the app (any protected route only ever checks whether
+    // this token exists, never the server's isVerified flag) — deferred the
+    // same way Signup.jsx's completeOAuthSignup does.
+    if (!data.isNewAccount) {
+      localStorage.setItem('watch_token', data.token);
+      localStorage.setItem('watch_username', data.username);
+      localStorage.setItem('watch_role', data.role || 'user');
+      resyncPushTokenAfterLogin();
+      // See handleLogin's comment above — resets the inactivity clock so the
+      // first protected-route mount after login doesn't see a stale timestamp.
+      localStorage.setItem('watch_last_activity', String(Date.now()));
+    }
 
     if (data.needsKeySetup) {
-      setOauthModalCtx({ data, oauthLabel, isMigration: false });
+      setOauthModalCtx({ data, oauthLabel, isMigration: false, oauthPendingVerification: !!data.isNewAccount });
       setOauthModalMode('set');
     } else if (data.needsPassphraseMigration) {
       setOauthModalCtx({ data, oauthLabel, isMigration: true });
@@ -258,7 +268,7 @@ const Login = () => {
   // 'set' view of OAuthEncryptionModal — covers both brand-new key creation and
   // migrating an existing legacy-wrapped key onto a passphrase.
   const handleOAuthSetPassphrase = async (passphrase) => {
-    const { data, isMigration } = oauthModalCtx;
+    const { data, isMigration, oauthPendingVerification } = oauthModalCtx;
     let keyPair;
     let phrase = null;
     if (isMigration) {
@@ -296,14 +306,21 @@ const Login = () => {
     await setKeyPair(keyPair);
     setOauthModalMode(null);
     setOauthModalCtx(null);
-    window.dispatchEvent(new Event('login_success'));
+    // oauthPendingVerification (a brand-new, unverified Google account
+    // created right here — see completeOAuthLogin above): no logged-in
+    // session actually exists yet, so don't announce one. The recovery-
+    // phrase-confirmed handler below still routes this case to /login with
+    // the "check your email" message instead of straight into the app.
+    if (!oauthPendingVerification) window.dispatchEvent(new Event('login_success'));
 
     if (phrase) {
-      setPostRecoveryNav(safeNext || '/');
+      setPostRecoveryNav(oauthPendingVerification ? null : (safeNext || '/'));
       setRecoveryPhrase(phrase);
       setShowRecoveryModal(true);
-    } else {
+    } else if (!oauthPendingVerification) {
       navigate(safeNext || '/');
+    } else {
+      navigate('/login', { state: { message: t('accountCreatedVerify', 'Account created! Please check your email to verify your account.') } });
     }
   };
 
@@ -425,7 +442,15 @@ const Login = () => {
   const handlePhraseConfirmed = () => {
     setShowRecoveryModal(false);
     setRecoveryPhrase('');
-    navigate(postRecoveryNav);
+    // postRecoveryNav is null exactly for the brand-new, unverified Google
+    // account case (see handleOAuthSetPassphrase) — route to /login with the
+    // verify-email message instead of straight into the app, matching what
+    // a password-account signup already does.
+    if (postRecoveryNav === null) {
+      navigate('/login', { state: { message: t('accountCreatedVerify', 'Account created! Please check your email to verify your account.') } });
+    } else {
+      navigate(postRecoveryNav);
+    }
   };
 
   const handleGuestJoin = (e) => {
