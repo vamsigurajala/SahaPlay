@@ -9253,19 +9253,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               )}
 
                                 {activeReactionMsg === msg.id && !showAllEmojis && (
-                                  <div className="emoji-picker-container" style={isMediaOnly
-                                    // Media bubbles have no text to push down for — anchoring
-                                    // above the bubble (like a text message does) puts the picker
-                                    // a whole row away from what was actually tapped, past the
-                                    // sender name / previous message on a laptop/tablet-width
-                                    // panel. Laid directly over the media's own top edge instead.
-                                    // Always the LEFT corner (not conditioned on isMe like the
-                                    // rest of this file's overlays) — the top-RIGHT corner is
-                                    // the "..." hover menu's own spot (msg-hover-menu, just
-                                    // above), which a sent media message's react bar used to
-                                    // land right on top of.
-                                    ? {position:'absolute', top:8, left:8, zIndex:100}
-                                    : {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
+                                  <div className="emoji-picker-container" style={
+                                    // Media had its own on-the-image overlay position here
+                                    // (top-left, directly over the photo/video), added to
+                                    // dodge the panel's own edge — but that's what was
+                                    // hiding the picker for received media entirely (an
+                                    // ancestor along that overlay path clips/repaints under
+                                    // the media in some layouts) and put the SENT-media
+                                    // trigger on top of the message instead of outside it,
+                                    // unlike every other message type. Reverted to the same
+                                    // outside-the-bubble placement text/polls already use —
+                                    // it works there, so media (and documents/voice notes)
+                                    // now match instead of getting a special case.
+                                    {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
                                     <div style={{
                                       background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
                                       backdropFilter:'blur(12px)',
@@ -9337,34 +9337,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               </div>
                             )}
 
-                                                    <div style={isMediaOnly
-                                      // A media bubble commonly renders near the panel's own
-                                      // max-width (a laptop-embedded room/floating chat panel is
-                                      // much narrower than a full-width mobile screen), so
-                                      // floating this outside the bubble via left/right:100% (the
-                                      // plain-text branch below) had nowhere left to go — it ran
-                                      // past the panel's own edge and got clipped by its
-                                      // overflow. Overlay it on the media itself instead, at
-                                      // top-left — NOT bottom-right/bottom-left, which is
-                                      // already the tick's (sent) and the expiry badge's
-                                      // (received) own spot (see renderMedia's tick/expiresAt
-                                      // overlays), and not top-right, the "..." hover-menu's own
-                                      // corner. Same top-left spot the picker itself opens from
-                                      // (just below) — z-index:10 vs. the picker's 100 means it
-                                      // reads as sitting BEHIND the picker once it's open,
-                                      // instead of the two competing for the same corner.
-                                      ? {position:'absolute', top:4, left:4, opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}
-                                      : {position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className={`react-btn-${msg.id||i} react-btn-container`}>
-                              {/* Wallpaper active — stay fully white, not the dimmer
-                                  '#aaa' meant for plain dark mode, which still read as
-                                  too dark against a wallpaper backdrop. On a media overlay
-                                  (isMediaOnly), always white-on-a-dark-circle the same way
-                                  the "..." hover-menu button already treats itself, instead
-                                  of a background-less dark/grey icon that would disappear
-                                  against a photo. */}
-                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={isMediaOnly
-                                ? {background:'rgba(0,0,0,0.5)', backdropFilter:'blur(4px)', border:'none', borderRadius:'50%', width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#fff'}
-                                : {background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: activeWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#111' : '#aaa'),padding:2}}>
+                                                    <div style={
+                                      // Was overlaid on top of the media itself for isMediaOnly
+                                      // (top-left corner) to dodge the panel's own edge — but
+                                      // that's exactly the "on top of the message" placement the
+                                      // user reported, for sent media/documents/voice notes, as
+                                      // wrong: it should sit outside the bubble, the same way it
+                                      // already does for polls and plain text. Unified onto that
+                                      // one placement for every message type.
+                                      {position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: (activeReactionMsg === msg.id || hoveredRowId === (msg.id||i)) ? 1 : 0, transition: 'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className={`react-btn-${msg.id||i} react-btn-container`}>
+                              <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(activeReactionMsg===msg.id?null:msg.id); setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: activeWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#111' : '#aaa'),padding:2}}>
                                 <SmilePlus size={16}/>
                               </button>
                             </div>
