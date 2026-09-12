@@ -151,7 +151,17 @@ describe('CryptoContext mount-time key check — network failure must never mint
 
     render(<CryptoProvider><Probe /></CryptoProvider>);
 
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    // This branch really runs saveKeyToSession() -> encryptPrivateKey(), which
+    // derives its wrapping key via real PBKDF2-SHA256 at 600k iterations
+    // (crypto.js, OWASP 2024 guidance — deliberately slow, and must stay
+    // that way). Measured ~480-530ms solo but ~780-835ms under full-suite
+    // CPU contention (other test files' worker threads competing for CPU),
+    // which occasionally exceeded waitFor's default 1000ms and flaked this
+    // exact assertion — not a production bug, just too little timing margin
+    // around a genuinely slow, real crypto operation. Everything else in
+    // this file resolves in well under 100ms and doesn't need the same
+    // allowance.
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
     expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
   });
 });
