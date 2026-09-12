@@ -3553,7 +3553,15 @@ export default function RoomChatPanel({ p }) {
                     <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                   </div>
                 )}
-                <div id={`group-msg-${msg.id || msg.tempId || i}`} className={`msg-row${seenGroupMsgKeys.has(rowKey) ? '' : ' msg-enter'}`} style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)'}}
+                <div id={`group-msg-${msg.id || msg.tempId || i}`} className={`msg-row${seenGroupMsgKeys.has(rowKey) ? '' : ' msg-enter'}`} style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative',
+                  // z-index boost also covers an open reaction picker, not just the long-
+                  // press/dropdown menu — a message's own z-index:2 bubble stacking context
+                  // otherwise stays at the default tier, and its absolutely-positioned
+                  // picker (however high ITS OWN z-index is) can never out-stack a LATER
+                  // sibling row's equal-z-index bubble: a descendant's z-index only wins
+                  // comparisons made INSIDE its own ancestor's stacking context, never
+                  // against a completely different sibling stacking context.
+                  zIndex: (showLongPressMenu || activeMessageMenu === msg.id || p.activeReactionMsg === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)'}}
                      onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
                      onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
                      onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
@@ -3909,9 +3917,11 @@ export default function RoomChatPanel({ p }) {
                               // the bubble (like a text message does) puts the picker a whole
                               // row away from what was actually tapped, past the sender name /
                               // previous message on a laptop/tablet-width panel. Laid directly
-                              // over the media's own top edge instead, the same way the "..."
-                              // hover menu already overlays its corner (msg-hover-menu, above).
-                              ? {position:'absolute', top:8, [isMe?'right':'left']:8, zIndex:100}
+                              // over the media's own top edge instead. Always the LEFT corner
+                              // (not conditioned on isMe) — top-right is the "..." hover menu's
+                              // own spot (msg-hover-menu, above), which a sent media message's
+                              // react bar used to land right on top of.
+                              ? {position:'absolute', top:8, left:8, zIndex:100}
                               : {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
                               <div style={{
                                 background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
@@ -3991,11 +4001,14 @@ export default function RoomChatPanel({ p }) {
                             // full-width mobile screen), so floating this outside the bubble
                             // via left/right:100% (the plain-text branch below) had nowhere
                             // left to go — it ran past the panel's own edge and got clipped
-                            // by its overflow, same root cause as the "..." hover-menu's own
-                            // isMediaOnly branch above. Overlay it on the media itself
-                            // instead, at the opposite (bottom) corner from that menu so the
-                            // two never collide.
-                            ? {position:'absolute', bottom:4, [isMe?'right':'left']:4, opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}
+                            // by its overflow. Overlay it on the media itself instead, at
+                            // top-left — NOT bottom-right/bottom-left, which is already the
+                            // tick's (sent) and the expiry badge's (received) own spot, and
+                            // not top-right, the "..." hover-menu's own corner. Same top-left
+                            // spot the picker itself opens from (just below) — z-index:10 vs.
+                            // the picker's 100 means it reads as sitting BEHIND the picker
+                            // once it's open, instead of the two competing for the corner.
+                            ? {position:'absolute', top:4, left:4, opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}
                             : {position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
                             {/* Wallpaper active — stay fully white always, not just
                                 on hover: the mouseleave/idle color below (a
@@ -4697,7 +4710,10 @@ export default function RoomChatPanel({ p }) {
                           <div style={{flex:1,height:1,background:'rgba(128,128,128,0.25)'}}/>
                         </div>
                       )}
-                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className={`msg-row${seenDmMsgKeys.has(rowKey) ? '' : ' msg-enter'}`} style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative', zIndex: (showLongPressMenu || activeMessageMenu === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)'}}
+                      <div id={`dm-msg-${msg.id || msg.tempId || i}`} className={`msg-row${seenDmMsgKeys.has(rowKey) ? '' : ' msg-enter'}`} style={{display:'flex',flexDirection:'column',alignItems:isMe?'flex-end':'flex-start',gap:4, position: 'relative',
+                        // z-index boost also covers an open reaction picker — see the
+                        // identical comment on the group tab's own copy of this row.
+                        zIndex: (showLongPressMenu || activeMessageMenu === msg.id || p.activeReactionMsg === msg.id) ? 50 : undefined, background: (msgSelectMode && selectedMsgIds.has(rowKey)) ? (isLight ? 'rgba(var(--brand-1-rgb),0.10)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent', borderRadius: 12, padding: (msgSelectMode && selectedMsgIds.has(rowKey)) ? '4px 0' : 0, transition: timestampPeek.isPeeking ? 'background 0.15s ease' : 'background 0.15s ease, transform 0.25s cubic-bezier(0.22,1,0.36,1)'}}
                            onTouchStart={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchStart(e); timestampPeek.onTouchStart(e); } }}
                            onTouchMove={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchMove(e); timestampPeek.onTouchMove(e); } }}
                            onTouchEnd={(e) => { if (e.target === e.currentTarget) { rowSelectHandlers.onTouchEnd(e); timestampPeek.onTouchEnd(e); } }}>
@@ -4959,10 +4975,12 @@ export default function RoomChatPanel({ p }) {
                                     // above the bubble (like a text message does) puts the picker
                                     // a whole row away from what was actually tapped, past the
                                     // sender name / previous message on a laptop/tablet-width
-                                    // panel. Laid directly over the media's own top edge instead,
-                                    // the same way the "..." hover menu already overlays its
-                                    // corner (msg-hover-menu, just above).
-                                    ? {position:'absolute', top:8, [isMe?'right':'left']:8, zIndex:100}
+                                    // panel. Laid directly over the media's own top edge instead.
+                                    // Always the LEFT corner (not conditioned on isMe) — top-
+                                    // right is the "..." hover menu's own spot (msg-hover-menu,
+                                    // just above), which a sent media message's react bar used
+                                    // to land right on top of.
+                                    ? {position:'absolute', top:8, left:8, zIndex:100}
                                     : {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
                                     <div style={{
                                       background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
@@ -5033,7 +5051,7 @@ export default function RoomChatPanel({ p }) {
                                   <div style={isMediaOnly
                                     // See the identical comment on the group thread's
                                     // react-btn-container above — same fix, same reason.
-                                    ? {position:'absolute', bottom:4, [isMe?'right':'left']:4, opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}
+                                    ? {position:'absolute', top:4, left:4, opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}
                                     : {position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
                                     {/* Wallpaper active — see the identical comment on the
                                         group thread's react-btn; same fix, same reason. */}
