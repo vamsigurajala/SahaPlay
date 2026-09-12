@@ -11,7 +11,7 @@ import {
   Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
   SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, PhoneOff, Palette, Camera, BarChart2, ImageOff
 } from 'lucide-react';
-import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, isRgbColorDark } from '../lib/chatThemes';
+import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, getThemeSolidColor, isRgbColorDark } from '../lib/chatThemes';
 import { getMenuFloorY } from '../lib/chatMenuPlacement';
 import CameraCapture from './CameraCapture';
 import DoubleTapBurst from './DoubleTapBurst';
@@ -418,7 +418,7 @@ function MediaGrid({ items, forwarded, expiresAt, tick, onOpenItem, resolveUrl }
   );
 }
 
-function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded, wallpaperBg = null, wallpaperForceBlack = false }) {
+function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loading, tick, forwarded, wallpaperBg = null, wallpaperForceBlack = false, themeGradient = null, themeColor = null }) {
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const typeLabel = getFileTypeLabel(type, fileName);
@@ -455,21 +455,28 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
   // see renderMedia's wallpaperBg arg); its own text is repainted to match
   // by the .on-wallpaper CSS rules in MenuStyles regardless of what's
   // computed below.
-  const cardBg = wallpaperBg || (isLight ? '#ffffff' : (isMe ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)'));
-  const cardBorder = wallpaperBg ? 'transparent' : (isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)'));
-  const fileNameColor = isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0');
-  const subtitleColor = isLight ? 'rgba(0,0,0,0.65)' : (isMe ? 'rgba(255,255,255,0.65)' : '#888');
+  // A picked Chat Theme (a "Colors" gradient, not a wallpaper) gets the same
+  // treatment a sent text bubble already gets — see the matching comment on
+  // GlobalChatWidget.jsx's own copy of this component.
+  const onColoredCard = isMe && !!(wallpaperBg || themeGradient);
+  const cardBg = wallpaperBg || themeGradient || (isLight ? '#ffffff' : (isMe ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)'));
+  const cardBorder = (wallpaperBg || themeGradient) ? 'transparent' : (isLight ? 'rgba(0,0,0,0.1)' : (isMe ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.09)'));
+  const fileNameColor = onColoredCard ? '#ffffff' : (isLight ? '#000000' : (isMe ? '#fff' : '#e2e8f0'));
+  const subtitleColor = onColoredCard ? 'rgba(255,255,255,0.75)' : (isLight ? 'rgba(0,0,0,0.65)' : (isMe ? 'rgba(255,255,255,0.65)' : '#888'));
   // Zen Interior sent card: the download icon is an SVG `color` prop, not a
   // CSS `color` style — the .fc-name/.fc-sub class-based override above
   // (which uses !important to win the wallpaper-forces-white cascade war)
   // can't reach it, so it needs its own explicit dark value here instead of
   // the white this branch normally picks for a dark-app-mode sent bubble.
-  const dlColor = isLight ? 'var(--brand-2-darker)' : (isMe ? (wallpaperForceBlack ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)') : 'var(--brand-1-light)');
-  const iconCircleBg = isLight ? `${iconBg}22` : iconBg;
-  const iconColor = isLight ? iconBg : '#fff';
+  const dlColor = onColoredCard ? 'rgba(255,255,255,0.85)' : (isLight ? 'var(--brand-2-darker)' : (isMe ? (wallpaperForceBlack ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)') : 'var(--brand-1-light)'));
+  const iconCircleBg = onColoredCard ? iconBg : (isLight ? `${iconBg}22` : iconBg);
+  const iconColor = onColoredCard ? '#fff' : (isLight ? iconBg : '#fff');
+  // App.jsx's light-mode .fc-name/.fc-sub/.fc-expiry overrides read these —
+  // see the matching comment on GlobalChatWidget.jsx's own copy.
+  const themeTextVars = onColoredCard ? { '--fc-name-c': '#ffffff', '--fc-sub-c': 'rgba(255,255,255,0.75)', '--fc-dl-c': 'rgba(255,255,255,0.85)' } : {};
 
   return (
-    <div style={{ background: cardBg, borderRadius: 10, padding: '10px 12px', minWidth: 200, maxWidth: 250, border: `1px solid ${cardBorder}`, marginTop: 2 }}>
+    <div style={{ background: cardBg, borderRadius: 10, padding: '10px 12px', minWidth: 200, maxWidth: 250, border: `1px solid ${cardBorder}`, marginTop: 2, ...themeTextVars }}>
       {forwarded && (
         <div className="fc-expiry" style={{ fontSize: 9, color: infoColor, WebkitTextFillColor: infoColor, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4 }}>
           <Forward size={8} color={infoColor} style={{ flexShrink: 0 }} />Forwarded
@@ -506,7 +513,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
 // One voice note plays at a time across the room chat panel
 const _vnReg_rcp = { el: null, pauseFn: null };
 
-function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperBg = null, wallpaperForceBlack = false }) {
+function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwarded, wallpaperBg = null, wallpaperForceBlack = false, themeGradient = null, themeColor = null }) {
   const [duration, setDuration] = React.useState(0);
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
@@ -649,31 +656,38 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     } catch { toast.error('Download failed'); }
   };
 
-  // Same per-theme reasoning as loadBg above.
-  const bubbleBg = wallpaperBg || (isMe
+  // Same per-theme reasoning as loadBg above — plus a picked Chat Theme
+  // color, same as FileCard above.
+  const onColoredCard = isMe && !!(wallpaperBg || themeGradient);
+  const bubbleBg = wallpaperBg || themeGradient || (isMe
     ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.15)')
     : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)'));
-  const playedColor = 'var(--brand-2)';
+  const playedColor = themeColor || 'var(--brand-2)';
   // Waveform bars (a `background` fill) and the download icon (an SVG
   // `color` prop) aren't reachable by the .rcp-vn-time-style class override
   // — that only wins the cascade war for actual CSS `color` on classed text
   // nodes — so Zen Interior's forced-black sent bubble needs these two
   // computed explicitly instead of the white a dark-app-mode sent bubble
   // normally gets.
-  const unplayedColor = isMe
-    ? ((isLight || wallpaperForceBlack) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
-    : ((isLight || wallpaperForceBlack) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)');
+  const unplayedColor = onColoredCard
+    ? 'rgba(255,255,255,0.35)'
+    : (isMe
+      ? ((isLight || wallpaperForceBlack) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)')
+      : ((isLight || wallpaperForceBlack) ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.3)'));
   const timeColor = isMe
     ? (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)')
     : (isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)');
-  const dlColor = isMe
-    ? ((isLight || wallpaperForceBlack) ? 'var(--brand-1)' : 'rgba(255,255,255,0.7)')
-    : (isLight ? 'var(--brand-2-dark)' : 'var(--brand-2-light)');
+  const dlColor = onColoredCard
+    ? 'rgba(255,255,255,0.85)'
+    : (isMe
+      ? ((isLight || wallpaperForceBlack) ? 'var(--brand-1)' : 'rgba(255,255,255,0.7)')
+      : (isLight ? 'var(--brand-2-dark)' : 'var(--brand-2-light)'));
   // Before play: show total duration. While playing or paused mid-track: show elapsed.
   const displayTime = (playing || currentTime > 0) ? fmtDur(currentTime) : fmtDur(duration);
+  const themeTextVars = onColoredCard ? { '--fc-sub-c': 'rgba(255,255,255,0.75)' } : {};
 
   return (
-    <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 200, marginTop: 2 }}>
+    <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 200, marginTop: 2, ...themeTextVars }}>
       {forwarded && (
         <div className="rcp-vn-expiry" style={{ fontSize: 9, color: timeColor, WebkitTextFillColor: timeColor, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4 }}>
           <Forward size={8} color={timeColor} style={{ flexShrink: 0 }} />Forwarded
@@ -683,7 +697,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button onClick={toggle} style={{ background: 'var(--brand-2)', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+        <button onClick={toggle} style={{ background: themeColor || 'var(--brand-2)', border: 'none', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
           {playing ? <Pause size={12} color="#fff" fill="#fff" /> : <Play size={12} color="#fff" fill="#fff" />}
         </button>
         <div
@@ -2660,7 +2674,7 @@ export default function RoomChatPanel({ p }) {
     setLightbox(null);
   };
 
-  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false, flush = false, wallpaperBg = null, wallpaperForceBlack = false) => {
+  const renderMedia = (url, type, isMe, fileName, fileSize, expiresAt, allMessages, decryptedUrlsRef, loading, msg, hideTick = false, flush = false, wallpaperBg = null, wallpaperForceBlack = false, themeGradient = null, themeColor = null) => {
     if (!url && !type) return null;
     const isImg = type?.startsWith('image/');
     const isVid = type?.startsWith('video/');
@@ -2682,9 +2696,9 @@ export default function RoomChatPanel({ p }) {
     // surface in light mode only — dark mode keeps the original white tick unchanged.
     const voiceTick = (isMe && msg && !hideTick) ? <MessageTick msg={msg} username={p.username} isLight={effIsLight} onLightSurface={effIsLight} /> : null;
 
-    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={wallpaperForceBlack} />;
+    if (isAudio) return <AudioPlayerBubble url={url} expiresAt={expiresAt} isMe={isMe} isLight={effIsLight} loading={loading} tick={voiceTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={wallpaperForceBlack} themeGradient={isMe ? themeGradient : null} themeColor={isMe ? themeColor : null} />;
 
-    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={wallpaperForceBlack} />;
+    if (!isImg && !isVid) return <FileCard url={url} type={type} fileName={fileName} fileSize={fileSize} isMe={isMe} isLight={effIsLight} expiresAt={expiresAt} loading={loading} tick={cardTick} forwarded={msg?.forwarded} wallpaperBg={wallpaperBg} wallpaperForceBlack={wallpaperForceBlack} themeGradient={isMe ? themeGradient : null} themeColor={isMe ? themeColor : null} />;
 
     if (!url) {
       // 300/320 (not the old 220/200) — matches roughly what WhatsApp renders
@@ -3450,7 +3464,7 @@ export default function RoomChatPanel({ p }) {
                   resolveUrl={(it) => resolveDecryptedUrl(it, p.groupDecryptedMediaUrls)}
                   onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.groupMessages, p.groupDecryptedMediaUrls)}
                 />
-              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly, groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) : null, groupWallpaperIsZen);
+              ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.groupMessages, p.groupDecryptedMediaUrls, isDecryptingGroup, msg, !isMediaOnly, !isMediaOnly, groupWallpaper ? (groupWallpaperColor || groupWallpaper.brightColor) : null, groupWallpaperIsZen, (isMe && isGroupCustomTheme && !groupWallpaper) ? groupTheme.gradient : null, (isMe && isGroupCustomTheme && !groupWallpaper) ? getThemeSolidColor(groupTheme) : null);
               // Secondary/meta UI (sender name, timestamp, Reply, Flag, react
               // button, read receipt) sits directly on the wallpaper backdrop,
               // not inside the bubble — the backdrop always has a dark scrim
@@ -3737,6 +3751,7 @@ export default function RoomChatPanel({ p }) {
                                     // Same white-on-wallpaper rule as fc-name/rcp-vn-*.
                                     isLight={isLight && !groupWallpaper}
                                     resolveAvatar={resolveAvatar}
+                                    accentColor={(isMe && isGroupCustomTheme && !groupWallpaper) ? getThemeSolidColor(groupTheme) : null}
                                   />
                                 );
                               })()
@@ -4549,7 +4564,7 @@ export default function RoomChatPanel({ p }) {
                         resolveUrl={(it) => resolveDecryptedUrl(it, p.dmDecryptedMediaUrls)}
                         onOpenItem={(it, url) => openLightboxAt(url, it.mediaType, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls)}
                       />
-                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly, dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) : null, dmWallpaperIsZen);
+                    ) : renderMedia(resolvedMedia, msg.mediaType, isMe, msg._fileName || msg.mediaFileName, msg._fileSize || msg.mediaFileSize, msg.mediaExpiresAt, p.dmThreads[p.dmTarget?.toLowerCase()] || [], p.dmDecryptedMediaUrls, isDecryptingDm, msg, !isMediaOnly, !isMediaOnly, dmWallpaper ? (dmWallpaperColor || dmWallpaper.brightColor) : null, dmWallpaperIsZen, (isMe && isDMCustomTheme && !dmWallpaper) ? dmTheme.gradient : null, (isMe && isDMCustomTheme && !dmWallpaper) ? getThemeSolidColor(dmTheme) : null);
                     // See the identical comment on the group thread's
                     // metaIsLight above — same reason.
                     const metaIsLight = isLight && !dmWallpaper;
@@ -4736,6 +4751,7 @@ export default function RoomChatPanel({ p }) {
                                           // Same white-on-wallpaper rule as fc-name/rcp-vn-*.
                                           isLight={isLight && !dmWallpaper}
                                           resolveAvatar={resolveAvatar}
+                                          accentColor={(isMe && isDMCustomTheme && !dmWallpaper) ? getThemeSolidColor(dmTheme) : null}
                                         />
                                       );
                                     })()

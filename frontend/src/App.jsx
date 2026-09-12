@@ -500,8 +500,8 @@ function App() {
         -webkit-text-fill-color: rgba(15,23,42,0.55) !important;
       }
       html[data-theme='light'] .msg-sent .poll-view-votes {
-        color: var(--brand-1-light) !important;
-        -webkit-text-fill-color: var(--brand-1-light) !important;
+        color: var(--poll-accent-c, var(--brand-1-light)) !important;
+        -webkit-text-fill-color: var(--poll-accent-c, var(--brand-1-light)) !important;
       }
 
       /* ── Navbar, panels, cards – force bg to white/light ── */
@@ -935,27 +935,54 @@ function App() {
          light/dark toggle (see GlobalChatWidget.jsx/RoomChatPanel.jsx's own
          ".on-wallpaper .fc-name"-style rules), and this rule was winning
          over that one on ties since it's a global rule with no reliable
-         ordering relative to a component-local <style> tag. */
-      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-name { color: #111827 !important; }
-      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-sub { color: #374151 !important; }
-      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-expiry-warn { color: #d97706 !important; }
-      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-expiry-ok { color: #9ca3af !important; }
+         ordering relative to a component-local <style> tag.
+
+         Each also needs -webkit-text-fill-color, not just color: the earlier
+         ".stay-white, .msg-sent, .msg-sent *" rule above forces BOTH
+         properties to white on every sent-bubble descendant, and
+         -webkit-text-fill-color (when present) wins over color for the
+         actual painted glyph — setting color alone here won that property's
+         cascade war but the text still rendered white, i.e. completely
+         invisible on this card's white background. .fc-expiry itself
+         (the plain class the component actually renders — the '-warn'/'-ok'
+         suffixed selectors below don't match anything real) had no override
+         here at all, so it never even won the color property. Uses the CSS variables
+         FileCard/AudioPlayerBubble set on their own root when a Chat Theme
+         color is active, so a themed sent card's text follows that theme
+         (falling back to these same original defaults when no theme/
+         wallpaper is set — see getThemeSolidColor's doc comment). */
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-name {
+        color: var(--fc-name-c, #111827) !important;
+        -webkit-text-fill-color: var(--fc-name-c, #111827) !important;
+      }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-sub {
+        color: var(--fc-sub-c, #374151) !important;
+        -webkit-text-fill-color: var(--fc-sub-c, #374151) !important;
+      }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-expiry {
+        color: var(--fc-sub-c, rgba(0,0,0,0.62)) !important;
+        -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.62)) !important;
+      }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-expiry-warn { color: #d97706 !important; -webkit-text-fill-color: #d97706 !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-expiry-ok { color: #9ca3af !important; -webkit-text-fill-color: #9ca3af !important; }
       html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-dl,
-      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-dl * { color: var(--brand-2-darker) !important; }
-      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .media-expiry-warn { color: #d97706 !important; }
-      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .media-expiry-ok { color: #666666 !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .fc-dl * { color: var(--fc-dl-c, var(--brand-2-darker)) !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .media-expiry-warn { color: #d97706 !important; -webkit-text-fill-color: #d97706 !important; }
+      html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .media-expiry-ok { color: #666666 !important; -webkit-text-fill-color: #666666 !important; }
 
       /* Voice note text overrides inside message bubbles in light mode — see
-         the :not(.on-wallpaper) comment just above. */
+         the :not(.on-wallpaper) comment just above. Reuses --fc-sub-c (set
+         alongside FileCard's own vars — see AudioPlayerBubble) so a themed
+         sent voice note's time/expiry follow the theme the same way. */
       html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-time,
       html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-time * {
-        color: rgba(0,0,0,0.6) !important;
-        -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
+        color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important;
+        -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important;
       }
       html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-expiry,
       html[data-theme='light'] .msg-bubble:not(.on-wallpaper) .rcp-vn-expiry * {
-        color: rgba(0,0,0,0.6) !important;
-        -webkit-text-fill-color: rgba(0,0,0,0.6) !important;
+        color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important;
+        -webkit-text-fill-color: var(--fc-sub-c, rgba(0,0,0,0.6)) !important;
       }
 
       /* Restore colors for action icons inside dropdowns with better contrast */

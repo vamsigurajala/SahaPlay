@@ -623,6 +623,25 @@ export function findWallpaper(id) {
   return CHAT_WALLPAPERS.find(w => w.id === id) || null;
 }
 
+// A CHAT_THEMES entry only defines a gradient (for the sent-bubble
+// background) — plenty of sent-side accents elsewhere aren't a bubble at
+// all and can't sensibly show a gradient: a poll's selected-option border,
+// a voice note's play button, a file card's icon/download color. Those
+// hardcoded var(--brand-1)/var(--brand-2) regardless of which theme was
+// picked, so choosing anything but Default never showed up on them. This
+// derives one solid accent color per theme straight from its own gradient
+// (its last stop — every gradient above is ordered darkest-to-lightest, so
+// this is each theme's brightest, most legible-as-a-solid-fill color)
+// instead of hand-authoring a 13th property on every entry that could
+// drift out of sync with the gradient itself. 'default' deliberately
+// returns null so every call site's existing `themeColor || 'var(--brand-1)')`
+// fallback keeps Default looking exactly as it always has.
+export function getThemeSolidColor(theme) {
+  if (!theme || theme.id === 'default') return null;
+  const hexStops = theme.gradient.match(/#[0-9a-fA-F]{3,8}/g);
+  return hexStops && hexStops.length ? hexStops[hexStops.length - 1] : null;
+}
+
 // getWallpaperDominantColor returns an 'rgb(r, g, b)' string — this pulls the
 // numbers back out to decide whether that color reads as dark or light, so
 // bubble text/background choices can follow the actual extracted color

@@ -9,7 +9,7 @@ import { Check } from 'lucide-react';
 // `pollVotes` is the plain (never-encrypted) { username: [optionIndex,...] }
 // map straight off the message — see the poll_votes column comment in
 // server.js for why that field alone is safe to leave unencrypted.
-export default function PollBubble({ poll, pollVotes, myUsername, onVote, onViewVotes, isLight, resolveAvatar }) {
+export default function PollBubble({ poll, pollVotes, myUsername, onVote, onViewVotes, isLight, resolveAvatar, accentColor = null }) {
   if (!poll || !Array.isArray(poll.options)) return null;
 
   const votes = pollVotes || {};
@@ -37,9 +37,20 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
   const subColor = isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.55)';
   const trackColor = isLight ? 'rgba(15,23,42,0.09)' : 'rgba(255,255,255,0.14)';
   const optionBg = isLight ? 'rgba(15,23,42,0.03)' : 'rgba(255,255,255,0.045)';
+  // A selected option's own highlight (border/background/checkbox/leading-
+  // bar) is the one thing on this otherwise-neutral card that's always
+  // brand-purple regardless of which Chat Theme color is picked — this is
+  // the accent those pick up instead when the caller (a sent message with
+  // a non-default theme) passes one; unset (received, or Default theme)
+  // keeps today's plain var(--brand-1)/var(--brand-2) exactly as before.
+  const accent = accentColor || 'var(--brand-1)';
+  const accentSoftBg = accentColor ? `${accentColor}1a` : `rgba(var(--brand-1-rgb),${isLight ? '0.1' : '0.18'})`;
 
   return (
-    <div style={{ minWidth: 220, maxWidth: 280 }}>
+    // --poll-accent-c: read by App.jsx's light-mode .poll-view-votes
+    // override (which otherwise can't reach this text color — see the
+    // .stay-white cascade-war comment on poll-question above).
+    <div style={{ minWidth: 220, maxWidth: 280, ...(accentColor ? { '--poll-accent-c': accentColor } : {}) }}>
       {/* App.jsx's runtime light-mode stylesheet has a blanket
           `html[data-theme='light'] .msg-sent, .msg-sent * { color: #fff
           !important; -webkit-text-fill-color: #fff !important; }` rule —
@@ -74,8 +85,8 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
               onClick={() => toggle(i)}
               style={{
                 display: 'flex', flexDirection: 'column', gap: 6, width: '100%', textAlign: 'left',
-                background: selected ? (isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(var(--brand-1-rgb),0.18)') : optionBg,
-                border: `1.5px solid ${selected ? 'var(--brand-1)' : trackColor}`,
+                background: selected ? (accentColor ? accentSoftBg : (isLight ? 'rgba(var(--brand-1-rgb),0.1)' : 'rgba(var(--brand-1-rgb),0.18)')) : optionBg,
+                border: `1.5px solid ${selected ? accent : trackColor}`,
                 borderRadius: 12, padding: '9px 12px', cursor: 'pointer',
               }}
             >
@@ -83,8 +94,8 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
                 <div style={{
                   width: 18, height: 18, flexShrink: 0,
                   borderRadius: poll.allowMultiple ? 5 : '50%',
-                  border: `2px solid ${selected ? 'var(--brand-1)' : subColor}`,
-                  background: selected ? 'var(--brand-1)' : 'transparent',
+                  border: `2px solid ${selected ? accent : subColor}`,
+                  background: selected ? accent : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {selected && <Check size={12} color="#fff" strokeWidth={3} />}
@@ -103,7 +114,7 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
                 <div style={{ height: 4, borderRadius: 2, background: trackColor, overflow: 'hidden' }}>
                   <div style={{
                     height: '100%', width: `${pct}%`, borderRadius: 2,
-                    background: isLeading ? 'linear-gradient(90deg,var(--brand-1),var(--brand-2))' : subColor,
+                    background: isLeading ? (accentColor || 'linear-gradient(90deg,var(--brand-1),var(--brand-2))') : subColor,
                     transition: 'width 0.3s ease',
                   }} />
                 </div>
