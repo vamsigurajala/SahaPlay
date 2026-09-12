@@ -40,21 +40,22 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
 
   return (
     <div style={{ minWidth: 220, maxWidth: 280 }}>
-      {/* A sent bubble's own .stay-white class (msg-sent, no wallpaper) forces
-          -webkit-text-fill-color: #fff !important on this whole card to keep
-          its normal gradient background legible — but a poll's background is
-          this neutral white/dark card regardless of isMe (above), so that
-          forced white fill made a SENT poll's text invisible against its own
-          white card in light mode while a received poll (no .stay-white)
-          rendered fine. -webkit-text-fill-color wins over color for painted
-          glyphs and isn't reset by a child's own `color` alone, only by the
-          child setting its own -webkit-text-fill-color — every text element
-          below does that explicitly so sent and received polls render
-          identically in both themes. */}
-      <div style={{ fontWeight: 800, fontSize: 15, color: textColor, WebkitTextFillColor: textColor, marginBottom: 4, wordBreak: 'break-word' }}>
+      {/* App.jsx's runtime light-mode stylesheet has a blanket
+          `html[data-theme='light'] .msg-sent, .msg-sent * { color: #fff
+          !important; -webkit-text-fill-color: #fff !important; }` rule —
+          right, for the normal colored-gradient sent bubble, but a poll's
+          card is neutral white/dark regardless of sender (see the isPoll
+          background override), and that external !important rule beats any
+          inline color/WebkitTextFillColor this component sets (inline
+          styles only win over a NON-important external rule). The classes
+          below (poll-question/-subtitle/-option-label/-count/-view-votes)
+          give App.jsx's stylesheet something specific enough to carve a
+          poll-only exception out of that blanket rule — see the matching
+          override there. Keep any className here in sync with that file. */}
+      <div className="poll-question" style={{ fontWeight: 800, fontSize: 15, color: textColor, WebkitTextFillColor: textColor, marginBottom: 4, wordBreak: 'break-word' }}>
         {poll.question}
       </div>
-      <div style={{ fontSize: 11, color: subColor, WebkitTextFillColor: subColor, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 10 }}>
+      <div className="poll-subtitle" style={{ fontSize: 11, color: subColor, WebkitTextFillColor: subColor, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 10 }}>
         <Check size={11} />
         {poll.allowMultiple ? 'Select one or more' : 'Select one'}
       </div>
@@ -88,13 +89,13 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
                 }}>
                   {selected && <Check size={12} color="#fff" strokeWidth={3} />}
                 </div>
-                <span style={{ flex: 1, fontSize: 13.5, color: textColor, WebkitTextFillColor: textColor, fontWeight: selected ? 700 : 500 }}>{label}</span>
+                <span className="poll-option-label" style={{ flex: 1, fontSize: 13.5, color: textColor, WebkitTextFillColor: textColor, fontWeight: selected ? 700 : 500 }}>{label}</span>
                 {count > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     {voterUsernames.slice(0, 3).map((u, idx) => (
                       <VoterAvatar key={u} username={u} avatar={resolveAvatar?.(u)} style={{ marginLeft: idx > 0 ? -8 : 0, zIndex: 3 - idx }} />
                     ))}
-                    <span style={{ fontSize: 12, color: subColor, WebkitTextFillColor: subColor, fontWeight: 700, marginLeft: 2 }}>{count}</span>
+                    <span className="poll-count" style={{ fontSize: 12, color: subColor, WebkitTextFillColor: subColor, fontWeight: 700, marginLeft: 2 }}>{count}</span>
                   </div>
                 )}
               </div>
@@ -114,6 +115,7 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
 
       {totalVoters > 0 && (
         <button
+          className="poll-view-votes"
           onClick={onViewVotes}
           style={{
             marginTop: 10, background: 'transparent', border: 'none', color: 'var(--brand-1-light)', WebkitTextFillColor: 'var(--brand-1-light)',

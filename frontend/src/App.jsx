@@ -480,6 +480,29 @@ function App() {
         -webkit-text-fill-color: #ffffff !important;
       }
 
+      /* ── Poll cards are a neutral white/dark surface regardless of sender
+         (see PollBubble.jsx's isPoll background override) — the blanket
+         .msg-sent * rule just above doesn't know that, and forced a SENT
+         poll's text to the same white it forces on a normal gradient sent
+         bubble, making it invisible against the poll's own white card. A
+         RECEIVED poll (no .msg-sent ancestor) never hit that rule, which is
+         why only sent polls broke. Carve the poll's own text classes back
+         out to the same colors PollBubble already computes for isLight. ── */
+      html[data-theme='light'] .msg-sent .poll-question,
+      html[data-theme='light'] .msg-sent .poll-option-label {
+        color: #0f172a !important;
+        -webkit-text-fill-color: #0f172a !important;
+      }
+      html[data-theme='light'] .msg-sent .poll-subtitle,
+      html[data-theme='light'] .msg-sent .poll-count {
+        color: rgba(15,23,42,0.55) !important;
+        -webkit-text-fill-color: rgba(15,23,42,0.55) !important;
+      }
+      html[data-theme='light'] .msg-sent .poll-view-votes {
+        color: var(--brand-1-light) !important;
+        -webkit-text-fill-color: var(--brand-1-light) !important;
+      }
+
       /* ── Navbar, panels, cards – force bg to white/light ── */
       html[data-theme='light'] nav,
       html[data-theme='light'] [style*="background: rgba(255,255,255,0.02)"]:not(.gcw-force-dark):not(.gcw-force-dark *),
