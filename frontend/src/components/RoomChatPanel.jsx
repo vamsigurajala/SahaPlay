@@ -3448,7 +3448,12 @@ export default function RoomChatPanel({ p }) {
             )}
             {p.groupMessages.length===0 && (
               p.groupHistoryReady ? (
-                <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color:'#444',gap:8}}><MessageSquare size={36} opacity={0.2}/><p style={{margin:0,fontSize:13}}>{t('sayHi', 'No messages yet. Say hi!')}</p></div>
+                // White regardless of theme once a chat background is active — the plain
+                // dark-grey default disappeared against a wallpaper image in both light
+                // and dark mode, same fix as GlobalChatWidget.jsx's own copy of this text.
+                // stay-white escapes App.jsx's light-mode "rewrite literal white back to
+                // near-black" rule.
+                <div className={groupWallpaper ? 'stay-white' : ''} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',color: groupWallpaper ? '#fff' : '#444',gap:8}}><MessageSquare size={36} opacity={0.2}/><p style={{margin:0,fontSize:13}}>{t('sayHi', 'No messages yet. Say hi!')}</p></div>
               ) : (
                 <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center'}}><Loader2 size={24} style={{ color: 'var(--brand-1)', animation: 'spin 1s linear infinite' }} /></div>
               )

@@ -8627,7 +8627,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     <div style={{ width: 20, height: 20, border: '2px solid rgba(var(--brand-1-rgb),0.2)', borderTop: '2px solid var(--brand-1)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
                   </div>
                 ) : (
-                  <div style={{ textAlign: 'center', color: '#888', marginTop: 20, fontSize: 13 }}>No messages yet. Say hi!</div>
+                  // A chat background sits behind this empty state the same way it does
+                  // behind every message — the plain grey default read fine on the app's
+                  // own flat background, but disappeared against a busy/dark wallpaper
+                  // image in both light and dark mode. White regardless of theme once a
+                  // wallpaper is active, same as the message text painted on top of it.
+                  // stay-white: App.jsx's light-mode stylesheet has a blanket rule that
+                  // rewrites any literal white inline color back to near-black — same
+                  // escape hatch the poll/avatar-letter text already needs.
+                  <div className={activeWallpaper ? 'stay-white' : ''} style={{ textAlign: 'center', color: activeWallpaper ? '#fff' : '#888', marginTop: 20, fontSize: 13 }}>No messages yet. Say hi!</div>
                 )
               ) : (
                 (() => {
