@@ -3842,6 +3842,8 @@ export default function RoomChatPanel({ p }) {
                                     isLight={isLight && !groupWallpaper}
                                     resolveAvatar={resolveAvatar}
                                     accentColor={(isMe && isGroupCustomTheme && !groupWallpaper) ? getThemeSolidColor(groupTheme) : null}
+                                    isMe={isMe}
+                                    wallpaperActive={!!groupWallpaper}
                                   />
                                 );
                               })()
@@ -4865,6 +4867,8 @@ export default function RoomChatPanel({ p }) {
                                           isLight={isLight && !dmWallpaper}
                                           resolveAvatar={resolveAvatar}
                                           accentColor={(isMe && isDMCustomTheme && !dmWallpaper) ? getThemeSolidColor(dmTheme) : null}
+                                          isMe={isMe}
+                                          wallpaperActive={!!dmWallpaper}
                                         />
                                       );
                                     })()

@@ -9,7 +9,7 @@ import { Check } from 'lucide-react';
 // `pollVotes` is the plain (never-encrypted) { username: [optionIndex,...] }
 // map straight off the message — see the poll_votes column comment in
 // server.js for why that field alone is safe to leave unencrypted.
-export default function PollBubble({ poll, pollVotes, myUsername, onVote, onViewVotes, isLight, resolveAvatar, accentColor = null }) {
+export default function PollBubble({ poll, pollVotes, myUsername, onVote, onViewVotes, isLight, resolveAvatar, accentColor = null, isMe = false, wallpaperActive = false }) {
   if (!poll || !Array.isArray(poll.options)) return null;
 
   const votes = pollVotes || {};
@@ -40,8 +40,20 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
   // inventing new ones) is what makes a themed poll in light mode "look
   // like dark mode", same as the user asked.
   const themed = !!accentColor;
-  const textColor = themed ? '#ffffff' : (isLight ? '#0f172a' : '#fff');
-  const subColor = themed ? 'rgba(255,255,255,0.55)' : (isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.55)');
+  // A selected chat BACKGROUND (wallpaper), not just a Colors-tab theme, also
+  // pushes a poll's card off plain white/dark — sent and received alike get
+  // the wallpaper's own opaque dominant color as their card background (see
+  // the isPoll background override in GlobalChatWidget/RoomChatPanel), so
+  // dark question/subtitle/option text stopped being reliably readable there
+  // too. For MY OWN sent poll this forces the full white-on-dark text set,
+  // same as a picked Colors theme (forceWhiteText); a received poll only
+  // forces the small "Select one" check icon (forceWhiteIcon) — the one
+  // piece the user reported, without changing everything else about how a
+  // received poll reads.
+  const forceWhiteText = themed || (isMe && wallpaperActive);
+  const forceWhiteIcon = forceWhiteText || wallpaperActive;
+  const textColor = forceWhiteText ? '#ffffff' : (isLight ? '#0f172a' : '#fff');
+  const subColor = forceWhiteText ? 'rgba(255,255,255,0.55)' : (isLight ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.55)');
   const trackColor = themed ? 'rgba(255,255,255,0.14)' : (isLight ? 'rgba(15,23,42,0.09)' : 'rgba(255,255,255,0.14)');
   const optionBg = themed ? 'rgba(255,255,255,0.045)' : (isLight ? 'rgba(15,23,42,0.03)' : 'rgba(255,255,255,0.045)');
   // A selected option's own highlight (border/background/checkbox/leading-
@@ -62,7 +74,7 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
     // (plain white) rather than the accentColor itself — the user asked for
     // that link to always read white on a themed card, not tinted to match
     // the theme the way the selected-option border/checkbox/leading-bar do.
-    <div style={{ minWidth: 220, maxWidth: 280, ...(themed ? { '--poll-heading-c': '#ffffff', '--poll-sub-c': 'rgba(255,255,255,0.55)' } : {}) }}>
+    <div style={{ minWidth: 220, maxWidth: 280, ...(forceWhiteText ? { '--poll-heading-c': '#ffffff', '--poll-sub-c': 'rgba(255,255,255,0.55)' } : {}) }}>
       {/* App.jsx's runtime light-mode stylesheet has a blanket
           `html[data-theme='light'] .msg-sent, .msg-sent * { color: #fff
           !important; -webkit-text-fill-color: #fff !important; }` rule —
@@ -74,12 +86,20 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
           below (poll-question/-subtitle/-option-label/-count/-view-votes)
           give App.jsx's stylesheet something specific enough to carve a
           poll-only exception out of that blanket rule — see the matching
-          override there. Keep any className here in sync with that file. */}
-      <div className="poll-question" style={{ fontWeight: 800, fontSize: 15, color: textColor, WebkitTextFillColor: textColor, marginBottom: 4, wordBreak: 'break-word' }}>
+          override there. Keep any className here in sync with that file.
+          stay-white (added only when forceWhiteText/forceWhiteIcon): a
+          SEPARATE light-mode rule elsewhere in App.jsx rewrites any inline
+          semi-transparent/plain white text color back to near-black — the
+          same one VoterAvatar's own initial letter below already has to
+          dodge. That rule (unlike the .msg-sent-scoped one above) applies
+          regardless of sender, which is exactly why a received poll's own
+          "Select one" check icon needed it too, not just a themed/
+          wallpapered sent poll's full text. */}
+      <div className={`poll-question${forceWhiteText ? ' stay-white' : ''}`} style={{ fontWeight: 800, fontSize: 15, color: textColor, WebkitTextFillColor: textColor, marginBottom: 4, wordBreak: 'break-word' }}>
         {poll.question}
       </div>
-      <div className="poll-subtitle" style={{ fontSize: 11, color: subColor, WebkitTextFillColor: subColor, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 10 }}>
-        <Check size={11} />
+      <div className={`poll-subtitle${forceWhiteText ? ' stay-white' : ''}`} style={{ fontSize: 11, color: subColor, WebkitTextFillColor: subColor, display: 'flex', alignItems: 'center', gap: 4, marginBottom: 10 }}>
+        <span className={forceWhiteIcon ? 'stay-white' : ''} style={{ display: 'flex' }}><Check size={11} /></span>
         {poll.allowMultiple ? 'Select one or more' : 'Select one'}
       </div>
 
@@ -112,7 +132,7 @@ export default function PollBubble({ poll, pollVotes, myUsername, onVote, onView
                 }}>
                   {selected && <Check size={12} color="#fff" strokeWidth={3} />}
                 </div>
-                <span className="poll-option-label" style={{ flex: 1, fontSize: 13.5, color: textColor, WebkitTextFillColor: textColor, fontWeight: selected ? 700 : 500 }}>{label}</span>
+                <span className={`poll-option-label${forceWhiteText ? ' stay-white' : ''}`} style={{ flex: 1, fontSize: 13.5, color: textColor, WebkitTextFillColor: textColor, fontWeight: selected ? 700 : 500 }}>{label}</span>
                 {count > 0 && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     {voterUsernames.slice(0, 3).map((u, idx) => (

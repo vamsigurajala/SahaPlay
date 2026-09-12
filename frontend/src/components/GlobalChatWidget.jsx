@@ -9177,6 +9177,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                         isLight={isLight && !activeWallpaper}
                                         resolveAvatar={resolveAvatar}
                                         accentColor={(isMe && isCustomTheme && !activeWallpaper) ? getThemeSolidColor(activeTheme) : null}
+                                        isMe={isMe}
+                                        wallpaperActive={!!activeWallpaper}
                                       />
                                     );
                                   })()
