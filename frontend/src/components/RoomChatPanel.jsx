@@ -1442,6 +1442,14 @@ export default function RoomChatPanel({ p }) {
   const composerFocusedRef = React.useRef(false);
   const groupWrapperRef = React.useRef(null);
   const dmWrapperRef = React.useRef(null);
+  // Real wall-clock time this client FIRST rendered each still-encrypted media message:
+  // msgKey -> Date.now(), lazily stamped at that first render — see the identical comment
+  // on GlobalChatWidget.jsx's own mediaDecryptStartedAt. Fixes the same "Couldn't load"
+  // flash on reopen/reload: isDecryptingGroup/isDecryptingDm used to measure elapsed time
+  // against the message's original send timestamp, which is always long expired the
+  // instant a history message is decrypted, instead of against when this client actually
+  // started trying to decrypt it (effectively "now", the first time it's rendered unresolved).
+  const mediaDecryptStartedAt = React.useRef({});
   useVisualViewportResize(() => {
     // Belt-and-suspenders on top of composerFocusedRef: Android doesn't
     // always fire a real blur event when the keyboard is dismissed by a
@@ -3494,7 +3502,9 @@ export default function RoomChatPanel({ p }) {
               // Videos (up to 50MB) genuinely take longer to fetch+decrypt than the
               // 30s window images/audio/files need — see the matching comment in
               // GlobalChatWidget.jsx's isDecrypting.
-              const isDecryptingGroup = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < ((msg.mediaType || '').startsWith('video/') ? 120000 : 30000);
+              const groupMsgKey = msg.id || msg.tempId || String(msg.timestamp);
+              if (!resolvedMedia && !mediaDecryptStartedAt.current[groupMsgKey]) mediaDecryptStartedAt.current[groupMsgKey] = Date.now();
+              const isDecryptingGroup = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - (mediaDecryptStartedAt.current[groupMsgKey] || Number(msg.timestamp))) < ((msg.mediaType || '').startsWith('video/') ? 120000 : 30000);
               const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
               // Computed once so it can be placed either before the caption row
               // (captioned media — image on top) or after it (media-only, unchanged
@@ -4637,7 +4647,9 @@ export default function RoomChatPanel({ p }) {
                       p.dmDecryptedMediaUrls.current[String(msg.timestamp)]
                     )) || msg._localMediaUrl || ((msg.mediaUrl && msg.mediaUrl.startsWith('blob:')) ? msg.mediaUrl : (msg.nonce ? null : msg.mediaUrl));
                     // See the matching comment on isDecryptingGroup above.
-                    const isDecryptingDm = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - Number(msg.timestamp)) < ((msg.mediaType || '').startsWith('video/') ? 120000 : 30000);
+                    const dmMsgKey = msg.id || msg.tempId || String(msg.timestamp);
+                    if (!resolvedMedia && !mediaDecryptStartedAt.current[dmMsgKey]) mediaDecryptStartedAt.current[dmMsgKey] = Date.now();
+                    const isDecryptingDm = !resolvedMedia && !!msg.nonce && !!msg.mediaType && (Date.now() - (mediaDecryptStartedAt.current[dmMsgKey] || Number(msg.timestamp))) < ((msg.mediaType || '').startsWith('video/') ? 120000 : 30000);
                     const isMediaOnly = !!(msg.mediaType && (!msg.decryptedText || msg.decryptedText === '') && (!msg.message || !msg.message.trim() || msg.nonce || msg.e2ee || looksLikeCiphertext(msg.message)));
                     // Computed once — see the identical comment on the group thread's
                     // groupMediaNode above.

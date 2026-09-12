@@ -2693,6 +2693,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const decryptedMediaUrls = useRef({});
   // Incremented after each async media decrypt to force a re-render that picks up the new blob URL
   const [mediaUrlVersion, setMediaUrlVersion] = useState(0);
+  // Real wall-clock time this client FIRST rendered each still-encrypted media message:
+  // msgKey -> Date.now(), lazily stamped at that first render (see the isDecrypting check
+  // below). The "still decrypting, show a spinner" render check used to measure elapsed time
+  // against the MESSAGE's own timestamp (when it was originally sent) instead of against when
+  // this client actually started trying to decrypt it — fine for a message that just arrived
+  // over the socket, but every message loaded from history is already minutes/days old the
+  // instant it's decrypted, so that check read as "decrypt window expired" before the real
+  // fetch+decrypt (which kicks off in that same first-render instant) had any chance to
+  // finish, flashing "Couldn't load" for the second or two the fetch genuinely takes on every
+  // reopen/reload.
+  const mediaDecryptStartedAt = useRef({});
   // Tracks the most recently sent tempId per partner so that stale server echoes (message 1's
   // server timestamp may exceed the client-optimistic timestamp of message 2) don't revert the
   // sidebar preview to an older message.
@@ -8766,7 +8777,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     // audio/files need, which was flipping isDecrypting false (and the
                     // placeholder to "couldn't load") while the decrypt was still in flight.
                     const decryptWindowMs = isVid ? 120000 : 30000;
-                    const isDecrypting = !resolvedUrl && !!msg.nonce && (Date.now() - Number(msg.timestamp)) < decryptWindowMs;
+                    // Measured from the first time THIS client ever rendered this message
+                    // without a resolved URL (mediaDecryptStartedAt — lazily stamped right
+                    // here, the moment that happens), not from msg.timestamp (when it was
+                    // originally sent). The background fetch+decrypt (see the async IIFEs
+                    // above) kicks off in that same instant, so this is effectively "how
+                    // long has the decrypt actually had to run" — but every message loaded
+                    // from history is already old by the time it's decrypted, so timing off
+                    // the send timestamp instead made isDecrypting read false (and flashed
+                    // the "Couldn't load" placeholder) immediately on every reopen/reload,
+                    // even though the real fetch had only just begun.
+                    if (!resolvedUrl && !mediaDecryptStartedAt.current[msgKey]) mediaDecryptStartedAt.current[msgKey] = Date.now();
+                    const decryptStartedAt = mediaDecryptStartedAt.current[msgKey] || Number(msg.timestamp);
+                    const isDecrypting = !resolvedUrl && !!msg.nonce && (Date.now() - decryptStartedAt) < decryptWindowMs;
                     return renderMedia(
                       resolvedUrl,
                       mt,
@@ -9252,40 +9275,37 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 </div>
                               )}
 
-                                {activeReactionMsg === msg.id && !showAllEmojis && (
-                                  <div className="emoji-picker-container" style={
-                                    // Media had its own on-the-image overlay position here
-                                    // (top-left, directly over the photo/video), added to
-                                    // dodge the panel's own edge — but that's what was
-                                    // hiding the picker for received media entirely (an
-                                    // ancestor along that overlay path clips/repaints under
-                                    // the media in some layouts) and put the SENT-media
-                                    // trigger on top of the message instead of outside it,
-                                    // unlike every other message type. Reverted to the same
-                                    // outside-the-bubble placement text/polls already use —
-                                    // it works there, so media (and documents/voice notes)
-                                    // now match instead of getting a special case.
-                                    {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
-                                    <div style={{
-                                      background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
-                                      backdropFilter:'blur(12px)',
-                                      border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
-                                      borderRadius: 30,
-                                      padding:'6px 8px',
-                                      display:'flex',
-                                      alignItems:'center',
-                                      gap:6,
-                                      width:'max-content',
-                                      boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
-                                    }}>
-                                      {(QUICK_EMOJIS).map(em=>(
-                                        <button key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
-                                      ))}
-                                      <button onClick={(e)=>{e.stopPropagation(); setActiveReactionMsg(msg.id); setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:12,width:26,height:26,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#000' : '#fff',WebkitTextFillColor: isLight ? '#000' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={14} color={isLight ? '#000' : '#fff'} style={{ color: isLight ? '#000' : '#fff', WebkitTextFillColor: isLight ? '#000' : '#fff' }}/></button>
-                                    </div>
-                                  </div>
-                                )}
                             </div>
+                            {/* Moved OUT of .msg-bubble (was nested inside it, right before
+                                the closing tag above) — a captioned media bubble sets
+                                overflow:'hidden' on itself (to clip the flush image to its
+                                own rounded corners), which was silently clipping this whole
+                                picker away for any message with BOTH media and a caption,
+                                even though the trigger button below (already a sibling out
+                                here) opened it correctly. Siblings of .msg-bubble, like
+                                long-press-menu/react-btn-container just below, aren't
+                                inside that overflow:hidden box, so it's now visible again. */}
+                            {activeReactionMsg === msg.id && !showAllEmojis && (
+                              <div className="emoji-picker-container" style={{position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
+                                <div style={{
+                                  background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
+                                  backdropFilter:'blur(12px)',
+                                  border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                                  borderRadius: 30,
+                                  padding:'6px 8px',
+                                  display:'flex',
+                                  alignItems:'center',
+                                  gap:6,
+                                  width:'max-content',
+                                  boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
+                                }}>
+                                  {(QUICK_EMOJIS).map(em=>(
+                                    <button key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
+                                  ))}
+                                  <button onClick={(e)=>{e.stopPropagation(); setActiveReactionMsg(msg.id); setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:12,width:26,height:26,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#000' : '#fff',WebkitTextFillColor: isLight ? '#000' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={14} color={isLight ? '#000' : '#fff'} style={{ color: isLight ? '#000' : '#fff', WebkitTextFillColor: isLight ? '#000' : '#fff' }}/></button>
+                                </div>
+                              </div>
+                            )}
                             {showLongPressMenu && (
                               <div className="long-press-menu" style={{
                                 position:'absolute',
