@@ -5095,8 +5095,16 @@ const Room = () => {
     // through here) never reached them live; they had to refresh to see it.
     const handleMessageEdited = ({ messageId, message: newMessage, senderMessage, nonce, ephemeralPublicKey, keys, editedAt }) => {
       const idStr = String(messageId);
+      // A captioned media message's decrypted plaintext is the packed
+      // {k: mediaKeyB64, c: caption} envelope (see editGroupMessage/
+      // editDmMessage / packMediaKeyAndCaption) — only the caption half is
+      // ever shown here; the key isn't needed again since the media itself
+      // was already decrypted once at initial render and stays cached.
+      // Without this, an edited caption on a media message would render as
+      // the literal '{"k":"...","c":"..."}' JSON string on screen.
       const decryptFor = (existing) => {
-        if (!nonce) return newMessage;
+        const extractCaption = (plain) => (existing.mediaType ? unpackMediaKeyAndCaption(plain).caption : plain);
+        if (!nonce) return existing.mediaType ? existing.decryptedText : newMessage;
         if (!myKeyPair.current) return existing.decryptedText;
         try {
           if (keys) {
@@ -5104,13 +5112,16 @@ const Room = () => {
             const myEncKey = keys[myLower] || Object.entries(keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
             if (!myEncKey || !ephemeralPublicKey) return existing.decryptedText;
             const senderPubKey = decodeBase64(ephemeralPublicKey);
-            return decryptGroupMessage(newMessage, nonce, myEncKey, senderPubKey, myKeyPair.current.secretKey) ?? CORRUPTED_EDIT_PLACEHOLDER;
+            const plain = decryptGroupMessage(newMessage, nonce, myEncKey, senderPubKey, myKeyPair.current.secretKey);
+            return plain != null ? extractCaption(plain) : CORRUPTED_EDIT_PLACEHOLDER;
           }
           if (existing.isMe && senderMessage) {
-            return decryptDMSenderCopy(senderMessage, nonce, ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey)) ?? existing.decryptedText;
+            const plain = decryptDMSenderCopy(senderMessage, nonce, ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey));
+            return plain != null ? extractCaption(plain) : existing.decryptedText;
           }
           if (!existing.isMe && ephemeralPublicKey) {
-            return decryptDM(newMessage, nonce, ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey)) ?? existing.decryptedText;
+            const plain = decryptDM(newMessage, nonce, ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey));
+            return plain != null ? extractCaption(plain) : existing.decryptedText;
           }
         } catch (err) {
           console.warn('[E2EE] message:edited decrypt failed:', err);
@@ -7189,10 +7200,41 @@ const Room = () => {
       return;
     }
 
+    // A captioned media message's "message" field packs the media
+    // DECRYPTION KEY together with the caption (packMediaKeyAndCaption) —
+    // encrypting the edited caption alone would silently throw that key
+    // away, permanently breaking this image/video for everyone (the only
+    // copy of it lived in the ciphertext this edit is about to overwrite).
+    // The sender is always included in their own message's key map (see
+    // encryptGroupMessage), so re-derive it the same way render already
+    // decrypts this user's own group messages, and re-pack it with the
+    // new caption before encrypting.
+    let textToEncrypt = newText;
+    if (target.mediaType) {
+      let existingMediaKeyB64 = null;
+      try {
+        if (target.e2ee?.keys && target.e2ee?.senderPublicKey) {
+          const myLower = username?.toLowerCase();
+          const myKeyWrap = target.e2ee.keys[myLower] || Object.entries(target.e2ee.keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
+          if (myKeyWrap) {
+            const plain = decryptGroupMessage(target.message, target.e2ee.nonce || target.nonce, myKeyWrap, decodeBase64(target.e2ee.senderPublicKey), myKeyPair.current.secretKey);
+            if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
+          }
+        }
+      } catch (err) {
+        console.error('[E2EE] Could not preserve media key while editing group caption:', err);
+      }
+      if (!existingMediaKeyB64) {
+        toast.error("Couldn't verify this media's encryption key — reopen the room and try again.");
+        return;
+      }
+      textToEncrypt = packMediaKeyAndCaption(existingMediaKeyB64, newText);
+    }
+
     let encryptedPayload = null;
     try {
       const recipients = await ensureFreshGroupRecipients();
-      encryptedPayload = encryptGroupMessage(newText, recipients, myKeyPair.current, username);
+      encryptedPayload = encryptGroupMessage(textToEncrypt, recipients, myKeyPair.current, username);
     } catch (err) {
       console.warn('[E2EE] Group edit encrypt failed:', err);
     }
@@ -7833,6 +7875,32 @@ const Room = () => {
       return;
     }
 
+    // A captioned media message's "message" field packs the media
+    // DECRYPTION KEY together with the caption (packMediaKeyAndCaption) —
+    // encrypting the edited caption alone would silently throw that key
+    // away, permanently breaking this image/video for everyone (the only
+    // copy of it lived in the ciphertext this edit is about to overwrite).
+    // Re-derive it the same way render already decrypts this user's own
+    // sent DM media (via senderMessage), and re-pack it with the new
+    // caption before encrypting.
+    let textToEncrypt = newText;
+    if (target.mediaType) {
+      let existingMediaKeyB64 = null;
+      try {
+        if (target.senderMessage) {
+          const plain = decryptDMSenderCopy(target.senderMessage, target.nonce, target.ephemeralPublicKey, encodeBase64(myKeyPair.current.secretKey));
+          if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
+        }
+      } catch (err) {
+        console.error('[E2EE] Could not preserve media key while editing DM caption:', err);
+      }
+      if (!existingMediaKeyB64) {
+        toast.error("Couldn't verify this media's encryption key — reopen the chat and try again.");
+        return;
+      }
+      textToEncrypt = packMediaKeyAndCaption(existingMediaKeyB64, newText);
+    }
+
     const targetLower = dmTarget.toLowerCase();
     let isEncrypted = false;
     let messagePayload = '';
@@ -7843,20 +7911,20 @@ const Room = () => {
     try {
       const cachedKey = dbPublicKeys.current[targetLower];
       if (cachedKey && cachedKey.length === 32) {
-        const enc = encryptDM(newText, encodeBase64(cachedKey), encodeBase64(myKeyPair.current.publicKey));
+        const enc = encryptDM(textToEncrypt, encodeBase64(cachedKey), encodeBase64(myKeyPair.current.publicKey));
         messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
       }
       if (!isEncrypted) {
         const targetUser = userList.find(u => u.username?.toLowerCase() === targetLower);
         if (targetUser?.publicKey) {
-          const enc = encryptDM(newText, targetUser.publicKey, encodeBase64(myKeyPair.current.publicKey));
+          const enc = encryptDM(textToEncrypt, targetUser.publicKey, encodeBase64(myKeyPair.current.publicKey));
           messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
         }
       }
       if (!isEncrypted) {
         const localPK = localStorage.getItem(`wt_pk_${targetLower}`);
         if (localPK) {
-          const enc = encryptDM(newText, localPK, encodeBase64(myKeyPair.current.publicKey));
+          const enc = encryptDM(textToEncrypt, localPK, encodeBase64(myKeyPair.current.publicKey));
           messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
         }
       }
@@ -7865,7 +7933,7 @@ const Room = () => {
         if (pkRes.ok) {
           const pkData = await pkRes.json();
           if (pkData.publicKey) {
-            const enc = encryptDM(newText, pkData.publicKey, encodeBase64(myKeyPair.current.publicKey));
+            const enc = encryptDM(textToEncrypt, pkData.publicKey, encodeBase64(myKeyPair.current.publicKey));
             messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
           }
         }

@@ -3402,7 +3402,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
     const handleRemoteEdit = ({ messageId, message: newMessage, senderMessage, nonce, ephemeralPublicKey, keys, editedAt }) => {
       setMessages(prev => prev.map(m => {
         if (!flexibleMatch(messageId, m)) return m;
-        let decryptedText = newMessage;
+        // A captioned media message's decrypted plaintext is the packed
+        // {k: mediaKeyB64, c: caption} envelope (see commitEditedText /
+        // packMediaKeyAndCaption) — only the caption half is ever shown
+        // here; the key isn't needed again since the media itself was
+        // already decrypted once at initial render and stays cached.
+        // Without this, an edited caption on a media message would render
+        // as the literal '{"k":"...","c":"..."}' JSON string on screen.
+        const extractCaption = (plain) => (m.mediaType ? unpackMediaKeyAndCaption(plain).caption : plain);
+        let decryptedText = m.mediaType ? m.decryptedText : newMessage;
         if (nonce && keyPair) {
           try {
             if (keys) {
@@ -3410,14 +3418,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
               const myEncKey = keys[myLower] || Object.entries(keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
               if (myEncKey && ephemeralPublicKey) {
                 const senderPubKey = decodeBase64(ephemeralPublicKey);
-                decryptedText = decryptGroupMessage(newMessage, nonce, myEncKey, senderPubKey, keyPair.secretKey) ?? CORRUPTED_EDIT_PLACEHOLDER;
+                const plain = decryptGroupMessage(newMessage, nonce, myEncKey, senderPubKey, keyPair.secretKey);
+                decryptedText = plain != null ? extractCaption(plain) : CORRUPTED_EDIT_PLACEHOLDER;
               } else {
                 decryptedText = m.decryptedText;
               }
             } else if (m.isMe && senderMessage) {
-              decryptedText = decryptDMSenderCopy(senderMessage, nonce, ephemeralPublicKey, encodeBase64(keyPair.secretKey)) ?? m.decryptedText;
+              const plain = decryptDMSenderCopy(senderMessage, nonce, ephemeralPublicKey, encodeBase64(keyPair.secretKey));
+              decryptedText = plain != null ? extractCaption(plain) : m.decryptedText;
             } else if (!m.isMe && ephemeralPublicKey) {
-              decryptedText = decryptDM(newMessage, nonce, ephemeralPublicKey, encodeBase64(keyPair.secretKey)) ?? m.decryptedText;
+              const plain = decryptDM(newMessage, nonce, ephemeralPublicKey, encodeBase64(keyPair.secretKey));
+              decryptedText = plain != null ? extractCaption(plain) : m.decryptedText;
             }
           } catch (err) {
             console.warn('[E2EE] chat:message_edited decrypt failed:', err);
@@ -5842,7 +5853,44 @@ const GlobalChatWidget = React.memo(forwardRef(({
     if (!newText.trim() || !target || !activeChat) return;
     const idStr = String(target.id);
 
-    let messagePayload = newText;
+    // A captioned media message's "message" field packs the media
+    // DECRYPTION KEY together with the caption (packMediaKeyAndCaption) —
+    // encrypting the edited caption alone, as this function used to,
+    // silently threw that key away: the only copy of it lived in the
+    // ciphertext this PUT is about to overwrite, permanently breaking
+    // that image/video for everyone (not recoverable by reopening —
+    // the key really is gone from the row). Re-derive the existing key
+    // from what this sender can already decrypt of their own message
+    // (the same senderMessage/group-key-map paths render already uses),
+    // and re-pack it with the new caption before encrypting, exactly the
+    // envelope a normal send already uses.
+    let textToEncrypt = newText;
+    if (target.mediaType) {
+      try {
+        let existingMediaKeyB64 = null;
+        if (activeChat.type === 'private' && keyPair && target.senderMessage) {
+          const plain = decryptDMSenderCopy(target.senderMessage, target.nonce, target.ephemeralPublicKey, encodeBase64(keyPair.secretKey));
+          if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
+        } else if (activeChat.type === 'room' && keyPair && target.e2ee?.keys && target.e2ee?.senderPublicKey) {
+          const myKeyWrap = target.e2ee.keys[myUsername?.toLowerCase()];
+          if (myKeyWrap) {
+            const plain = decryptGroupMessage(target.message, target.nonce, myKeyWrap, decodeBase64(target.e2ee.senderPublicKey), keyPair.secretKey);
+            if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
+          }
+        }
+        if (!existingMediaKeyB64) {
+          toast.error("Couldn't verify this media's encryption key — reopen the chat and try again.");
+          return;
+        }
+        textToEncrypt = packMediaKeyAndCaption(existingMediaKeyB64, newText);
+      } catch (err) {
+        console.error('[E2EE] Could not preserve media key while editing caption:', err);
+        toast.error('Could not save this caption — the image/video would have been lost.');
+        return;
+      }
+    }
+
+    let messagePayload = textToEncrypt;
     let senderMessagePayload = undefined;
     let nonceValue = undefined;
     let ephemeralKey = undefined;
@@ -5861,7 +5909,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
           toast.error('Could not find recipient encryption key.');
           return;
         }
-        const enc = encryptDM(newText, targetPubKey, encodeBase64(keyPair.publicKey));
+        const enc = encryptDM(textToEncrypt, targetPubKey, encodeBase64(keyPair.publicKey));
         messagePayload = enc.ciphertext;
         senderMessagePayload = enc.senderCiphertext;
         nonceValue = enc.nonce;
@@ -5880,7 +5928,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
           const pkData = await pkRes.json();
           const recipients = pkData.keys.map(k => ({ username: k.username, publicKey: robustDecode(k.publicKey) }));
           try {
-            const enc = encryptGroupMessage(newText, recipients, keyPair, myUsername);
+            const enc = encryptGroupMessage(textToEncrypt, recipients, keyPair, myUsername);
             messagePayload = enc.ciphertext;
             nonceValue = enc.nonce;
             e2eeKeysGroup = enc.keys;
@@ -8937,7 +8985,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                   width) — the caption+tick row further below renders after it
                                   instead of before, so it lands underneath, not on top. */}
                               {(msg.mediaType && !isMediaOnly) && mediaNode}
-                              <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, minWidth: 0, ...(msg.mediaType && !isMediaOnly ? { padding: '6px 10px 8px' } : {}) }}>
+                              {/* maxWidth:300 matches renderMedia's own hard-coded image cap
+                                  (see the mediaNode wrapper's maxWidth:300). Without it, a long
+                                  caption's max-content width (its full unwrapped line length) is
+                                  what this flex COLUMN auto-sizes to — align-items:stretch then
+                                  stretched the image wrapper along for the ride, so the whole
+                                  bubble (border/background included) visibly grew past the
+                                  image's own 300px, with the caption spilling out unwrapped
+                                  alongside it. Capping this row's own contribution to the
+                                  column's width forces the caption to actually wrap at 300px,
+                                  the same width the image already renders at. */}
+                              <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, minWidth: 0, ...(msg.mediaType && !isMediaOnly ? { padding: '6px 10px 8px', maxWidth: 300 } : {}) }}>
                               <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                                 {!msg.mediaType && msg.forwarded && (
                                   <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>

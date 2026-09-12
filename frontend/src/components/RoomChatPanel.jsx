@@ -3704,7 +3704,11 @@ export default function RoomChatPanel({ p }) {
                               width) — the caption+tick row below renders after it instead
                               of before, so it lands underneath, not on top. */}
                           {(msg.mediaType && !isMediaOnly) && groupMediaNode}
-                          <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, minWidth: 0, ...(msg.mediaType && !isMediaOnly ? { padding: '5px 8px 6px' } : {}) }}>
+                          {/* maxWidth:300 matches renderMedia's own hard-coded image cap — see
+                              the matching comment in GlobalChatWidget.jsx's own copy of this
+                              row for why the caption otherwise stretches the whole bubble past
+                              the image's rendered width instead of wrapping under it. */}
+                          <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, minWidth: 0, ...(msg.mediaType && !isMediaOnly ? { padding: '5px 8px 6px', maxWidth: 300 } : {}) }}>
                           <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                             {!msg.mediaType && msg.forwarded && (
                               <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
@@ -4697,7 +4701,12 @@ export default function RoomChatPanel({ p }) {
                                     width) — the caption+tick row below renders after it
                                     instead of before, so it lands underneath, not on top. */}
                                 {(msg.mediaType && !isMediaOnly) && dmMediaNode}
-                                <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, minWidth: 0, ...(msg.mediaType && !isMediaOnly ? { padding: '5px 8px 6px' } : {}) }}>
+                                {/* maxWidth:300 matches renderMedia's own hard-coded image cap —
+                                    see the matching comment in GlobalChatWidget.jsx's own copy of
+                                    this row for why the caption otherwise stretches the whole
+                                    bubble past the image's rendered width instead of wrapping
+                                    under it. */}
+                                <div style={{ display: isMediaOnly ? 'contents' : 'flex', alignItems: 'flex-end', columnGap: 6, minWidth: 0, ...(msg.mediaType && !isMediaOnly ? { padding: '5px 8px 6px', maxWidth: 300 } : {}) }}>
                                 <div style={{ flex: isMediaOnly ? undefined : '0 1 auto', minWidth: 0 }}>
                                   {!msg.mediaType && msg.forwarded && (
                                     <div style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontStyle:'italic', opacity:0.75, marginBottom:2 }}>
