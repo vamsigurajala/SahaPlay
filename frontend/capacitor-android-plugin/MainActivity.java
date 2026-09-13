@@ -2,6 +2,7 @@ package com.sahaplay.app;
 
 import android.os.Bundle;
 import android.webkit.WebSettings;
+import android.webkit.WebView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -48,6 +49,19 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Debugging-only, no security/behavior impact: a signed release
+        // build (assembleRelease, what CI ships) does NOT mirror WebView
+        // console.log/warn/error output to logcat, and chrome://inspect
+        // can't attach to its WebView either, by default — only a
+        // debuggable (non-release) build normally gets this. Turning it on
+        // unconditionally here is the standard, documented way to keep
+        // that visibility in a release build too; it does not affect
+        // Keystore/biometric/E2EE logic or expose any secret — it only
+        // controls whether the OS *lets a debugger attach to this WebView
+        // at all*, which still requires the developer to have adb/USB or
+        // wireless-debugging access to the device itself.
+        WebView.setWebContentsDebuggingEnabled(true);
+
         registerPlugin(SahaplayMediaPlugin.class);
         registerPlugin(SahaplayCallPlugin.class);
         registerPlugin(SahaplayE2eePlugin.class);
