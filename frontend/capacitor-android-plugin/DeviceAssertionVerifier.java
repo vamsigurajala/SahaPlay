@@ -38,10 +38,20 @@ public class DeviceAssertionVerifier {
     // rotating it requires a coordinated backend env var change + app
     // release (any assertion signed under a rotated key needs the matching
     // updated public key here to verify) — not expected to change casually.
+    // Rotated 2026-09-14: the original private half was never actually
+    // persisted anywhere outside a since-lost conversation turn, so
+    // DEVICE_ASSERTION_PRIVATE_KEY was never actually configured in
+    // production — the real, confirmed root cause of "device unlock never
+    // enrolls" on a real Android install (POST /api/auth/device-enrollment-
+    // assertion returned 503 every time). This is the PUBLIC half of a
+    // freshly generated, verified-working (sign/verify round-trip tested)
+    // replacement keypair; the private half was generated once, handed to
+    // the developer to set as Render's DEVICE_ASSERTION_PRIVATE_KEY, and is
+    // not stored anywhere in this repo or its history.
     private static final String PUBLIC_KEY_PEM =
         "-----BEGIN PUBLIC KEY-----\n" +
-        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGhhowSpCepod2ujqL8DlJzrNrMwP\n" +
-        "EhbgtHAJcAxBeS/uoRllNrGozFOWF03ao+uVvqn42Qth+wdOhMDkqhIX8A==\n" +
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmA5i9Ms9M7bHCP/t0lSHLhia+PUd\n" +
+        "D9JH3TzJFYXsXm+5NoAk8i1JkmKhG99hhS4dtvz9BKKEOaMFGuj4RnZ36Q==\n" +
         "-----END PUBLIC KEY-----";
 
     private static final Pattern PEM_STRIP = Pattern.compile("-----(BEGIN|END) PUBLIC KEY-----|\\s");
