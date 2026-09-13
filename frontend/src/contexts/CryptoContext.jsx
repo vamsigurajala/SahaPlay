@@ -14,6 +14,61 @@ import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { generateKeyPair, saveKeyToSession, loadKeyFromSession, clearSessionKey, decryptPrivateKey, encryptPrivateKey, encryptGuestKey, decryptGuestKey } from '../lib/crypto.js';
 import { API } from '../lib/api';
+import { isCapacitorApp } from '../lib/platform';
+import {
+  isDeviceUnlockAvailable,
+  unlockDeviceKey,
+  setupDeviceUnlock as nativeSetupDeviceUnlock,
+  clearDeviceUnlock as nativeClearDeviceUnlock,
+  hasDeviceUnlock as nativeHasDeviceUnlock,
+} from '../lib/deviceUnlock.js';
+
+// Stage 4 integration point. Attempted ONLY from the specific cold-start
+// spots below (never on a warm in-memory/sessionStorage key) — see
+// deviceUnlock.js's own doc comment for why this never accepts/derives an
+// accountId itself, and SahaplayE2eePlugin.java's class comment for the
+// account-binding incident this design is built to prevent.
+//
+// This function is the ONE place CryptoContext trusts a device-unlock
+// result: it independently re-derives the public key from the recovered
+// secret key (nacl.box.keyPair.fromSecretKey, the exact same helper every
+// other key-restore path in this file already uses) and compares it
+// against `serverPublicKeyB64` — the account's ACTUAL public key, as just
+// confirmed by the server in the same request that established the account
+// has a key at all. deviceUnlock.js deliberately does not do this
+// comparison itself (it has no knowledge of "the server's public key").
+//
+// Returns the verified keyPair on success, or null on ANY failure —
+// unavailable platform, no enrollment, assertion/network failure,
+// biometric cancel, Keystore invalidation, corrupt wrapper, or a
+// public-key mismatch. null here NEVER means "this account has no key" —
+// it only ever means "could not use device unlock this time," and every
+// caller below treats it as exactly that: fall back to the existing
+// passphrase/recovery UI, unchanged.
+async function tryRestoreViaDeviceUnlock(serverPublicKeyB64) {
+  if (!serverPublicKeyB64) return null; // nothing to verify against — never attempt
+  if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return null;
+  try {
+    const secretKey = await unlockDeviceKey();
+    const kp = nacl.box.keyPair.fromSecretKey(secretKey);
+    if (encodeBase64(kp.publicKey) !== serverPublicKeyB64) {
+      console.warn('[CryptoContext] Device unlock returned a key that does not match the server public key — discarding and falling back to passphrase/recovery.');
+      return null;
+    }
+    return kp;
+  } catch (e) {
+    // Every failure mode here — NOT_AVAILABLE, NOT_AUTHENTICATED,
+    // ASSERTION_FETCH_FAILED, NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT,
+    // KEY_INVALIDATED, CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, AUTH_FAILED,
+    // ALREADY_IN_PROGRESS, NATIVE_UNAVAILABLE, or any unexpected exception —
+    // is reported identically: no key. This is the same "unknown/protected,
+    // not confirmed-absent" bucket the my-keys network-failure fix already
+    // established below; device unlock only ever ADDS a shortcut into an
+    // already-confirmed-present key, it never substitutes for that check.
+    console.warn('[CryptoContext] Device unlock not used, falling back to passphrase/recovery:', e?.code || e?.message || e);
+    return null;
+  }
+}
 
 const CryptoContext = createContext(null);
 
@@ -113,12 +168,14 @@ export function CryptoProvider({ children }) {
           const tkn = localStorage.getItem('watch_token');
           let serverCheckOk = false;
           let serverHasExistingKey = false;
+          let serverPublicKeyB64 = null;
           if (tkn) {
             try {
               const res = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${tkn}` } });
               if (res.ok) {
                 const data = await res.json();
                 serverHasExistingKey = !!data.publicKey;
+                serverPublicKeyB64 = data.publicKey || null;
                 serverCheckOk = true;
               }
             } catch (e) { console.warn('[CryptoContext] my-keys check failed:', e); }
@@ -144,11 +201,26 @@ export function CryptoProvider({ children }) {
           // publicKey: null, which does NOT throw), and "log out and back in"
           // (surfaced by reloadPrivateKeyWithPassword's own error message)
           // correctly falls through to Login.jsx's normal first-time key setup.
-          if (serverHasExistingKey || !serverCheckOk) {
+          // Cold-start device unlock (Android only): the server has just
+          // POSITIVELY confirmed this account already has a real public key
+          // (serverHasExistingKey), so — and ONLY so — there is something
+          // legitimate to try to restore without a passphrase prompt. This
+          // never runs on a network failure (serverCheckOk === false): with
+          // no confirmed serverPublicKeyB64 to verify against,
+          // tryRestoreViaDeviceUnlock has nothing to check the recovered key
+          // against and returns null immediately anyway (see its own guard),
+          // so this always falls through to the exact same
+          // needsReauth-on-network-failure behavior as before this stage.
+          const restoredKp = serverHasExistingKey ? await tryRestoreViaDeviceUnlock(serverPublicKeyB64) : null;
+          if (restoredKp) {
+            await saveKeyToSession(restoredKp.secretKey);
+            setKeyPairState(restoredKp);
+            console.log('[CryptoContext] Key restored via device unlock ✅');
+          } else if (serverHasExistingKey || !serverCheckOk) {
             if (!serverCheckOk) {
               console.warn('[CryptoContext] Could not verify key status with server (network failure) — treating as needing recovery rather than risking an incorrect new keypair.');
             } else {
-              console.log('[CryptoContext] Local key missing but account already has one server-side — need password to recover it.');
+              console.log('[CryptoContext] Local key missing but account already has one server-side — need password/passphrase to recover it.');
             }
             setNeedsReauth(true);
           } else {
@@ -245,6 +317,38 @@ export function CryptoProvider({ children }) {
     }));
   }, []);
 
+  /**
+   * Enrolls Device Unlock (Android Keystore-backed) for the CURRENTLY
+   * established E2EE key. Deliberately requires an already-present
+   * in-memory keyPair — there is no path from this function to generating
+   * or altering key material, and it throws rather than doing anything if
+   * called before the account's real E2EE key exists (first-device setup
+   * must complete via the existing password/passphrase flow first; see
+   * Login.jsx / OAuthEncryptionModal — untouched by this stage). No UI
+   * calls this yet (Stage 4 is CryptoContext + glue only); a later stage's
+   * Profile "Device Unlock" section is expected to call it after an
+   * explicit, user-initiated opt-in.
+   */
+  const enrollDeviceUnlock = useCallback(async ({ allowOverwrite = false } = {}) => {
+    if (localStorage.getItem('watch_is_guest') === 'true') {
+      throw new Error('Device unlock is not available for guest accounts.');
+    }
+    if (!keyPair || !keyPair.secretKey) {
+      throw new Error('No encryption key established yet — cannot enroll device unlock before your E2EE key exists.');
+    }
+    await nativeSetupDeviceUnlock(keyPair.secretKey, { allowOverwrite });
+  }, [keyPair]);
+
+  /** "Forget this device" — see deviceUnlock.js's clearDeviceUnlock for why this is distinct from logout. */
+  const forgetDeviceUnlock = useCallback(async () => {
+    await nativeClearDeviceUnlock();
+  }, []);
+
+  /** Convenience check for UI: is Device Unlock enrolled for the current account on this device? */
+  const checkDeviceUnlockEnrolled = useCallback(async () => {
+    return nativeHasDeviceUnlock();
+  }, []);
+
   /** Clear key from memory + session (call on logout). */
   const clearKeys = useCallback(() => {
     setKeyPairState(null);
@@ -275,7 +379,7 @@ export function CryptoProvider({ children }) {
   }, []);
 
   return (
-    <CryptoContext.Provider value={{ keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock }}>
+    <CryptoContext.Provider value={{ keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock, enrollDeviceUnlock, forgetDeviceUnlock, checkDeviceUnlockEnrolled }}>
       {children}
     </CryptoContext.Provider>
   );

@@ -30,6 +30,7 @@ const { sanitizeRoomPermissions } = require('./lib/roomPermissions');
 const { canHideMessage } = require('./lib/messageAuth');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
 const { getCallActiveUsernames, isActiveCallParticipant } = require('./lib/callRoster');
+const { signDeviceAssertion } = require('./lib/deviceAssertion');
 const { isUserAdmin, buildUserList, isRoomHostMatch } = require('./lib/roomUsers');
 const {
   isGuestUsername, isMembersOnlyRejected, evaluateJoinGate, shouldAssignHost, shouldNotifyAutoAdmin, isBannedFromRoom,
@@ -277,6 +278,22 @@ for (const envVar of requiredEnvVars) {
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
+
+// Separate, ASYMMETRIC (EC P-256 / "ES256") signing key for native
+// device-unlock enrollment assertions (see lib/deviceAssertion.js's own
+// header comment for the full reasoning). Deliberately NOT in
+// requiredEnvVars above — this is a new, additive feature, and a server
+// that hasn't set this yet must keep starting and serving every existing
+// route unchanged; the one endpoint that needs it (below) fails clearly
+// with 503 rather than the whole process refusing to boot. Unlike
+// JWT_SECRET, this key's PUBLIC half is meant to be embedded in the
+// Android/Windows client binaries — see the architecture doc for why an
+// asymmetric key (never an HS256 secret) is required for anything a
+// client verifies offline.
+const DEVICE_ASSERTION_PRIVATE_KEY = process.env.DEVICE_ASSERTION_PRIVATE_KEY || null;
+if (!DEVICE_ASSERTION_PRIVATE_KEY) {
+  console.warn('[Server] DEVICE_ASSERTION_PRIVATE_KEY not set — /api/auth/device-enrollment-assertion will return 503 until it is configured. Every other route is unaffected.');
+}
 
 // Initialize Supabase (replaces SQLite)
 const supabase = createClient(
@@ -3987,6 +4004,35 @@ app.get('/api/auth/my-keys', authenticateToken, (req, res) => {
       console.error('[my-keys] DB error:', err);
       res.status(500).json({ error: 'Database error' });
     });
+});
+
+// Issues a short-lived, asymmetrically-signed "device enrollment
+// assertion" — the credential the Android/Windows E2EE device-unlock
+// native layer uses to prove account identity to itself offline (see
+// lib/deviceAssertion.js's header comment and the Stage 2 security review
+// this closes: native code decoding this endpoint's caller's OWN session
+// JWT without verifying its signature would let a compromised WebView
+// fabricate an arbitrary account id and reach a DIFFERENT, already-
+// enrolled account's locally-wrapped key). Gated by the SAME
+// authenticateToken middleware every other authenticated route already
+// uses — this endpoint adds no new authentication mechanism, it only
+// re-packages an already-verified session into a form native code can
+// verify without ever holding JWT_SECRET.
+//
+// Deliberately stateless: nothing is persisted server-side for this —
+// the assertion is self-contained (signature + expiry), exactly like the
+// session JWT itself already is.
+app.post('/api/auth/device-enrollment-assertion', authenticateToken, (req, res) => {
+  if (!DEVICE_ASSERTION_PRIVATE_KEY) {
+    return res.status(503).json({ error: 'Device enrollment assertions are not configured on this server yet.' });
+  }
+  try {
+    const assertion = signDeviceAssertion({ id: req.user.id, username: req.user.username }, DEVICE_ASSERTION_PRIVATE_KEY);
+    res.json({ assertion });
+  } catch (err) {
+    console.error('[device-enrollment-assertion] signing failed:', err.message);
+    res.status(500).json({ error: 'Failed to issue device enrollment assertion' });
+  }
 });
 
 // ─── JWT Auth Middleware ───

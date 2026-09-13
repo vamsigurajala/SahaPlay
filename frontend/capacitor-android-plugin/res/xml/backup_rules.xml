@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pre-Android-12 (below API 31) equivalent of data_extraction_rules.xml —
+  referenced by AndroidManifest.xml's android:fullBackupContent, read by
+  the OS on devices where dataExtractionRules doesn't apply. Same exclusion,
+  same reasoning — see data_extraction_rules.xml's own comment.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="sahaplay_e2ee_store.xml"/>
+</full-backup-content>

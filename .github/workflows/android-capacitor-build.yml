@@ -286,6 +286,22 @@ jobs:
           EOF
           cat android/app/build.gradle
 
+      # androidx.biometric — SahaplayE2eePlugin.java's BiometricPrompt/
+      # BiometricManager gate on the E2eeKeyStore-generated Keystore key
+      # (Stage 2 of the device-unlock project). Deliberately separate from
+      # the "Add native calling engine dependencies" step above — this
+      # dependency belongs to the E2EE device-unlock feature, not calling.
+      - name: Add androidx.biometric dependency (E2EE device unlock)
+        working-directory: frontend
+        run: |
+          cat >> android/app/build.gradle <<'EOF'
+
+          dependencies {
+              implementation 'androidx.biometric:biometric:1.2.0'
+          }
+          EOF
+          cat android/app/build.gradle
+
       # Unlike the old Bubblewrap/TWA build (which auto-derived the app icon
       # from manifest.json), `cap add android` ships Capacitor's own generic
       # placeholder icon and does nothing with our actual logo — this is why
@@ -421,6 +437,45 @@ jobs:
           cp capacitor-android-plugin/PhoneAccountRegistrar.java android/app/src/main/java/com/sahaplay/app/PhoneAccountRegistrar.java
           cp capacitor-android-plugin/SahaplayConnection.java android/app/src/main/java/com/sahaplay/app/SahaplayConnection.java
           cp capacitor-android-plugin/SahaplayConnectionService.java android/app/src/main/java/com/sahaplay/app/SahaplayConnectionService.java
+          # E2EE device-unlock storage layer (Stage 1 of the device-unlock
+          # project) — deliberately separate from SecretKeyStore.java above,
+          # see E2eeKeyStore.java's own class comment for why. No new Gradle
+          # dependency: it talks to java.security.KeyStore/javax.crypto
+          # directly rather than androidx.security's EncryptedSharedPreferences.
+          cp capacitor-android-plugin/E2eeKeyStore.java android/app/src/main/java/com/sahaplay/app/E2eeKeyStore.java
+          mkdir -p android/app/src/main/res/xml
+          cp capacitor-android-plugin/res/xml/data_extraction_rules.xml android/app/src/main/res/xml/data_extraction_rules.xml
+          cp capacitor-android-plugin/res/xml/backup_rules.xml android/app/src/main/res/xml/backup_rules.xml
+          # Stage 2: account-binding verification + the JS<->native bridge
+          # itself. See DeviceAssertionVerifier.java's own class comment —
+          # this pair closes the exploit the Stage 2 security review traced
+          # (a compromised WebView forging an arbitrary account id to reach
+          # a DIFFERENT, already-enrolled account's device-wrapped key).
+          cp capacitor-android-plugin/DeviceAssertionVerifier.java android/app/src/main/java/com/sahaplay/app/DeviceAssertionVerifier.java
+          cp capacitor-android-plugin/SahaplayE2eePlugin.java android/app/src/main/java/com/sahaplay/app/SahaplayE2eePlugin.java
+          mkdir -p android/app/src/test/java/com/sahaplay/app
+          cp capacitor-android-plugin/test/E2eeKeyStoreTest.java android/app/src/test/java/com/sahaplay/app/E2eeKeyStoreTest.java
+          cp capacitor-android-plugin/test/DeviceAssertionVerifierTest.java android/app/src/test/java/com/sahaplay/app/DeviceAssertionVerifierTest.java
+
+      # JUnit + Robolectric, for E2eeKeyStoreTest.java. Robolectric shadows
+      # SharedPreferences realistically (so the per-account namespacing and
+      # packing-envelope tests run as plain fast JVM tests, no
+      # device/emulator needed) but does NOT provide a working
+      # "AndroidKeyStore" JCA provider — see E2eeKeyStoreTest.java's own
+      # class comment for exactly what that does and doesn't let this test
+      # class cover.
+      - name: Add E2eeKeyStore unit test dependencies
+        working-directory: frontend
+        run: |
+          cat >> android/app/build.gradle <<'EOF'
+
+          dependencies {
+              testImplementation 'junit:junit:4.13.2'
+              testImplementation 'org.robolectric:robolectric:4.13'
+              testImplementation 'androidx.test:core:1.6.1'
+          }
+          EOF
+          cat android/app/build.gradle
 
       - name: Sync Capacitor project
         working-directory: frontend
@@ -458,6 +513,19 @@ jobs:
           }
           EOF
           cat android/build.gradle
+
+      # Runs BEFORE the release build so a genuine E2eeKeyStore regression
+      # (e.g. the IV/ciphertext packing envelope or per-account namespacing
+      # breaking) fails this workflow loudly instead of silently shipping.
+      # See E2eeKeyStoreTest.java's own comment for what this class of test
+      # can and cannot cover — Keystore-dependent logic (real key
+      # generation, StrongBox fallback, authentication-window behavior,
+      # KeyPermanentlyInvalidatedException handling) is NOT exercised here
+      # and can only be verified on a real device/emulator, same as every
+      # other native Android crypto/calling path in this project.
+      - name: Run E2eeKeyStore unit tests
+        working-directory: frontend/android
+        run: ./gradlew testDebugUnitTest --info
 
       - name: Build signed .aab
         working-directory: frontend/android

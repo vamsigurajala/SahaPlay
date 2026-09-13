@@ -1,0 +1,260 @@
+/**
+ * deviceUnlock.js
+ *
+ * The ONLY place in the JS codebase that talks to the native
+ * SahaplayE2ee Capacitor plugin (see SahaplayE2eePlugin.java /
+ * E2eeKeyStore.java / DeviceAssertionVerifier.java, and
+ * backend/lib/deviceAssertion.js for the server side). CryptoContext.jsx
+ * (a later stage) calls these functions and nothing else — it never talks
+ * to window.Capacitor.Plugins.SahaplayE2ee directly, same separation
+ * nativeCallEngine.js already establishes for the calling engine.
+ *
+ * ─── The one rule every function here enforces ────────────────────────
+ * There is NO public function in this module that accepts an account
+ * identifier. Every call operates on "whichever account the app's own
+ * current session (watch_token) says is active" — decided internally,
+ * every single time, from the live localStorage state, never cached
+ * across calls and never accepted as a parameter. This is deliberate: an
+ * earlier design let callers pass an arbitrary accountId, which (combined
+ * with a since-removed native-side assertion cache) allowed a compromised
+ * page logged in as one account to reach a DIFFERENT, previously-enrolled
+ * account's key. Removing the parameter from this layer removes the
+ * ability to even EXPRESS that mistake from ordinary application code —
+ * see SahaplayE2eePlugin.java's own class comment for the full incident
+ * and the native-side fix this module's shape is built to match.
+ *
+ * Every function that needs proof of identity (everything except the
+ * cheap "is native even available" check) fetches a FRESH, server-signed
+ * assertion via POST /api/auth/device-enrollment-assertion using the
+ * CURRENT watch_token before calling into native — never a cached one.
+ * That backend call requires network; if it fails (offline, timeout,
+ * server error), every function here throws/reports failure rather than
+ * inventing a substitute — callers MUST fall back to the existing
+ * encryption-passphrase/recovery flow in that case, exactly like every
+ * other native failure mode. Nothing in this module may ever be used as
+ * grounds to generate a new E2EE keypair.
+ */
+import { isCapacitorApp } from './platform';
+import { API } from './api';
+import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
+
+const plugin = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.SahaplayE2ee : null);
+
+/** Cheap, synchronous, no-network check — safe to call anywhere to decide whether to show Device Unlock UI at all. */
+export function isDeviceUnlockAvailable() {
+  return !!plugin();
+}
+
+export class DeviceUnlockError extends Error {
+  constructor(code, message) {
+    super(message || code);
+    this.name = 'DeviceUnlockError';
+    this.code = code; // one of the typed strings documented on each function below
+  }
+}
+
+// Decodes (deliberately NEVER verifies — there is nothing to verify
+// client-side; JS already implicitly trusts this exact token for every
+// other authenticated API call the app makes) the current session token's
+// own `id` claim, purely so it can be handed to native as a LOOKUP key.
+// This is explicitly NOT an authentication step — see the module doc and
+// SahaplayE2eePlugin.java: native only ever trusts the freshly-fetched
+// assertion's OWN verified id, and cross-checks it against this value,
+// never the reverse.
+function decodeAccountIdFromToken(token) {
+  try {
+    const payloadB64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payloadB64 + '='.repeat((4 - (payloadB64.length % 4)) % 4);
+    const json = JSON.parse(atob(padded));
+    return typeof json.id === 'number' ? json.id : null;
+  } catch {
+    return null;
+  }
+}
+
+// De-dupes truly CONCURRENT fetches for the same token — this is NOT a
+// time-based cache (nothing here is reused across separate logical calls;
+// each call to a function below that needs an assertion starts a fresh
+// fetch unless one for the exact same token is already in flight right
+// now). Keyed by token value so an account switch mid-flight can never
+// hand a caller a different account's in-flight promise.
+const inFlightAssertionFetches = new Map();
+
+/**
+ * Fetches a fresh device-enrollment assertion for the CURRENT session.
+ * Guests (no server-side E2EE identity to enroll — see
+ * loadOrCreateGuestKeyPair in CryptoContext.jsx) and anyone with no active
+ * session are rejected immediately, with no network call attempted.
+ *
+ * @throws DeviceUnlockError('NOT_AUTHENTICATED')     no session / guest account
+ * @throws DeviceUnlockError('ASSERTION_FETCH_FAILED') network failure, timeout, non-2xx, malformed response
+ */
+async function fetchFreshAssertion() {
+  if (localStorage.getItem('watch_is_guest') === 'true') {
+    throw new DeviceUnlockError('NOT_AUTHENTICATED', 'Device unlock does not apply to guest accounts');
+  }
+  const token = localStorage.getItem('watch_token');
+  if (!token) {
+    throw new DeviceUnlockError('NOT_AUTHENTICATED', 'No active session');
+  }
+  const accountId = decodeAccountIdFromToken(token);
+  if (accountId == null) {
+    throw new DeviceUnlockError('NOT_AUTHENTICATED', 'Could not read account id from the current session');
+  }
+
+  if (!inFlightAssertionFetches.has(token)) {
+    const promise = fetch(`${API}/api/auth/device-enrollment-assertion`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(async (res) => {
+      if (!res.ok) {
+        throw new DeviceUnlockError('ASSERTION_FETCH_FAILED', `Server returned ${res.status}`);
+      }
+      const data = await res.json().catch(() => null);
+      if (!data?.assertion) {
+        throw new DeviceUnlockError('ASSERTION_FETCH_FAILED', 'Server response had no assertion');
+      }
+      return { accountId, assertion: data.assertion };
+    }).finally(() => {
+      inFlightAssertionFetches.delete(token);
+    });
+    inFlightAssertionFetches.set(token, promise);
+  }
+
+  try {
+    return await inFlightAssertionFetches.get(token);
+  } catch (e) {
+    if (e instanceof DeviceUnlockError) throw e;
+    // Network error, CORS, DNS failure, etc. — fetch() itself throwing.
+    throw new DeviceUnlockError('ASSERTION_FETCH_FAILED', e?.message || 'Network error fetching device-enrollment assertion');
+  }
+}
+
+function nativeErrorToDeviceUnlockError(err) {
+  // Capacitor surfaces a native PluginCall.reject(message, code) as a
+  // rejected Promise whose error carries both — pass the code straight
+  // through so callers see the exact same typed vocabulary
+  // SahaplayE2eePlugin.java documents (NO_VALID_ASSERTION,
+  // NO_KEY_FOR_ACCOUNT, KEY_INVALIDATED, CORRUPT_WRAPPER,
+  // HARDWARE_UNAVAILABLE, AUTH_FAILED, ALREADY_IN_PROGRESS,
+  // ALREADY_ENROLLED, NATIVE_UNAVAILABLE, INVALID_REQUEST).
+  return new DeviceUnlockError(err?.code || 'UNKNOWN', err?.message || String(err));
+}
+
+/**
+ * Convenience check: does the account currently signed in have Device
+ * Unlock enrolled on THIS device? Every failure mode (offline, no
+ * session, native error, not enrolled) is reported identically as
+ * `false` — this function never throws. It exists for UI decisions
+ * ("show the passphrase prompt vs. try silently") where every failure
+ * reason leads to the exact same action anyway.
+ */
+export async function hasDeviceUnlock() {
+  const p = plugin();
+  if (!p) return false;
+  try {
+    const { accountId, assertion } = await fetchFreshAssertion();
+    const result = await p.hasDeviceUnlock({ accountId, assertion });
+    return !!result?.exists;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Enrolls Device Unlock for the CURRENT account, wrapping secretKeyBytes
+ * (the account's EXISTING 32-byte NaCl secret key — this never generates
+ * or alters it) behind the device's Keystore/biometric gate. May show a
+ * biometric/device-credential prompt (native's own first-use-after-
+ * generation behavior — see E2eeKeyStore.java).
+ *
+ * @param {Uint8Array} secretKeyBytes  exactly 32 bytes
+ * @param {{allowOverwrite?: boolean}} [opts]  allowOverwrite must only be
+ *   passed true from an explicit, user-visible re-enrollment action —
+ *   never as a default, per SahaplayE2eePlugin.java's own no-silent-
+ *   overwrite guarantee.
+ * @throws DeviceUnlockError('NOT_AVAILABLE')       non-native platform
+ * @throws DeviceUnlockError('NOT_AUTHENTICATED' | 'ASSERTION_FETCH_FAILED')  see fetchFreshAssertion
+ * @throws DeviceUnlockError('ALREADY_ENROLLED')    a wrapper already exists and allowOverwrite was false
+ * @throws DeviceUnlockError('AUTH_FAILED')         biometric/device-credential cancelled or failed
+ * @throws DeviceUnlockError('HARDWARE_UNAVAILABLE') Keystore/StrongBox error
+ */
+export async function setupDeviceUnlock(secretKeyBytes, { allowOverwrite = false } = {}) {
+  const p = plugin();
+  if (!p) throw new DeviceUnlockError('NOT_AVAILABLE', 'Device unlock is not available on this platform');
+  if (!(secretKeyBytes instanceof Uint8Array) || secretKeyBytes.length !== 32) {
+    throw new DeviceUnlockError('INVALID_REQUEST', 'secretKeyBytes must be a 32-byte Uint8Array');
+  }
+  const { accountId, assertion } = await fetchFreshAssertion();
+  try {
+    await p.setupDeviceUnlock({
+      accountId,
+      assertion,
+      secretKeyBase64: encodeBase64(secretKeyBytes),
+      allowOverwrite,
+    });
+  } catch (err) {
+    throw nativeErrorToDeviceUnlockError(err);
+  }
+}
+
+/**
+ * Attempts to recover the account's secret key via Device Unlock. This is
+ * the ONLY function in this module that can return key material — the
+ * caller (CryptoContext.jsx, a later stage) MUST, before trusting the
+ * result, independently verify that
+ * `nacl.box.keyPair.fromSecretKey(result).publicKey` matches the
+ * account's server-known publicKey. This module deliberately does not do
+ * that check itself (it has no NaCl/CryptoContext dependency by design —
+ * see the module doc) — skipping that verification in the caller would
+ * silently reopen the exact class of bug this whole feature was reviewed
+ * against.
+ *
+ * Every failure below (including a network failure fetching the
+ * assertion) means exactly one thing to the caller: fall back to the
+ * existing encryption-passphrase/recovery flow. NONE of them are ever
+ * grounds to generate a new E2EE keypair.
+ *
+ * @returns {Promise<Uint8Array>} the 32-byte secret key
+ * @throws DeviceUnlockError with one of: NOT_AVAILABLE, NOT_AUTHENTICATED,
+ *   ASSERTION_FETCH_FAILED, NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT,
+ *   KEY_INVALIDATED, CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, AUTH_FAILED,
+ *   ALREADY_IN_PROGRESS, NATIVE_UNAVAILABLE
+ */
+export async function unlockDeviceKey() {
+  const p = plugin();
+  if (!p) throw new DeviceUnlockError('NOT_AVAILABLE', 'Device unlock is not available on this platform');
+  const { accountId, assertion } = await fetchFreshAssertion();
+  let result;
+  try {
+    result = await p.unlockDeviceKey({ accountId, assertion });
+  } catch (err) {
+    throw nativeErrorToDeviceUnlockError(err);
+  }
+  if (!result?.secretKeyBase64) {
+    throw new DeviceUnlockError('UNKNOWN', 'Native resolved without returning a key');
+  }
+  return decodeBase64(result.secretKeyBase64);
+}
+
+/**
+ * "Forget this device" — explicitly deletes the Keystore key and wrapped
+ * blob for the CURRENT account on this device. Distinct from logout: an
+ * ordinary logout never calls this (see CryptoContext.jsx's clearKeys /
+ * authUtils.js's clearUserSession, unaffected by this module) — Device
+ * Unlock enrollment survives a normal logout/re-login on the same device
+ * by design, and is only removed by this explicit action.
+ *
+ * @throws DeviceUnlockError('NOT_AUTHENTICATED' | 'ASSERTION_FETCH_FAILED')  see fetchFreshAssertion
+ * @throws DeviceUnlockError('NO_VALID_ASSERTION')  (should not normally happen — same session that's asking to forget itself)
+ */
+export async function clearDeviceUnlock() {
+  const p = plugin();
+  if (!p) return; // nothing native ever existed on this platform — not an error
+  const { accountId, assertion } = await fetchFreshAssertion();
+  try {
+    await p.clearDeviceUnlock({ accountId, assertion });
+  } catch (err) {
+    throw nativeErrorToDeviceUnlockError(err);
+  }
+}

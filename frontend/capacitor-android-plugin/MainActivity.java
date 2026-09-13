@@ -50,6 +50,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SahaplayMediaPlugin.class);
         registerPlugin(SahaplayCallPlugin.class);
+        registerPlugin(SahaplayE2eePlugin.class);
         photoPermissionLauncher = registerForActivityResult(
             new ActivityResultContracts.RequestMultiplePermissions(),
             result -> SahaplayMediaPlugin.onPhotoPermissionResult(result)

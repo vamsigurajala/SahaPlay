@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31+) backup/device-transfer rules — referenced by
+  AndroidManifest.xml's android:dataExtractionRules.
+
+  E2eeKeyStore.java's own SharedPreferences file (sahaplay_e2ee_store) is
+  excluded from BOTH cloud backup and the "Copy your data" wireless
+  device-transfer flow. The AndroidKeyStore key it depends on is never
+  included in either mechanism by Android's own design (Keystore-backed
+  keys are non-exportable and device-bound at the OS level, restore or
+  transfer never recreates them) — so a backed-up/transferred copy of the
+  wrapped-key blob alone would already be permanently undecryptable
+  ciphertext on any other device. This exclusion is defense-in-depth
+  hygiene on top of that (avoids a stale, permanently-unusable entry ever
+  landing on a new device and misleadingly reporting "device unlock is
+  enrolled" before the very first unlock attempt correctly fails and falls
+  back to the passphrase flow), not a fix for an exploitable gap.
+
+  SecretKeyStore.java's own file (sahaplay_call_secure, used only for
+  background call answering) is deliberately NOT touched here — out of
+  scope for this feature, unchanged.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="sahaplay_e2ee_store.xml"/>
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="sahaplay_e2ee_store.xml"/>
+    </device-transfer>
+</data-extraction-rules>
