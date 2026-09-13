@@ -1840,6 +1840,15 @@ export default function RoomChatPanel({ p }) {
   // Same idea as longPressPlacement but for the desktop click-to-open
   // dropdown (the chevron button), derived from the click's mouse Y.
   const [dropdownPlacement, setDropdownPlacement] = React.useState('down');
+  // Same idea again, for the quick-react emoji bar (the smile-icon trigger
+  // outside a message bubble) — it always opened upward (bottom:'100%'),
+  // which for a row near the TOP of the scrollable message list (a panel
+  // this size — unlike a full-screen mobile chat — runs out of headroom
+  // fast) rendered the bar past the message list's own top edge, clipped
+  // away by its overflow:auto exactly where the panel's header sits, and
+  // read as "the bar goes under the top nav bar". 'up' (the old default)
+  // for a row with room above it; 'down' opens it below the row instead.
+  const [reactionPlacement, setReactionPlacement] = React.useState('up');
   const [clearGroupChatModalOpen, setClearGroupChatModalOpen] = React.useState(false);
 
   // ── Multi-select messages (bulk delete / forward) ── shared across group + DM
@@ -3935,7 +3944,12 @@ export default function RoomChatPanel({ p }) {
                               // and put the sent-media trigger on top of the message instead of
                               // outside it. Reverted to the same outside-the-bubble placement
                               // text/polls already use for every message type.
-                              {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
+                              // reactionPlacement: flips to open downward (see its own
+                              // declaration) instead of always upward, for a row too close to
+                              // the message list's own top edge to fit the bar above it.
+                              (reactionPlacement === 'up'
+                                ? {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}
+                                : {position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:8, zIndex:100})}>
                               <div style={{
                                 background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
                                 backdropFilter:'blur(12px)',
@@ -4014,7 +4028,22 @@ export default function RoomChatPanel({ p }) {
                             // wrong for sent media/documents/voice notes. Unified onto the
                             // same outside-the-bubble placement polls/text already use.
                             {position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: groupWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af'),padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= groupWallpaper ? '#fff' : (metaIsLight ? '#111' : '#fff')}} onMouseLeave={(e)=>{e.currentTarget.style.color= groupWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af')}}>
+                            {/* No hover color-swap — it used to flip to metaIsLight?'#111':'#fff'
+                                on mouseenter, which read as "the icon turns black in light mode"
+                                since the resting color is already a mid-grey. Stays fixed. */}
+                            <button className="react-btn" onClick={(e)=>{ e.stopPropagation();
+                              if (p.activeReactionMsg !== msg.id) {
+                                // See reactionPlacement's own declaration — flips the bar
+                                // downward when this row is too close to the message list's
+                                // own top edge (not enough room to open upward without being
+                                // clipped by the list's overflow, right where the header sits).
+                                const rowEl = e.currentTarget.closest('.msg-row');
+                                const containerTop = groupScrollContainerRef.current?.getBoundingClientRect().top ?? 0;
+                                const rowTop = rowEl ? rowEl.getBoundingClientRect().top : e.clientY;
+                                setReactionPlacement((rowTop - containerTop) < 90 ? 'down' : 'up');
+                              }
+                              p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null);
+                            }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: groupWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af'),padding:'3px 5px'}}>
                               <SmilePlus size={16}/>
                             </button>
                           </div>
@@ -4970,8 +4999,11 @@ export default function RoomChatPanel({ p }) {
                                 {p.activeReactionMsg === msg.id && !p.showAllEmojis && (
                                   <div className="emoji-picker-container" style={
                                     // See the identical comment on the group thread's
-                                    // emoji-picker-container above — same revert, same reason.
-                                    {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
+                                    // emoji-picker-container above — same revert, same reason,
+                                    // same reactionPlacement flip.
+                                    (reactionPlacement === 'up'
+                                      ? {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}
+                                      : {position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:8, zIndex:100})}>
                                     <div style={{
                                       background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
                                       backdropFilter:'blur(12px)',
@@ -5042,7 +5074,18 @@ export default function RoomChatPanel({ p }) {
                                     // See the identical comment on the group thread's
                                     // react-btn-container above — same revert, same reason.
                                     {position:'absolute', top:'50%', transform:'translateY(-50%)', [isMe?'right':'left']:'100%', padding:isMe?'0 6px 0 0':'0 0 0 6px', opacity: p.activeReactionMsg === msg.id ? 1 : undefined, transition:'opacity 0.2s', zIndex:10, display:'flex', alignItems:'center', gap:2}} className="react-btn-container">
-                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null); }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: dmWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af'),padding:'3px 5px',transition:'color 0.15s'}} onMouseEnter={(e)=>{e.currentTarget.style.color= dmWallpaper ? '#fff' : (metaIsLight ? '#111' : '#fff')}} onMouseLeave={(e)=>{e.currentTarget.style.color= dmWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af')}}>
+                                    {/* No hover color-swap — see the identical comment on the
+                                        group thread's react-btn above; same fix, same reason. */}
+                                    <button className="react-btn" onClick={(e)=>{ e.stopPropagation();
+                                      if (p.activeReactionMsg !== msg.id) {
+                                        // See the group thread's identical comment on this same check.
+                                        const rowEl = e.currentTarget.closest('.msg-row');
+                                        const containerTop = dmScrollContainerRef.current?.getBoundingClientRect().top ?? 0;
+                                        const rowTop = rowEl ? rowEl.getBoundingClientRect().top : e.clientY;
+                                        setReactionPlacement((rowTop - containerTop) < 90 ? 'down' : 'up');
+                                      }
+                                      p.setActiveReactionMsg(p.activeReactionMsg===msg.id?null:msg.id); p.setShowAllEmojis(false); setActiveMessageMenu(null);
+                                    }} style={{background:'transparent',border:'none',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: dmWallpaper ? 'rgba(255,255,255,0.85)' : (metaIsLight ? '#6b7280' : '#9ca3af'),padding:'3px 5px'}}>
                                       <SmilePlus size={16}/>
                                     </button>
                                   </div>
