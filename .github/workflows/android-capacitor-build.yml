@@ -291,13 +291,26 @@ jobs:
       # (Stage 2 of the device-unlock project). Deliberately separate from
       # the "Add native calling engine dependencies" step above — this
       # dependency belongs to the E2EE device-unlock feature, not calling.
+      #
+      # Honesty note, exact same shape as the lazysodium-android:5.1.4
+      # mistake documented above: this was originally written as 1.2.0,
+      # which failed CI with "Could not find androidx.biometric:biometric:
+      # 1.2.0" — confirmed via Google's own real Maven index
+      # (dl.google.com/dl/android/maven2/androidx/biometric/group-index.xml)
+      # that 1.2.0 was NEVER published as a stable release; every version
+      # after the real 1.1.0 (1.2.0-alpha01..alpha05, 1.4.0-alpha01..alpha07)
+      # is alpha-only and was never promoted to stable. 1.1.0 already
+      # contains everything SahaplayE2eePlugin.java actually uses
+      # (BiometricPrompt, BiometricPrompt.CryptoObject,
+      # BiometricManager.Authenticators.BIOMETRIC_STRONG | DEVICE_CREDENTIAL),
+      # so this is a pure version-string correction, not a capability change.
       - name: Add androidx.biometric dependency (E2EE device unlock)
         working-directory: frontend
         run: |
           cat >> android/app/build.gradle <<'EOF'
 
           dependencies {
-              implementation 'androidx.biometric:biometric:1.2.0'
+              implementation 'androidx.biometric:biometric:1.1.0'
           }
           EOF
           cat android/app/build.gradle
