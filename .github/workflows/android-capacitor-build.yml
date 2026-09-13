@@ -540,6 +540,34 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
+      # Stage 5 (device-unlock native validation): the .aab above is a Play
+      # Store upload format — it cannot be installed directly on a device
+      # (that's what bundletool's install-apks step would be for, which this
+      # deliberately avoids). This is the exact same release variant/signing
+      # config as the .aab above, just built via Android's plain "assemble"
+      # task instead of "bundle" — the two are independent Gradle tasks (one
+      # produces .aab under outputs/bundle/, the other .apk under
+      # outputs/apk/) but AGP resolves the SAME release signingConfig for
+      # both from these identical -Pandroid.injected.signing.* properties,
+      # so this .apk is signed with the identical upload keystore/key as the
+      # .aab above — same secrets, same values, nothing duplicated or
+      # forked. Kept as its own step (not combined into one `./gradlew
+      # bundleRelease assembleRelease` invocation) so the existing .aab
+      # step/log above is untouched byte-for-byte if this one ever needs to
+      # change independently.
+      - name: Build signed .apk (for direct install on a physical device)
+        working-directory: frontend/android
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/sahaplay-upload.keystore \
+            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
       # Informational only (never fails the build) — the merged-manifest
       # intermediate's exact path shifts between AGP versions, so this is a
       # best-effort `find` rather than a hardcoded path. Confirms
@@ -564,4 +592,15 @@ jobs:
         with:
           name: sahaplay-android-aab
           path: frontend/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+
+      # Standard AGP `assembleRelease` output path (parallel to the .aab's
+      # own outputs/bundle/release/ above). Directly installable via
+      # `adb install` or by side-loading onto a physical phone — no
+      # bundletool/device-spec step needed for a single universal APK.
+      - name: Upload signed .apk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sahaplay-android-apk
+          path: frontend/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
