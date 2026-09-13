@@ -3937,40 +3937,48 @@ export default function RoomChatPanel({ p }) {
                             </div>
                           )}
 
-                          {p.activeReactionMsg === msg.id && !p.showAllEmojis && (
-                            <div className="emoji-picker-container" style={
-                              // Media's own on-the-image overlay position (top-left, over the
-                              // photo/video) was hiding the picker for received media entirely
-                              // and put the sent-media trigger on top of the message instead of
-                              // outside it. Reverted to the same outside-the-bubble placement
-                              // text/polls already use for every message type.
-                              // reactionPlacement: flips to open downward (see its own
-                              // declaration) instead of always upward, for a row too close to
-                              // the message list's own top edge to fit the bar above it.
-                              (reactionPlacement === 'up'
-                                ? {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}
-                                : {position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:8, zIndex:100})}>
-                              <div style={{
-                                background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
-                                backdropFilter:'blur(12px)',
-                                border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
-                                borderRadius:30,
-                                padding:'6px 8px',
-                                display:'flex',
-                                alignItems:'center',
-                                gap:6,
-                                width:'max-content',
-                                boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
-                              }}>
-                                {QUICK_EMOJIS.map(em=>(
-                                  <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
-                                ))}
-                                <button className="reaction-plus-trigger" onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border: isLight ? '1px solid #9ca3af' : '1px solid #cbd5e1',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#000',WebkitTextFillColor:'#000',transition:'background 0.2s'}} onMouseEnter={(e)=>{e.currentTarget.style.background= isLight ? '#b8bfc9' : '#f8fafc'}} onMouseLeave={(e)=>{e.currentTarget.style.background= isLight ? '#d1d5db' : '#e2e8f0'}}><Plus size={16} color="#000" style={{ color: '#000', WebkitTextFillColor: '#000' }}/></button>
-                              </div>
-                            </div>
-                          )}
-
                         </div>
+                        {/* Sibling of the bubble, not nested inside it — a captioned
+                            image/video bubble sets overflow:hidden to clip to its own
+                            rounded corners (see the bubble's overflow rule above), which
+                            was silently clipping this whole reaction bar away for any
+                            media WITH a caption (sent and received both) even though it's
+                            absolutely positioned — overflow:hidden clips positioned
+                            descendants too. Living out here, same as react-btn-container
+                            and long-press-menu below, means it's never clipped by the
+                            bubble regardless of caption/media type. */}
+                        {p.activeReactionMsg === msg.id && !p.showAllEmojis && (
+                          <div className="emoji-picker-container" style={
+                            // Media's own on-the-image overlay position (top-left, over the
+                            // photo/video) was hiding the picker for received media entirely
+                            // and put the sent-media trigger on top of the message instead of
+                            // outside it. Reverted to the same outside-the-bubble placement
+                            // text/polls already use for every message type.
+                            // reactionPlacement: flips to open downward (see its own
+                            // declaration) instead of always upward, for a row too close to
+                            // the message list's own top edge to fit the bar above it.
+                            (reactionPlacement === 'up'
+                              ? {position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}
+                              : {position:'absolute', top:'100%', [isMe?'right':'left']:0, marginTop:8, zIndex:100})}>
+                            <div style={{
+                              background: isLight ? 'rgba(255,255,255,0.95)' : 'rgba(26,26,46,0.95)',
+                              backdropFilter:'blur(12px)',
+                              border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                              borderRadius:30,
+                              padding:'6px 8px',
+                              display:'flex',
+                              alignItems:'center',
+                              gap:6,
+                              width:'max-content',
+                              boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
+                            }}>
+                              {QUICK_EMOJIS.map(em=>(
+                                <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
+                              ))}
+                              <button className="reaction-plus-trigger" onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border: isLight ? '1px solid #9ca3af' : '1px solid #cbd5e1',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#000',WebkitTextFillColor:'#000',transition:'background 0.2s'}} onMouseEnter={(e)=>{e.currentTarget.style.background= isLight ? '#b8bfc9' : '#f8fafc'}} onMouseLeave={(e)=>{e.currentTarget.style.background= isLight ? '#d1d5db' : '#e2e8f0'}}><Plus size={16} color="#000" style={{ color: '#000', WebkitTextFillColor: '#000' }}/></button>
+                            </div>
+                          </div>
+                        )}
                         {showLongPressMenu && (
                           <div className="long-press-menu" style={{
                             position:'absolute',
@@ -4996,6 +5004,13 @@ export default function RoomChatPanel({ p }) {
                                   </div>
                                 )}
 
+                              </div>
+                              {/* Sibling of the bubble, not nested inside it — see the
+                                  identical comment on the group thread's copy above: a
+                                  captioned image/video bubble's overflow:hidden was
+                                  silently clipping this reaction bar away for any DM
+                                  media WITH a caption, sent or received, even though the
+                                  bar is absolutely positioned. */}
                                 {p.activeReactionMsg === msg.id && !p.showAllEmojis && (
                                   <div className="emoji-picker-container" style={
                                     // See the identical comment on the group thread's
@@ -5023,7 +5038,6 @@ export default function RoomChatPanel({ p }) {
                                     </div>
                                   </div>
                                 )}
-                              </div>
                                 {showLongPressMenu && (
                                   <div className="long-press-menu" style={{
                                     position:'absolute',
