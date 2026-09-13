@@ -41,7 +41,7 @@ const Login = () => {
   const navigate        = useNavigate();
   const location        = useLocation();
   const { t }           = useTranslation();
-  const { setKeyPair }  = useCrypto();
+  const { setKeyPair, enrollDeviceUnlockSilently } = useCrypto();
 
   const locationMsg = location.state?.message;
   const banMessage = location.state?.banMessage;
@@ -159,6 +159,7 @@ const Login = () => {
           const secretKey = await decryptPrivateKey(data.encryptedPrivateKey, password);
           const kp = nacl.box.keyPair.fromSecretKey(secretKey);
           await setKeyPair(kp);
+          enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
         } catch (cryptoErr) {
           // The login password no longer unwraps this account's stored key
           // blob. This used to be treated as "corrupted, regenerate a fresh
@@ -198,6 +199,7 @@ const Login = () => {
             body: JSON.stringify({ username: data.username, publicKey: encodeBase64(kp.publicKey), encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash })
           });
           await setKeyPair(kp);
+          enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
         } catch (err) {
           console.error('[Login] Legacy key setup failed:', err);
         }
@@ -304,6 +306,7 @@ const Login = () => {
     if (!res.ok) throw new Error(t('encSetupFailed', 'Failed to save your encryption key. Please try again.'));
 
     await setKeyPair(keyPair);
+    enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     setOauthModalMode(null);
     setOauthModalCtx(null);
     // oauthPendingVerification (a brand-new, unverified Google account
@@ -335,6 +338,7 @@ const Login = () => {
       throw new Error(t('encPassphraseWrong', 'Incorrect passphrase. If this account also has a password set, try that.'));
     }
     await setKeyPair(keyPair);
+    enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));
@@ -366,6 +370,7 @@ const Login = () => {
     if (!res.ok) throw new Error(t('encSetupFailed', 'Failed to save your encryption key. Please try again.'));
 
     await setKeyPair(keyPair);
+    enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));

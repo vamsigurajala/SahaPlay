@@ -50,7 +50,7 @@ import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js
 import OAuthEncryptionModal from './OAuthEncryptionModal';
 
 export default function EncryptionUnlockGate() {
-  const { setKeyPair } = useCrypto();
+  const { setKeyPair, enrollDeviceUnlockSilently } = useCrypto();
   const [ctx, setCtx] = useState(null); // { encryptedPrivateKey, publicKey, token }
   // While true, the passphrase modal stays hidden — set only when a native
   // device-unlock attempt is genuinely worth trying (Android + available),
@@ -79,6 +79,14 @@ export default function EncryptionUnlockGate() {
         if (ctx.publicKey && encodeBase64(kp.publicKey) === ctx.publicKey) {
           if (!cancelled) {
             await setKeyPair(kp);
+            // Deliberately NOT calling enrollDeviceUnlockSilently here — this
+            // key was JUST recovered via device unlock, which only succeeds
+            // if a wrapper is already enrolled. Re-enrolling would be a
+            // redundant native round-trip (and, with allowOverwrite left
+            // false, a guaranteed no-op) for every single warm/cold start,
+            // not just the one first-enrollment. handleUnlock/handleRecover
+            // below (the passphrase-prompt fallback paths) are the actual
+            // enrollment points for this gate.
             setCtx(null);
           }
           return;
@@ -101,8 +109,9 @@ export default function EncryptionUnlockGate() {
     const secretKey = await decryptPrivateKey(ctx.encryptedPrivateKey, passphrase);
     const kp = nacl.box.keyPair.fromSecretKey(secretKey);
     await setKeyPair(kp);
+    enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     setCtx(null);
-  }, [ctx, setKeyPair]);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
   const handleRecover = useCallback(async (phrase, newPassphrase) => {
     const secretKey = await mnemonicToSecretKey(phrase);
@@ -119,8 +128,9 @@ export default function EncryptionUnlockGate() {
     });
     if (!res.ok) throw new Error('Failed to save your encryption key. Please try again.');
     await setKeyPair(kp);
+    enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     setCtx(null);
-  }, [ctx, setKeyPair]);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
   if (!ctx || checkingDeviceUnlock) return null;
 

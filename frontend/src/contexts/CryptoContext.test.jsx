@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, test, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import nacl from 'tweetnacl';
-import { encodeBase64 } from 'tweetnacl-util';
+import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import { CryptoProvider, useCrypto } from './CryptoContext';
 import { clearUserSession } from '../lib/authUtils.js';
 import { saveKeyToSession } from '../lib/crypto.js';
@@ -332,14 +332,19 @@ describe('CryptoContext cold-start device unlock (Android) — restore, never re
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('device-enrollment-assertion'), expect.anything());
   });
 
-  test('server genuinely confirms no key exists at all: still generates a fresh keypair (Android device unlock never attempted — nothing to restore)', async () => {
-    installNativePlugin({ unlockDeviceKey: vi.fn() });
+  test('server genuinely confirms no key exists at all: still generates a fresh keypair (Android device-unlock RESTORE is never attempted — nothing to restore — but Stage 5 first-device ENROLLMENT of the brand-new key is)', async () => {
+    const nativeUnlock = vi.fn(); // the restore path — must never be reached
+    const nativeSetup = vi.fn(async () => ({})); // the enrollment path — this IS a first-device-setup, so this should fire
+    installNativePlugin({ unlockDeviceKey: nativeUnlock, setupDeviceUnlock: nativeSetup });
     const fetchMock = vi.fn(async (url) => {
       if (String(url).includes('/api/auth/my-keys')) {
         return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
       }
       if (String(url).includes('save-public-key')) {
         return { ok: true, json: async () => ({ success: true }) };
+      }
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
       }
       throw new Error(`Unexpected fetch in test: ${url}`);
     });
@@ -349,7 +354,8 @@ describe('CryptoContext cold-start device unlock (Android) — restore, never re
 
     await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
     expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
-    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('device-enrollment-assertion'), expect.anything());
+    expect(nativeUnlock).not.toHaveBeenCalled(); // nothing to restore — this is a genuinely new key, not a recovery
+    await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1)); // Stage 5: first-device enrollment of that new key
   });
 });
 
@@ -412,6 +418,12 @@ describe('CryptoContext.enrollDeviceUnlock — first-device-setup ordering guard
     // Once the account's real E2EE key exists (auto-generated here, since
     // this is a genuinely brand-new account), enrollment is allowed.
     await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
+    // Stage 5 also fires enrollDeviceUnlockSilently automatically the
+    // moment that brand-new key is created (see the mount effect) —
+    // clearing the spy here isolates the assertion below to specifically
+    // the EXPLICIT enrollDeviceUnlock() call this test is about, not that
+    // automatic one (already covered by its own dedicated test elsewhere).
+    nativeSetup.mockClear();
     screen.getByTestId('enroll').click();
     await waitFor(() => expect(screen.getByTestId('enroll-result').textContent).toBe('ok'));
     expect(nativeSetup).toHaveBeenCalledTimes(1);
@@ -432,5 +444,102 @@ describe('CryptoContext.enrollDeviceUnlock — first-device-setup ordering guard
     await waitFor(() => expect(screen.getByTestId('enroll-result').textContent).toContain('error'));
     expect(screen.getByTestId('enroll-result').textContent).toContain('guest');
     expect(nativeSetup).not.toHaveBeenCalled();
+  });
+});
+
+// Stage 5 fix: reloadPrivateKeyWithPassword (what KeyRecoveryModal's
+// password field calls) is the CryptoContext.jsx success path named
+// explicitly in the Stage 5 spec — every real call site that obtains this
+// account's actual secret key now also enrolls device unlock silently.
+describe('CryptoContext.reloadPrivateKeyWithPassword — device unlock enrollment wired in', () => {
+  function Recovery() {
+    const { keyPair, needsReauth, reloadPrivateKeyWithPassword } = useCrypto();
+    const [error, setError] = React.useState('');
+    return (
+      <div>
+        <span data-testid="keypair-state">{keyPair ? 'present' : 'null'}</span>
+        <span data-testid="needs-reauth">{String(needsReauth)}</span>
+        <span data-testid="public-key">{keyPair ? encodeBase64(keyPair.publicKey) : ''}</span>
+        <span data-testid="error">{error}</span>
+        <button data-testid="unlock" onClick={async () => {
+          try { await reloadPrivateKeyWithPassword('correct password'); }
+          catch (e) { setError(e.message); }
+        }}>unlock</button>
+      </div>
+    );
+  }
+
+  const REAL_KP = nacl.box.keyPair();
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    delete window.Capacitor;
+    localStorage.setItem('watch_token', fakeToken({ id: 21, username: 'erin' }));
+  });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete window.Capacitor; });
+
+  async function mockedEncryptedBlob() {
+    const { encryptPrivateKey } = await import('../lib/crypto.js');
+    return encryptPrivateKey(REAL_KP.secretKey, 'correct password');
+  }
+
+  test('Android: successful password unlock enrolls device unlock exactly once, with the real secret key', async () => {
+    const encryptedPrivateKey = await mockedEncryptedBlob();
+    const nativeSetup = vi.fn(async () => ({}));
+    installNativePlugin({ setupDeviceUnlock: nativeSetup });
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (String(url).includes('/api/auth/my-keys')) return { ok: true, json: async () => ({ encryptedPrivateKey, publicKey: encodeBase64(REAL_KP.publicKey) }) };
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      throw new Error(`Unexpected fetch: ${url}`);
+    }));
+
+    render(<CryptoProvider><Recovery /></CryptoProvider>);
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true')); // mount effect's own initial state, irrelevant here
+
+    screen.getByTestId('unlock').click();
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1));
+    const [[setupArg]] = nativeSetup.mock.calls;
+    expect(decodeBase64(setupArg.secretKeyBase64)).toEqual(REAL_KP.secretKey);
+  });
+
+  test('browser: successful password unlock never attempts native enrollment', async () => {
+    const encryptedPrivateKey = await mockedEncryptedBlob();
+    const fetchMock = vi.fn(async (url) => {
+      if (String(url).includes('/api/auth/my-keys')) return { ok: true, json: async () => ({ encryptedPrivateKey, publicKey: encodeBase64(REAL_KP.publicKey) }) };
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Recovery /></CryptoProvider>);
+    screen.getByTestId('unlock').click();
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    await new Promise(r => setTimeout(r, 20));
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('device-enrollment-assertion'), expect.anything());
+  });
+
+  test('enrollment failure does not affect the recovered key or needsReauth, and does not regenerate a keypair', async () => {
+    const encryptedPrivateKey = await mockedEncryptedBlob();
+    const nativeSetup = vi.fn(async () => { throw { code: 'AUTH_FAILED', message: 'biometric cancelled' }; });
+    const saveKeyCalls = [];
+    installNativePlugin({ setupDeviceUnlock: nativeSetup });
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const u = String(url);
+      if (u.includes('/api/auth/my-keys')) return { ok: true, json: async () => ({ encryptedPrivateKey, publicKey: encodeBase64(REAL_KP.publicKey) }) };
+      if (u.includes('/api/auth/device-enrollment-assertion')) return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      if (u.includes('save-public-key')) { saveKeyCalls.push(u); return { ok: true, json: async () => ({ success: true }) }; }
+      throw new Error(`Unexpected fetch: ${u}`);
+    }));
+
+    render(<CryptoProvider><Recovery /></CryptoProvider>);
+    screen.getByTestId('unlock').click();
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    expect(screen.getByTestId('public-key').textContent).toBe(encodeBase64(REAL_KP.publicKey)); // the REAL key, not a regenerated one
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
+    expect(screen.getByTestId('error').textContent).toBe(''); // reloadPrivateKeyWithPassword itself did not throw
+    await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1));
+    expect(saveKeyCalls.length).toBe(0); // a keypair was never (re)generated/uploaded
   });
 });

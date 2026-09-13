@@ -23,6 +23,48 @@ import {
   hasDeviceUnlock as nativeHasDeviceUnlock,
 } from '../lib/deviceUnlock.js';
 
+// Stage 5 fix: the missing half of Stage 4. Every place in this file/
+// Login.jsx/EncryptionUnlockGate.jsx that successfully obtains this
+// account's real 32-byte E2EE secret key calls this immediately
+// afterward — it's what actually lets device unlock take over on the
+// NEXT cold start; without it (confirmed on a real device: Stage 4 alone
+// never wired this call in anywhere) `tryRestoreViaDeviceUnlock` above
+// always finds nothing enrolled and falls back to the passphrase/
+// password prompt every single time, forever.
+//
+// Deliberately takes secretKeyBytes as a plain argument rather than
+// reading `keyPair` from React state/closure — every call site below
+// calls this in the same tick it just decrypted/generated that exact
+// value locally, before the corresponding setKeyPair()/setKeyPairState()
+// state update has necessarily committed, so reading `keyPair` here
+// would risk enrolling a stale or still-null key.
+//
+// Deliberately fire-and-forget: this NEVER throws, NEVER blocks its
+// caller, and has no code path that can fail the login/unlock it's
+// attached to, touch the already-valid key that was just established, or
+// generate a replacement keypair — it only ever calls the existing,
+// unmodified deviceUnlock.js `setupDeviceUnlock` (itself unmodified —
+// same fresh-assertion-required, no-account-id-parameter contract as
+// every other stage). A pre-existing wrapper is never overwritten
+// (allowOverwrite stays false), and ALREADY_ENROLLED/any other failure is
+// treated identically: a missed convenience, never an error condition.
+async function enrollDeviceUnlockSilently(secretKeyBytes) {
+  try {
+    if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return; // browser / no native plugin — never attempted
+    if (localStorage.getItem('watch_is_guest') === 'true') return; // guests have no server-side identity to enroll
+    if (!(secretKeyBytes instanceof Uint8Array) || secretKeyBytes.length !== 32) return;
+    await nativeSetupDeviceUnlock(secretKeyBytes, { allowOverwrite: false });
+    console.log('[CryptoContext] Device unlock enrolled for this account on this device.');
+  } catch (e) {
+    if (e?.code === 'ALREADY_ENROLLED') return; // harmless — a wrapper already exists here, never overwritten
+    // HARDWARE_UNAVAILABLE, AUTH_FAILED (biometric cancelled),
+    // NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED, or anything unexpected —
+    // all just mean "no convenience enrollment this time." Logged by
+    // error code/message only — never the secret key or any passphrase.
+    console.warn('[CryptoContext] Device unlock enrollment failed (login/unlock is unaffected):', e?.code || e?.message || e);
+  }
+}
+
 // Stage 4 integration point. Attempted ONLY from the specific cold-start
 // spots below (never on a warm in-memory/sessionStorage key) — see
 // deviceUnlock.js's own doc comment for why this never accepts/derives an
@@ -215,6 +257,12 @@ export function CryptoProvider({ children }) {
           if (restoredKp) {
             await saveKeyToSession(restoredKp.secretKey);
             setKeyPairState(restoredKp);
+            // Not re-enrolling here — restoredKp only exists because a
+            // wrapper is ALREADY enrolled on this device (that's what
+            // tryRestoreViaDeviceUnlock just succeeded against). See
+            // enrollDeviceUnlockSilently's own doc comment for where the
+            // actual enrollment calls live (every password/passphrase/
+            // recovery success path, none of which run when this branch does).
             console.log('[CryptoContext] Key restored via device unlock ✅');
           } else if (serverHasExistingKey || !serverCheckOk) {
             if (!serverCheckOk) {
@@ -230,6 +278,7 @@ export function CryptoProvider({ children }) {
               const newKP = generateKeyPair();
               await saveKeyToSession(newKP.secretKey);
               setKeyPairState(newKP);
+              enrollDeviceUnlockSilently(newKP.secretKey); // fire-and-forget, see its own doc comment
 
               if (tkn) {
                 const pubB64 = encodeBase64(newKP.publicKey);
@@ -292,6 +341,7 @@ export function CryptoProvider({ children }) {
     await saveKeyToSession(kp.secretKey);
     setKeyPairState(kp);
     setNeedsReauth(false);
+    enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget, see its own doc comment
     console.log('[CryptoContext] Keys restored from server ✅');
   }, []);
 
@@ -379,7 +429,7 @@ export function CryptoProvider({ children }) {
   }, []);
 
   return (
-    <CryptoContext.Provider value={{ keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock, enrollDeviceUnlock, forgetDeviceUnlock, checkDeviceUnlockEnrolled }}>
+    <CryptoContext.Provider value={{ keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock, enrollDeviceUnlock, enrollDeviceUnlockSilently, forgetDeviceUnlock, checkDeviceUnlockEnrolled }}>
       {children}
     </CryptoContext.Provider>
   );
