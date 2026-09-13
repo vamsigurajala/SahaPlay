@@ -49,13 +49,25 @@ import {
 // (allowOverwrite stays false), and ALREADY_ENROLLED/any other failure is
 // treated identically: a missed convenience, never an error condition.
 async function enrollDeviceUnlockSilently(secretKeyBytes) {
+  // TEMPORARY DIAGNOSTIC (real-device debugging only — remove once the
+  // device-unlock investigation is done): logcat/chrome://inspect are
+  // unavailable on the test device, so this surfaces the exact same
+  // information via a plain on-screen alert() instead, which is visible
+  // regardless of any OS/ROM-level WebView-debugging restriction.
+  if (isCapacitorApp()) {
+    window.alert('[DIAG enroll] isDeviceUnlockAvailable=' + isDeviceUnlockAvailable()
+      + ' isGuest=' + (localStorage.getItem('watch_is_guest') === 'true')
+      + ' keyLen=' + (secretKeyBytes instanceof Uint8Array ? secretKeyBytes.length : typeof secretKeyBytes));
+  }
   try {
     if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return; // browser / no native plugin — never attempted
     if (localStorage.getItem('watch_is_guest') === 'true') return; // guests have no server-side identity to enroll
     if (!(secretKeyBytes instanceof Uint8Array) || secretKeyBytes.length !== 32) return;
     await nativeSetupDeviceUnlock(secretKeyBytes, { allowOverwrite: false });
     console.log('[CryptoContext] Device unlock enrolled for this account on this device.');
+    if (isCapacitorApp()) window.alert('[DIAG enroll] SUCCESS — native setupDeviceUnlock resolved with no error.');
   } catch (e) {
+    if (isCapacitorApp()) window.alert('[DIAG enroll] FAILED code=' + (e?.code || 'none') + ' message=' + (e?.message || String(e)));
     if (e?.code === 'ALREADY_ENROLLED') return; // harmless — a wrapper already exists here, never overwritten
     // HARDWARE_UNAVAILABLE, AUTH_FAILED (biometric cancelled),
     // NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED, or anything unexpected —
