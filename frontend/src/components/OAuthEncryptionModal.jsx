@@ -25,7 +25,7 @@
  *              phrase (shown once at original key creation) and set a new
  *              passphrase.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Lock, Eye, EyeOff, KeyRound, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -34,6 +34,18 @@ const MIN_LENGTH = 8;
 export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, isPasswordAccount, onSetPassphrase, onUnlock, onRecover, onSkip }) {
   const { t } = useTranslation();
   const [view, setView] = useState('main'); // 'main' | 'forgot'
+
+  // This modal has no "click outside to dismiss" — it's always mounted
+  // over real page content behind it (Home/Dashboard), and without this,
+  // scrolling inside the modal (mouse wheel, trackpad, touch) scrolled
+  // that page underneath right along with it. Same body-scroll-lock idiom
+  // already used by PinSetupModal/ChatLockScreen/CreateRoomModal elsewhere
+  // in this app.
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = original; };
+  }, []);
   const [passphrase, setPassphrase] = useState('');
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
   const [showPassphrase, setShowPassphrase] = useState(false);

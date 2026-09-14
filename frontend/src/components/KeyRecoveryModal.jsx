@@ -9,7 +9,7 @@
  * everything encrypted under the old key, on every device. Entering the
  * account password here decrypts and restores the SAME identity key instead.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useCrypto } from '../contexts/CryptoContext';
@@ -22,6 +22,20 @@ export default function KeyRecoveryModal() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [switching, setSwitching] = useState(false);
+
+  // This component is always mounted at the App level and only
+  // conditionally renders (the `if (!needsReauth) return null` below), so
+  // this hook has to run every render regardless — it just no-ops unless
+  // the modal is actually showing. Same body-scroll-lock idiom already
+  // used by PinSetupModal/ChatLockScreen/CreateRoomModal elsewhere in this
+  // app: without it, scrolling inside this modal scrolled the real page
+  // behind it right along with it.
+  useEffect(() => {
+    if (!needsReauth) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = original; };
+  }, [needsReauth]);
 
   if (!needsReauth) return null;
 
