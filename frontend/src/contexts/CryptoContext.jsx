@@ -88,29 +88,57 @@ async function enrollDeviceUnlockSilently(secretKeyBytes) {
 // it only ever means "could not use device unlock this time," and every
 // caller below treats it as exactly that: fall back to the existing
 // passphrase/recovery UI, unchanged.
-async function tryRestoreViaDeviceUnlock(serverPublicKeyB64) {
+async function tryRestoreViaDeviceUnlock(serverPublicKeyB64, isCancelled = () => false) {
   if (!serverPublicKeyB64) return null; // nothing to verify against — never attempt
   if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return null;
-  try {
-    const secretKey = await unlockDeviceKey();
-    const kp = nacl.box.keyPair.fromSecretKey(secretKey);
-    if (encodeBase64(kp.publicKey) !== serverPublicKeyB64) {
-      console.warn('[CryptoContext] Device unlock returned a key that does not match the server public key — discarding and falling back to passphrase/recovery.');
-      return null;
+
+  // This runs at the very first tick of a genuinely cold app launch —
+  // earlier than anything else in the app has had a chance to confirm the
+  // WebView's network stack is actually up yet. A transient failure here
+  // (the assertion fetch specifically — a real network round-trip) used to
+  // give up immediately and fall straight to the passphrase/password
+  // prompt for what's often just a momentary startup race, not a real
+  // "nothing enrolled" or "biometric failed" condition. Retrying a couple
+  // of times with a short backoff costs at most ~1.2s on a real failure,
+  // and turns "always asks again right after a cold start" into "works
+  // once the network catches up" for the common transient case. Never
+  // retries AUTH_FAILED (a biometric prompt was actually shown and
+  // cancelled/failed — retrying would just re-trigger it), or any other
+  // genuine, non-transient failure (NO_KEY_FOR_ACCOUNT, KEY_INVALIDATED,
+  // CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, ALREADY_IN_PROGRESS) — only the
+  // two codes that specifically mean "couldn't even reach the assertion
+  // step yet."
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (isCancelled()) return null; // caller unmounted (e.g. logged out) mid-retry — stop, don't touch anything further
+    try {
+      const secretKey = await unlockDeviceKey();
+      if (isCancelled()) return null; // resolved after the caller stopped caring — discard, don't call setState on an unmounted effect
+      const kp = nacl.box.keyPair.fromSecretKey(secretKey);
+      if (encodeBase64(kp.publicKey) !== serverPublicKeyB64) {
+        console.warn('[CryptoContext] Device unlock returned a key that does not match the server public key — discarding and falling back to passphrase/recovery.');
+        return null; // a real verification failure, not transient — never retry this
+      }
+      return kp;
+    } catch (e) {
+      const transient = e?.code === 'ASSERTION_FETCH_FAILED' || e?.code === 'NOT_AUTHENTICATED';
+      if (!transient || attempt === MAX_ATTEMPTS) {
+        // Every failure mode here — NOT_AVAILABLE, NOT_AUTHENTICATED,
+        // ASSERTION_FETCH_FAILED, NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT,
+        // KEY_INVALIDATED, CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE,
+        // AUTH_FAILED, ALREADY_IN_PROGRESS, NATIVE_UNAVAILABLE, or any
+        // unexpected exception — is reported identically: no key. This is
+        // the same "unknown/protected, not confirmed-absent" bucket the
+        // my-keys network-failure fix already established below; device
+        // unlock only ever ADDS a shortcut into an already-confirmed-
+        // present key, it never substitutes for that check.
+        console.warn('[CryptoContext] Device unlock not used, falling back to passphrase/recovery:', e?.code || e?.message || e);
+        return null;
+      }
+      await new Promise(r => setTimeout(r, attempt * 400)); // 400ms, then 800ms
     }
-    return kp;
-  } catch (e) {
-    // Every failure mode here — NOT_AVAILABLE, NOT_AUTHENTICATED,
-    // ASSERTION_FETCH_FAILED, NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT,
-    // KEY_INVALIDATED, CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, AUTH_FAILED,
-    // ALREADY_IN_PROGRESS, NATIVE_UNAVAILABLE, or any unexpected exception —
-    // is reported identically: no key. This is the same "unknown/protected,
-    // not confirmed-absent" bucket the my-keys network-failure fix already
-    // established below; device unlock only ever ADDS a shortcut into an
-    // already-confirmed-present key, it never substitutes for that check.
-    console.warn('[CryptoContext] Device unlock not used, falling back to passphrase/recovery:', e?.code || e?.message || e);
-    return null;
   }
+  return null;
 }
 
 const CryptoContext = createContext(null);
@@ -175,6 +203,14 @@ export function CryptoProvider({ children }) {
 
   // On mount: restore key from sessionStorage (page refresh resilience)
   useEffect(() => {
+    // Set on unmount and threaded into tryRestoreViaDeviceUnlock's retry
+    // loop (see its own doc comment) — without this, a still-in-flight
+    // retry (each attempt can take up to ~800ms) could resolve after this
+    // effect's owner has already gone away (a real app never unmounts
+    // CryptoProvider, but tests render/unmount it constantly) and call
+    // into whatever native plugin mock/instance happens to be installed
+    // by then, or call setState on an unmounted component.
+    let cancelled = false;
     (async () => {
       try {
         const username = localStorage.getItem('watch_username');
@@ -273,7 +309,8 @@ export function CryptoProvider({ children }) {
           // against and returns null immediately anyway (see its own guard),
           // so this always falls through to the exact same
           // needsReauth-on-network-failure behavior as before this stage.
-          const restoredKp = serverHasExistingKey ? await tryRestoreViaDeviceUnlock(serverPublicKeyB64) : null;
+          const restoredKp = serverHasExistingKey ? await tryRestoreViaDeviceUnlock(serverPublicKeyB64, () => cancelled) : null;
+          if (cancelled) return; // stopped caring while the (possibly retried) restore attempt was in flight
           if (restoredKp) {
             await saveKeyToSession(restoredKp.secretKey);
             setKeyPairState(restoredKp);
@@ -316,9 +353,10 @@ export function CryptoProvider({ children }) {
       } catch (e) {
         console.error('[CryptoContext] Failed to restore key from session:', e);
       } finally {
-        setIsReady(true);
+        if (!cancelled) setIsReady(true);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   /** Store key pair in memory + encrypted sessionStorage. */
@@ -424,20 +462,38 @@ export function CryptoProvider({ children }) {
    * network for a fresh assertion, biometric cancelled): never throws,
    * never regenerates the E2EE keypair itself, never touches an existing
    * wrapper it couldn't successfully replace.
+   *
+   * Returns a plain status object (rather than throwing) so the Settings
+   * UI can tell the difference between "the setting took effect AND the
+   * device is actually re-enrolled under the new policy" and "the setting
+   * is saved, but the old key/policy is still active until the next
+   * successful enrollment" — a caller that only checked "did this throw"
+   * would never learn about the second case, which is exactly the kind of
+   * silent partial-failure that makes a stale key look like a broken
+   * toggle.
+   *
+   * @returns {Promise<{persisted: true, reenrolled: boolean, reason?: string}>}
    */
   const setDeviceUnlockRequireEveryOpen = useCallback(async (enabled) => {
     setStrictDeviceUnlockEnabled(enabled);
-    if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return; // setting still saved; just inert here
-    if (!keyPair || !keyPair.secretKey) return; // nothing to (re-)wrap yet — next real enrollment will use the new setting
+    if (!isCapacitorApp() || !isDeviceUnlockAvailable()) {
+      return { persisted: true, reenrolled: false, reason: 'NOT_AVAILABLE' };
+    }
+    if (!keyPair || !keyPair.secretKey) {
+      return { persisted: true, reenrolled: false, reason: 'NO_KEY_YET' };
+    }
     try {
       await nativeSetupDeviceUnlock(keyPair.secretKey, { allowOverwrite: true, strict: enabled });
+      return { persisted: true, reenrolled: true };
     } catch (e) {
       // ALREADY_ENROLLED can't happen here (allowOverwrite is always true);
       // any other failure (AUTH_FAILED, HARDWARE_UNAVAILABLE,
       // NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED) just means the OLD
       // wrapper (old policy) is left in place for now — the setting itself
       // still took effect and will apply to the next successful enrollment.
-      console.warn('[CryptoContext] Failed to re-enroll device unlock for the new "require fingerprint every open" setting:', e?.code || e?.message || e);
+      const reason = e?.code || e?.message || 'UNKNOWN';
+      console.warn('[CryptoContext] Failed to re-enroll device unlock for the new "require fingerprint every open" setting:', reason);
+      return { persisted: true, reenrolled: false, reason };
     }
   }, [keyPair]);
 

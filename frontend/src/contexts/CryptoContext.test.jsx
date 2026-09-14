@@ -312,7 +312,11 @@ describe('CryptoContext cold-start device unlock (Android) — restore, never re
 
     render(<CryptoProvider><Probe /></CryptoProvider>);
 
-    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    // tryRestoreViaDeviceUnlock retries ASSERTION_FETCH_FAILED up to 3
+    // times with a short backoff (400ms, 800ms) before giving up — see its
+    // own doc comment. That adds up to ~1.2s here on top of the default
+    // waitFor allowance.
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'), { timeout: 3000 });
     expect(screen.getByTestId('keypair-state').textContent).toBe('null');
     expect(nativeUnlock).not.toHaveBeenCalled(); // never reached native — assertion fetch failed first
   });
@@ -356,6 +360,78 @@ describe('CryptoContext cold-start device unlock (Android) — restore, never re
     expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
     expect(nativeUnlock).not.toHaveBeenCalled(); // nothing to restore — this is a genuinely new key, not a recovery
     await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1)); // Stage 5: first-device enrollment of that new key
+  });
+
+  // tryRestoreViaDeviceUnlock's retry behavior — a genuinely cold app
+  // launch's very first network request can transiently fail before the
+  // WebView's network stack is fully up; retrying a couple of times turns
+  // that into "works" instead of "always falls back to the passphrase/
+  // password prompt right after opening the app."
+  test('transient ASSERTION_FETCH_FAILED then success on retry: still restores the key silently, no reauth prompt', async () => {
+    let assertionAttempts = 0;
+    const nativeUnlock = vi.fn(async () => ({ secretKeyBase64: encodeBase64(REAL_KP.secretKey) }));
+    installNativePlugin({ unlockDeviceKey: nativeUnlock });
+
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+        assertionAttempts++;
+        if (assertionAttempts === 1) throw new TypeError('Failed to fetch'); // simulates the cold-start race
+        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 3000 });
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
+    expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
+    expect(assertionAttempts).toBeGreaterThanOrEqual(2); // confirms a retry actually happened, not a fluke first-try pass
+  });
+
+  test('AUTH_FAILED (biometric cancelled) is never retried — falls back to reauth immediately, only one attempt', async () => {
+    const nativeUnlock = vi.fn(async () => { throw { code: 'AUTH_FAILED', message: 'user cancelled' }; });
+    installNativePlugin({ unlockDeviceKey: nativeUnlock });
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+    // A cancelled/failed biometric prompt already showed real UI to the
+    // user — retrying would just re-trigger the same prompt again, which
+    // is exactly the "asks again immediately" annoyance this must avoid.
+    expect(nativeUnlock).toHaveBeenCalledTimes(1);
+  });
+
+  test('all 3 retry attempts exhausted (persistent ASSERTION_FETCH_FAILED): falls back to reauth, no key generated', async () => {
+    installNativePlugin({ unlockDeviceKey: vi.fn() });
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) throw new TypeError('Failed to fetch');
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'), { timeout: 3000 });
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+    // my-keys (1) + 3 assertion attempts = 4 total fetch calls
+    const assertionCalls = fetchMock.mock.calls.filter(c => String(c[0]).includes('device-enrollment-assertion'));
+    expect(assertionCalls.length).toBe(3);
   });
 });
 

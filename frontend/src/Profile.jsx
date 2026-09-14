@@ -25,6 +25,7 @@ import { useCrypto } from './contexts/CryptoContext';
 import { decryptPrivateKey, encryptPrivateKey } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
 import OAuthEncryptionModal from './components/OAuthEncryptionModal';
+import ToggleSwitch from './components/ToggleSwitch';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -41,6 +42,7 @@ const Profile = () => {
   // mount (it's a plain local-device preference, not something another tab
   // or the server can change underneath this component).
   const [requireFingerprintEveryOpen, setRequireFingerprintEveryOpen] = useState(() => isDeviceUnlockRequireEveryOpenEnabled());
+  const [savingDeviceUnlockSetting, setSavingDeviceUnlockSetting] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
   const isDesktopApp = isTauriApp();
@@ -2240,27 +2242,46 @@ const Profile = () => {
               </div>
               {openSection === 'deviceUnlock' && (
                 <div className="acc-body">
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={requireFingerprintEveryOpen}
-                      onChange={(e) => {
-                        const enabled = e.target.checked;
-                        setRequireFingerprintEveryOpen(enabled);
-                        setDeviceUnlockRequireEveryOpen(enabled).catch(() => {
-                          // Non-fatal — see setDeviceUnlockRequireEveryOpen's own
-                          // doc comment: the preference is saved either way, a
-                          // failed re-enroll just means the old key/policy is
-                          // used until the next successful enrollment.
-                        });
-                      }}
-                      style={{ marginTop: 2 }}
-                    />
-                    <span style={{ color: '#fff', fontSize: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ color: '#fff', fontSize: 14, flex: 1 }}>
                       {t('requireFingerprintEveryOpen', 'Require fingerprint every time I open the app')}
                     </span>
-                  </label>
-                  <div className="field-label" style={{ marginTop: 8, paddingLeft: 28 }}>
+                    <ToggleSwitch
+                      checked={requireFingerprintEveryOpen}
+                      disabled={savingDeviceUnlockSetting}
+                      label={t('requireFingerprintEveryOpen', 'Require fingerprint every time I open the app')}
+                      onChange={async (enabled) => {
+                        setRequireFingerprintEveryOpen(enabled);
+                        setSavingDeviceUnlockSetting(true);
+                        try {
+                          const result = await setDeviceUnlockRequireEveryOpen(enabled);
+                          if (result.reenrolled) {
+                            toast.success(
+                              enabled
+                                ? t('requireFingerprintOnToast', "You'll be asked to authenticate every time you open the app.")
+                                : t('requireFingerprintOffToast', 'Back to the usual: unlock once, no need to authenticate again.')
+                            );
+                          } else {
+                            // The setting itself is saved either way — but
+                            // it hasn't actually taken effect on THIS
+                            // device's key yet (e.g. biometric was
+                            // cancelled, or no network for a fresh
+                            // assertion). Say so plainly instead of
+                            // showing a success toast for something that
+                            // silently didn't happen — that's exactly the
+                            // kind of mismatch that looks like "the toggle
+                            // doesn't work."
+                            toast.error(t('requireFingerprintSavedNotAppliedToast', "Saved, but couldn't update this device's fingerprint lock yet — it'll apply next time you unlock successfully."));
+                          }
+                        } catch (e) {
+                          toast.error(t('somethingWentWrongError', 'Something went wrong. Please try again.'));
+                        } finally {
+                          setSavingDeviceUnlockSetting(false);
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="field-label" style={{ marginTop: 8 }}>
                     {t('requireFingerprintEveryOpenDesc', 'When enabled, SahaPlay will ask for fingerprint/device authentication each time you reopen the app.')}
                   </div>
                 </div>
