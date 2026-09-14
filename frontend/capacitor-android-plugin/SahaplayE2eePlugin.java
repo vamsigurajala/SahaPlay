@@ -195,7 +195,7 @@ public class SahaplayE2eePlugin extends Plugin {
                 return;
             } catch (GeneralSecurityException e) {
                 Log.e(TAG, "setupDeviceUnlock: prepareSetupCipher failed", e);
-                call.reject("Failed to prepare device unlock", "HARDWARE_UNAVAILABLE");
+                call.reject("Failed to prepare device unlock: " + describeException(e), "HARDWARE_UNAVAILABLE");
                 return;
             }
 
@@ -215,7 +215,7 @@ public class SahaplayE2eePlugin extends Plugin {
                         call.resolve();
                     } catch (GeneralSecurityException e) {
                         Log.e(TAG, "setupDeviceUnlock: finishSetup failed", e);
-                        call.reject("Failed to finish device unlock setup", "HARDWARE_UNAVAILABLE");
+                        call.reject("Failed to finish device unlock setup: " + describeException(e), "HARDWARE_UNAVAILABLE");
                     }
                 });
             } catch (Throwable t) {
@@ -302,7 +302,7 @@ public class SahaplayE2eePlugin extends Plugin {
             } catch (GeneralSecurityException e) {
                 clearInFlight(id);
                 Log.e(TAG, "unlockDeviceKey: prepareUnlockCipher failed", e);
-                call.reject("Device unlock is unavailable", "HARDWARE_UNAVAILABLE");
+                call.reject("Device unlock is unavailable: " + describeException(e), "HARDWARE_UNAVAILABLE");
                 return;
             }
 
@@ -332,7 +332,7 @@ public class SahaplayE2eePlugin extends Plugin {
             } catch (GeneralSecurityException e) {
                 clearInFlight(id);
                 Log.e(TAG, "unlockDeviceKey: finishUnlock failed", e);
-                call.reject("Device unlock failed", "HARDWARE_UNAVAILABLE");
+                call.reject("Device unlock failed: " + describeException(e), "HARDWARE_UNAVAILABLE");
                 return;
             }
 
@@ -352,7 +352,7 @@ public class SahaplayE2eePlugin extends Plugin {
                         resolveWithKey(call, secretKeyBytes);
                     } catch (GeneralSecurityException e) {
                         Log.e(TAG, "unlockDeviceKey: finishUnlock (post-auth) failed", e);
-                        call.reject("Device unlock failed", "HARDWARE_UNAVAILABLE");
+                        call.reject("Device unlock failed: " + describeException(e), "HARDWARE_UNAVAILABLE");
                     } finally {
                         clearInFlight(id);
                     }
@@ -363,6 +363,28 @@ public class SahaplayE2eePlugin extends Plugin {
                 call.reject("Unexpected error showing biometric prompt: " + t, "NATIVE_ERROR");
             }
         });
+    }
+
+    // TEMPORARY DIAGNOSTIC — remove once the strict-mode HARDWARE_UNAVAILABLE
+    // investigation is closed. call.reject(message, code) is the only channel
+    // that reaches the test device at all right now (no USB/wireless
+    // debugging enabled, so Log.e's full stack trace never leaves the
+    // phone) — this puts the real exception class/message, AND its cause
+    // chain (AndroidKeyStore/StrongBox failures are very often wrapped —
+    // the top-level exception is frequently a generic KeyStoreException
+    // whose getCause() has the actual HAL/provider error), directly into
+    // that message so it shows up in the on-screen alert() diagnostics.
+    private static String describeException(Throwable t) { // DIAG_REMOVE_ME
+        StringBuilder sb = new StringBuilder();
+        Throwable cur = t;
+        int depth = 0;
+        while (cur != null && depth < 4) {
+            if (depth > 0) sb.append(" <- caused by: ");
+            sb.append(cur.getClass().getSimpleName()).append(": ").append(cur.getMessage());
+            cur = cur.getCause();
+            depth++;
+        }
+        return sb.toString();
     }
 
     private void resolveWithKey(PluginCall call, byte[] secretKeyBytes) {
