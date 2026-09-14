@@ -22,6 +22,7 @@ import {
   clearDeviceUnlock as nativeClearDeviceUnlock,
   hasDeviceUnlock as nativeHasDeviceUnlock,
 } from '../lib/deviceUnlock.js';
+import { isStrictDeviceUnlockEnabled, setStrictDeviceUnlockEnabled } from '../lib/deviceUnlockSettings.js';
 
 // Stage 5 fix: the missing half of Stage 4. Every place in this file/
 // Login.jsx/EncryptionUnlockGate.jsx that successfully obtains this
@@ -49,25 +50,13 @@ import {
 // (allowOverwrite stays false), and ALREADY_ENROLLED/any other failure is
 // treated identically: a missed convenience, never an error condition.
 async function enrollDeviceUnlockSilently(secretKeyBytes) {
-  // TEMPORARY DIAGNOSTIC (real-device debugging only — remove once the
-  // device-unlock investigation is done): logcat/chrome://inspect are
-  // unavailable on the test device, so this surfaces the exact same
-  // information via a plain on-screen alert() instead, which is visible
-  // regardless of any OS/ROM-level WebView-debugging restriction.
-  if (isCapacitorApp()) {
-    window.alert('[DIAG enroll] isDeviceUnlockAvailable=' + isDeviceUnlockAvailable()
-      + ' isGuest=' + (localStorage.getItem('watch_is_guest') === 'true')
-      + ' keyLen=' + (secretKeyBytes instanceof Uint8Array ? secretKeyBytes.length : typeof secretKeyBytes));
-  }
   try {
     if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return; // browser / no native plugin — never attempted
     if (localStorage.getItem('watch_is_guest') === 'true') return; // guests have no server-side identity to enroll
     if (!(secretKeyBytes instanceof Uint8Array) || secretKeyBytes.length !== 32) return;
-    await nativeSetupDeviceUnlock(secretKeyBytes, { allowOverwrite: false });
+    await nativeSetupDeviceUnlock(secretKeyBytes, { allowOverwrite: false, strict: isStrictDeviceUnlockEnabled() });
     console.log('[CryptoContext] Device unlock enrolled for this account on this device.');
-    if (isCapacitorApp()) window.alert('[DIAG enroll] SUCCESS — native setupDeviceUnlock resolved with no error.');
   } catch (e) {
-    if (isCapacitorApp()) window.alert('[DIAG enroll] FAILED code=' + (e?.code || 'none') + ' message=' + (e?.message || String(e)));
     if (e?.code === 'ALREADY_ENROLLED') return; // harmless — a wrapper already exists here, never overwritten
     // HARDWARE_UNAVAILABLE, AUTH_FAILED (biometric cancelled),
     // NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED, or anything unexpected —
@@ -201,8 +190,27 @@ export function CryptoProvider({ children }) {
           return;
         }
 
-        // Registered user: restore from AES-encrypted sessionStorage
-        const secretKey = await loadKeyFromSession();
+        // Registered user: restore from AES-encrypted sessionStorage —
+        // UNLESS "require fingerprint every time I open the app" is on.
+        // That setting's whole contract is "ask again on a genuinely NEW
+        // app launch, never merely on foreground/resume/backgrounding" —
+        // checking it exactly here is what makes that true: this mount
+        // effect body runs exactly once per real app launch/process (this
+        // Provider is mounted once at the app root; switching to another
+        // app and back does NOT re-run it, only a real process restart
+        // does — deliberately NOT using Capacitor's appStateChange/resume
+        // events, which fire on every such switch, not just a new launch).
+        // On browser / no native plugin, isStrictDeviceUnlockEnabled() is
+        // irrelevant in practice (isCapacitorApp() gates it below anyway).
+        const strictModeActive = isCapacitorApp() && isStrictDeviceUnlockEnabled();
+        if (strictModeActive) {
+          // Never trust a cached session key under strict mode — the point
+          // is a fresh check every launch, not a shortcut past it. This
+          // only clears this tab's own decrypted-key cache; it does NOT
+          // touch the native Keystore enrollment itself.
+          clearSessionKey();
+        }
+        const secretKey = strictModeActive ? null : await loadKeyFromSession();
         if (secretKey && secretKey.length === 32) {
           const kp = nacl.box.keyPair.fromSecretKey(secretKey);
           setKeyPairState(kp);
@@ -401,6 +409,38 @@ export function CryptoProvider({ children }) {
     await nativeSetupDeviceUnlock(keyPair.secretKey, { allowOverwrite });
   }, [keyPair]);
 
+  /**
+   * Profile → Device Unlock → "Require fingerprint every time I open the
+   * app" toggle handler. An Android Keystore key's authentication policy
+   * (30-minute silent-reuse window vs. authenticate-on-every-use) is fixed
+   * at generation time and cannot be changed on an existing key in place —
+   * see E2eeKeyStore.java's buildKeySpec — so switching this setting
+   * re-enrolls (allowOverwrite: true) with the new policy baked into a
+   * freshly generated key, rather than silently changing the existing
+   * one's behavior. The preference itself is persisted regardless of
+   * whether the re-enroll succeeds (it is not secret — see
+   * deviceUnlockSettings.js), so it takes effect the next time a key IS
+   * enrolled even if this particular re-enroll attempt fails (e.g. no
+   * network for a fresh assertion, biometric cancelled): never throws,
+   * never regenerates the E2EE keypair itself, never touches an existing
+   * wrapper it couldn't successfully replace.
+   */
+  const setDeviceUnlockRequireEveryOpen = useCallback(async (enabled) => {
+    setStrictDeviceUnlockEnabled(enabled);
+    if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return; // setting still saved; just inert here
+    if (!keyPair || !keyPair.secretKey) return; // nothing to (re-)wrap yet — next real enrollment will use the new setting
+    try {
+      await nativeSetupDeviceUnlock(keyPair.secretKey, { allowOverwrite: true, strict: enabled });
+    } catch (e) {
+      // ALREADY_ENROLLED can't happen here (allowOverwrite is always true);
+      // any other failure (AUTH_FAILED, HARDWARE_UNAVAILABLE,
+      // NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED) just means the OLD
+      // wrapper (old policy) is left in place for now — the setting itself
+      // still took effect and will apply to the next successful enrollment.
+      console.warn('[CryptoContext] Failed to re-enroll device unlock for the new "require fingerprint every open" setting:', e?.code || e?.message || e);
+    }
+  }, [keyPair]);
+
   /** "Forget this device" — see deviceUnlock.js's clearDeviceUnlock for why this is distinct from logout. */
   const forgetDeviceUnlock = useCallback(async () => {
     await nativeClearDeviceUnlock();
@@ -441,7 +481,7 @@ export function CryptoProvider({ children }) {
   }, []);
 
   return (
-    <CryptoContext.Provider value={{ keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock, enrollDeviceUnlock, enrollDeviceUnlockSilently, forgetDeviceUnlock, checkDeviceUnlockEnrolled }}>
+    <CryptoContext.Provider value={{ keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock, enrollDeviceUnlock, enrollDeviceUnlockSilently, forgetDeviceUnlock, checkDeviceUnlockEnrolled, setDeviceUnlockRequireEveryOpen, isDeviceUnlockRequireEveryOpenEnabled: isStrictDeviceUnlockEnabled }}>
       {children}
     </CryptoContext.Provider>
   );

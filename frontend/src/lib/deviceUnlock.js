@@ -183,17 +183,27 @@ export async function hasDeviceUnlock() {
  * generation behavior — see E2eeKeyStore.java).
  *
  * @param {Uint8Array} secretKeyBytes  exactly 32 bytes
- * @param {{allowOverwrite?: boolean}} [opts]  allowOverwrite must only be
- *   passed true from an explicit, user-visible re-enrollment action —
- *   never as a default, per SahaplayE2eePlugin.java's own no-silent-
- *   overwrite guarantee.
+ * @param {{allowOverwrite?: boolean, strict?: boolean}} [opts]
+ *   allowOverwrite must only be passed true from an explicit, user-visible
+ *   re-enrollment action — never as a default, per SahaplayE2eePlugin.java's
+ *   own no-silent-overwrite guarantee.
+ *   strict selects the Keystore key's authentication policy for THIS
+ *   enrollment: false (default) keeps the existing 30-minute authentication-
+ *   validity window (silent re-use within that window, no repeated
+ *   prompts); true creates a key that requires a fresh biometric/device-
+ *   credential check on every single use, with no grace window at all —
+ *   see deviceUnlockSettings.js's "require fingerprint every open" setting,
+ *   the only intended caller of strict:true. Changing strict for an
+ *   account that's already enrolled requires allowOverwrite:true (the
+ *   native side never changes an existing key's policy in place — see
+ *   E2eeKeyStore.java's buildKeySpec).
  * @throws DeviceUnlockError('NOT_AVAILABLE')       non-native platform
  * @throws DeviceUnlockError('NOT_AUTHENTICATED' | 'ASSERTION_FETCH_FAILED')  see fetchFreshAssertion
  * @throws DeviceUnlockError('ALREADY_ENROLLED')    a wrapper already exists and allowOverwrite was false
  * @throws DeviceUnlockError('AUTH_FAILED')         biometric/device-credential cancelled or failed
  * @throws DeviceUnlockError('HARDWARE_UNAVAILABLE') Keystore/StrongBox error
  */
-export async function setupDeviceUnlock(secretKeyBytes, { allowOverwrite = false } = {}) {
+export async function setupDeviceUnlock(secretKeyBytes, { allowOverwrite = false, strict = false } = {}) {
   const p = plugin();
   if (!p) throw new DeviceUnlockError('NOT_AVAILABLE', 'Device unlock is not available on this platform');
   if (!(secretKeyBytes instanceof Uint8Array) || secretKeyBytes.length !== 32) {
@@ -206,6 +216,7 @@ export async function setupDeviceUnlock(secretKeyBytes, { allowOverwrite = false
       assertion,
       secretKeyBase64: encodeBase64(secretKeyBytes),
       allowOverwrite,
+      strict,
     });
   } catch (err) {
     throw nativeErrorToDeviceUnlockError(err);

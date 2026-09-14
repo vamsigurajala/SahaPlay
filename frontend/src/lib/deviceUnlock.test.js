@@ -206,9 +206,24 @@ describe('deviceUnlock.js', () => {
         accountId: 42,
         assertion: 'assertion-42',
         allowOverwrite: false,
+        strict: false,
       }));
       const call = nativeSetup.mock.calls[0][0];
       expect(atob(call.secretKeyBase64).split('').map(c => c.charCodeAt(0))).toEqual(new Array(32).fill(3));
+    });
+
+    test('passes strict:true through to native when explicitly requested (the "require fingerprint every open" setting)', async () => {
+      localStorage.setItem('watch_token', fakeToken({ id: 1, username: 'a' }));
+      vi.stubGlobal('fetch', mockAssertionFetch());
+      const nativeSetup = vi.fn(async () => {});
+      installNativePlugin({ setupDeviceUnlock: nativeSetup });
+
+      await setupDeviceUnlock(new Uint8Array(32), { allowOverwrite: true, strict: true });
+
+      expect(nativeSetup).toHaveBeenCalledWith(expect.objectContaining({
+        allowOverwrite: true,
+        strict: true,
+      }));
     });
 
     test('propagates ALREADY_ENROLLED without allowOverwrite', async () => {

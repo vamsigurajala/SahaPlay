@@ -498,8 +498,12 @@ describe('CryptoContext.reloadPrivateKeyWithPassword — device unlock enrollmen
     await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true')); // mount effect's own initial state, irrelevant here
 
     screen.getByTestId('unlock').click();
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
-    await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1));
+    // Real, deliberately slow 600k-iteration PBKDF2 decrypt (crypto.js) —
+    // can occasionally exceed waitFor's default 1000ms under CPU
+    // contention (same documented allowance used elsewhere in this repo,
+    // e.g. Login.test.jsx).
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
+    await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1), { timeout: 5000 });
     const [[setupArg]] = nativeSetup.mock.calls;
     expect(decodeBase64(setupArg.secretKeyBase64)).toEqual(REAL_KP.secretKey);
   });
@@ -514,7 +518,7 @@ describe('CryptoContext.reloadPrivateKeyWithPassword — device unlock enrollmen
 
     render(<CryptoProvider><Recovery /></CryptoProvider>);
     screen.getByTestId('unlock').click();
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
     await new Promise(r => setTimeout(r, 20));
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('device-enrollment-assertion'), expect.anything());
   });
@@ -535,11 +539,231 @@ describe('CryptoContext.reloadPrivateKeyWithPassword — device unlock enrollmen
     render(<CryptoProvider><Recovery /></CryptoProvider>);
     screen.getByTestId('unlock').click();
 
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
     expect(screen.getByTestId('public-key').textContent).toBe(encodeBase64(REAL_KP.publicKey)); // the REAL key, not a regenerated one
     expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
     expect(screen.getByTestId('error').textContent).toBe(''); // reloadPrivateKeyWithPassword itself did not throw
-    await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1), { timeout: 5000 });
     expect(saveKeyCalls.length).toBe(0); // a keypair was never (re)generated/uploaded
+  });
+});
+
+// "Require fingerprint every time I open the app" — the mount effect is
+// the ONE place this setting is checked (see CryptoContext.jsx's own
+// comment on why: it runs exactly once per real app launch/process, never
+// on a mere foreground/resume within the same launch). OFF (the default)
+// must behave completely unchanged from every test above; ON must discard
+// any cached session key and go through the exact same device-unlock/
+// reauth-fallback path the existing cold-start branch already implements.
+describe('CryptoContext strict "require fingerprint every open" mode', () => {
+  const REAL_KP = nacl.box.keyPair();
+  const REAL_PUB_B64 = encodeBase64(REAL_KP.publicKey);
+
+  function myKeysHandler(url) {
+    if (String(url).includes('/api/auth/my-keys')) {
+      return { ok: true, json: async () => ({ publicKey: REAL_PUB_B64, encryptedPrivateKey: 'server-side-blob' }) };
+    }
+    return null;
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    delete window.Capacitor;
+    localStorage.setItem('watch_token', fakeToken({ id: 42, username: 'testuser' }));
+    localStorage.setItem('watch_username', 'testuser');
+  });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete window.Capacitor; });
+
+  test('OFF (default): a cached session key is used directly — no native call, no network call at all', async () => {
+    await saveKeyToSession(REAL_KP.secretKey);
+    const nativeUnlock = vi.fn();
+    installNativePlugin({ unlockDeviceKey: nativeUnlock });
+    const fetchMock = vi.fn(async () => { throw new Error('should never fetch — a cached session key must short-circuit everything'); });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
+    expect(nativeUnlock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('ON: a cached session key is discarded — device unlock (native) is used instead, and succeeds', async () => {
+    localStorage.setItem('watch_strict_device_unlock', 'true');
+    await saveKeyToSession(REAL_KP.secretKey); // must be ignored under strict mode
+    const nativeUnlock = vi.fn(async () => ({ secretKeyBase64: encodeBase64(REAL_KP.secretKey) }));
+    installNativePlugin({ unlockDeviceKey: nativeUnlock });
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
+    expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
+    expect(nativeUnlock).toHaveBeenCalledTimes(1); // proves the cached session key was NOT what restored this
+    // (the restored key IS re-saved to sessionStorage right after — see
+    // the existing tryRestoreViaDeviceUnlock success branch — so wt_sk
+    // being present again here is expected, not a sign the stale cached
+    // key survived; nativeUnlock being called at all is the real proof.)
+  });
+
+  test('ON: device unlock fails (e.g. biometric cancelled) — falls back to reauth exactly like the existing cold-start path, never silently restores the stale cached key', async () => {
+    localStorage.setItem('watch_strict_device_unlock', 'true');
+    await saveKeyToSession(REAL_KP.secretKey);
+    const nativeUnlock = vi.fn(async () => { throw { code: 'AUTH_FAILED', message: 'biometric cancelled' }; });
+    installNativePlugin({ unlockDeviceKey: nativeUnlock });
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    }));
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null'); // never fell back to the discarded cached key
+  });
+
+  test('ON but browser (no window.Capacitor): strict mode has no effect — a cached session key is still used directly, same as OFF', async () => {
+    localStorage.setItem('watch_strict_device_unlock', 'true');
+    await saveKeyToSession(REAL_KP.secretKey);
+    // Deliberately no installNativePlugin() — window.Capacitor stays unset.
+    const fetchMock = vi.fn(async () => { throw new Error('should never fetch on browser with a cached session key'); });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+// Profile → Device Unlock → "Require fingerprint every time I open the
+// app" toggle. Re-enrollment is required because an Android Keystore key's
+// authentication policy is fixed at generation time (see
+// E2eeKeyStore.java's buildKeySpec) — this exercises that the setting is
+// always persisted, and that a (re-)enrollment with the new policy is
+// attempted whenever a real key is already available.
+describe('CryptoContext.setDeviceUnlockRequireEveryOpen', () => {
+  function ToggleProbe() {
+    const { keyPair, setKeyPair, setDeviceUnlockRequireEveryOpen, isDeviceUnlockRequireEveryOpenEnabled } = useCrypto();
+    const [settingNow, setSettingNow] = React.useState('');
+    return (
+      <div>
+        <span data-testid="keypair-state">{keyPair ? 'present' : 'null'}</span>
+        <span data-testid="setting-now">{settingNow}</span>
+        <button data-testid="set-key" onClick={() => setKeyPair({
+          publicKey: new Uint8Array(32).fill(1),
+          secretKey: new Uint8Array(32).fill(2),
+        })}>set key</button>
+        <button data-testid="enable" onClick={async () => {
+          await setDeviceUnlockRequireEveryOpen(true);
+          setSettingNow(String(isDeviceUnlockRequireEveryOpenEnabled()));
+        }}>enable</button>
+        <button data-testid="disable" onClick={async () => {
+          await setDeviceUnlockRequireEveryOpen(false);
+          setSettingNow(String(isDeviceUnlockRequireEveryOpenEnabled()));
+        }}>disable</button>
+      </div>
+    );
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    delete window.Capacitor;
+    localStorage.setItem('watch_token', fakeToken({ id: 1, username: 'testuser' }));
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    }));
+  });
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete window.Capacitor; localStorage.clear(); });
+
+  test('enabling with an established key re-enrolls native with allowOverwrite:true and strict:true, and persists the setting', async () => {
+    const nativeSetup = vi.fn(async () => {});
+    installNativePlugin({ setupDeviceUnlock: nativeSetup });
+
+    render(<CryptoProvider><ToggleProbe /></CryptoProvider>);
+    screen.getByTestId('set-key').click();
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+
+    screen.getByTestId('enable').click();
+    await waitFor(() => expect(screen.getByTestId('setting-now').textContent).toBe('true'));
+    expect(nativeSetup).toHaveBeenCalledTimes(1);
+    const call = nativeSetup.mock.calls[0][0];
+    expect(call.allowOverwrite).toBe(true);
+    expect(call.strict).toBe(true);
+    expect(localStorage.getItem('watch_strict_device_unlock')).toBe('true');
+  });
+
+  test('disabling after enabling re-enrolls with strict:false and clears the persisted setting', async () => {
+    const nativeSetup = vi.fn(async () => {});
+    installNativePlugin({ setupDeviceUnlock: nativeSetup });
+
+    render(<CryptoProvider><ToggleProbe /></CryptoProvider>);
+    screen.getByTestId('set-key').click();
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+
+    screen.getByTestId('enable').click();
+    await waitFor(() => expect(screen.getByTestId('setting-now').textContent).toBe('true'));
+    nativeSetup.mockClear();
+
+    screen.getByTestId('disable').click();
+    await waitFor(() => expect(screen.getByTestId('setting-now').textContent).toBe('false'));
+    expect(nativeSetup).toHaveBeenCalledTimes(1);
+    expect(nativeSetup.mock.calls[0][0].strict).toBe(false);
+    expect(localStorage.getItem('watch_strict_device_unlock')).toBeNull();
+  });
+
+  test('with no key established yet: the setting is still persisted, but native is never called', async () => {
+    const nativeSetup = vi.fn(async () => {});
+    installNativePlugin({ setupDeviceUnlock: nativeSetup });
+
+    render(<CryptoProvider><ToggleProbe /></CryptoProvider>);
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('null'));
+
+    screen.getByTestId('enable').click();
+    await waitFor(() => expect(screen.getByTestId('setting-now').textContent).toBe('true'));
+    expect(nativeSetup).not.toHaveBeenCalled();
+    expect(localStorage.getItem('watch_strict_device_unlock')).toBe('true');
+  });
+
+  test('browser (no window.Capacitor): setting is persisted, native is never touched', async () => {
+    // Deliberately no installNativePlugin().
+    render(<CryptoProvider><ToggleProbe /></CryptoProvider>);
+    screen.getByTestId('set-key').click();
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+
+    screen.getByTestId('enable').click();
+    await waitFor(() => expect(screen.getByTestId('setting-now').textContent).toBe('true'));
+    expect(localStorage.getItem('watch_strict_device_unlock')).toBe('true');
+  });
+
+  test('a failed re-enroll (e.g. biometric cancelled) does not throw, and the setting is still persisted', async () => {
+    const nativeSetup = vi.fn(async () => { throw { code: 'AUTH_FAILED', message: 'biometric cancelled' }; });
+    installNativePlugin({ setupDeviceUnlock: nativeSetup });
+
+    render(<CryptoProvider><ToggleProbe /></CryptoProvider>);
+    screen.getByTestId('set-key').click();
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+
+    // No try/catch around this click in the probe itself — a thrown error
+    // here would surface as an unhandled rejection / failed assertion below.
+    screen.getByTestId('enable').click();
+    await waitFor(() => expect(screen.getByTestId('setting-now').textContent).toBe('true'));
+    expect(localStorage.getItem('watch_strict_device_unlock')).toBe('true');
   });
 });

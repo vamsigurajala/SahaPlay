@@ -169,6 +169,19 @@ public class E2eeKeyStore {
      * finishSetup() succeeds, so a failure partway through this step never
      * leaves a half-written wrapper.
      *
+     * @param strict  false (default) generates a key with the existing
+     *         30-minute authentication-validity window (silent reuse within
+     *         that window). true generates a key that requires a fresh
+     *         biometric/device-credential check on EVERY use, with no grace
+     *         window — see buildKeySpec. An Android Keystore key's
+     *         authentication policy is fixed at generation time and cannot
+     *         be changed in place; switching between the two requires
+     *         generating a brand-new key here, which is why this is a
+     *         parameter of enrollment itself rather than a separate toggle
+     *         method — see the "require fingerprint every open" setting
+     *         (deviceUnlockSettings.js) for the only intended caller of
+     *         strict=true, always combined with allowOverwrite=true when an
+     *         account is switching from one policy to the other.
      * @throws DeviceUnlockAlreadyExistsException if a wrapper already exists
      *         and allowOverwrite is false. This is the guard against the
      *         bridge becoming "an unrestricted primitive that allows
@@ -176,14 +189,14 @@ public class E2eeKeyStore {
      *         only from an explicit, user-visible re-enrollment action, never
      *         as a silent side effect of an ordinary unlock attempt.
      */
-    public Cipher prepareSetupCipher(long accountId, boolean allowOverwrite) throws GeneralSecurityException {
+    public Cipher prepareSetupCipher(long accountId, boolean allowOverwrite, boolean strict) throws GeneralSecurityException {
         if (!allowOverwrite && hasWrappedKey(accountId)) {
             throw new DeviceUnlockAlreadyExistsException(
                 "Device unlock already enrolled for account " + accountId + " — pass allowOverwrite=true from an explicit re-enrollment flow to replace it.");
         }
 
         String alias = aliasFor(accountId);
-        boolean strongBoxUsed = generateKey(alias);
+        boolean strongBoxUsed = generateKey(alias, strict);
         prefs.edit().putBoolean(prefKeyStrongBox(accountId), strongBoxUsed).apply();
 
         SecretKey key = loadKeystoreKey(alias);
@@ -322,15 +335,17 @@ public class E2eeKeyStore {
      * only reach this method after prepareSetupCipher's own overwrite guard
      * has already been checked.
      *
+     * @param strict  see prepareSetupCipher's doc — selects the
+     *         authentication-validity policy baked into the generated key.
      * @return true if the key actually ended up StrongBox-backed (diagnostic only).
      */
-    private boolean generateKey(String alias) throws GeneralSecurityException {
+    private boolean generateKey(String alias, boolean strict) throws GeneralSecurityException {
         KeyGenerator keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE);
 
         boolean attemptStrongBox = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P;
         if (attemptStrongBox) {
             try {
-                keyGenerator.init(buildKeySpec(alias, true));
+                keyGenerator.init(buildKeySpec(alias, true, strict));
                 keyGenerator.generateKey();
                 return true;
             } catch (StrongBoxUnavailableException e) {
@@ -340,12 +355,12 @@ public class E2eeKeyStore {
             }
         }
 
-        keyGenerator.init(buildKeySpec(alias, false));
+        keyGenerator.init(buildKeySpec(alias, false, strict));
         keyGenerator.generateKey();
         return false;
     }
 
-    private static KeyGenParameterSpec buildKeySpec(String alias, boolean strongBox) {
+    private static KeyGenParameterSpec buildKeySpec(String alias, boolean strongBox, boolean strict) {
         KeyGenParameterSpec.Builder builder = new KeyGenParameterSpec.Builder(
                 alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
@@ -355,17 +370,27 @@ public class E2eeKeyStore {
 
         // Modern, type-specific validity-window API (API 30+) — lets the key
         // accept EITHER a strong biometric OR the device credential (PIN/
-        // pattern/password) as satisfying authentication, with an explicit
-        // timeout rather than "every single use." Below API 30,
-        // setUserAuthenticationValidityDurationSeconds is the only available
-        // equivalent and cannot restrict which authentication class counts.
+        // pattern/password) as satisfying authentication. A timeout of 0 is
+        // Android's documented value for "require authentication on every
+        // single use of the key" (strict mode — the "require fingerprint
+        // every open" setting); AUTH_VALIDITY_SECONDS keeps the existing
+        // 30-minute silent-reuse window (default/lenient mode). Below API
+        // 30, setUserAuthenticationValidityDurationSeconds is the only
+        // available equivalent and cannot restrict which authentication
+        // class counts; per its own documented default, simply NOT calling
+        // it at all (while setUserAuthenticationRequired(true) is set, as
+        // above) is what yields "authenticate on every use" on those older
+        // API levels — there is no explicit "every use" value to pass in
+        // that legacy method the way 0 works for setUserAuthenticationParameters.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            int timeoutSeconds = strict ? 0 : AUTH_VALIDITY_SECONDS;
             builder.setUserAuthenticationParameters(
-                AUTH_VALIDITY_SECONDS,
+                timeoutSeconds,
                 KeyProperties.AUTH_BIOMETRIC_STRONG | KeyProperties.AUTH_DEVICE_CREDENTIAL);
-        } else {
+        } else if (!strict) {
             builder.setUserAuthenticationValidityDurationSeconds(AUTH_VALIDITY_SECONDS);
         }
+        // else (strict && pre-API30): deliberately omitted — see comment above.
 
         if (strongBox) {
             builder.setIsStrongBoxBacked(true);

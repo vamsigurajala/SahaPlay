@@ -5,7 +5,7 @@ import { resetPrefetchCooldown } from './cache/prefetch.js';
 import { useSearchHistory } from './hooks/useSearchHistory';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban, Sparkles, AtSign, Upload, Download } from 'lucide-react';
+import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban, Sparkles, AtSign, Upload, Download, Fingerprint } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { FaLinkedin, FaTelegramPlane, FaWhatsapp, FaInstagram, FaSnapchatGhost, FaRedditAlien, FaDiscord, FaFacebookF, FaPinterestP, FaTwitch } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
@@ -20,7 +20,7 @@ import { getAvatarUrl } from './utils/avatarUtils';
 import { API } from './lib/api';
 import { useBackIntercept } from './hooks/useBackIntercept';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
-import { isTauriApp, isStandalonePWA } from './lib/platform';
+import { isTauriApp, isStandalonePWA, isCapacitorApp } from './lib/platform';
 import { useCrypto } from './contexts/CryptoContext';
 import { decryptPrivateKey, encryptPrivateKey } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
@@ -35,8 +35,12 @@ const Profile = () => {
   const location = useLocation();
   const { username: viewingUsername } = useParams(); // if set, we're viewing another user
   const { t, i18n } = useTranslation();
-  const { clearKeys, keyPair, setKeyPair } = useCrypto();
+  const { clearKeys, keyPair, setKeyPair, setDeviceUnlockRequireEveryOpen, isDeviceUnlockRequireEveryOpenEnabled } = useCrypto();
   const [showEncPassphraseModal, setShowEncPassphraseModal] = useState(false);
+  // Device Unlock — "require fingerprint every open" toggle. Read once at
+  // mount (it's a plain local-device preference, not something another tab
+  // or the server can change underneath this component).
+  const [requireFingerprintEveryOpen, setRequireFingerprintEveryOpen] = useState(() => isDeviceUnlockRequireEveryOpenEnabled());
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
   const isDesktopApp = isTauriApp();
@@ -2220,6 +2224,48 @@ const Profile = () => {
               onSetPassphrase={handleSetEncryptionPassphrase}
               onSkip={() => setShowEncPassphraseModal(false)}
             />
+          )}
+
+          {/* Device Unlock — Android Keystore biometric/device-credential
+              shortcut for E2EE (see CryptoContext.jsx / deviceUnlock.js).
+              Only meaningful inside the native Android app; hidden on
+              browser/desktop where there's no native Keystore to enroll
+              against. Not shown to guests — same reasoning as Encryption
+              Passphrase above. */}
+          {isOwnProfile && !isGuest && isCapacitorApp() && (
+            <div className="profile-card">
+              <div className="acc-header" onClick={() => toggleSection('deviceUnlock')}>
+                <h3><Fingerprint size={18} color="#8b5cf6" /> {t('deviceUnlockTitle', 'Device Unlock')}</h3>
+                <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'deviceUnlock' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+              </div>
+              {openSection === 'deviceUnlock' && (
+                <div className="acc-body">
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={requireFingerprintEveryOpen}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        setRequireFingerprintEveryOpen(enabled);
+                        setDeviceUnlockRequireEveryOpen(enabled).catch(() => {
+                          // Non-fatal — see setDeviceUnlockRequireEveryOpen's own
+                          // doc comment: the preference is saved either way, a
+                          // failed re-enroll just means the old key/policy is
+                          // used until the next successful enrollment.
+                        });
+                      }}
+                      style={{ marginTop: 2 }}
+                    />
+                    <span style={{ color: '#fff', fontSize: 14 }}>
+                      {t('requireFingerprintEveryOpen', 'Require fingerprint every time I open the app')}
+                    </span>
+                  </label>
+                  <div className="field-label" style={{ marginTop: 8, paddingLeft: 28 }}>
+                    {t('requireFingerprintEveryOpenDesc', 'When enabled, SahaPlay will ask for fingerprint/device authentication each time you reopen the app.')}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Blocked Users */}

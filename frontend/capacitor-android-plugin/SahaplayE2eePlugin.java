@@ -154,6 +154,7 @@ public class SahaplayE2eePlugin extends Plugin {
         String assertionStr = call.getString("assertion");
         String secretKeyBase64 = call.getString("secretKeyBase64");
         boolean allowOverwrite = Boolean.TRUE.equals(call.getBoolean("allowOverwrite", false));
+        boolean strict = Boolean.TRUE.equals(call.getBoolean("strict", false));
 
         if (accountId == null || assertionStr == null || secretKeyBase64 == null) {
             call.reject("accountId, assertion, and secretKeyBase64 are required", "INVALID_REQUEST");
@@ -187,7 +188,7 @@ public class SahaplayE2eePlugin extends Plugin {
         bgExecutor.execute(() -> {
             Cipher cipher;
             try {
-                cipher = keyStore().prepareSetupCipher(id, allowOverwrite);
+                cipher = keyStore().prepareSetupCipher(id, allowOverwrite, strict);
             } catch (E2eeKeyStore.DeviceUnlockAlreadyExistsException e) {
                 call.reject(e.getMessage(), "ALREADY_ENROLLED");
                 return;

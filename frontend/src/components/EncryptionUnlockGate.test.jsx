@@ -124,7 +124,12 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
     }));
 
     render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+    // CryptoProvider's own mount-effect auto-generation calls saveKeyToSession,
+    // which wraps the key with a real, deliberately slow 600k-iteration
+    // PBKDF2 (crypto.js) — can occasionally exceed waitFor's default 1000ms
+    // under CPU contention (same documented allowance used elsewhere, e.g.
+    // Login.test.jsx / CryptoContext.test.jsx).
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
 
     fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: REAL_PUB_B64, token });
 

@@ -62,15 +62,7 @@ export default function EncryptionUnlockGate() {
     const handler = (e) => {
       if (e.detail?.encryptedPrivateKey) {
         setCtx(e.detail);
-        const willCheck = isCapacitorApp() && isDeviceUnlockAvailable();
-        // TEMPORARY DIAGNOSTIC (real-device debugging only — remove once
-        // the device-unlock investigation is done): see CryptoContext.jsx's
-        // matching diagnostic for why this is a plain alert() rather than
-        // a console log.
-        if (isCapacitorApp()) {
-          window.alert('[DIAG gate] isDeviceUnlockAvailable=' + isDeviceUnlockAvailable() + ' willAttemptDeviceUnlock=' + willCheck);
-        }
-        setCheckingDeviceUnlock(willCheck);
+        setCheckingDeviceUnlock(isCapacitorApp() && isDeviceUnlockAvailable());
       }
     };
     window.addEventListener('encryption_needs_passphrase', handler);
@@ -86,7 +78,6 @@ export default function EncryptionUnlockGate() {
         const kp = nacl.box.keyPair.fromSecretKey(secretKey);
         if (ctx.publicKey && encodeBase64(kp.publicKey) === ctx.publicKey) {
           if (!cancelled) {
-            window.alert('[DIAG gate] unlockDeviceKey SUCCESS and key matched — unlocking.');
             await setKeyPair(kp);
             // Deliberately NOT calling enrollDeviceUnlockSilently here — this
             // key was JUST recovered via device unlock, which only succeeds
@@ -101,7 +92,6 @@ export default function EncryptionUnlockGate() {
           return;
         }
         console.warn('[EncryptionUnlockGate] Device unlock key did not match the server public key — falling back to the passphrase prompt.');
-        window.alert('[DIAG gate] unlockDeviceKey succeeded but PUBLIC KEY MISMATCH — falling back to passphrase.');
       } catch (e) {
         // NOT_AVAILABLE, NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED,
         // NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT, KEY_INVALIDATED,
@@ -109,7 +99,6 @@ export default function EncryptionUnlockGate() {
         // unexpected error — all mean the same thing here: show the
         // passphrase prompt, exactly as before this stage.
         console.warn('[EncryptionUnlockGate] Device unlock not used, falling back to the passphrase prompt:', e?.code || e?.message || e);
-        window.alert('[DIAG gate] unlockDeviceKey FAILED code=' + (e?.code || 'none') + ' message=' + (e?.message || String(e)));
       }
       if (!cancelled) setCheckingDeviceUnlock(false);
     })();
