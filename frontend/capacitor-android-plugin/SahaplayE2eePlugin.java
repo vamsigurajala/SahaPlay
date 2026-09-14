@@ -425,16 +425,17 @@ public class SahaplayE2eePlugin extends Plugin {
         });
     }
 
-    // TEMPORARY DIAGNOSTIC — remove once the strict-mode HARDWARE_UNAVAILABLE
-    // investigation is closed. call.reject(message, code) is the only channel
-    // that reaches the test device at all right now (no USB/wireless
-    // debugging enabled, so Log.e's full stack trace never leaves the
-    // phone) — this puts the real exception class/message, AND its cause
-    // chain (AndroidKeyStore/StrongBox failures are very often wrapped —
-    // the top-level exception is frequently a generic KeyStoreException
-    // whose getCause() has the actual HAL/provider error), directly into
-    // that message so it shows up in the on-screen alert() diagnostics.
-    private static String describeException(Throwable t) { // DIAG_REMOVE_ME
+    // Real exception class/message, plus its cause chain (AndroidKeyStore/
+    // StrongBox failures are very often wrapped — the top-level exception
+    // is frequently a generic KeyStoreException whose getCause() has the
+    // actual HAL/provider error, exactly how the two strict-mode keystore2
+    // quirks above were diagnosed), appended into every HARDWARE_UNAVAILABLE
+    // rejection's message. Kept permanently, not just for that
+    // investigation — Log.e's stack trace only reaches logcat, which isn't
+    // always available (this device has none); the rejection message is the
+    // one channel that reliably reaches wherever the caller chooses to
+    // surface it.
+    private static String describeException(Throwable t) {
         StringBuilder sb = new StringBuilder();
         Throwable cur = t;
         int depth = 0;
