@@ -19,6 +19,14 @@ const CACHE_RULES = [
   [/\/api\/users\/[^/?]+$/, 5 * 60_000],
   [/\/api\/auth\/public-key\//, 15 * 60_000],
   [/\/api\/rooms\/info/, 5 * 60_000],
+  // Missing from here entirely was why Room History always paid a full
+  // cold network round trip while Pinned Rooms (via /api/rooms/info just
+  // above) got the stale-while-revalidate speed boost for free — same
+  // "instant paint from last launch, refreshed quietly in the background"
+  // treatment now applies to Room History too. See the invalidateDependents
+  // branch below for why creating a room still shows up immediately
+  // despite this cache.
+  [/\/api\/rooms\/mine/, 5 * 60_000],
   // NOTE: room public-keys is intentionally NOT cached (was 10 min). It's the
   // live list of who's currently in a room and their encryption keys — a
   // stale snapshot meant a sender could keep wrapping messages for whoever
@@ -125,6 +133,14 @@ function invalidateDependents(urlStr) {
 
   if (lowerPath.includes('/api/messages') || lowerPath.includes('/api/chats')) {
     appCache.invalidatePrefix('/api/chats/recent');
+  }
+
+  // A freshly created room needs to show up in Room History right away —
+  // without this, the new 5-minute /api/rooms/mine cache above would keep
+  // serving the pre-creation list (missing the just-created room) until
+  // that TTL happened to expire on its own.
+  if (lowerPath.includes('/api/rooms/create')) {
+    appCache.invalidatePrefix('/api/rooms/mine');
   }
 }
 

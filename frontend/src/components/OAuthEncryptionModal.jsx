@@ -116,7 +116,15 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 99999,
-      background: 'rgba(0,0,0,0.75)',
+      // Dark mode's near-opaque black tint reads as a normal dimmed backdrop
+      // against this app's own dark pages. In light mode that same heavy
+      // black tint was crushing whatever's behind it down to near-black —
+      // not "a light backdrop", just a darker flat wash — so it's a
+      // lighter, less opaque tint here instead: still dims/frosts the page
+      // behind it (this modal is always mounted alongside real page
+      // content — EncryptionUnlockGate/Profile.jsx render it over
+      // Home/Dashboard, never over a blank screen), but doesn't erase it.
+      background: isLight ? 'rgba(241,245,249,0.6)' : 'rgba(0,0,0,0.75)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20, backdropFilter: 'blur(12px)'
     }}>
