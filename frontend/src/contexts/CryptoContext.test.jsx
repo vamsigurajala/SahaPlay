@@ -6,6 +6,21 @@ import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 import { CryptoProvider, useCrypto } from './CryptoContext';
 import { clearUserSession } from '../lib/authUtils.js';
 import { saveKeyToSession } from '../lib/crypto.js';
+import { isBrowserDeviceUnlockAvailable, unlockViaBrowser } from '../lib/browserDeviceUnlock.js';
+
+// Mocked file-wide. Default state (isBrowserDeviceUnlockAvailable -> false)
+// matches what the REAL module already returns in every other test in this
+// file (plain jsdom has no window.PublicKeyCredential) — so every test
+// above this point that doesn't touch these mocks keeps behaving exactly
+// as it did before browser device unlock existed. Only the dedicated
+// "browser device unlock" describe block below overrides them.
+vi.mock('../lib/browserDeviceUnlock.js', () => ({
+  isBrowserDeviceUnlockAvailable: vi.fn(() => false),
+  hasBrowserDeviceUnlock: vi.fn(async () => false),
+  unlockViaBrowser: vi.fn(async () => { throw new Error('not mocked in this test'); }),
+  enrollBrowser: vi.fn(async () => { throw new Error('not mocked in this test'); }),
+  forgetBrowser: vi.fn(async () => {}),
+}));
 
 // Security verification pass, "Bug A": clearUserSession() (the function
 // nearly every logout/sign-out path in the app calls — Navbar, BottomNav,
@@ -230,7 +245,11 @@ describe('CryptoContext cold-start device unlock (Android) — restore, never re
 
     render(<CryptoProvider><Probe /></CryptoProvider>);
 
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    // Real, deliberately slow 600k-iteration PBKDF2 (saveKeyToSession)
+    // runs on this success path — can occasionally exceed waitFor's
+    // default 1000ms under full-suite CPU contention (same documented
+    // allowance used elsewhere in this file).
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
     expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
     expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
     expect(nativeUnlock).toHaveBeenCalledTimes(1);
@@ -514,7 +533,10 @@ describe('CryptoContext.enrollDeviceUnlock — first-device-setup ordering guard
     installNativePlugin({ setupDeviceUnlock: nativeSetup });
 
     render(<CryptoProvider><Enroller /></CryptoProvider>);
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    // Real, deliberately slow 600k-iteration PBKDF2 (loadOrCreateGuestKeyPair
+    // -> encryptGuestKey) — same documented allowance used elsewhere in
+    // this file.
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
 
     screen.getByTestId('enroll').click();
     await waitFor(() => expect(screen.getByTestId('enroll-result').textContent).toContain('error'));
@@ -841,5 +863,150 @@ describe('CryptoContext.setDeviceUnlockRequireEveryOpen', () => {
     screen.getByTestId('enable').click();
     await waitFor(() => expect(screen.getByTestId('setting-now').textContent).toBe('true'));
     expect(localStorage.getItem('watch_strict_device_unlock')).toBe('true');
+  });
+});
+
+// "Remember this browser" cold-start integration — restore order step 3
+// (after warm session, after Android/Windows native, before falling back to
+// the passphrase/recovery prompt). unlockViaBrowser/isBrowserDeviceUnlockAvailable
+// are mocked at the module boundary (see the vi.mock at the top of this
+// file) — browserDeviceUnlock.js's own real WebAuthn/crypto behavior is
+// exercised thoroughly in its own test suite; these tests are about
+// CryptoContext's ORCHESTRATION of that module: restore-order precedence,
+// the verify-before-trust public-key check, and the fallback/never-
+// regenerate guarantees every other device-unlock path in this file
+// already enforces.
+describe('CryptoContext cold-start BROWSER device unlock — restore, never regenerate', () => {
+  const REAL_KP = nacl.box.keyPair();
+  const REAL_PUB_B64 = encodeBase64(REAL_KP.publicKey);
+
+  function myKeysHandler(url) {
+    if (String(url).includes('/api/auth/my-keys')) {
+      return { ok: true, json: async () => ({ publicKey: REAL_PUB_B64, encryptedPrivateKey: 'server-side-blob' }) };
+    }
+    return null;
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    delete window.Capacitor;
+    localStorage.setItem('watch_token', fakeToken({ id: 42, username: 'testuser' }));
+    localStorage.setItem('watch_username', 'testuser');
+    isBrowserDeviceUnlockAvailable.mockReturnValue(true);
+    unlockViaBrowser.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    delete window.Capacitor;
+    isBrowserDeviceUnlockAvailable.mockReturnValue(false);
+  });
+
+  test('browser available + wrapper resolves + matching public key: key is restored silently, no reauth prompt (mirrors the Android success test)', async () => {
+    unlockViaBrowser.mockImplementation(async () => REAL_KP.secretKey);
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    }));
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    // Real, deliberately slow 600k-iteration PBKDF2 (saveKeyToSession ->
+    // crypto.js) runs on this success path, same documented allowance the
+    // Android equivalent test above already needs.
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
+    expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
+    expect(unlockViaBrowser).toHaveBeenCalledTimes(1);
+  });
+
+  // Test 10 (spec list): new browser with no wrapper falls back to passphrase.
+  test('no local wrapper on this browser (NO_LOCAL_WRAPPER): falls back to reauth, no key generated, no fetch beyond my-keys', async () => {
+    unlockViaBrowser.mockImplementation(async () => { throw Object.assign(new Error('no wrapper'), { code: 'NO_LOCAL_WRAPPER' }); });
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+    expect(unlockViaBrowser).toHaveBeenCalledTimes(1);
+    // Test 9: never grounds for a new keypair.
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('save-public-key'), expect.anything());
+  });
+
+  // Test 8: browser unlock failure (any reason) falls back to passphrase.
+  test('browser unlock ceremony fails (GET_FAILED — cancelled/no authenticator): falls back to reauth', async () => {
+    unlockViaBrowser.mockImplementation(async () => { throw Object.assign(new Error('cancelled'), { code: 'GET_FAILED' }); });
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    }));
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+  });
+
+  // Test 7: public-key mismatch rejects recovered key.
+  test('unlockViaBrowser resolves a key that does NOT match the server public key: rejected, falls back to reauth, never trusted', async () => {
+    const wrongKp = nacl.box.keyPair();
+    unlockViaBrowser.mockImplementation(async () => wrongKp.secretKey);
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('save-public-key'), expect.anything());
+  });
+
+  test('restore-order precedence: Android/Windows native succeeding means browser unlock is never even attempted', async () => {
+    const nativeUnlock = vi.fn(async () => ({ secretKeyBase64: encodeBase64(REAL_KP.secretKey) }));
+    window.Capacitor = { isNativePlatform: () => true, Plugins: { SahaplayE2ee: { unlockDeviceKey: nativeUnlock } } };
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    }));
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
+    expect(nativeUnlock).toHaveBeenCalledTimes(1);
+    expect(unlockViaBrowser).not.toHaveBeenCalled();
+  });
+
+  test('browser unavailable (isBrowserDeviceUnlockAvailable false — e.g. unsupported browser): behaves exactly like before this feature existed, no attempt made', async () => {
+    isBrowserDeviceUnlockAvailable.mockReturnValue(false);
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    }));
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+    expect(unlockViaBrowser).not.toHaveBeenCalled();
   });
 });

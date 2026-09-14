@@ -50,7 +50,7 @@ import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js
 import OAuthEncryptionModal from './OAuthEncryptionModal';
 
 export default function EncryptionUnlockGate() {
-  const { setKeyPair, enrollDeviceUnlockSilently } = useCrypto();
+  const { setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock } = useCrypto();
   const [ctx, setCtx] = useState(null); // { encryptedPrivateKey, publicKey, token }
   // While true, the passphrase modal stays hidden — set only when a native
   // device-unlock attempt is genuinely worth trying (Android + available),
@@ -105,15 +105,24 @@ export default function EncryptionUnlockGate() {
     return () => { cancelled = true; };
   }, [ctx, checkingDeviceUnlock, setKeyPair]);
 
-  const handleUnlock = useCallback(async (passphrase) => {
+  // rememberBrowser: explicit, user-initiated only (the "Remember this
+  // browser" checkbox OAuthEncryptionModal now renders on this exact
+  // view) — deliberately a SEPARATE try/catch from the unlock itself, same
+  // reasoning as KeyRecoveryModal.jsx's own handleSubmit: a failure here
+  // must never look like the passphrase/unlock failed.
+  const handleUnlock = useCallback(async (passphrase, rememberBrowser) => {
     const secretKey = await decryptPrivateKey(ctx.encryptedPrivateKey, passphrase);
     const kp = nacl.box.keyPair.fromSecretKey(secretKey);
     await setKeyPair(kp);
     enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
+    if (rememberBrowser) {
+      try { await enrollBrowserDeviceUnlock(kp.secretKey); }
+      catch (e) { console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+    }
     setCtx(null);
-  }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock]);
 
-  const handleRecover = useCallback(async (phrase, newPassphrase) => {
+  const handleRecover = useCallback(async (phrase, newPassphrase, rememberBrowser) => {
     const secretKey = await mnemonicToSecretKey(phrase);
     const kp = nacl.box.keyPair.fromSecretKey(secretKey);
     if (encodeBase64(kp.publicKey) !== ctx.publicKey) {
@@ -129,8 +138,12 @@ export default function EncryptionUnlockGate() {
     if (!res.ok) throw new Error('Failed to save your encryption key. Please try again.');
     await setKeyPair(kp);
     enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
+    if (rememberBrowser) {
+      try { await enrollBrowserDeviceUnlock(kp.secretKey); }
+      catch (e) { console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+    }
     setCtx(null);
-  }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock]);
 
   if (!ctx || checkingDeviceUnlock) return null;
 

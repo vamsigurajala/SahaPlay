@@ -31,6 +31,13 @@ const { canHideMessage } = require('./lib/messageAuth');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
 const { getCallActiveUsernames, isActiveCallParticipant } = require('./lib/callRoster');
 const { signDeviceAssertion } = require('./lib/deviceAssertion');
+// Browser "Remember this browser" E2EE device unlock (WebAuthn PRF ->
+// HKDF -> AES-256-GCM, entirely client-side — see webauthnRp.js's own
+// header comment). Deliberately two separate modules: webauthnRp.js never
+// touches the database, deviceCredentialsStore.js never touches WebAuthn
+// crypto — each is independently unit-testable without the other.
+const { WebauthnRpError, buildRegistrationOptions, verifyRegistration, buildAuthenticationOptions, verifyAuthentication } = require('./lib/webauthnRp');
+const { DeviceCredentialsStoreError, insertCredential, getCredentialById, listCredentialsForAccount, updateCounterAndLastUsed, deleteCredential } = require('./lib/deviceCredentialsStore');
 const { buildOrphanCleanupQueries, classifyUsernameUpdateError } = require('./lib/usernameRename');
 const { isUserAdmin, buildUserList, isRoomHostMatch } = require('./lib/roomUsers');
 const {
@@ -2194,6 +2201,33 @@ const migrationsReady = (async () => {
     )
   `).catch(e => console.warn('[Migration] pending_notifications table:', e.message));
 
+  // ─── Browser "Remember this browser" E2EE device unlock ──────────────────
+  // WebAuthn credential metadata ONLY — never the E2EE secret key, never a
+  // PRF output, never a wrapping key (those are wrapped/unwrapped entirely
+  // client-side; see frontend/src/lib/browserDeviceUnlock.js and
+  // lib/webauthnRp.js's own header comment for the full design). credential_id
+  // is UNIQUE across the whole table (not just per-account) — a WebAuthn
+  // credential id is only ever meant to identify one (RP, authenticator)
+  // pairing, so this constraint is what makes "register the same credential
+  // under two different accounts" impossible at the database level, not just
+  // by application logic.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS device_credentials (
+      id SERIAL PRIMARY KEY,
+      account_id BIGINT NOT NULL,
+      credential_id TEXT NOT NULL UNIQUE,
+      public_key BYTEA NOT NULL,
+      counter BIGINT NOT NULL DEFAULT 0,
+      transports TEXT,
+      device_type TEXT,
+      backed_up BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      last_used_at TIMESTAMPTZ
+    )
+  `).catch(e => console.warn('[Migration] device_credentials table:', e.message));
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_device_credentials_account_id ON device_credentials(account_id)`)
+    .catch(e => console.warn('[Migration] idx_device_credentials_account_id:', e.message));
+
   // ─── Phase 3: Database Integrity Hardening ───────────────────────────────
   // bans table
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_bans_user_id ON bans(user_id)`)
@@ -4033,6 +4067,119 @@ app.post('/api/auth/device-enrollment-assertion', authenticateToken, (req, res) 
   } catch (err) {
     console.error('[device-enrollment-assertion] signing failed:', err.message);
     res.status(500).json({ error: 'Failed to issue device enrollment assertion' });
+  }
+});
+
+// ─── Browser "Remember this browser" WebAuthn Device Unlock ───────────────
+// Registers/verifies a WebAuthn platform credential used ONLY to gate a
+// client-side WebAuthn PRF -> HKDF -> AES-256-GCM wrapper around this
+// account's EXISTING E2EE secret key (see frontend/src/lib/
+// browserDeviceUnlock.js and lib/webauthnRp.js's own header comment for the
+// full design). This server never sees the E2EE secret key, the PRF
+// output, or the wrapping key — it only verifies a genuine WebAuthn
+// ceremony happened (via @simplewebauthn/server, never hand-rolled crypto)
+// and stores just enough metadata to verify FUTURE ceremonies.
+//
+// accountId is ALWAYS req.user.id from the verified session JWT
+// (authenticateToken) — never trusted from the request body anywhere
+// below. That is what makes "register a credential against an account you
+// don't own" and "an assertion for account A unlocking account B"
+// structurally impossible here, not merely a policy this code happens to
+// follow. Separate from, and does not touch, Android/Windows device unlock
+// (deviceAssertion.js / device_unlock.rs) at all.
+
+app.post('/api/auth/webauthn/register-options', authenticateToken, async (req, res) => {
+  try {
+    const existing = await listCredentialsForAccount(pool, req.user.id);
+    const options = await buildRegistrationOptions({
+      accountId: req.user.id,
+      username: req.user.username,
+      excludeCredentialIds: existing.map(c => c.credentialId),
+    });
+    res.json(options);
+  } catch (err) {
+    console.error('[webauthn/register-options] error:', err.message);
+    res.status(500).json({ error: 'Failed to start browser enrollment' });
+  }
+});
+
+app.post('/api/auth/webauthn/register-verify', authenticateToken, async (req, res) => {
+  const { response } = req.body || {};
+  if (!response) return res.status(400).json({ error: 'response is required' });
+  try {
+    const info = await verifyRegistration({ accountId: req.user.id, response });
+    await insertCredential(pool, {
+      accountId: req.user.id,
+      credentialId: info.credential.id,
+      publicKey: info.credential.publicKey,
+      counter: info.credential.counter,
+      transports: response.response?.transports,
+      deviceType: info.credentialDeviceType,
+      backedUp: info.credentialBackedUp,
+    });
+    res.json({ verified: true, credentialId: info.credential.id });
+  } catch (err) {
+    if (err instanceof DeviceCredentialsStoreError && err.code === 'DUPLICATE_CREDENTIAL') {
+      return res.status(409).json({ error: err.message, code: err.code });
+    }
+    if (err instanceof WebauthnRpError) return res.status(400).json({ error: err.message, code: err.code });
+    console.error('[webauthn/register-verify] error:', err.message);
+    res.status(500).json({ error: 'Failed to complete browser enrollment' });
+  }
+});
+
+app.post('/api/auth/webauthn/auth-options', authenticateToken, async (req, res) => {
+  try {
+    const creds = await listCredentialsForAccount(pool, req.user.id);
+    if (creds.length === 0) {
+      return res.status(404).json({ error: 'No browser credentials registered for this account.', code: 'NO_CREDENTIALS' });
+    }
+    const options = await buildAuthenticationOptions({ accountId: req.user.id, allowCredentialIds: creds.map(c => c.credentialId) });
+    res.json(options);
+  } catch (err) {
+    if (err instanceof WebauthnRpError) return res.status(400).json({ error: err.message, code: err.code });
+    console.error('[webauthn/auth-options] error:', err.message);
+    res.status(500).json({ error: 'Failed to start browser unlock' });
+  }
+});
+
+app.post('/api/auth/webauthn/auth-verify', authenticateToken, async (req, res) => {
+  const { response } = req.body || {};
+  if (!response || !response.id) return res.status(400).json({ error: 'response is required' });
+  try {
+    const credential = await getCredentialById(pool, response.id);
+    if (!credential || credential.accountId !== req.user.id) {
+      // Deliberately the SAME response whether response.id names an unknown
+      // credential or one belonging to a DIFFERENT account — this is
+      // exactly the "assertion for account A unlocking account B" boundary
+      // under test; a caller learns nothing about whether that credential
+      // id exists at all.
+      return res.status(403).json({ error: 'This credential is not registered to your account.', code: 'ACCOUNT_MISMATCH' });
+    }
+    const info = await verifyAuthentication({ accountId: req.user.id, response, credential });
+    await updateCounterAndLastUsed(pool, credential.credentialId, info.newCounter);
+    res.json({ verified: true });
+  } catch (err) {
+    if (err instanceof WebauthnRpError) return res.status(400).json({ error: err.message, code: err.code });
+    console.error('[webauthn/auth-verify] error:', err.message);
+    res.status(500).json({ error: 'Failed to verify browser unlock' });
+  }
+});
+
+// "Forget this browser" — deletes ONLY this one credential's server-side
+// metadata row, scoped (via deleteCredential's own WHERE clause) to the
+// caller's own account. Never touches the E2EE identity, publicKey,
+// messages, recovery data, or Android/Windows device unlock — none of
+// which this table has any reference to in the first place.
+app.post('/api/auth/webauthn/forget', authenticateToken, async (req, res) => {
+  const { credentialId } = req.body || {};
+  if (!credentialId) return res.status(400).json({ error: 'credentialId is required' });
+  try {
+    const deleted = await deleteCredential(pool, { accountId: req.user.id, credentialId });
+    res.json({ deleted });
+  } catch (err) {
+    console.error('[webauthn/forget] error:', err.message);
+    res.status(500).json({ error: 'Failed to forget this browser' });
   }
 });
 

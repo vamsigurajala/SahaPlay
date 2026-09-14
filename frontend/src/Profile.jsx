@@ -26,6 +26,7 @@ import { decryptPrivateKey, encryptPrivateKey } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
 import OAuthEncryptionModal from './components/OAuthEncryptionModal';
 import ToggleSwitch from './components/ToggleSwitch';
+import { isBrowserDeviceUnlockAvailable } from './lib/browserDeviceUnlock.js';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -36,13 +37,18 @@ const Profile = () => {
   const location = useLocation();
   const { username: viewingUsername } = useParams(); // if set, we're viewing another user
   const { t, i18n } = useTranslation();
-  const { clearKeys, keyPair, setKeyPair, setDeviceUnlockRequireEveryOpen, isDeviceUnlockRequireEveryOpenEnabled } = useCrypto();
+  const { clearKeys, keyPair, setKeyPair, setDeviceUnlockRequireEveryOpen, isDeviceUnlockRequireEveryOpenEnabled, enrollBrowserDeviceUnlock, forgetBrowserDeviceUnlock, checkBrowserDeviceUnlockEnrolled } = useCrypto();
   const [showEncPassphraseModal, setShowEncPassphraseModal] = useState(false);
   // Device Unlock — "require fingerprint every open" toggle. Read once at
   // mount (it's a plain local-device preference, not something another tab
   // or the server can change underneath this component).
   const [requireFingerprintEveryOpen, setRequireFingerprintEveryOpen] = useState(() => isDeviceUnlockRequireEveryOpenEnabled());
   const [savingDeviceUnlockSetting, setSavingDeviceUnlockSetting] = useState(false);
+  // "Remember this browser" — browser-only WebAuthn device unlock (see
+  // browserDeviceUnlock.js). null = not checked yet (avoids a flash of the
+  // wrong enable/forget button before the async IndexedDB check resolves).
+  const [browserRemembered, setBrowserRemembered] = useState(null);
+  const [savingBrowserUnlock, setSavingBrowserUnlock] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
   const isDesktopApp = isTauriApp();
@@ -84,6 +90,19 @@ const Profile = () => {
   const fileInputRef = useRef(null);
   const [openSection, setOpenSection] = useState(null);
   const toggleSection = (sec) => setOpenSection(p => p === sec ? null : sec);
+
+  // "Remember this browser" enrollment status — checked once on mount for
+  // an own, non-guest profile on a browser where the feature is even
+  // available (see browserDeviceUnlock.js's own doc comment on why this is
+  // always false inside the Capacitor/Tauri shells). A plain IndexedDB
+  // presence check (see hasBrowserDeviceUnlock's own doc comment) — cheap,
+  // no network call, no WebAuthn ceremony.
+  useEffect(() => {
+    if (!isOwnProfile || isGuest || !isBrowserDeviceUnlockAvailable()) { setBrowserRemembered(false); return; }
+    let cancelled = false;
+    checkBrowserDeviceUnlockEnrolled().then(enrolled => { if (!cancelled) setBrowserRemembered(enrolled); });
+    return () => { cancelled = true; };
+  }, [isOwnProfile, isGuest, checkBrowserDeviceUnlockEnrolled]);
 
   useEffect(() => {
     const sec = location.state?.openSection;
@@ -874,7 +893,7 @@ const Profile = () => {
    *  doc comment and the encryption audit this closes). Reuses the SAME
    *  keypair already unwrapped in memory (via useCrypto()) — never generates
    *  a new one, never touches the recovery phrase already on file. */
-  const handleSetEncryptionPassphrase = async (passphrase) => {
+  const handleSetEncryptionPassphrase = async (passphrase, rememberBrowser) => {
     if (!keyPair) throw new Error('Encryption keys are not ready yet. Please reload and try again.');
     const encryptedPrivateKey = await encryptPrivateKey(keyPair.secretKey, passphrase);
     const res = await fetch(`${API}/api/auth/setup-keys`, {
@@ -884,6 +903,15 @@ const Profile = () => {
     });
     if (!res.ok) throw new Error('Failed to save your encryption passphrase. Please try again.');
     await setKeyPair(keyPair);
+    if (rememberBrowser) {
+      try {
+        await enrollBrowserDeviceUnlock(keyPair.secretKey);
+        setBrowserRemembered(true);
+      } catch (e) {
+        console.warn('[Profile] "Remember this browser" enrollment failed:', e?.code || e?.message || e);
+        toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+      }
+    }
     setShowEncPassphraseModal(false);
     toast.success(t('encPassphraseSetToast', 'Encryption passphrase set!'));
   };
@@ -2295,6 +2323,92 @@ const Profile = () => {
                       ? t('requireWindowsHelloEveryOpenDesc', 'When enabled, SahaPlay will ask for Windows Hello each time you reopen the app after closing it.')
                       : t('requireFingerprintEveryOpenDesc', 'When enabled, SahaPlay will ask for fingerprint/device authentication each time you reopen the app.')}
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Remember this browser — the browser-only WebAuthn PRF
+              equivalent of the native Device Unlock section above (see
+              browserDeviceUnlock.js's own header comment for the full
+              design). Deliberately the OPPOSITE availability gate from
+              Device Unlock above: shown only in a plain browser tab, never
+              inside Capacitor/Tauri, which already have the stronger native
+              mechanism. Not shown to guests or while viewing someone else's
+              profile — same reasoning as Encryption Passphrase/Device
+              Unlock above. browserRemembered === null means the one-time
+              IndexedDB check (the mount effect above) hasn't resolved yet —
+              rendering nothing rather than a wrong enable/forget button for
+              one frame. */}
+          {isOwnProfile && !isGuest && isBrowserDeviceUnlockAvailable() && browserRemembered !== null && (
+            <div className="profile-card">
+              <div className="acc-header" onClick={() => toggleSection('browserUnlock')}>
+                <h3><Fingerprint size={18} color="#8b5cf6" /> {t('rememberBrowserTitle', 'Remember this browser')}</h3>
+                <ChevronDown size={18} color="#aaa" style={{ transform: openSection === 'browserUnlock' ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+              </div>
+              {openSection === 'browserUnlock' && (
+                <div className="acc-body">
+                  {browserRemembered ? (
+                    <>
+                      <div className="field-label">
+                        {t('rememberBrowserEnabledDesc', "This browser can unlock your encrypted chats with your device's fingerprint/PIN, without your encryption passphrase or password. Your passphrase/password still works everywhere and remains the way to set this up on a new browser.")}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={savingBrowserUnlock}
+                        onClick={async () => {
+                          setSavingBrowserUnlock(true);
+                          try {
+                            await forgetBrowserDeviceUnlock();
+                            setBrowserRemembered(false);
+                            toast.success(t('forgetBrowserToast', 'This browser has been forgotten. Your account, messages, and recovery options are unaffected.'));
+                          } catch {
+                            toast.error(t('somethingWentWrongError', 'Something went wrong. Please try again.'));
+                          } finally {
+                            setSavingBrowserUnlock(false);
+                          }
+                        }}
+                        style={{
+                          marginTop: 12, padding: '10px 18px', borderRadius: 10, border: '1px solid rgba(239,68,68,0.35)',
+                          background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 13.5, fontWeight: 700,
+                          cursor: savingBrowserUnlock ? 'default' : 'pointer', opacity: savingBrowserUnlock ? 0.6 : 1,
+                        }}
+                      >
+                        {savingBrowserUnlock ? t('forgetting', 'Forgetting…') : t('forgetThisBrowser', 'Forget this browser')}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="field-label">
+                        {t('rememberBrowserOffDesc', "Not set up on this browser yet. Enabling this lets you unlock your encrypted chats here with your device's fingerprint/PIN instead of typing your encryption passphrase or password every time.")}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={savingBrowserUnlock || !keyPair}
+                        onClick={async () => {
+                          setSavingBrowserUnlock(true);
+                          try {
+                            await enrollBrowserDeviceUnlock();
+                            setBrowserRemembered(true);
+                            toast.success(t('rememberBrowserEnabled', 'This browser will unlock your encrypted chats without asking for your password next time.'));
+                          } catch {
+                            toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+                          } finally {
+                            setSavingBrowserUnlock(false);
+                          }
+                        }}
+                        className="stay-white"
+                        style={{
+                          marginTop: 12, padding: '10px 18px', borderRadius: 10, border: 'none',
+                          background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))', color: '#fff',
+                          fontSize: 13.5, fontWeight: 700, cursor: savingBrowserUnlock ? 'default' : 'pointer',
+                          opacity: savingBrowserUnlock ? 0.6 : 1,
+                        }}
+                      >
+                        {savingBrowserUnlock ? t('rememberingBrowser', 'Setting up…') : t('rememberThisBrowserBtn', 'Remember this browser')}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

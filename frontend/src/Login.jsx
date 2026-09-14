@@ -41,7 +41,7 @@ const Login = () => {
   const navigate        = useNavigate();
   const location        = useLocation();
   const { t }           = useTranslation();
-  const { setKeyPair, enrollDeviceUnlockSilently } = useCrypto();
+  const { setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock } = useCrypto();
 
   const locationMsg = location.state?.message;
   const banMessage = location.state?.banMessage;
@@ -269,7 +269,7 @@ const Login = () => {
 
   // 'set' view of OAuthEncryptionModal — covers both brand-new key creation and
   // migrating an existing legacy-wrapped key onto a passphrase.
-  const handleOAuthSetPassphrase = async (passphrase) => {
+  const handleOAuthSetPassphrase = async (passphrase, rememberBrowser) => {
     const { data, isMigration, oauthPendingVerification } = oauthModalCtx;
     let keyPair;
     let phrase = null;
@@ -307,6 +307,10 @@ const Login = () => {
 
     await setKeyPair(keyPair);
     enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
+    if (rememberBrowser) {
+      try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
+      catch (e) { console.warn('[Login] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+    }
     setOauthModalMode(null);
     setOauthModalCtx(null);
     // oauthPendingVerification (a brand-new, unverified Google account
@@ -328,7 +332,7 @@ const Login = () => {
   };
 
   // 'unlock' view — decrypt the already-migrated blob locally with the passphrase.
-  const handleOAuthUnlock = async (passphrase) => {
+  const handleOAuthUnlock = async (passphrase, rememberBrowser) => {
     const { data } = oauthModalCtx;
     let keyPair;
     try {
@@ -339,6 +343,10 @@ const Login = () => {
     }
     await setKeyPair(keyPair);
     enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
+    if (rememberBrowser) {
+      try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
+      catch (e) { console.warn('[Login] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+    }
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));
@@ -347,7 +355,7 @@ const Login = () => {
 
   // 'forgot' view — restore via the account's recovery phrase, verify it against
   // the server's known publicKey, then re-wrap with a new passphrase.
-  const handleOAuthRecover = async (phrase, newPassphrase) => {
+  const handleOAuthRecover = async (phrase, newPassphrase, rememberBrowser) => {
     const { data } = oauthModalCtx;
     let keyPair;
     try {
@@ -371,6 +379,10 @@ const Login = () => {
 
     await setKeyPair(keyPair);
     enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
+    if (rememberBrowser) {
+      try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
+      catch (e) { console.warn('[Login] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+    }
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));

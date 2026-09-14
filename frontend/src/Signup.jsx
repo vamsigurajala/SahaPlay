@@ -44,7 +44,7 @@ const Signup = () => {
 
   const navigate       = useNavigate();
   const { t }          = useTranslation();
-  const { setKeyPair } = useCrypto();
+  const { setKeyPair, enrollBrowserDeviceUnlock } = useCrypto();
 
   // Tap-to-toggle for touch devices — :hover alone never fires on a phone/PWA,
   // so without this the tooltip could only be dismissed, never opened, by tap.
@@ -170,7 +170,7 @@ const Signup = () => {
 
   // 'set' view of OAuthEncryptionModal — covers both brand-new key creation and
   // migrating an existing legacy-wrapped key onto a passphrase.
-  const handleOAuthSetPassphrase = async (passphrase) => {
+  const handleOAuthSetPassphrase = async (passphrase, rememberBrowser) => {
     const { data, isMigration, keyPair: providedKeyPair, phrase: providedPhrase, needsVerification } = oauthModalCtx;
     let keyPair = providedKeyPair;
     let phrase = providedPhrase ?? null;
@@ -209,6 +209,10 @@ const Signup = () => {
     if (!res.ok) throw new Error(t('encSetupFailed', 'Failed to save your encryption key. Please try again.'));
 
     await setKeyPair(keyPair);
+    if (rememberBrowser) {
+      try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
+      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+    }
     setOauthModalMode(null);
     setOauthModalCtx(null);
     // needsVerification (a brand-new, unverified Google account): no
@@ -229,7 +233,7 @@ const Signup = () => {
   };
 
   // 'unlock' view — decrypt the already-migrated blob locally with the passphrase.
-  const handleOAuthUnlock = async (passphrase) => {
+  const handleOAuthUnlock = async (passphrase, rememberBrowser) => {
     const { data } = oauthModalCtx;
     let keyPair;
     try {
@@ -239,6 +243,10 @@ const Signup = () => {
       throw new Error(t('encPassphraseWrong', 'Incorrect passphrase. If this account also has a password set, try that.'));
     }
     await setKeyPair(keyPair);
+    if (rememberBrowser) {
+      try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
+      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+    }
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));
@@ -247,7 +255,7 @@ const Signup = () => {
 
   // 'forgot' view — restore via the account's recovery phrase, verify it against
   // the server's known publicKey, then re-wrap with a new passphrase.
-  const handleOAuthRecover = async (phrase, newPassphrase) => {
+  const handleOAuthRecover = async (phrase, newPassphrase, rememberBrowser) => {
     const { data } = oauthModalCtx;
     let keyPair;
     try {
@@ -270,6 +278,10 @@ const Signup = () => {
     if (!res.ok) throw new Error(t('encSetupFailed', 'Failed to save your encryption key. Please try again.'));
 
     await setKeyPair(keyPair);
+    if (rememberBrowser) {
+      try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
+      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+    }
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));

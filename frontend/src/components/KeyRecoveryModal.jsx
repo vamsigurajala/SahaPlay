@@ -12,16 +12,24 @@
 import { useState, useEffect } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import { useCrypto } from '../contexts/CryptoContext';
+import { isBrowserDeviceUnlockAvailable } from '../lib/browserDeviceUnlock.js';
 
 export default function KeyRecoveryModal() {
-  const { needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock } = useCrypto();
+  const { needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock, enrollBrowserDeviceUnlock } = useCrypto();
   const { t } = useTranslation();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [switching, setSwitching] = useState(false);
+  // "Remember this browser" — only ever offered where WebAuthn PRF is
+  // actually available (see browserDeviceUnlock.js's own doc comment); on
+  // every other browser this stays permanently unmounted, so existing
+  // behavior here is completely unchanged for anyone who can't use it.
+  const [rememberBrowser, setRememberBrowser] = useState(false);
+  const canRememberBrowser = isBrowserDeviceUnlockAvailable();
 
   // This component is always mounted at the App level and only
   // conditionally renders (the `if (!needsReauth) return null` below), so
@@ -72,8 +80,21 @@ export default function KeyRecoveryModal() {
     setError('');
     setIsSubmitting(true);
     try {
-      await reloadPrivateKeyWithPassword(password);
+      const kp = await reloadPrivateKeyWithPassword(password);
       setPassword('');
+      // Explicit, user-initiated only (the checkbox) — separate try/catch
+      // from the unlock itself: a failure here must never make it look
+      // like the password/unlock failed, and the user made a real choice
+      // here that deserves its own visible outcome (unlike native device
+      // unlock's silent auto-enrollment elsewhere in this app).
+      if (rememberBrowser) {
+        try {
+          await enrollBrowserDeviceUnlock(kp.secretKey);
+          toast.success(t('rememberBrowserEnabled', 'This browser will unlock your encrypted chats without asking for your password next time.'));
+        } catch {
+          toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+        }
+      }
     } catch (err) {
       setError(err.message || t('somethingWentWrongError', 'Something went wrong. Please try again.'));
     } finally {
@@ -139,6 +160,21 @@ export default function KeyRecoveryModal() {
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
         </div>
+        {canRememberBrowser && (
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={rememberBrowser}
+              onChange={e => setRememberBrowser(e.target.checked)}
+              style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--brand-1)', cursor: 'pointer', flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 12.5, lineHeight: 1.5, color: isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.6)' }}>
+              <strong style={{ color: isLight ? '#1a1a2e' : '#fff', fontWeight: 700 }}>{t('rememberBrowser', 'Remember this browser')}</strong>
+              {' — '}
+              {t('rememberBrowserDesc', "Unlock your encrypted chats on this browser using your device's fingerprint/PIN instead of your password. Your password still works everywhere and is the only way to recover this on a new device.")}
+            </span>
+          </label>
+        )}
         {error && <div style={{ fontSize: 13, color: '#ef4444' }}>{error}</div>}
         <button
           type="submit"

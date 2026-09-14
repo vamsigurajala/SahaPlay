@@ -54,7 +54,7 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
 
   test('browser (no window.Capacitor): shows the passphrase modal immediately, device unlock never attempted', async () => {
     render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
 
     fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: REAL_PUB_B64, token: fakeToken({ id: 1 }) });
 
@@ -231,7 +231,11 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       }));
 
       render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+      // Real, deliberately slow 600k-iteration PBKDF2 (crypto.js) runs as
+      // part of this mount — can occasionally exceed waitFor's default
+      // 1000ms under full-suite CPU contention (same documented allowance
+      // used elsewhere in this file/CryptoContext.test.jsx).
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
 
       const nativeSetup = vi.fn(async () => ({}));
       window.Capacitor.Plugins.SahaplayE2ee.setupDeviceUnlock = nativeSetup;
@@ -270,7 +274,7 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       const encryptedPrivateKey = await encryptPrivateKey(REAL_KP.secretKey, 'my-encryption-passphrase');
 
       render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
 
       const nativeSetup = vi.fn(async () => { throw { code: 'HARDWARE_UNAVAILABLE', message: 'Keystore unavailable' }; });
       window.Capacitor.Plugins.SahaplayE2ee.setupDeviceUnlock = nativeSetup;
