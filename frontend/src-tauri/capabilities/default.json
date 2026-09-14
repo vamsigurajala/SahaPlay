@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window — remote-URL shell, opening ms-settings: for the user to fix OS notification permission themselves, and opening external streaming/social/music platform links (GuidedShareModal's Launch button) in the system's default browser. Desktop notifications go through a custom show_windows_toast command (see main.rs/desktopNotify.js), built with tauri-winrt-notification directly rather than a Tauri plugin — app-defined commands registered via invoke_handler/generate_handler! are allowed by default and need no ACL permission entry here (unlike plugin-provided commands, e.g. notification:*/opener:*).",
+  "description": "Capability for the main window — remote-URL shell, opening ms-settings: for the user to fix OS notification permission themselves, and opening external streaming/social/music platform links (GuidedShareModal's Launch button) in the system's default browser. Desktop notifications go through a custom show_windows_toast command (see main.rs/desktopNotify.js), built with tauri-winrt-notification directly rather than a Tauri plugin — app-defined commands registered via invoke_handler/generate_handler! are allowed by default and need no ACL permission entry here (unlike plugin-provided commands, e.g. notification:*/opener:*). core:event:allow-listen is required separately from core:default — CryptoContext.jsx listens for desktop_window_hidden/desktop_window_shown (main.rs, device_unlock.rs's strict-mode reopen signal) via @tauri-apps/api/event's listen(), which core:default alone does not authorize.",
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:event:allow-listen",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "ms-settings:*" }, { "url": "https://*" }, { "url": "http://*" }]

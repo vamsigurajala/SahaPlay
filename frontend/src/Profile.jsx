@@ -2228,13 +2228,16 @@ const Profile = () => {
             />
           )}
 
-          {/* Device Unlock — Android Keystore biometric/device-credential
-              shortcut for E2EE (see CryptoContext.jsx / deviceUnlock.js).
-              Only meaningful inside the native Android app; hidden on
-              browser/desktop where there's no native Keystore to enroll
-              against. Not shown to guests — same reasoning as Encryption
-              Passphrase above. */}
-          {isOwnProfile && !isGuest && isCapacitorApp() && (
+          {/* Device Unlock — a native, OS-managed shortcut for E2EE that
+              avoids re-entering the encryption passphrase on every open
+              (see CryptoContext.jsx / deviceUnlock.js): Android Keystore +
+              BiometricPrompt on Android, DPAPI + a Windows Hello gate
+              (device_unlock.rs) on the Windows desktop app. Only
+              meaningful inside one of those native shells; hidden in a
+              plain browser tab, where there's no OS-managed key store to
+              enroll against. Not shown to guests — same reasoning as
+              Encryption Passphrase above. */}
+          {isOwnProfile && !isGuest && (isCapacitorApp() || isTauriApp()) && (
             <div className="profile-card">
               <div className="acc-header" onClick={() => toggleSection('deviceUnlock')}>
                 <h3><Fingerprint size={18} color="#8b5cf6" /> {t('deviceUnlockTitle', 'Device Unlock')}</h3>
@@ -2244,12 +2247,16 @@ const Profile = () => {
                 <div className="acc-body">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ color: '#fff', fontSize: 14, flex: 1 }}>
-                      {t('requireFingerprintEveryOpen', 'Require fingerprint every time I open the app')}
+                      {isTauriApp()
+                        ? t('requireWindowsHelloEveryOpen', 'Require Windows Hello every time I open the app')
+                        : t('requireFingerprintEveryOpen', 'Require fingerprint every time I open the app')}
                     </span>
                     <ToggleSwitch
                       checked={requireFingerprintEveryOpen}
                       disabled={savingDeviceUnlockSetting}
-                      label={t('requireFingerprintEveryOpen', 'Require fingerprint every time I open the app')}
+                      label={isTauriApp()
+                        ? t('requireWindowsHelloEveryOpen', 'Require Windows Hello every time I open the app')
+                        : t('requireFingerprintEveryOpen', 'Require fingerprint every time I open the app')}
                       onChange={async (enabled) => {
                         setRequireFingerprintEveryOpen(enabled);
                         setSavingDeviceUnlockSetting(true);
@@ -2264,14 +2271,16 @@ const Profile = () => {
                           } else {
                             // The setting itself is saved either way — but
                             // it hasn't actually taken effect on THIS
-                            // device's key yet (e.g. biometric was
-                            // cancelled, or no network for a fresh
-                            // assertion). Say so plainly instead of
+                            // device's key yet (e.g. biometric/Windows
+                            // Hello was cancelled, or no network for a
+                            // fresh assertion). Say so plainly instead of
                             // showing a success toast for something that
                             // silently didn't happen — that's exactly the
                             // kind of mismatch that looks like "the toggle
                             // doesn't work."
-                            toast.error(t('requireFingerprintSavedNotAppliedToast', "Saved, but couldn't update this device's fingerprint lock yet — it'll apply next time you unlock successfully."));
+                            toast.error(isTauriApp()
+                              ? t('requireWindowsHelloSavedNotAppliedToast', "Saved, but couldn't update this device's Windows Hello lock yet — it'll apply next time you unlock successfully.")
+                              : t('requireFingerprintSavedNotAppliedToast', "Saved, but couldn't update this device's fingerprint lock yet — it'll apply next time you unlock successfully."));
                           }
                         } catch (e) {
                           toast.error(t('somethingWentWrongError', 'Something went wrong. Please try again.'));
@@ -2282,7 +2291,9 @@ const Profile = () => {
                     />
                   </div>
                   <div className="field-label" style={{ marginTop: 8 }}>
-                    {t('requireFingerprintEveryOpenDesc', 'When enabled, SahaPlay will ask for fingerprint/device authentication each time you reopen the app.')}
+                    {isTauriApp()
+                      ? t('requireWindowsHelloEveryOpenDesc', 'When enabled, SahaPlay will ask for Windows Hello each time you reopen the app after closing it.')
+                      : t('requireFingerprintEveryOpenDesc', 'When enabled, SahaPlay will ask for fingerprint/device authentication each time you reopen the app.')}
                   </div>
                 </div>
               )}

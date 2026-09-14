@@ -14,7 +14,7 @@ import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { generateKeyPair, saveKeyToSession, loadKeyFromSession, clearSessionKey, decryptPrivateKey, encryptPrivateKey, encryptGuestKey, decryptGuestKey } from '../lib/crypto.js';
 import { API } from '../lib/api';
-import { isCapacitorApp } from '../lib/platform';
+import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import {
   isDeviceUnlockAvailable,
   unlockDeviceKey,
@@ -51,7 +51,7 @@ import { isStrictDeviceUnlockEnabled, setStrictDeviceUnlockEnabled } from '../li
 // treated identically: a missed convenience, never an error condition.
 async function enrollDeviceUnlockSilently(secretKeyBytes) {
   try {
-    if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return; // browser / no native plugin — never attempted
+    if (!isDeviceUnlockAvailable()) return; // browser / no native plugin on Android or Windows desktop — never attempted
     if (localStorage.getItem('watch_is_guest') === 'true') return; // guests have no server-side identity to enroll
     if (!(secretKeyBytes instanceof Uint8Array) || secretKeyBytes.length !== 32) return;
     await nativeSetupDeviceUnlock(secretKeyBytes, { allowOverwrite: false, strict: isStrictDeviceUnlockEnabled() });
@@ -90,7 +90,7 @@ async function enrollDeviceUnlockSilently(secretKeyBytes) {
 // passphrase/recovery UI, unchanged.
 async function tryRestoreViaDeviceUnlock(serverPublicKeyB64, isCancelled = () => false) {
   if (!serverPublicKeyB64) return null; // nothing to verify against — never attempt
-  if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return null;
+  if (!isDeviceUnlockAvailable()) return null;
 
   // This runs at the very first tick of a genuinely cold app launch —
   // earlier than anything else in the app has had a chance to confirm the
@@ -112,7 +112,13 @@ async function tryRestoreViaDeviceUnlock(serverPublicKeyB64, isCancelled = () =>
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (isCancelled()) return null; // caller unmounted (e.g. logged out) mid-retry — stop, don't touch anything further
     try {
-      const secretKey = await unlockDeviceKey();
+      // strict is ignored on Android (the enrolled Keystore key already
+      // encodes its own auth policy at generation time — see
+      // E2eeKeyStore.java's buildKeySpec); Windows' DPAPI blob carries no
+      // such policy of its own, so device_unlock.rs needs to be told
+      // explicitly whether to gate this specific unlock behind a fresh
+      // Windows Hello check.
+      const secretKey = await unlockDeviceKey({ strict: isStrictDeviceUnlockEnabled() });
       if (isCancelled()) return null; // resolved after the caller stopped caring — discard, don't call setState on an unmounted effect
       const kp = nacl.box.keyPair.fromSecretKey(secretKey);
       if (encodeBase64(kp.publicKey) !== serverPublicKeyB64) {
@@ -227,18 +233,26 @@ export function CryptoProvider({ children }) {
         }
 
         // Registered user: restore from AES-encrypted sessionStorage —
-        // UNLESS "require fingerprint every time I open the app" is on.
-        // That setting's whole contract is "ask again on a genuinely NEW
-        // app launch, never merely on foreground/resume/backgrounding" —
-        // checking it exactly here is what makes that true: this mount
-        // effect body runs exactly once per real app launch/process (this
-        // Provider is mounted once at the app root; switching to another
-        // app and back does NOT re-run it, only a real process restart
-        // does — deliberately NOT using Capacitor's appStateChange/resume
-        // events, which fire on every such switch, not just a new launch).
-        // On browser / no native plugin, isStrictDeviceUnlockEnabled() is
-        // irrelevant in practice (isCapacitorApp() gates it below anyway).
-        const strictModeActive = isCapacitorApp() && isStrictDeviceUnlockEnabled();
+        // UNLESS "require fingerprint/Windows Hello every time I open the
+        // app" is on. That setting's whole contract is "ask again on a
+        // genuinely NEW app launch, never merely on foreground/resume/
+        // backgrounding" — checking it exactly here is what makes that
+        // true: this mount effect body runs exactly once per real app
+        // launch/process (this Provider is mounted once at the app root;
+        // switching to another app and back does NOT re-run it, only a
+        // real process restart does — deliberately NOT using Capacitor's
+        // appStateChange/resume events, which fire on every such switch,
+        // not just a new launch). On Windows, a genuine process restart
+        // (Quit from tray + relaunch, a crash, or an OS logoff/restart)
+        // maps onto this exact same guarantee; a plain hide-to-tray/reopen
+        // (the window's X button, by this app's own design — see main.rs)
+        // does NOT restart the process or re-run this effect at all, which
+        // is why that specific transition needs its own separate handling
+        // below (the desktop_window_hidden/desktop_window_shown listener)
+        // rather than being covered by this mount effect. On browser / no
+        // native plugin, isStrictDeviceUnlockEnabled() is irrelevant in
+        // practice (isDeviceUnlockAvailable() gates it below anyway).
+        const strictModeActive = (isCapacitorApp() || isTauriApp()) && isStrictDeviceUnlockEnabled();
         if (strictModeActive) {
           // Never trust a cached session key under strict mode — the point
           // is a fresh check every launch, not a shortcut past it. This
@@ -299,7 +313,7 @@ export function CryptoProvider({ children }) {
           // publicKey: null, which does NOT throw), and "log out and back in"
           // (surfaced by reloadPrivateKeyWithPassword's own error message)
           // correctly falls through to Login.jsx's normal first-time key setup.
-          // Cold-start device unlock (Android only): the server has just
+          // Cold-start device unlock (Android/Windows only): the server has just
           // POSITIVELY confirmed this account already has a real public key
           // (serverHasExistingKey), so — and ONLY so — there is something
           // legitimate to try to restore without a passphrase prompt. This
@@ -357,6 +371,78 @@ export function CryptoProvider({ children }) {
       }
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // Windows-only: the mount effect above handles a genuine process launch
+  // (Quit from tray + relaunch, a crash, or an OS restart/logoff) — but
+  // this app's own main.rs deliberately hides the window instead of
+  // terminating the process on the X button (so calls/notifications keep
+  // working in the background, same as Discord/Slack), which means a plain
+  // close-then-reopen from the tray never re-runs the mount effect at all.
+  // Strict mode's product spec explicitly asks for THIS exact transition
+  // to require a fresh Windows Hello check too — main.rs emits
+  // "desktop_window_hidden"/"desktop_window_shown" for precisely this
+  // (never on ordinary alt-tab/minimize/restore, which never touch that
+  // Rust code path at all — see main.rs's own comments on those two
+  // events). Entirely separate from the mount effect above; does not
+  // touch or duplicate its "genuinely brand new account" branch, since a
+  // reopen can only ever happen for an account that already had a key.
+  useEffect(() => {
+    if (!isTauriApp()) return;
+    let cancelled = false;
+    let unlistenHidden = null;
+    let unlistenShown = null;
+
+    (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      if (cancelled) return;
+
+      unlistenHidden = await listen('desktop_window_hidden', () => {
+        if (!isStrictDeviceUnlockEnabled()) return; // OFF: preserve existing behavior exactly — no-op
+        // Drop the in-memory/session key now, so the next
+        // "desktop_window_shown" genuinely requires a fresh Windows Hello
+        // check rather than silently reusing what's still in memory — the
+        // Windows equivalent of Android's clearSessionKey() at the start
+        // of a fresh strict-mode launch.
+        clearSessionKey();
+        setKeyPairState(null);
+      });
+
+      unlistenShown = await listen('desktop_window_shown', async () => {
+        if (!isStrictDeviceUnlockEnabled()) return; // OFF: reopening never prompts — existing behavior preserved
+        const tkn = localStorage.getItem('watch_token');
+        if (!tkn || localStorage.getItem('watch_is_guest') === 'true') return; // not a registered session — nothing to unlock
+        let serverPublicKeyB64 = null;
+        try {
+          const res = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${tkn}` } });
+          if (res.ok) {
+            const data = await res.json();
+            serverPublicKeyB64 = data.publicKey || null;
+          }
+        } catch (e) { console.warn('[CryptoContext] my-keys check (strict reopen) failed:', e); }
+        if (cancelled) return;
+
+        const restoredKp = serverPublicKeyB64 ? await tryRestoreViaDeviceUnlock(serverPublicKeyB64, () => cancelled) : null;
+        if (cancelled) return;
+        if (restoredKp) {
+          await saveKeyToSession(restoredKp.secretKey);
+          setKeyPairState(restoredKp);
+          console.log('[CryptoContext] Key restored via Windows Hello device unlock (tray reopen) ✅');
+        } else {
+          // Windows Hello declined/failed/unavailable, or the my-keys check
+          // itself failed — same fallback as every other device-unlock
+          // failure mode: the existing passphrase/recovery UI, never a new
+          // keypair.
+          setNeedsReauth(true);
+        }
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      if (unlistenHidden) unlistenHidden();
+      if (unlistenShown) unlistenShown();
+    };
   }, []);
 
   /** Store key pair in memory + encrypted sessionStorage. */
@@ -476,7 +562,7 @@ export function CryptoProvider({ children }) {
    */
   const setDeviceUnlockRequireEveryOpen = useCallback(async (enabled) => {
     setStrictDeviceUnlockEnabled(enabled);
-    if (!isCapacitorApp() || !isDeviceUnlockAvailable()) {
+    if (!isDeviceUnlockAvailable()) {
       return { persisted: true, reenrolled: false, reason: 'NOT_AVAILABLE' };
     }
     if (!keyPair || !keyPair.secretKey) {

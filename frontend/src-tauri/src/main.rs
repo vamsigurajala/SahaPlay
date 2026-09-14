@@ -9,6 +9,9 @@ use tauri::{
 };
 use tauri_winrt_notification::Toast;
 
+mod device_assertion;
+mod device_unlock;
+
 // Appends one line to <app log dir>/notify-debug.log — a diagnostic channel
 // that survives even if the JS side never sees the desktop_toast_result
 // event (e.g. IPC/event-bridge issue) or no react-hot-toast <Toaster/> is
@@ -103,6 +106,12 @@ fn main() {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
+                // See the "desktop_window_shown" comment on the tray "open"
+                // handler below — same explicit reopen signal, this is just
+                // the other place a reopen can originate from (relaunching
+                // the .exe/shortcut while already running in the tray,
+                // rather than the tray menu itself).
+                let _ = app.emit("desktop_window_shown", ());
             }
         }))
         // Lets the app open ms-settings:notifications directly — used when
@@ -112,7 +121,13 @@ fn main() {
         // its own OS notification permission, only Windows' own Settings UI
         // can flip that toggle).
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![show_windows_toast])
+        .invoke_handler(tauri::generate_handler![
+            show_windows_toast,
+            device_unlock::windows_device_unlock_has,
+            device_unlock::windows_device_unlock_setup,
+            device_unlock::windows_device_unlock_unlock,
+            device_unlock::windows_device_unlock_clear,
+        ])
         .setup(|app| {
             let open_item = MenuItem::with_id(app, "open", "Open SahaPlay", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -126,6 +141,20 @@ fn main() {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
+                            // Explicit "the user just reopened from the tray"
+                            // signal for CryptoContext.jsx's strict
+                            // device-unlock mode. This does NOT fire on
+                            // ordinary alt-tab/restore-from-taskbar — those
+                            // never touch this code path at all, the window
+                            // just stays a normal visible window the whole
+                            // time. It only fires here and in the
+                            // single-instance handler above, i.e. only when
+                            // the window was actually hidden (via the
+                            // CloseRequested handler below) and is now being
+                            // explicitly re-shown — exactly the "closed,
+                            // then reopened" transition strict mode cares
+                            // about, never a mere focus change.
+                            let _ = app.emit("desktop_window_shown", ());
                         }
                     }
                     "quit" => {
@@ -149,6 +178,17 @@ fn main() {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let _ = window.hide();
                 api.prevent_close();
+                // "The app was closed" signal for strict device-unlock mode
+                // — see device_unlock.rs's module doc for the full design.
+                // Rust deliberately has no opinion here on whether strict
+                // mode is even on (that setting lives in JS/localStorage,
+                // same as isStrictDeviceUnlockEnabled() on Android); this
+                // just reports the one fact only Rust can see (the window
+                // was actually closed, not merely unfocused), and lets
+                // CryptoContext.jsx decide what to do with it — same
+                // separation of concerns as every other native/JS boundary
+                // in this app.
+                let _ = window.emit("desktop_window_hidden", ());
             }
         })
         .run(tauri::generate_context!())

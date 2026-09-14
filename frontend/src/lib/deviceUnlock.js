@@ -1,13 +1,21 @@
 /**
  * deviceUnlock.js
  *
- * The ONLY place in the JS codebase that talks to the native
- * SahaplayE2ee Capacitor plugin (see SahaplayE2eePlugin.java /
- * E2eeKeyStore.java / DeviceAssertionVerifier.java, and
- * backend/lib/deviceAssertion.js for the server side). CryptoContext.jsx
- * (a later stage) calls these functions and nothing else — it never talks
- * to window.Capacitor.Plugins.SahaplayE2ee directly, same separation
- * nativeCallEngine.js already establishes for the calling engine.
+ * The ONLY place in the JS codebase that talks to native device-unlock
+ * code — the Capacitor SahaplayE2ee plugin on Android (see
+ * SahaplayE2eePlugin.java / E2eeKeyStore.java / DeviceAssertionVerifier.java)
+ * and the Tauri device_unlock commands on Windows desktop (see
+ * frontend/src-tauri/src/device_unlock.rs / device_assertion.rs — a
+ * faithful port of the same DPAPI/UserConsentVerifier-based design,
+ * confirmed against a real device before being built: see that module's
+ * own doc comment). Both share backend/lib/deviceAssertion.js as their
+ * common trust root. CryptoContext.jsx (a later stage) calls these
+ * functions and nothing else — it never talks to
+ * window.Capacitor.Plugins.SahaplayE2ee or @tauri-apps/api directly, same
+ * separation nativeCallEngine.js already establishes for the calling
+ * engine. This is also why CryptoContext.jsx needed no changes at all to
+ * gain Windows support — this module's public contract (function names,
+ * parameters, DeviceUnlockError codes) is identical across both platforms.
  *
  * ─── The one rule every function here enforces ────────────────────────
  * There is NO public function in this module that accepts an account
@@ -20,8 +28,9 @@
  * page logged in as one account to reach a DIFFERENT, previously-enrolled
  * account's key. Removing the parameter from this layer removes the
  * ability to even EXPRESS that mistake from ordinary application code —
- * see SahaplayE2eePlugin.java's own class comment for the full incident
- * and the native-side fix this module's shape is built to match.
+ * see SahaplayE2eePlugin.java's own class comment for the full incident,
+ * and device_assertion.rs's module comment for why the exact same
+ * protection was ported to the Windows side rather than skipped.
  *
  * Every function that needs proof of identity (everything except the
  * cheap "is native even available" check) fetches a FRESH, server-signed
@@ -34,15 +43,26 @@
  * other native failure mode. Nothing in this module may ever be used as
  * grounds to generate a new E2EE keypair.
  */
-import { isCapacitorApp } from './platform';
+import { isCapacitorApp, isTauriApp } from './platform';
 import { API } from './api';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 
-const plugin = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.SahaplayE2ee : null);
+const capacitorPlugin = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.SahaplayE2ee : null);
+
+// Dynamic import, matching desktopNotify.js's existing pattern for
+// @tauri-apps/api/core — keeps this a zero-cost import on Android/browser,
+// where @tauri-apps/api's module graph is never touched at all.
+let tauriInvokeModule = null;
+function tauriInvoke(cmd, args) {
+  if (!tauriInvokeModule) {
+    tauriInvokeModule = import('@tauri-apps/api/core');
+  }
+  return tauriInvokeModule.then(({ invoke }) => invoke(cmd, args));
+}
 
 /** Cheap, synchronous, no-network check — safe to call anywhere to decide whether to show Device Unlock UI at all. */
 export function isDeviceUnlockAvailable() {
-  return !!plugin();
+  return !!capacitorPlugin() || isTauriApp();
 }
 
 export class DeviceUnlockError extends Error {
@@ -146,12 +166,16 @@ async function fetchFreshAssertion() {
 
 function nativeErrorToDeviceUnlockError(err) {
   // Capacitor surfaces a native PluginCall.reject(message, code) as a
-  // rejected Promise whose error carries both — pass the code straight
-  // through so callers see the exact same typed vocabulary
-  // SahaplayE2eePlugin.java documents (NO_VALID_ASSERTION,
-  // NO_KEY_FOR_ACCOUNT, KEY_INVALIDATED, CORRUPT_WRAPPER,
-  // HARDWARE_UNAVAILABLE, AUTH_FAILED, ALREADY_IN_PROGRESS,
-  // ALREADY_ENROLLED, NATIVE_UNAVAILABLE, INVALID_REQUEST).
+  // rejected Promise whose error carries both; Tauri surfaces a command's
+  // Err(DeviceUnlockError) (device_unlock.rs's Rust struct, #[derive(Serialize)]
+  // with the same {code, message} shape) as the rejection value directly —
+  // either way, pass the code straight through so callers see the exact
+  // same typed vocabulary SahaplayE2eePlugin.java/device_unlock.rs document
+  // (NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT, KEY_INVALIDATED,
+  // CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, AUTH_FAILED, ALREADY_IN_PROGRESS,
+  // ALREADY_ENROLLED, NATIVE_UNAVAILABLE, INVALID_REQUEST, and on Windows
+  // specifically NOT_CONFIGURED — Windows Hello isn't set up on this
+  // Windows account at all).
   return new DeviceUnlockError(err?.code || 'UNKNOWN', err?.message || String(err));
 }
 
@@ -164,11 +188,13 @@ function nativeErrorToDeviceUnlockError(err) {
  * reason leads to the exact same action anyway.
  */
 export async function hasDeviceUnlock() {
-  const p = plugin();
-  if (!p) return false;
+  if (!isDeviceUnlockAvailable()) return false;
   try {
     const { accountId, assertion } = await fetchFreshAssertion();
-    const result = await p.hasDeviceUnlock({ accountId, assertion });
+    if (isTauriApp()) {
+      return !!(await tauriInvoke('windows_device_unlock_has', { accountId, assertion }));
+    }
+    const result = await capacitorPlugin().hasDeviceUnlock({ accountId, assertion });
     return !!result?.exists;
   } catch {
     return false;
@@ -178,46 +204,45 @@ export async function hasDeviceUnlock() {
 /**
  * Enrolls Device Unlock for the CURRENT account, wrapping secretKeyBytes
  * (the account's EXISTING 32-byte NaCl secret key — this never generates
- * or alters it) behind the device's Keystore/biometric gate. May show a
- * biometric/device-credential prompt (native's own first-use-after-
- * generation behavior — see E2eeKeyStore.java).
+ * or alters it) behind the device's platform-specific gate — Android
+ * Keystore/biometric, or on Windows, DPAPI (always) plus a Windows Hello
+ * confirmation when strict is true (see device_unlock.rs's setup command).
  *
  * @param {Uint8Array} secretKeyBytes  exactly 32 bytes
  * @param {{allowOverwrite?: boolean, strict?: boolean}} [opts]
  *   allowOverwrite must only be passed true from an explicit, user-visible
  *   re-enrollment action — never as a default, per SahaplayE2eePlugin.java's
- *   own no-silent-overwrite guarantee.
- *   strict selects the Keystore key's authentication policy for THIS
- *   enrollment: false (default) keeps the existing 30-minute authentication-
- *   validity window (silent re-use within that window, no repeated
- *   prompts); true creates a key that requires a fresh biometric/device-
- *   credential check on every single use, with no grace window at all —
- *   see deviceUnlockSettings.js's "require fingerprint every open" setting,
- *   the only intended caller of strict:true. Changing strict for an
- *   account that's already enrolled requires allowOverwrite:true (the
- *   native side never changes an existing key's policy in place — see
- *   E2eeKeyStore.java's buildKeySpec).
+ *   own no-silent-overwrite guarantee (device_unlock.rs enforces the same
+ *   rule on Windows).
+ *   strict selects the platform's per-unlock authentication policy for
+ *   THIS enrollment: false (default) — Android: existing 30-minute
+ *   authentication-validity window; Windows: DPAPI alone, no Windows Hello
+ *   gate at all. true — Android: a fresh biometric/device-credential check
+ *   on every single use; Windows: a Windows Hello confirmation at
+ *   enrollment AND on every future unlock. See deviceUnlockSettings.js's
+ *   "require fingerprint/Windows Hello every open" setting, the only
+ *   intended caller of strict:true. Changing strict for an account that's
+ *   already enrolled requires allowOverwrite:true.
  * @throws DeviceUnlockError('NOT_AVAILABLE')       non-native platform
  * @throws DeviceUnlockError('NOT_AUTHENTICATED' | 'ASSERTION_FETCH_FAILED')  see fetchFreshAssertion
  * @throws DeviceUnlockError('ALREADY_ENROLLED')    a wrapper already exists and allowOverwrite was false
- * @throws DeviceUnlockError('AUTH_FAILED')         biometric/device-credential cancelled or failed
- * @throws DeviceUnlockError('HARDWARE_UNAVAILABLE') Keystore/StrongBox error
+ * @throws DeviceUnlockError('AUTH_FAILED')         biometric/device-credential/Windows Hello cancelled or failed
+ * @throws DeviceUnlockError('NOT_CONFIGURED')      (Windows only) Windows Hello isn't set up for this account
+ * @throws DeviceUnlockError('HARDWARE_UNAVAILABLE') Keystore/StrongBox/DPAPI error
  */
 export async function setupDeviceUnlock(secretKeyBytes, { allowOverwrite = false, strict = false } = {}) {
-  const p = plugin();
-  if (!p) throw new DeviceUnlockError('NOT_AVAILABLE', 'Device unlock is not available on this platform');
+  if (!isDeviceUnlockAvailable()) throw new DeviceUnlockError('NOT_AVAILABLE', 'Device unlock is not available on this platform');
   if (!(secretKeyBytes instanceof Uint8Array) || secretKeyBytes.length !== 32) {
     throw new DeviceUnlockError('INVALID_REQUEST', 'secretKeyBytes must be a 32-byte Uint8Array');
   }
   const { accountId, assertion } = await fetchFreshAssertion();
+  const secretKeyBase64 = encodeBase64(secretKeyBytes);
   try {
-    await p.setupDeviceUnlock({
-      accountId,
-      assertion,
-      secretKeyBase64: encodeBase64(secretKeyBytes),
-      allowOverwrite,
-      strict,
-    });
+    if (isTauriApp()) {
+      await tauriInvoke('windows_device_unlock_setup', { accountId, assertion, secretKeyBase64, allowOverwrite, strict });
+    } else {
+      await capacitorPlugin().setupDeviceUnlock({ accountId, assertion, secretKeyBase64, allowOverwrite, strict });
+    }
   } catch (err) {
     throw nativeErrorToDeviceUnlockError(err);
   }
@@ -240,34 +265,43 @@ export async function setupDeviceUnlock(secretKeyBytes, { allowOverwrite = false
  * existing encryption-passphrase/recovery flow. NONE of them are ever
  * grounds to generate a new E2EE keypair.
  *
+ * @param {{strict?: boolean}} [opts]  Windows only — whether to require a
+ *   Windows Hello confirmation before releasing the key (Android reads its
+ *   own strict policy off the enrolled key itself, so needs no parameter
+ *   here; Windows' DPAPI blob carries no such policy, so device_unlock.rs's
+ *   unlock command needs to be told explicitly). Ignored on Android/browser.
  * @returns {Promise<Uint8Array>} the 32-byte secret key
  * @throws DeviceUnlockError with one of: NOT_AVAILABLE, NOT_AUTHENTICATED,
  *   ASSERTION_FETCH_FAILED, NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT,
  *   KEY_INVALIDATED, CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, AUTH_FAILED,
- *   ALREADY_IN_PROGRESS, NATIVE_UNAVAILABLE, NATIVE_ERROR (an unexpected
- *   native-side exception — always logged with a full stack trace under
- *   the "SahaplayE2ee" logcat tag; treated the same as every other
+ *   NOT_CONFIGURED (Windows only), ALREADY_IN_PROGRESS, NATIVE_UNAVAILABLE,
+ *   NATIVE_ERROR (an unexpected native-side exception — always logged with
+ *   full detail on the native side; treated the same as every other
  *   failure here, just with a distinct code so it's identifiable)
  */
-export async function unlockDeviceKey() {
-  const p = plugin();
-  if (!p) throw new DeviceUnlockError('NOT_AVAILABLE', 'Device unlock is not available on this platform');
+export async function unlockDeviceKey({ strict = false } = {}) {
+  if (!isDeviceUnlockAvailable()) throw new DeviceUnlockError('NOT_AVAILABLE', 'Device unlock is not available on this platform');
   const { accountId, assertion } = await fetchFreshAssertion();
-  let result;
+  let secretKeyBase64;
   try {
-    result = await p.unlockDeviceKey({ accountId, assertion });
+    if (isTauriApp()) {
+      secretKeyBase64 = await tauriInvoke('windows_device_unlock_unlock', { accountId, assertion, strict });
+    } else {
+      const result = await capacitorPlugin().unlockDeviceKey({ accountId, assertion });
+      secretKeyBase64 = result?.secretKeyBase64;
+    }
   } catch (err) {
     throw nativeErrorToDeviceUnlockError(err);
   }
-  if (!result?.secretKeyBase64) {
+  if (!secretKeyBase64) {
     throw new DeviceUnlockError('UNKNOWN', 'Native resolved without returning a key');
   }
-  return decodeBase64(result.secretKeyBase64);
+  return decodeBase64(secretKeyBase64);
 }
 
 /**
- * "Forget this device" — explicitly deletes the Keystore key and wrapped
- * blob for the CURRENT account on this device. Distinct from logout: an
+ * "Forget this device" — explicitly deletes the platform-native wrapper
+ * for the CURRENT account on this device. Distinct from logout: an
  * ordinary logout never calls this (see CryptoContext.jsx's clearKeys /
  * authUtils.js's clearUserSession, unaffected by this module) — Device
  * Unlock enrollment survives a normal logout/re-login on the same device
@@ -277,11 +311,14 @@ export async function unlockDeviceKey() {
  * @throws DeviceUnlockError('NO_VALID_ASSERTION')  (should not normally happen — same session that's asking to forget itself)
  */
 export async function clearDeviceUnlock() {
-  const p = plugin();
-  if (!p) return; // nothing native ever existed on this platform — not an error
+  if (!isDeviceUnlockAvailable()) return; // nothing native ever existed on this platform — not an error
   const { accountId, assertion } = await fetchFreshAssertion();
   try {
-    await p.clearDeviceUnlock({ accountId, assertion });
+    if (isTauriApp()) {
+      await tauriInvoke('windows_device_unlock_clear', { accountId, assertion });
+    } else {
+      await capacitorPlugin().clearDeviceUnlock({ accountId, assertion });
+    }
   } catch (err) {
     throw nativeErrorToDeviceUnlockError(err);
   }
