@@ -114,21 +114,29 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
   };
 
   return (
-    <div style={{
+    // encryption-modal-overlay: App.jsx's runtime light-mode stylesheet has
+    // a blanket rule that force-overrides ANY `position: fixed` element's
+    // background to a flat #f7f8fc in light mode (its own comment calls it
+    // out as the "Chat widget container" catch-all) — it doesn't know about
+    // this modal and was silently stomping the translucent tint set below,
+    // which is why setting it here alone didn't visibly change anything.
+    // This class is in that rule's own exemption list (and gets its own
+    // authoritative override right after it) — same pattern every other
+    // modal overlay in this app already uses to opt out of that catch-all.
+    <div className="encryption-modal-overlay" style={{
       position: 'fixed', inset: 0, zIndex: 99999,
-      // Dark mode's near-opaque black tint reads as a normal dimmed backdrop
-      // against this app's own dark pages. In light mode that same heavy
-      // black tint was crushing whatever's behind it down to near-black —
-      // not "a light backdrop", just a darker flat wash — so it's a
-      // lighter, less opaque tint here instead: still dims/frosts the page
-      // behind it (this modal is always mounted alongside real page
-      // content — EncryptionUnlockGate/Profile.jsx render it over
-      // Home/Dashboard, never over a blank screen), but doesn't erase it.
       background: isLight ? 'rgba(241,245,249,0.6)' : 'rgba(0,0,0,0.75)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20, backdropFilter: 'blur(12px)'
     }}>
-      <div style={{ maxWidth: 460, width: '100%', ...card, borderRadius: 24, padding: '36px 32px' }}>
+      {/* A DIFFERENT exemption class than the backdrop's, deliberately —
+          this card is the direct `div[style*="background"]` child that the
+          catch-all's SECOND selector separately targets, so it needs its
+          own opt-out, but must NOT share encryption-modal-overlay's own
+          dedicated rule (that one intentionally overrides background to a
+          translucent tint — exactly what this card, which needs to stay
+          solid white/dark per its own `card` variable above, must avoid). */}
+      <div className="encryption-modal-card" style={{ maxWidth: 460, width: '100%', ...card, borderRadius: 24, padding: '36px 32px' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%',

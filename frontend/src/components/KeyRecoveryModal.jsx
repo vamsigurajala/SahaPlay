@@ -60,12 +60,15 @@ export default function KeyRecoveryModal() {
   };
 
   return (
-    <div style={{
+    // key-recovery-overlay: opts this out of App.jsx's runtime light-mode
+    // stylesheet, which has a blanket rule that force-overrides ANY
+    // `position: fixed` element's background to a flat #f7f8fc in light
+    // mode — it doesn't know about this modal and was silently stomping
+    // the translucent tint below (this class is in that rule's own
+    // exemption list, and gets its own authoritative override right after
+    // it — same pattern every other modal overlay in this app uses).
+    <div className="key-recovery-overlay" style={{
       position: 'fixed', inset: 0, zIndex: 2147483600,
-      // Theme-aware for the same reason as OAuthEncryptionModal's backdrop:
-      // the flat black tint read fine against this app's own dark pages,
-      // but crushed a light-mode page down to a near-opaque wash instead
-      // of a proper light, blurred backdrop.
       background: isLight ? 'rgba(241,245,249,0.6)' : 'rgba(0,0,0,0.7)',
       backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
@@ -118,6 +121,13 @@ export default function KeyRecoveryModal() {
         <button
           type="submit"
           disabled={isSubmitting || !password}
+          // stay-white: App.jsx's runtime light-mode stylesheet pattern-
+          // matches `color: rgb(255, 255, 255)` in any inline style and
+          // force-overrides it to near-black — that's what was actually
+          // turning this label dark despite the inline color:'#fff' below;
+          // this class is that rule's own documented escape hatch
+          // (OAuthEncryptionModal's equivalent buttons already use it).
+          className="stay-white"
           style={{
             width: '100%', padding: '12px 0', borderRadius: 12, border: 'none',
             // Dimming the whole button (background AND text together) via

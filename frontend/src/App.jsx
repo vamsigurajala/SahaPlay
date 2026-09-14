@@ -629,10 +629,26 @@ function App() {
       
       /* ── Chat widget container (fixed positioned floating panel) ── */
 
-       html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.safety-modal-overlay):not(.report-modal-overlay):not(.report-modal-card):not(.gcw-force-dark .chat-modal-overlay):not(.back-to-top-btn):not(.media-lightbox-overlay):not(.media-selector-overlay):not(.subtitle-modal-overlay):not(.customize-room-overlay):not(.block-confirm-overlay):not(.admin-modal-overlay):not(.chat-theme-sheet-overlay):not(.reactors-sheet-overlay):not(.gcw-force-dark):not(.gcw-force-dark *),
-       html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.block-confirm-overlay):not(.admin-modal-card):not(.report-modal-overlay):not(.report-modal-card):not(.chat-theme-sheet-overlay):not(.reactors-sheet-overlay):not(.chat-wallpaper-backdrop):not(.gcw-composer-bar):not(.gcw-force-dark):not(.gcw-force-dark *):not(.media-lightbox-card) {
+       html[data-theme='light'] [style*="position: fixed"][style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.safety-modal-overlay):not(.report-modal-overlay):not(.report-modal-card):not(.gcw-force-dark .chat-modal-overlay):not(.back-to-top-btn):not(.media-lightbox-overlay):not(.media-selector-overlay):not(.subtitle-modal-overlay):not(.customize-room-overlay):not(.block-confirm-overlay):not(.admin-modal-overlay):not(.chat-theme-sheet-overlay):not(.reactors-sheet-overlay):not(.encryption-modal-overlay):not(.key-recovery-overlay):not(.gcw-force-dark):not(.gcw-force-dark *),
+       html[data-theme='light'] [style*="position: fixed"] > div[style*="background"]:not(.chat-widget-main-panel):not(.chat-modal-overlay):not(.share-modal-overlay):not(.room-modals-overlay):not(.lock-screen-overlay):not(.block-confirm-overlay):not(.admin-modal-card):not(.report-modal-overlay):not(.report-modal-card):not(.chat-theme-sheet-overlay):not(.reactors-sheet-overlay):not(.chat-wallpaper-backdrop):not(.gcw-composer-bar):not(.encryption-modal-overlay):not(.encryption-modal-card):not(.key-recovery-overlay):not(.gcw-force-dark):not(.gcw-force-dark *):not(.media-lightbox-card) {
         background: #f7f8fc !important;
         border-color: rgba(0,0,0,0.1) !important;
+      }
+      /* Encryption unlock/recovery modals (OAuthEncryptionModal.jsx,
+         KeyRecoveryModal.jsx) — exempted above from the catch-all just so
+         these two rules can be the actual, visible source of truth for
+         their light-mode look: a light, blurred tint that still shows the
+         page behind it, matching every other overlay's own dedicated rule
+         in this block rather than the generic near-white catch-all. */
+      html[data-theme='light'] .encryption-modal-overlay {
+        background: rgba(241,245,249,0.6) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+      }
+      html[data-theme='light'] .key-recovery-overlay {
+        background: rgba(241,245,249,0.6) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
       }
       html[data-theme='light'] .block-confirm-overlay {
         background: rgba(15, 23, 42, 0.35) !important;
