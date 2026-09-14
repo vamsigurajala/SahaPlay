@@ -51,17 +51,20 @@ import { isStrictDeviceUnlockEnabled, setStrictDeviceUnlockEnabled } from '../li
 // treated identically: a missed convenience, never an error condition.
 async function enrollDeviceUnlockSilently(secretKeyBytes) {
   try {
-    if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return; // browser / no native plugin — never attempted
-    if (localStorage.getItem('watch_is_guest') === 'true') return; // guests have no server-side identity to enroll
-    if (!(secretKeyBytes instanceof Uint8Array) || secretKeyBytes.length !== 32) return;
+    if (!isCapacitorApp() || !isDeviceUnlockAvailable()) { diag('enroll: skipped, not capacitor/no plugin'); return; } // DIAG_REMOVE_ME — browser / no native plugin — never attempted
+    if (localStorage.getItem('watch_is_guest') === 'true') { diag('enroll: skipped, guest account'); return; } // DIAG_REMOVE_ME — guests have no server-side identity to enroll
+    if (!(secretKeyBytes instanceof Uint8Array) || secretKeyBytes.length !== 32) { diag('enroll: skipped, bad secretKeyBytes'); return; } // DIAG_REMOVE_ME
+    diag('enroll: calling nativeSetupDeviceUnlock, strict=' + isStrictDeviceUnlockEnabled()); // DIAG_REMOVE_ME
     await nativeSetupDeviceUnlock(secretKeyBytes, { allowOverwrite: false, strict: isStrictDeviceUnlockEnabled() });
+    diag('enroll: SUCCESS'); // DIAG_REMOVE_ME
     console.log('[CryptoContext] Device unlock enrolled for this account on this device.');
   } catch (e) {
-    if (e?.code === 'ALREADY_ENROLLED') return; // harmless — a wrapper already exists here, never overwritten
+    if (e?.code === 'ALREADY_ENROLLED') { diag('enroll: already enrolled (harmless)'); return; } // DIAG_REMOVE_ME — harmless — a wrapper already exists here, never overwritten
     // HARDWARE_UNAVAILABLE, AUTH_FAILED (biometric cancelled),
     // NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED, or anything unexpected —
     // all just mean "no convenience enrollment this time." Logged by
     // error code/message only — never the secret key or any passphrase.
+    diag('enroll: FAILED — code=' + (e?.code || 'none') + ' message=' + (e?.message || String(e))); // DIAG_REMOVE_ME
     console.warn('[CryptoContext] Device unlock enrollment failed (login/unlock is unaffected):', e?.code || e?.message || e);
   }
 }

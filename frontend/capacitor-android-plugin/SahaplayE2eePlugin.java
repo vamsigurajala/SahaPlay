@@ -366,6 +366,36 @@ public class SahaplayE2eePlugin extends Plugin {
                     + " for accountId=" + id + " — treating as \"needs fresh auth\" (not a hard failure) and showing BiometricPrompt");
             }
 
+            // SECOND root cause, confirmed via on-screen diagnostics right
+            // after the first one above was fixed: reusing `cipher` here —
+            // the SAME instance whose doFinal() just threw, above — for the
+            // BiometricPrompt.CryptoObject fails once the user actually
+            // completes the fingerprint prompt, with IllegalBlockSizeException
+            // <- KeyStoreException: Invalid operation handle (internal
+            // Keystore code -28, INVALID_OPERATION_HANDLE). This is
+            // AndroidKeyStore's keystore2 backend tearing down the remote
+            // crypto operation the moment its first doFinal() call fails —
+            // the LOCAL Cipher object still looks reusable by ordinary JCA
+            // rules, but its underlying native operation handle is dead.
+            // So this was ALSO silently defeating strict mode, one step
+            // later than the first bug: the fingerprint prompt would show
+            // and the user could genuinely authenticate, only for the
+            // actual unlock to then fail anyway.
+            //
+            // Fix: get a FRESH cipher — a new cipher.init() against the
+            // same key+IV via prepareUnlockCipher — before handing it to
+            // BiometricPrompt, instead of reusing the one whose doFinal()
+            // already failed above.
+            Cipher promptCipher;
+            try {
+                promptCipher = keyStore().prepareUnlockCipher(id);
+            } catch (GeneralSecurityException e) {
+                clearInFlight(id);
+                Log.e(TAG, "unlockDeviceKey: re-preparing cipher for BiometricPrompt failed", e);
+                call.reject("Device unlock is unavailable: " + describeException(e), "HARDWARE_UNAVAILABLE");
+                return;
+            }
+
             String username = payload.username;
             // Same diagnostic-only safety net as setupDeviceUnlock above —
             // see that call site's comment for why this exists. Without it,
@@ -375,7 +405,7 @@ public class SahaplayE2eePlugin extends Plugin {
             // "ALREADY_IN_PROGRESS" until the app process restarts), which
             // is worse than a normal failure.
             try {
-                authenticateAndRun(activity, id, username, cipher, "Unlock your encrypted chats", call, authenticatedCipher -> {
+                authenticateAndRun(activity, id, username, promptCipher, "Unlock your encrypted chats", call, authenticatedCipher -> {
                     try {
                         byte[] secretKeyBytes = keyStore().finishUnlock(id, authenticatedCipher);
                         consecutiveFailures.remove(id);
