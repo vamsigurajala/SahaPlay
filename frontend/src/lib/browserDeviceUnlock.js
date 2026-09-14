@@ -107,6 +107,39 @@ export function describeBrowserDeviceUnlockError(e) {
   return { code: null, name: e?.name || null, message: e?.message || (typeof e === 'string' ? e : null) };
 }
 
+/**
+ * True when a caught error means "this device/authenticator does not (or
+ * did not, at this exact ceremony) provide WebAuthn PRF" — the two codes
+ * enrollBrowser() throws for that:
+ *  - PRF_NOT_SUPPORTED: navigator.credentials.create() succeeded, but
+ *    clientExtensionResults().prf.enabled was not true.
+ *  - PRF_NOT_CONFIRMED: create() reported PRF capability, but the
+ *    immediate follow-up get() probe never returned a usable PRF result.
+ * Callers use this to show a PRF-specific message ("your device doesn't
+ * support this") instead of the generic enrollment-failed one.
+ *
+ * PREFLIGHT INVESTIGATION (see this function's own reason for existing —
+ * classifying the ceremony's OUTCOME — rather than predicting it upfront):
+ * WebAuthn Level 3's PublicKeyCredential.getClientCapabilities() exposes an
+ * "extension:prf" entry, but per its own spec text this reports only
+ * whether the BROWSER knows how to process the prf extension — not whether
+ * a specific (possibly enterprise-policy-managed) platform authenticator
+ * will actually grant it for a given credential. That is exactly the gap a
+ * real production case surfaced: an up-to-date Chrome on an up-to-date,
+ * enterprise-managed Windows Hello declined to enable prf.enabled despite
+ * both being fully current — a client-capability check would not have
+ * predicted this, and calling it before create() would risk incorrectly
+ * hiding the feature from browsers where it actually would have worked, or
+ * incorrectly promising it would work where it doesn't. There is no
+ * standards-supported way to reliably know an AUTHENTICATOR will grant PRF
+ * before actually asking it to — the real ceremony's own result (this
+ * function's whole reason to exist) is the only trustworthy signal, so no
+ * preflight check is used here.
+ */
+export function isPrfUnsupportedError(e) {
+  return e instanceof BrowserDeviceUnlockError && (e.code === 'PRF_NOT_SUPPORTED' || e.code === 'PRF_NOT_CONFIRMED');
+}
+
 // ─── Availability ───────────────────────────────────────────────────────
 /**
  * Cheap, synchronous, no-network, no-IndexedDB check — safe to call

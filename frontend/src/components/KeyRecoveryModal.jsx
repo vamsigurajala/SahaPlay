@@ -14,7 +14,7 @@ import { Lock, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { useCrypto } from '../contexts/CryptoContext';
-import { isBrowserDeviceUnlockAvailable } from '../lib/browserDeviceUnlock.js';
+import { isBrowserDeviceUnlockAvailable, isPrfUnsupportedError, describeBrowserDeviceUnlockError } from '../lib/browserDeviceUnlock.js';
 
 export default function KeyRecoveryModal() {
   const { needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock, enrollBrowserDeviceUnlock } = useCrypto();
@@ -91,8 +91,11 @@ export default function KeyRecoveryModal() {
         try {
           await enrollBrowserDeviceUnlock(kp.secretKey);
           toast.success(t('rememberBrowserEnabled', 'This browser will unlock your encrypted chats without asking for your password next time.'));
-        } catch {
-          toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+        } catch (e) {
+          console.warn('[KeyRecoveryModal] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
+          toast.error(isPrfUnsupportedError(e)
+            ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+            : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
         }
       }
     } catch (err) {

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleLogin } from '@react-oauth/google';
 import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useCrypto } from './contexts/CryptoContext';
 import {
   encryptPrivateKey,
@@ -18,7 +19,7 @@ import nacl from 'tweetnacl';
 import { API } from './lib/api';
 import { isCapacitorApp, isTauriApp } from './lib/platform';
 import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
-import { describeBrowserDeviceUnlockError } from './lib/browserDeviceUnlock.js';
+import { describeBrowserDeviceUnlockError, isPrfUnsupportedError } from './lib/browserDeviceUnlock.js';
 import { resyncPushTokenAfterLogin } from './lib/nativePush';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -212,7 +213,12 @@ const Signup = () => {
     await setKeyPair(keyPair);
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e)); }
+      catch (e) {
+        console.warn('[Signup] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
+        toast.error(isPrfUnsupportedError(e)
+          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+      }
     }
     setOauthModalMode(null);
     setOauthModalCtx(null);
@@ -246,7 +252,12 @@ const Signup = () => {
     await setKeyPair(keyPair);
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e)); }
+      catch (e) {
+        console.warn('[Signup] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
+        toast.error(isPrfUnsupportedError(e)
+          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+      }
     }
     setOauthModalMode(null);
     setOauthModalCtx(null);
@@ -281,7 +292,12 @@ const Signup = () => {
     await setKeyPair(keyPair);
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e)); }
+      catch (e) {
+        console.warn('[Signup] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
+        toast.error(isPrfUnsupportedError(e)
+          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+      }
     }
     setOauthModalMode(null);
     setOauthModalCtx(null);

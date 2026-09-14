@@ -10,6 +10,7 @@ import {
   forgetBrowser,
   BrowserDeviceUnlockError,
   describeBrowserDeviceUnlockError,
+  isPrfUnsupportedError,
 } from './browserDeviceUnlock.js';
 
 const ORIGIN = 'http://localhost';
@@ -290,6 +291,59 @@ describe('browserDeviceUnlock.js', () => {
       expect(await hasBrowserDeviceUnlock()).toBe(false);
       expect(backend.calls.some(c => c.url.includes('register-verify'))).toBe(false);
       window.navigator.credentials.get = realGet;
+    });
+  });
+
+  // Production follow-up: a real enterprise-managed Windows Hello + a fully
+  // up-to-date Chrome produced PRF_NOT_SUPPORTED (create() succeeds, PRF
+  // never enabled) — confirmed via a live diagnostic probe, not just a
+  // theory. isPrfUnsupportedError() is the classifier callers (Login.jsx,
+  // Signup.jsx, Profile.jsx, KeyRecoveryModal.jsx, EncryptionUnlockGate.jsx)
+  // now use to show a PRF-specific "your device doesn't support this"
+  // message instead of the generic enrollment-failed one.
+  describe('isPrfUnsupportedError — PRF-specific error classification', () => {
+    test('true for a real PRF_NOT_SUPPORTED failure (create() succeeds, PRF never enabled)', async () => {
+      installEmulator({ hmacSecret: 'none' });
+      await setUpLoggedInAccount();
+      const kp = nacl.box.keyPair();
+      installBackend({ myKeysPublicKeyB64: encodeBase64(kp.publicKey) });
+
+      const err = await enrollBrowser(kp.secretKey).catch(e => e);
+      expect(err.code).toBe('PRF_NOT_SUPPORTED');
+      expect(isPrfUnsupportedError(err)).toBe(true);
+    });
+
+    test('true for a real PRF_NOT_CONFIRMED failure (PRF confirmed at create, not at the authentication-time probe)', async () => {
+      installEmulator({ hmacSecret: 'hmac-secret-mc' });
+      await setUpLoggedInAccount();
+      const kp = nacl.box.keyPair();
+      installBackend({ myKeysPublicKeyB64: encodeBase64(kp.publicKey) });
+
+      const realGet = window.navigator.credentials.get;
+      window.navigator.credentials.get = vi.fn(async () => { throw new DOMException('no result', 'NotSupportedError'); });
+      const err = await enrollBrowser(kp.secretKey).catch(e => e);
+      window.navigator.credentials.get = realGet;
+
+      expect(err.code).toBe('PRF_NOT_CONFIRMED');
+      expect(isPrfUnsupportedError(err)).toBe(true);
+    });
+
+    test('false for every other BrowserDeviceUnlockError code — a PRF-capable device with an unrelated failure must not get the PRF-specific message', () => {
+      const otherCodes = [
+        'NOT_AVAILABLE', 'NOT_AUTHENTICATED', 'NO_LOCAL_WRAPPER', 'NO_CREDENTIALS',
+        'OPTIONS_FETCH_FAILED', 'CREATE_FAILED', 'GET_FAILED', 'PUBLIC_KEY_MISMATCH',
+        'WRAP_FAILED', 'PERSIST_FAILED', 'REGISTER_VERIFY_FAILED', 'AUTH_VERIFY_FAILED',
+        'STALE_WRAPPER', 'INVALID_REQUEST', 'UNKNOWN',
+      ];
+      for (const code of otherCodes) {
+        expect(isPrfUnsupportedError(new BrowserDeviceUnlockError(code, 'x'))).toBe(false);
+      }
+    });
+
+    test('false for a non-BrowserDeviceUnlockError value (a plain Error, undefined, a string)', () => {
+      expect(isPrfUnsupportedError(new Error('boom'))).toBe(false);
+      expect(isPrfUnsupportedError(undefined)).toBe(false);
+      expect(isPrfUnsupportedError('PRF_NOT_SUPPORTED')).toBe(false); // a bare string is never mistaken for the real typed error
     });
   });
 

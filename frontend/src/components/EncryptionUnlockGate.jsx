@@ -49,7 +49,7 @@ import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, hashRecovery
 import { API } from '../lib/api';
 import { isCapacitorApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
-import { describeBrowserDeviceUnlockError } from '../lib/browserDeviceUnlock.js';
+import { describeBrowserDeviceUnlockError, isPrfUnsupportedError } from '../lib/browserDeviceUnlock.js';
 import OAuthEncryptionModal from './OAuthEncryptionModal';
 
 export default function EncryptionUnlockGate() {
@@ -130,7 +130,9 @@ export default function EncryptionUnlockGate() {
       try { await enrollBrowserDeviceUnlock(kp.secretKey); }
       catch (e) {
         console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
-        toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+        toast.error(isPrfUnsupportedError(e)
+          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
       }
     }
     setCtx(null);
@@ -156,7 +158,9 @@ export default function EncryptionUnlockGate() {
       try { await enrollBrowserDeviceUnlock(kp.secretKey); }
       catch (e) {
         console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
-        toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+        toast.error(isPrfUnsupportedError(e)
+          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
       }
     }
     setCtx(null);

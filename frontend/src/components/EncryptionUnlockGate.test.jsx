@@ -39,6 +39,10 @@ vi.mock('../lib/browserDeviceUnlock.js', () => ({
     name: e?.originalName ?? e?.name ?? null,
     message: e?.originalMessage ?? e?.message ?? null,
   })),
+  // Real logic (not a stub) — these tests assert on the PRF-specific vs.
+  // generic message CHOICE, so the classifier itself must behave exactly
+  // like the real browserDeviceUnlock.js implementation does.
+  isPrfUnsupportedError: vi.fn((e) => e?.code === 'PRF_NOT_SUPPORTED' || e?.code === 'PRF_NOT_CONFIRMED'),
 }));
 
 function Probe() {
@@ -405,9 +409,12 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
 
     test('handleRecover: enrollBrowser rejecting shows the same visible error; recovery itself still succeeds and no new keypair is generated', async () => {
       const { enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      // A non-PRF failure code deliberately — this test is about the
+      // GENERIC failure message on the recovery path; the dedicated PRF
+      // describe-block tests below cover the PRF-specific message.
       enrollBrowser.mockRejectedValue({
-        code: 'PRF_NOT_SUPPORTED',
-        message: 'This browser/authenticator does not support the WebAuthn PRF extension.',
+        code: 'REGISTER_VERIFY_FAILED',
+        message: 'Registration verification failed',
       });
 
       const RECOVERY_PHRASE = 'ABCDEFGHIJKLMNOPQRSTUVWX';
@@ -489,6 +496,130 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
       await waitFor(() => expect(enrollBrowser).toHaveBeenCalledTimes(1));
       expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    // PRF-specific messaging follow-up: when the device/authenticator
+    // itself is the reason enrollment can't work (confirmed in production:
+    // create() succeeds, PRF is never enabled — see browserDeviceUnlock.js's
+    // isPrfUnsupportedError doc comment), the user should see a message
+    // that says so specifically, not the generic "couldn't remember this
+    // browser" wording that implies a transient/retryable failure.
+    test('enrollBrowser rejecting with PRF_NOT_SUPPORTED shows the PRF-specific message, not the generic one; unlock still succeeds; no new keypair generated', async () => {
+      const { enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      enrollBrowser.mockRejectedValue({ code: 'PRF_NOT_SUPPORTED', message: 'This browser/authenticator does not support the WebAuthn PRF extension.' });
+
+      installNativePlugin({});
+      const token = fakeToken({ id: 23, username: 'heidi' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+          return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      const { encryptPrivateKey } = await import('../lib/crypto.js');
+      const encryptedPrivateKey = await encryptPrivateKey(REAL_KP.secretKey, 'my-encryption-passphrase');
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+
+      const cryptoLib = await import('../lib/crypto.js');
+      const generateKeyPairSpy = vi.spyOn(cryptoLib, 'generateKeyPair');
+
+      fireNeedsPassphrase({ encryptedPrivateKey, publicKey: REAL_PUB_B64, token });
+      const passphraseInput = await screen.findByPlaceholderText(/Min 8 characters/i);
+      fireEvent.change(passphraseInput, { target: { value: 'my-encryption-passphrase' } });
+      fireEvent.click(screen.getByRole('checkbox'));
+      fireEvent.submit(passphraseInput.closest('form'));
+
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
+      await waitFor(() => expect(enrollBrowser).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+
+      const [message] = toast.error.mock.calls[0];
+      expect(message).toMatch(/doesn.t support secure browser unlock/i);
+      expect(message).toMatch(/encryption passphrase/i);
+      // NOT the generic "couldn't remember" wording — PRF classification
+      // must actually change which message is shown, not just log
+      // differently.
+      expect(message).not.toMatch(/couldn.t remember this browser/i);
+      expect(message).not.toMatch(/lost|deleted|gone/i); // still never implies the E2EE key was lost
+
+      expect(generateKeyPairSpy).not.toHaveBeenCalled();
+      generateKeyPairSpy.mockRestore();
+    });
+
+    test('enrollBrowser rejecting with PRF_NOT_CONFIRMED (create() OK, authentication-time probe failed) also shows the PRF-specific message', async () => {
+      const { enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      enrollBrowser.mockRejectedValue({ code: 'PRF_NOT_CONFIRMED', message: 'This authenticator did not return a PRF result on authentication.' });
+
+      installNativePlugin({});
+      const token = fakeToken({ id: 24, username: 'ivan' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+          return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      const { encryptPrivateKey } = await import('../lib/crypto.js');
+      const encryptedPrivateKey = await encryptPrivateKey(REAL_KP.secretKey, 'my-encryption-passphrase');
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+
+      fireNeedsPassphrase({ encryptedPrivateKey, publicKey: REAL_PUB_B64, token });
+      const passphraseInput = await screen.findByPlaceholderText(/Min 8 characters/i);
+      fireEvent.change(passphraseInput, { target: { value: 'my-encryption-passphrase' } });
+      fireEvent.click(screen.getByRole('checkbox'));
+      fireEvent.submit(passphraseInput.closest('form'));
+
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(toast.error.mock.calls[0][0]).toMatch(/doesn.t support secure browser unlock/i);
+    });
+
+    test('a non-PRF failure (e.g. CREATE_FAILED) still shows the generic message, not the PRF-specific one', async () => {
+      const { enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      enrollBrowser.mockRejectedValue({ code: 'CREATE_FAILED', message: 'The operation either timed out or was not allowed.' });
+
+      installNativePlugin({});
+      const token = fakeToken({ id: 25, username: 'judy' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+          return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      const { encryptPrivateKey } = await import('../lib/crypto.js');
+      const encryptedPrivateKey = await encryptPrivateKey(REAL_KP.secretKey, 'my-encryption-passphrase');
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+
+      fireNeedsPassphrase({ encryptedPrivateKey, publicKey: REAL_PUB_B64, token });
+      const passphraseInput = await screen.findByPlaceholderText(/Min 8 characters/i);
+      fireEvent.change(passphraseInput, { target: { value: 'my-encryption-passphrase' } });
+      fireEvent.click(screen.getByRole('checkbox'));
+      fireEvent.submit(passphraseInput.closest('form'));
+
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(toast.error.mock.calls[0][0]).toMatch(/couldn.t remember this browser/i);
+      expect(toast.error.mock.calls[0][0]).not.toMatch(/doesn.t support secure browser unlock/i);
     });
   });
 });

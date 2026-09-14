@@ -26,7 +26,7 @@ import { decryptPrivateKey, encryptPrivateKey } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
 import OAuthEncryptionModal from './components/OAuthEncryptionModal';
 import ToggleSwitch from './components/ToggleSwitch';
-import { isBrowserDeviceUnlockAvailable, describeBrowserDeviceUnlockError } from './lib/browserDeviceUnlock.js';
+import { isBrowserDeviceUnlockAvailable, describeBrowserDeviceUnlockError, isPrfUnsupportedError } from './lib/browserDeviceUnlock.js';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -909,7 +909,9 @@ const Profile = () => {
         setBrowserRemembered(true);
       } catch (e) {
         console.warn('[Profile] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
-        toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+        toast.error(isPrfUnsupportedError(e)
+          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
       }
     }
     setShowEncPassphraseModal(false);
@@ -2391,8 +2393,11 @@ const Profile = () => {
                             await enrollBrowserDeviceUnlock();
                             setBrowserRemembered(true);
                             toast.success(t('rememberBrowserEnabled', 'This browser will unlock your encrypted chats without asking for your password next time.'));
-                          } catch {
-                            toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+                          } catch (e) {
+                            console.warn('[Profile] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
+                            toast.error(isPrfUnsupportedError(e)
+                              ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+                              : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
                           } finally {
                             setSavingBrowserUnlock(false);
                           }
