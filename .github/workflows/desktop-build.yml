@@ -27,20 +27,50 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: frontend/src-tauri
+          # A run that fails to COMPILE (a real Rust error, not a bundling/
+          # release-publish issue) still successfully builds every OTHER
+          # crate in the dependency graph before hitting the error — the
+          # default (false) throws all of that away, so the very next run
+          # starts from zero again. During active development on this
+          # feature that meant every single fix cycle paid the full ~15+
+          # minute cold-compile cost. Caching regardless of outcome means
+          # only what actually changed needs recompiling next time.
+          cache-on-failure: true
 
-      - name: Install frontend dependencies
-        run: cd frontend && npm ci --legacy-peer-deps
+      # tauri-action (below) just needs the Tauri CLI resolvable via `npm
+      # run tauri` — it never touches the rest of the frontend's
+      # dependency tree (mediasoup-client, socket.io, every UI library...).
+      # Nothing else from frontend/node_modules is used here at all:
+      # tauri.conf.json's build.frontendDist is the literal URL
+      # https://sahaplay.com, so this build never bundles or even reads the
+      # frontend's own source — the installer just wraps a native shell
+      # that loads the live site. `npm ci` was installing the entire ~40+
+      # package frontend dependency tree to get one CLI binary; installing
+      # just that one package (pinned to the version frontend/package.json
+      # already declares) gets `npm run tauri` working in a fraction of the
+      # time, with nothing else pulled in.
+      - name: Install Tauri CLI
+        run: cd frontend && npm install --no-save --legacy-peer-deps @tauri-apps/cli@2.11.4
 
-      # No web asset build here — tauri.conf.json's build.frontendDist and the
-      # main window's url both point straight at the production site
-      # (https://sahaplay.com), so the installer just wraps a native shell that
-      # loads the live app. There's nothing local to compile for the frontend.
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         with:
           projectPath: frontend
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The raw compiled binary, unwrapped — no install wizard, no Start
+      # Menu shortcut, no uninstall entry: copy it out and run it directly,
+      # the same "just the app, no installer step" experience an APK
+      # gives on Android. Needs WebView2 Runtime present, which ships
+      # built into Windows 11 and is already on almost every Windows 10
+      # machine (Edge installs it); toast notifications and the tray icon
+      # were only verified against the installed build, not this one, so
+      # the installer remains the recommended default — this is the extra
+      # option for anyone who'd rather skip the installer.
+      - name: Prepare portable exe
+        shell: bash
+        run: cp frontend/src-tauri/target/release/sahaplay-desktop.exe SahaPlay-Windows-Portable.exe
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
@@ -50,17 +80,25 @@ jobs:
             frontend/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
 
-      # Publishes the just-built installer to a GitHub Release under a fixed,
+      - name: Upload portable exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sahaplay-windows-portable
+          path: SahaPlay-Windows-Portable.exe
+          if-no-files-found: error
+
+      # Publishes both build outputs to a GitHub Release under a fixed,
       # never-changing tag ("desktop-latest") — DownloadAppModal.jsx's "Get
-      # Desktop App" button links straight to this exact URL. Before this,
-      # running this workflow only produced a downloadable Actions artifact;
-      # nobody ever manually re-uploaded it to the actual public download
-      # link, so it kept serving whatever build was first uploaded (dated
-      # months ago, missing every native fix since). Deleting-then-recreating
-      # the release (rather than trying to update an existing one in place)
+      # Desktop App" button links straight at SahaPlay-Windows-Setup.exe's
+      # exact URL there, unchanged by this. Before this, running this
+      # workflow only produced a downloadable Actions artifact; nobody ever
+      # manually re-uploaded it to the actual public download link, so it
+      # kept serving whatever build was first uploaded (dated months ago,
+      # missing every native fix since). Deleting-then-recreating the
+      # release (rather than trying to update an existing one in place)
       # sidesteps any "asset already exists"/stale-tag ambiguity — this
-      # always ends up a clean, single release pointing at the current build.
-      # Renaming to a version-independent filename means the frontend's
+      # always ends up a clean release pointing at the current build.
+      # Renaming to version-independent filenames means the frontend's
       # hardcoded URL never has to change even if tauri.conf.json's version
       # number is bumped later.
       - name: Publish to GitHub Release (stable "desktop-latest" tag)
@@ -72,9 +110,10 @@ jobs:
           SRC=$(ls frontend/src-tauri/target/release/bundle/nsis/*.exe | head -n 1)
           STABLE_NAME="SahaPlay-Windows-Setup.exe"
           cp "$SRC" "$STABLE_NAME"
+          NOTES=$'Automatically published by the Desktop build workflow on every run — this is always the current Windows build.\n\n- **SahaPlay-Windows-Setup.exe** — the recommended installer (Start Menu shortcut, tray icon, proper uninstall). The in-app "Get Desktop App" link points directly here.\n- **SahaPlay-Windows-Portable.exe** — the same app with no install step, just run it directly. Requires the WebView2 Runtime (already on Windows 11 and almost all Windows 10 machines).'
           gh release delete desktop-latest --yes --cleanup-tag --repo "${{ github.repository }}" || true
-          gh release create desktop-latest "$STABLE_NAME" \
+          gh release create desktop-latest "$STABLE_NAME" SahaPlay-Windows-Portable.exe \
             --repo "${{ github.repository }}" \
             --title "SahaPlay Desktop (latest build)" \
-            --notes "Automatically published by the Desktop build workflow on every run — this is always the current Windows build. The in-app \"Get Desktop App\" link points directly here." \
+            --notes "$NOTES" \
             --latest

@@ -4,6 +4,20 @@ version = "0.1.0"
 description = "SahaPlay Desktop"
 edition = "2021"
 
+# This app is a thin native shell — it loads sahaplay.com in WebView2 and
+# does DPAPI/Windows Hello/IPC glue; none of that is CPU-bound, and the
+# actual page rendering happens in WebView2's own separate process, so our
+# own code's runtime speed is basically irrelevant to how the app feels.
+# The default release profile (opt-level 3) optimizes for runtime speed we
+# don't need at the cost of CI compile time we very much do care about —
+# this build (windows-rs, wry, tao, webview2-com and friends) is already
+# one of the slower things in CI. Trading unneeded runtime optimization for
+# materially faster compiles is a clear win here specifically (would NOT be
+# the right call for a compute-heavy binary).
+[profile.release]
+opt-level = 1
+codegen-units = 256
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
