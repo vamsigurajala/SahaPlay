@@ -330,10 +330,40 @@ public class SahaplayE2eePlugin extends Plugin {
                 call.reject(e.getMessage(), "CORRUPT_WRAPPER");
                 return;
             } catch (GeneralSecurityException e) {
-                clearInFlight(id);
-                Log.e(TAG, "unlockDeviceKey: finishUnlock failed", e);
-                call.reject("Device unlock failed: " + describeException(e), "HARDWARE_UNAVAILABLE");
-                return;
+                // ROOT CAUSE, confirmed via on-screen diagnostics (this
+                // device has no USB/wireless debugging, so logcat wasn't an
+                // option): a strict-mode (timeout=0, "authenticate every
+                // use") key's doFinal() does NOT reliably throw
+                // UserNotAuthenticatedException here — it threw
+                // IllegalBlockSizeException wrapping an
+                // android.security.KeyStoreException with internal code
+                // -26 ("Key user not authenticated" /
+                // KM_ERROR_KEY_USER_NOT_AUTHENTICATED). This is a known
+                // AOSP keystore2 (the Rust-based Keystore daemon,
+                // Android 12+) quirk specific to per-operation, timeout=0
+                // auth-bound keys — the textbook exception type this catch
+                // used to require simply isn't what gets thrown here.
+                //
+                // Treating this as a hard failure (the old behavior) meant
+                // strict mode could NEVER show BiometricPrompt on this
+                // device/Android version — every cold start went straight
+                // to HARDWARE_UNAVAILABLE and the passphrase fallback,
+                // without ever actually asking for a fingerprint. By the
+                // time we're here, cipher.init() (in prepareUnlockCipher)
+                // already succeeded — KeyPermanentlyInvalidatedException
+                // would have fired there, not here — and genuine ciphertext
+                // corruption (AEADBadTagException) is already caught above
+                // as CorruptDeviceWrapperException. So anything else
+                // reaching this catch is, in practice, this exact
+                // auth-requirement case wearing a different exception
+                // type: fall through to showing BiometricPrompt, exactly
+                // like UserNotAuthenticatedException, instead of
+                // rejecting. If the SAME problem somehow persists even
+                // after a genuinely fresh authentication, the authenticated
+                // finishUnlock call below still has its own
+                // HARDWARE_UNAVAILABLE catch as the real backstop.
+                Log.w(TAG, "unlockDeviceKey: silent decrypt threw " + describeException(e)
+                    + " for accountId=" + id + " — treating as \"needs fresh auth\" (not a hard failure) and showing BiometricPrompt");
             }
 
             String username = payload.username;
