@@ -120,7 +120,7 @@ fn dpapi_protect(data: &[u8]) -> CmdResult<Vec<u8>> {
 
         let result = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
         if !output.pbData.is_null() {
-            let _ = LocalFree(HLOCAL(output.pbData as *mut _ as isize));
+            let _ = LocalFree(HLOCAL(output.pbData as *mut _));
         }
         Ok(result)
     }
@@ -149,7 +149,7 @@ fn dpapi_unprotect(data: &[u8]) -> CmdResult<Vec<u8>> {
 
         let result = std::slice::from_raw_parts(output.pbData, output.cbData as usize).to_vec();
         if !output.pbData.is_null() {
-            let _ = LocalFree(HLOCAL(output.pbData as *mut _ as isize));
+            let _ = LocalFree(HLOCAL(output.pbData as *mut _));
         }
         Ok(result)
     }
@@ -174,20 +174,37 @@ fn request_hello_verification(hwnd: HWND, message: &str) -> CmdResult<UserConsen
 /// a typed rejection; NONE of them are ever grounds to touch the DPAPI
 /// blob or regenerate an E2EE keypair.
 fn require_verified(result: UserConsentVerificationResult) -> CmdResult<()> {
-    use UserConsentVerificationResult::*;
-    match result {
-        Verified => Ok(()),
-        Canceled => Err(DeviceUnlockError::new("AUTH_FAILED", "Windows Hello verification was canceled")),
-        RetriesExhausted => Err(DeviceUnlockError::new("AUTH_FAILED", "Too many failed Windows Hello attempts")),
-        NotConfiguredForUser => Err(DeviceUnlockError::new(
+    // windows-rs generates WinRT enums (like this one) as newtype structs
+    // with associated const values, NOT real Rust enums — so `use X::*` and
+    // bare-identifier match arms don't do what they look like they do (each
+    // arm silently becomes a fresh irrefutable binding, which is exactly
+    // why the compiler flagged every arm after the first as unreachable).
+    // Compare by value instead.
+    if result == UserConsentVerificationResult::Verified {
+        return Ok(());
+    }
+    if result == UserConsentVerificationResult::Canceled {
+        return Err(DeviceUnlockError::new("AUTH_FAILED", "Windows Hello verification was canceled"));
+    }
+    if result == UserConsentVerificationResult::RetriesExhausted {
+        return Err(DeviceUnlockError::new("AUTH_FAILED", "Too many failed Windows Hello attempts"));
+    }
+    if result == UserConsentVerificationResult::NotConfiguredForUser {
+        return Err(DeviceUnlockError::new(
             "NOT_CONFIGURED",
             "Windows Hello is not set up for this Windows account",
-        )),
-        DisabledByPolicy => Err(DeviceUnlockError::new("NOT_CONFIGURED", "Windows Hello is disabled by policy")),
-        DeviceNotPresent => Err(DeviceUnlockError::new("HARDWARE_UNAVAILABLE", "No Windows Hello hardware present")),
-        DeviceBusy => Err(DeviceUnlockError::new("HARDWARE_UNAVAILABLE", "Windows Hello device is busy")),
-        _ => Err(DeviceUnlockError::new("AUTH_FAILED", "Windows Hello verification did not succeed")),
+        ));
     }
+    if result == UserConsentVerificationResult::DisabledByPolicy {
+        return Err(DeviceUnlockError::new("NOT_CONFIGURED", "Windows Hello is disabled by policy"));
+    }
+    if result == UserConsentVerificationResult::DeviceNotPresent {
+        return Err(DeviceUnlockError::new("HARDWARE_UNAVAILABLE", "No Windows Hello hardware present"));
+    }
+    if result == UserConsentVerificationResult::DeviceBusy {
+        return Err(DeviceUnlockError::new("HARDWARE_UNAVAILABLE", "Windows Hello device is busy"));
+    }
+    Err(DeviceUnlockError::new("AUTH_FAILED", "Windows Hello verification did not succeed"))
 }
 
 fn main_hwnd(window: &WebviewWindow) -> CmdResult<HWND> {
