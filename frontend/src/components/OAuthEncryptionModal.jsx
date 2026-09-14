@@ -38,13 +38,23 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
   // This modal has no "click outside to dismiss" — it's always mounted
   // over real page content behind it (Home/Dashboard), and without this,
   // scrolling inside the modal (mouse wheel, trackpad, touch) scrolled
-  // that page underneath right along with it. Same body-scroll-lock idiom
-  // already used by PinSetupModal/ChatLockScreen/CreateRoomModal elsewhere
-  // in this app.
+  // that page underneath right along with it. Locking body ALONE (the
+  // idiom PinSetupModal/ChatLockScreen/CreateRoomModal use elsewhere)
+  // wasn't enough here — index.css deliberately gives <html> its own
+  // independent `overflow-y: auto` (its own comment: "Prevent html-level
+  // scroll lock on mobile"), so with body's overflow hidden but html's
+  // still auto, the browser promotes <html> to the actual scrolling
+  // element and mouse wheel/touch scroll kept moving the page through it.
+  // Locking both together actually stops it.
   useEffect(() => {
-    const original = document.body.style.overflow;
+    const originalHtml = document.documentElement.style.overflow;
+    const originalBody = document.body.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = original; };
+    return () => {
+      document.documentElement.style.overflow = originalHtml;
+      document.body.style.overflow = originalBody;
+    };
   }, []);
   const [passphrase, setPassphrase] = useState('');
   const [confirmPassphrase, setConfirmPassphrase] = useState('');

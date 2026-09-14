@@ -26,15 +26,23 @@ export default function KeyRecoveryModal() {
   // This component is always mounted at the App level and only
   // conditionally renders (the `if (!needsReauth) return null` below), so
   // this hook has to run every render regardless — it just no-ops unless
-  // the modal is actually showing. Same body-scroll-lock idiom already
-  // used by PinSetupModal/ChatLockScreen/CreateRoomModal elsewhere in this
-  // app: without it, scrolling inside this modal scrolled the real page
-  // behind it right along with it.
+  // the modal is actually showing. Locking body ALONE wasn't enough here —
+  // index.css deliberately gives <html> its own independent
+  // `overflow-y: auto` (its own comment: "Prevent html-level scroll lock
+  // on mobile"), so with body's overflow hidden but html's still auto, the
+  // browser promotes <html> to the actual scrolling element and mouse
+  // wheel/touch scroll kept moving the page behind this modal through it.
+  // Locking both together actually stops it.
   useEffect(() => {
     if (!needsReauth) return;
-    const original = document.body.style.overflow;
+    const originalHtml = document.documentElement.style.overflow;
+    const originalBody = document.body.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = original; };
+    return () => {
+      document.documentElement.style.overflow = originalHtml;
+      document.body.style.overflow = originalBody;
+    };
   }, [needsReauth]);
 
   if (!needsReauth) return null;
