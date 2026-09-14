@@ -470,7 +470,12 @@ const Home = () => {
         html[data-theme='light'] .pinned-card:hover { border-color:var(--brand-1);box-shadow:0 20px 35px -5px rgba(var(--brand-1-rgb), 0.18), 0 10px 20px -10px rgba(0, 0, 0, 0.06); }
 
         html[data-theme='light'] .join-btn { background:var(--brand-gradient);color:#fff !important; }
-        html[data-theme='light'] .footer-layer { background:#fff !important;border-top:1px solid rgba(0,0,0,0.04) !important; }
+        /* Room name panel matches the room-id pill's own treatment (lite
+           black, white text) instead of a plain white block — requested so
+           the card footer doesn't look like a disconnected white strip
+           glued under a dark thumbnail. */
+        html[data-theme='light'] .footer-layer { background:#1e1e2e !important;border-top:1px solid rgba(255,255,255,0.06) !important; }
+        html[data-theme='light'] .room-card-title { color:#fff !important; }
         html[data-theme='light'] .unpin-btn { background:rgba(255,255,255,0.85) !important;color:#475569 !important; }
         html[data-theme='light'] .unpin-btn:hover { background:#ef4444 !important;color:#fff !important; }
 

@@ -63,8 +63,11 @@ const PinnedRooms = () => {
         html[data-theme='light'] .unpin-btn { background:rgba(255,255,255,0.85) !important;color:#475569 !important; }
         html[data-theme='light'] .unpin-btn:hover { background:#ef4444 !important;color:#fff !important; }
         .footer-layer { background:linear-gradient(135deg,rgba(var(--brand-1-rgb),0.12),rgba(var(--brand-2-rgb),0.12));padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-top:1px solid rgba(255,255,255,0.05); }
-        html[data-theme='light'] .footer-layer { background:#fff !important;border-top:1px solid rgba(0,0,0,0.04) !important; }
+        /* Room name panel matches the room-id pill's own treatment (lite
+           black, white text) instead of a plain white block. */
+        html[data-theme='light'] .footer-layer { background:#1e1e2e !important;border-top:1px solid rgba(255,255,255,0.06) !important; }
         .room-card-title { margin:0;font-size:15px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+        html[data-theme='light'] .room-card-title { color:#fff !important; }
         .room-card-bottom-row { display:flex;justify-content:space-between;align-items:center;gap:8px; }
         .room-card-meta { display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#8a8f98;min-width:0;overflow:hidden; }
         .room-card-meta span { display:inline-flex;align-items:center;gap:3px;white-space:nowrap; }
