@@ -37,7 +37,11 @@
 // able to reach each other's wrapper).
 
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
+use std::sync::mpsc;
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, WebviewWindow};
@@ -51,6 +55,26 @@ use windows::Win32::Security::Cryptography::{
 use windows::Win32::System::WinRT::IUserConsentVerifierInterop;
 
 use crate::device_assertion;
+
+// Persistent, step-by-step diagnostic log — the same "open, append one
+// line, close" pattern as main.rs's log_toast_attempt, chosen for the same
+// reason: it survives even if the process later hangs or is killed, unlike
+// an in-memory log or a WebView console.log the user has no way to see
+// once the window stops responding. Lives at
+// %LOCALAPPDATA%\com.sahaplay.desktop\logs\device-unlock-debug.log — this
+// is the file to read after reproducing any device-unlock issue on
+// Windows, same role notify-debug.log plays for toast issues.
+fn log_line(app: &AppHandle, line: &str) {
+    let dir = match app.path().app_log_dir() {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+    let _ = fs::create_dir_all(&dir);
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    if let Ok(mut f) = fs::OpenOptions::new().create(true).append(true).open(dir.join("device-unlock-debug.log")) {
+        let _ = writeln!(f, "[{now}] {line}");
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct DeviceUnlockError {
@@ -169,6 +193,59 @@ fn request_hello_verification(hwnd: HWND, message: &str) -> CmdResult<UserConsen
     op.get().map_err(|e| DeviceUnlockError::new("HARDWARE_UNAVAILABLE", format!("Windows Hello await failed: {e}")))
 }
 
+// Wraps request_hello_verification with the two things it needs to not
+// freeze the whole app:
+//
+// 1. Runs the actual blocking WinRT `.get()` wait on its OWN dedicated
+//    thread, never the caller's thread. This matters because Tauri's IPC
+//    bridge (WebView2's message channel) invokes a plain (non-async)
+//    `#[tauri::command]` function INLINE, synchronously, on the thread
+//    that owns the WebView2/window — i.e. the main UI thread — confirmed
+//    directly against tauri-macros' generated dispatch code
+//    (`body_blocking` calls the command function directly, no
+//    spawn_blocking). `IAsyncOperation::get()` is a raw blocking wait with
+//    no nested message pump, so calling it there starves the very message
+//    queue Windows needs to pump in order to show/activate the Windows
+//    Hello consent dialog against our window at all — this is what
+//    produced the reported symptom exactly: the whole window going
+//    "(Not Responding)" with Windows Hello never appearing, after
+//    enabling strict mode and reopening from the tray. The real fix is
+//    making the calling commands `async fn` (see below) so Tauri never
+//    runs them inline on that thread in the first place, PLUS isolating
+//    this specific wait on its own thread as defense in depth regardless
+//    of which thread ends up calling this function.
+// 2. A hard timeout on the receiving side, so a future issue here becomes
+//    a typed AUTH_FAILED error (which the JS side already know how to
+//    fall back to passphrase on) instead of an indefinite hang.
+fn request_hello_verification_with_timeout(app: &AppHandle, hwnd: HWND, message: &'static str) -> CmdResult<UserConsentVerificationResult> {
+    let (tx, rx) = mpsc::channel::<CmdResult<UserConsentVerificationResult>>();
+    // HWND wraps a raw pointer and isn't Send — move its bit pattern across
+    // the thread boundary and rebuild the HWND from it on the worker
+    // thread. The window itself still belongs to the main thread; this
+    // worker thread only ever reads that handle value, it never touches
+    // the window directly, so no ownership requirement is violated.
+    let hwnd_addr = hwnd.0 as usize;
+    // AppHandle is cheap to clone and Send — used here purely so the
+    // worker thread can append its own progress lines to the same log.
+    let log_app = app.clone();
+
+    log_line(app, &format!("hello: starting on a dedicated worker thread (\"{message}\")"));
+    thread::spawn(move || {
+        log_line(&log_app, "hello: worker thread started, calling request_hello_verification");
+        let result = request_hello_verification(HWND(hwnd_addr as *mut _), message);
+        log_line(&log_app, &format!("hello: request_hello_verification returned {result:?}"));
+        let _ = tx.send(result);
+    });
+
+    match rx.recv_timeout(Duration::from_secs(30)) {
+        Ok(result) => result,
+        Err(_) => {
+            log_line(app, "hello: TIMED OUT waiting 30s for worker thread — no Windows Hello prompt completed in time");
+            Err(DeviceUnlockError::new("AUTH_FAILED", "Windows Hello did not respond in time"))
+        }
+    }
+}
+
 /// Maps a Windows Hello outcome to the shared DeviceUnlockError vocabulary.
 /// Ok(()) means Verified — proceed to DPAPI unwrap. Every other outcome is
 /// a typed rejection; NONE of them are ever grounds to touch the DPAPI
@@ -222,8 +299,15 @@ pub fn windows_device_unlock_has(app: AppHandle, account_id: i64, assertion: Str
     Ok(blob_path(&app, account_id)?.exists())
 }
 
+// `async fn` here is load-bearing, not decorative: it changes which
+// Tauri-generated dispatch path handles this command
+// (`respond_async_serialized`, which spawns the body onto the async
+// runtime) instead of calling it inline on the WebView2 IPC/main thread —
+// see request_hello_verification_with_timeout's comment for why that
+// distinction is exactly what fixes the app-freeze bug. The body itself
+// has no `.await` points; that's fine, an async fn doesn't require any.
 #[tauri::command]
-pub fn windows_device_unlock_setup(
+pub async fn windows_device_unlock_setup(
     app: AppHandle,
     window: WebviewWindow,
     account_id: i64,
@@ -234,10 +318,14 @@ pub fn windows_device_unlock_setup(
 ) -> CmdResult<()> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
 
+    log_line(&app, &format!("setup: called (account_id={account_id}, strict={strict}, allow_overwrite={allow_overwrite})"));
+
     verify_fresh_assertion(account_id, &assertion)?;
+    log_line(&app, "setup: assertion verified");
 
     let path = blob_path(&app, account_id)?;
     if !allow_overwrite && path.exists() {
+        log_line(&app, "setup: rejected — already enrolled and allow_overwrite=false");
         return Err(DeviceUnlockError::new(
             "ALREADY_ENROLLED",
             "Device unlock already enrolled for this account — pass allowOverwrite from an explicit re-enrollment flow to replace it.",
@@ -259,11 +347,14 @@ pub fn windows_device_unlock_setup(
     // enrollment should ask that too, not just every unlock afterward.
     if strict {
         let hwnd = main_hwnd(&window)?;
-        let result = request_hello_verification(hwnd, "Confirm to enable Device Unlock")?;
+        log_line(&app, "setup: strict — requesting Windows Hello");
+        let result = request_hello_verification_with_timeout(&app, hwnd, "Confirm to enable Device Unlock")?;
+        log_line(&app, &format!("setup: Windows Hello result = {result:?}"));
         require_verified(result)?;
     }
 
     let wrapped = dpapi_protect(&secret_key_bytes)?;
+    log_line(&app, "setup: DPAPI-wrapped secret");
 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -271,11 +362,16 @@ pub fn windows_device_unlock_setup(
     }
     fs::write(&path, &wrapped).map_err(|e| DeviceUnlockError::new("HARDWARE_UNAVAILABLE", format!("Could not write wrapper: {e}")))?;
 
+    log_line(&app, "setup: done, wrapper written");
     Ok(())
 }
 
+// async fn for the same reason as windows_device_unlock_setup above — this
+// is the command that fires from CryptoContext.jsx's desktop_window_shown
+// listener on every strict-mode tray reopen, i.e. exactly the codepath
+// that was freezing the app.
 #[tauri::command]
-pub fn windows_device_unlock_unlock(
+pub async fn windows_device_unlock_unlock(
     app: AppHandle,
     window: WebviewWindow,
     account_id: i64,
@@ -284,16 +380,22 @@ pub fn windows_device_unlock_unlock(
 ) -> CmdResult<String> {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
 
+    log_line(&app, &format!("unlock: called (account_id={account_id}, strict={strict})"));
+
     verify_fresh_assertion(account_id, &assertion)?;
+    log_line(&app, "unlock: assertion verified");
 
     let path = blob_path(&app, account_id)?;
     if !path.exists() {
+        log_line(&app, "unlock: no wrapper on disk for this account");
         return Err(DeviceUnlockError::new("NO_KEY_FOR_ACCOUNT", "No device wrapper enrolled for this account"));
     }
 
     if strict {
         let hwnd = main_hwnd(&window)?;
-        let result = request_hello_verification(hwnd, "Unlock your encrypted chats")?;
+        log_line(&app, "unlock: strict — requesting Windows Hello");
+        let result = request_hello_verification_with_timeout(&app, hwnd, "Unlock your encrypted chats")?;
+        log_line(&app, &format!("unlock: Windows Hello result = {result:?}"));
         require_verified(result)?;
     }
     // Lenient mode: no Hello gate at all — CryptUnprotectData alone, silent,
@@ -306,6 +408,7 @@ pub fn windows_device_unlock_unlock(
         return Err(DeviceUnlockError::new("CORRUPT_WRAPPER", "Unwrapped data is not 32 bytes"));
     }
 
+    log_line(&app, "unlock: done, secret recovered");
     Ok(STANDARD.encode(secret_key_bytes))
 }
 
