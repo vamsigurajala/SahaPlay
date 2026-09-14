@@ -17,9 +17,8 @@ export default function ToggleSwitch({ checked, onChange, disabled = false, labe
           (rgba(255,255,255,0.15)) — reads fine on this app's dark cards,
           but nearly disappears against a light-mode white card, making an
           OFF toggle look broken/invisible. Kept as an inline style for the
-          ON state (unaffected, no complaints there) and moved the OFF
-          state to a class so light mode can override it with a visibly
-          grey track. */}
+          ON state (unaffected) and moved the OFF state to a class so light
+          mode can override it with a visibly grey track. */}
       <style>{`
         .toggle-switch-track.off { background: rgba(255,255,255,0.15); }
         html[data-theme='light'] .toggle-switch-track.off { background: #cbd5e1 !important; }

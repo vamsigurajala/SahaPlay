@@ -425,7 +425,7 @@ const PublicRooms = () => {
         html[data-theme='light'] .section-heading { color: #000 !important; }
         html[data-theme='light'] .section-desc { color: #4a5568 !important; }
 
-        html[data-theme='light'] .cat-badge { background: #fff; color: #111; border-color: rgba(0,0,0,0.1); }
+        html[data-theme='light'] .cat-badge { background: rgba(0,0,0,0.5) !important; color: #fff !important; }
         html[data-theme='light'] .room-id-badge { background: rgba(0,0,0,0.5) !important; color: #fff !important; }
         
         html[data-theme='light'] .private-btn {
@@ -440,12 +440,10 @@ const PublicRooms = () => {
         
         html[data-theme='light'] .pinned-card { background: #ffffff; border-color: rgba(0,0,0,0.08); box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
         html[data-theme='light'] .pinned-card:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.12); border-color: rgba(var(--brand-1-rgb),0.3); }
-        /* Room name panel matches the room-id pill's own treatment (lite
-           black, white text) instead of a plain white block. */
-        html[data-theme='light'] .footer-layer { background: #1e1e2e !important; border-top: 1px solid rgba(255,255,255,0.06) !important; }
+        html[data-theme='light'] .footer-layer { background: #fff !important; border-top: 1px solid rgba(0,0,0,0.04) !important; }
         html[data-theme='light'] .join-btn { background: var(--brand-gradient); color: #fff !important; box-shadow: 0 4px 12px rgba(var(--brand-1-rgb), 0.25); }
         html[data-theme='light'] .join-btn:hover { background: linear-gradient(135deg, var(--brand-1-dark), var(--brand-2-dark)); box-shadow: 0 6px 15px rgba(var(--brand-1-rgb), 0.4); }
-        html[data-theme='light'] .pinned-card h3 { color: #fff !important; }
+        html[data-theme='light'] .pinned-card h3 { color: #000 !important; }
         html[data-theme='light'] .profile-pill { background: rgba(0,0,0,0.04) !important; border-color: rgba(0,0,0,0.08) !important; color: #111 !important; }
 
       `}</style>
