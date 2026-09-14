@@ -244,7 +244,10 @@ export async function setupDeviceUnlock(secretKeyBytes, { allowOverwrite = false
  * @throws DeviceUnlockError with one of: NOT_AVAILABLE, NOT_AUTHENTICATED,
  *   ASSERTION_FETCH_FAILED, NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT,
  *   KEY_INVALIDATED, CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, AUTH_FAILED,
- *   ALREADY_IN_PROGRESS, NATIVE_UNAVAILABLE
+ *   ALREADY_IN_PROGRESS, NATIVE_UNAVAILABLE, NATIVE_ERROR (an unexpected
+ *   native-side exception — always logged with a full stack trace under
+ *   the "SahaplayE2ee" logcat tag; treated the same as every other
+ *   failure here, just with a distinct code so it's identifiable)
  */
 export async function unlockDeviceKey() {
   const p = plugin();

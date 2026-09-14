@@ -184,6 +184,7 @@ public class SahaplayE2eePlugin extends Plugin {
 
         long id = accountId;
         String username = payload.username;
+        Log.d(TAG, "setupDeviceUnlock: called for accountId=" + id + " strict=" + strict + " allowOverwrite=" + allowOverwrite);
 
         bgExecutor.execute(() -> {
             Cipher cipher;
@@ -198,15 +199,29 @@ public class SahaplayE2eePlugin extends Plugin {
                 return;
             }
 
-            authenticateAndRun(activity, id, username, cipher, "Confirm to enable Device Unlock", call, authenticatedCipher -> {
-                try {
-                    keyStore().finishSetup(id, username, authenticatedCipher, secretKeyBytes);
-                    call.resolve();
-                } catch (GeneralSecurityException e) {
-                    Log.e(TAG, "setupDeviceUnlock: finishSetup failed", e);
-                    call.reject("Failed to finish device unlock setup", "HARDWARE_UNAVAILABLE");
-                }
-            });
+            // Diagnostic-only try/catch — DOES NOT change behavior on any
+            // path that was already working. Added after a real incident
+            // where a native-side change threw *before* ever reaching
+            // authenticateAndRun's own callback, leaving `call` unresolved
+            // forever with nothing in logcat explaining why. If
+            // authenticateAndRun (or anything it does synchronously before
+            // showing the prompt) ever throws again, this guarantees a
+            // visible log line AND a rejected promise instead of a silent
+            // hang indistinguishable from "still deciding what to show."
+            try {
+                authenticateAndRun(activity, id, username, cipher, "Confirm to enable Device Unlock", call, authenticatedCipher -> {
+                    try {
+                        keyStore().finishSetup(id, username, authenticatedCipher, secretKeyBytes);
+                        call.resolve();
+                    } catch (GeneralSecurityException e) {
+                        Log.e(TAG, "setupDeviceUnlock: finishSetup failed", e);
+                        call.reject("Failed to finish device unlock setup", "HARDWARE_UNAVAILABLE");
+                    }
+                });
+            } catch (Throwable t) {
+                Log.e(TAG, "setupDeviceUnlock: unexpected error invoking authenticateAndRun", t);
+                call.reject("Unexpected error showing biometric prompt: " + t, "NATIVE_ERROR");
+            }
         });
     }
 
@@ -246,6 +261,8 @@ public class SahaplayE2eePlugin extends Plugin {
             inFlightUnlock.put(id, true);
         }
 
+        Log.d(TAG, "unlockDeviceKey: called for accountId=" + id);
+
         bgExecutor.execute(() -> {
             DeviceAssertionVerifier.AssertionPayload payload = verifyFreshAssertion(id, assertion);
             if (payload == null) {
@@ -254,11 +271,13 @@ public class SahaplayE2eePlugin extends Plugin {
                 // property the review requires: an unbacked accountId claim
                 // (or a stale/foreign/expired assertion) must be
                 // indistinguishable from "nothing enrolled here."
+                Log.w(TAG, "unlockDeviceKey: assertion missing/invalid/expired/mismatched for accountId=" + id);
                 call.reject("No valid device-unlock assertion for this account", "NO_VALID_ASSERTION");
                 return;
             }
             if (!keyStore().hasWrappedKey(id)) {
                 clearInFlight(id);
+                Log.w(TAG, "unlockDeviceKey: no wrapped key enrolled on this device for accountId=" + id);
                 call.reject("No device wrapper enrolled for this account", "NO_KEY_FOR_ACCOUNT");
                 return;
             }
@@ -296,11 +315,15 @@ public class SahaplayE2eePlugin extends Plugin {
                 byte[] secretKeyBytes = keyStore().finishUnlock(id, cipher);
                 clearInFlight(id);
                 consecutiveFailures.remove(id);
+                Log.d(TAG, "unlockDeviceKey: silent decrypt succeeded (no prompt needed) for accountId=" + id);
                 resolveWithKey(call, secretKeyBytes);
                 return;
             } catch (UserNotAuthenticatedException e) {
-                // Expected path when the window has lapsed — fall through
-                // to showing BiometricPrompt below.
+                // Expected path when the window has lapsed (lenient mode) or
+                // ALWAYS (strict mode, timeout=0) — fall through to showing
+                // BiometricPrompt below. Logged at Log.d, not Log.w/e: this
+                // is the routine, expected path in strict mode, not a fault.
+                Log.d(TAG, "unlockDeviceKey: silent decrypt needs fresh authentication for accountId=" + id + " — showing BiometricPrompt");
             } catch (E2eeKeyStore.CorruptDeviceWrapperException e) {
                 clearInFlight(id);
                 Log.e(TAG, "unlockDeviceKey: corrupt wrapper on decrypt", e);
@@ -314,18 +337,31 @@ public class SahaplayE2eePlugin extends Plugin {
             }
 
             String username = payload.username;
-            authenticateAndRun(activity, id, username, cipher, "Unlock your encrypted chats", call, authenticatedCipher -> {
-                try {
-                    byte[] secretKeyBytes = keyStore().finishUnlock(id, authenticatedCipher);
-                    consecutiveFailures.remove(id);
-                    resolveWithKey(call, secretKeyBytes);
-                } catch (GeneralSecurityException e) {
-                    Log.e(TAG, "unlockDeviceKey: finishUnlock (post-auth) failed", e);
-                    call.reject("Device unlock failed", "HARDWARE_UNAVAILABLE");
-                } finally {
-                    clearInFlight(id);
-                }
-            });
+            // Same diagnostic-only safety net as setupDeviceUnlock above —
+            // see that call site's comment for why this exists. Without it,
+            // an unexpected throw here leaves BOTH `call` unresolved AND
+            // this account's `inFlightUnlock` entry stuck forever (every
+            // later attempt for the SAME account would then hit
+            // "ALREADY_IN_PROGRESS" until the app process restarts), which
+            // is worse than a normal failure.
+            try {
+                authenticateAndRun(activity, id, username, cipher, "Unlock your encrypted chats", call, authenticatedCipher -> {
+                    try {
+                        byte[] secretKeyBytes = keyStore().finishUnlock(id, authenticatedCipher);
+                        consecutiveFailures.remove(id);
+                        resolveWithKey(call, secretKeyBytes);
+                    } catch (GeneralSecurityException e) {
+                        Log.e(TAG, "unlockDeviceKey: finishUnlock (post-auth) failed", e);
+                        call.reject("Device unlock failed", "HARDWARE_UNAVAILABLE");
+                    } finally {
+                        clearInFlight(id);
+                    }
+                });
+            } catch (Throwable t) {
+                clearInFlight(id);
+                Log.e(TAG, "unlockDeviceKey: unexpected error invoking authenticateAndRun", t);
+                call.reject("Unexpected error showing biometric prompt: " + t, "NATIVE_ERROR");
+            }
         });
     }
 
@@ -384,11 +420,13 @@ public class SahaplayE2eePlugin extends Plugin {
      */
     private void authenticateAndRun(FragmentActivity activity, long accountId, String username, Cipher cipher,
                                      String promptSubtitle, PluginCall call, AuthenticatedAction onSuccess) {
+        Log.d(TAG, "authenticateAndRun: entered for accountId=" + accountId + " subtitle='" + promptSubtitle + "'");
         Executor mainExecutor = ContextCompat.getMainExecutor(getContext());
 
         BiometricPrompt.AuthenticationCallback callback = new BiometricPrompt.AuthenticationCallback() {
             @Override
             public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                Log.d(TAG, "BiometricPrompt succeeded for accountId=" + accountId);
                 Cipher authenticatedCipher = result.getCryptoObject() != null ? result.getCryptoObject().getCipher() : cipher;
                 bgExecutor.execute(() -> onSuccess.run(authenticatedCipher));
             }
@@ -423,7 +461,11 @@ public class SahaplayE2eePlugin extends Plugin {
             .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
                 | androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
 
-        mainExecutor.execute(() -> prompt.authenticate(promptInfoBuilder.build(), new BiometricPrompt.CryptoObject(cipher)));
+        mainExecutor.execute(() -> {
+            Log.d(TAG, "authenticateAndRun: calling prompt.authenticate() now for accountId=" + accountId
+                + " (activity lifecycle=" + activity.getLifecycle().getCurrentState() + ")");
+            prompt.authenticate(promptInfoBuilder.build(), new BiometricPrompt.CryptoObject(cipher));
+        });
     }
 
     private void recordFailure(long accountId) {
