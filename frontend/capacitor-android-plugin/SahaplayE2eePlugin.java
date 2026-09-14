@@ -9,9 +9,6 @@ import androidx.annotation.NonNull;
 import androidx.biometric.BiometricPrompt;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
-import androidx.lifecycle.Lifecycle;
-import androidx.lifecycle.LifecycleEventObserver;
-import androidx.lifecycle.LifecycleOwner;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -426,40 +423,7 @@ public class SahaplayE2eePlugin extends Plugin {
             .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
                 | androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
 
-        Runnable showPrompt = () -> prompt.authenticate(promptInfoBuilder.build(), new BiometricPrompt.CryptoObject(cipher));
-
-        // Cold-start lifecycle race (root cause of "strict mode invokes
-        // passphrase instead of fingerprint on a fresh app launch"): with
-        // "require fingerprint every open" on, this method is reached from
-        // the JS mount effect's very FIRST tick — often before the host
-        // Activity has actually finished its own onResume(). Calling
-        // BiometricPrompt.authenticate() that early is a known source of an
-        // immediate onAuthenticationError with NO dialog ever shown (from
-        // this callback alone that is indistinguishable from a real user
-        // cancel — see AUTH_FAILED never being retried in
-        // CryptoContext.jsx's tryRestoreViaDeviceUnlock), which is exactly
-        // why this only ever misfired in strict mode: the lenient/default
-        // 30-minute window almost never needs a cold-start prompt at all, so
-        // it never raced against Activity startup the way strict mode's
-        // every-launch prompt always does. Fix: defer to the next genuine
-        // ON_RESUME instead of guessing with a fixed delay — if we're
-        // already resumed (the overwhelmingly common case — warm relaunch,
-        // enrollment from Settings, etc.) this runs immediately, same as
-        // before.
-        if (activity.getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.RESUMED)) {
-            mainExecutor.execute(showPrompt);
-        } else {
-            Log.d(TAG, "authenticateAndRun: Activity not yet RESUMED, deferring BiometricPrompt until it is");
-            activity.getLifecycle().addObserver(new LifecycleEventObserver() {
-                @Override
-                public void onStateChanged(@NonNull LifecycleOwner source, @NonNull Lifecycle.Event event) {
-                    if (event == Lifecycle.Event.ON_RESUME) {
-                        source.getLifecycle().removeObserver(this);
-                        mainExecutor.execute(showPrompt);
-                    }
-                }
-            });
-        }
+        mainExecutor.execute(() -> prompt.authenticate(promptInfoBuilder.build(), new BiometricPrompt.CryptoObject(cipher)));
     }
 
     private void recordFailure(long accountId) {

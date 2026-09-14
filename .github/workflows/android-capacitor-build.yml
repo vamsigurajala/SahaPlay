@@ -311,18 +311,6 @@ jobs:
 
           dependencies {
               implementation 'androidx.biometric:biometric:1.1.0'
-              // Lifecycle/LifecycleEventObserver — SahaplayE2eePlugin.java's
-              // authenticateAndRun() defers BiometricPrompt.authenticate()
-              // to the Activity's next ON_RESUME when called before the
-              // Activity is actually resumed (the strict "require
-              // fingerprint every open" cold-start race: the JS mount
-              // effect's very first tick can run before onResume()
-              // finishes, and showing BiometricPrompt that early silently
-              // fails with no dialog ever shown). Almost certainly already
-              // on the classpath transitively via androidx.fragment/
-              // androidx.activity, but declared explicitly since this is
-              // exactly the class this feature now depends on directly.
-              implementation 'androidx.lifecycle:lifecycle-common:2.8.7'
           }
           EOF
           cat android/app/build.gradle
