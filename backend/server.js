@@ -31,6 +31,7 @@ const { canHideMessage } = require('./lib/messageAuth');
 const { NOTIFY_COLUMN_BY_CATEGORY, isNotifyEnabledFromRow } = require('./lib/notifyPrefs');
 const { getCallActiveUsernames, isActiveCallParticipant } = require('./lib/callRoster');
 const { signDeviceAssertion } = require('./lib/deviceAssertion');
+const { buildOrphanCleanupQueries, classifyUsernameUpdateError } = require('./lib/usernameRename');
 const { isUserAdmin, buildUserList, isRoomHostMatch } = require('./lib/roomUsers');
 const {
   isGuestUsername, isMembersOnlyRejected, evaluateJoinGate, shouldAssignHost, shouldNotifyAutoAdmin, isBannedFromRoom,
@@ -6502,6 +6503,34 @@ app.put('/api/profile/username', authenticateToken, async (req, res) => {
       await client.query('ROLLBACK');
       return res.status(409).json({ error: 'Username already taken' });
     }
+
+    // Reclaiming a PREVIOUSLY DELETED account's username: the availability
+    // check above only looks at `users` (correctly — that account is
+    // really gone), but follows/blocks/message_seen/pending_notifications
+    // store username as a plain string keyed by a real UNIQUE/PRIMARY KEY
+    // constraint, not a FK — a raw `DELETE FROM users` (bypassing
+    // DELETE /api/profile's own cleanup below) leaves those tables still
+    // holding rows for the dead name. If the CURRENT user (renaming into
+    // that name) already has any row that would collide with one of those
+    // leftovers once renamed (e.g. both followed the same third account,
+    // both saw the same message), the cascade UPDATEs a few lines down
+    // throw a 23505 unique-violation and the whole rename fails with a
+    // generic 500 — confirmed against production for exactly this
+    // scenario (see backend/scripts/find-orphaned-usernames.sql's history
+    // note). Deleting ONLY rows already using the target name AND proven
+    // orphaned (no matching `users` row at all) is safe: it can never
+    // touch a row belonging to any currently real account, and it's the
+    // same "genuinely dead, nothing to remap to" cleanup that script's
+    // own Option B documents — just done automatically, per-username, at
+    // the moment it's actually needed, instead of manually in the SQL
+    // editor. `messages` deliberately has NO equivalent step here — see
+    // usernameRename.js's own doc comment for why (no unique constraint,
+    // never the cause of this failure; deleting it would destroy real
+    // chat history for the OTHER participant in every affected DM).
+    for (const q of buildOrphanCleanupQueries(cleaned)) {
+      await client.query(q.sql, q.params);
+    }
+
     await client.query('UPDATE users SET username = $1 WHERE id = $2', [cleaned, req.user.id]);
     await client.query('UPDATE follows SET "followerId" = $1 WHERE LOWER("followerId") = LOWER($2)', [cleaned, oldUsername]);
     await client.query('UPDATE follows SET "followingId" = $1 WHERE LOWER("followingId") = LOWER($2)', [cleaned, oldUsername]);
@@ -6575,8 +6604,9 @@ app.put('/api/profile/username', authenticateToken, async (req, res) => {
     res.json({ message: 'Username updated', username: cleaned, token: newToken });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}
-    console.error('Username update error:', err);
-    res.status(500).json({ error: 'Database error' });
+    const classified = classifyUsernameUpdateError(err);
+    console.error(`[username rename] ${classified.logDetail}`);
+    res.status(classified.status).json(classified.body);
   } finally {
     client.release();
   }
@@ -6612,6 +6642,27 @@ app.delete('/api/profile', authenticateToken, (req, res) => {
       });
       db.run('DELETE FROM blocks WHERE LOWER(blocker) = LOWER(?) OR LOWER(blocked) = LOWER(?)', [user.username, user.username], function(err) {
         if (err) console.error('DELETE ACCOUNT ERROR (blocks):', err);
+      });
+
+      // These four were previously left uncleaned — the exact gap that let
+      // a properly-deleted (through this very endpoint) account still leave
+      // orphaned rows behind, later causing PUT /api/profile/username to
+      // fail with a generic 500 for whoever tried to reclaim the name (see
+      // the "sam" production incident this closes). message_seen and
+      // pending_notifications in particular carry real UNIQUE/PRIMARY KEY
+      // constraints on username, so leaving them behind isn't just clutter
+      // — it actively blocks the next person from claiming this name.
+      db.run('DELETE FROM message_seen WHERE LOWER(username) = LOWER(?)', [user.username], function(err) {
+        if (err) console.error('DELETE ACCOUNT ERROR (message_seen):', err);
+      });
+      db.run('DELETE FROM push_tokens WHERE LOWER(username) = LOWER(?)', [user.username], function(err) {
+        if (err) console.error('DELETE ACCOUNT ERROR (push_tokens):', err);
+      });
+      db.run('DELETE FROM webpush_subscriptions WHERE LOWER(username) = LOWER(?)', [user.username], function(err) {
+        if (err) console.error('DELETE ACCOUNT ERROR (webpush_subscriptions):', err);
+      });
+      db.run('DELETE FROM pending_notifications WHERE LOWER(username) = LOWER(?)', [user.username], function(err) {
+        if (err) console.error('DELETE ACCOUNT ERROR (pending_notifications):', err);
       });
 
       // Sender-only: removes everything this account authored (DMs + group
