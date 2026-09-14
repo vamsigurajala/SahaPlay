@@ -62,7 +62,12 @@ export default function KeyRecoveryModal() {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 2147483600,
-      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)',
+      // Theme-aware for the same reason as OAuthEncryptionModal's backdrop:
+      // the flat black tint read fine against this app's own dark pages,
+      // but crushed a light-mode page down to a near-opaque wash instead
+      // of a proper light, blurred backdrop.
+      background: isLight ? 'rgba(241,245,249,0.6)' : 'rgba(0,0,0,0.7)',
+      backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
     }}>
       <form onSubmit={handleSubmit} style={{
@@ -115,10 +120,16 @@ export default function KeyRecoveryModal() {
           disabled={isSubmitting || !password}
           style={{
             width: '100%', padding: '12px 0', borderRadius: 12, border: 'none',
-            background: 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
+            // Dimming the whole button (background AND text together) via
+            // opacity made the label read as washed-out grey rather than
+            // white while empty/submitting, especially against a light-mode
+            // card. Fading just the background gradient keeps the label a
+            // solid, legible white in both states.
+            background: (isSubmitting || !password)
+              ? 'linear-gradient(135deg, rgba(var(--brand-1-rgb),0.5), rgba(var(--brand-2-rgb),0.5))'
+              : 'linear-gradient(135deg,var(--brand-1),var(--brand-2))',
             color: '#fff', fontSize: 14, fontWeight: 700,
             cursor: (isSubmitting || !password) ? 'default' : 'pointer',
-            opacity: (isSubmitting || !password) ? 0.6 : 1,
           }}
         >
           {isSubmitting ? t('unlocking', 'Unlocking…') : t('unlock', 'Unlock')}
