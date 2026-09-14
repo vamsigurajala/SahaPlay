@@ -18,6 +18,7 @@ import nacl from 'tweetnacl';
 import { API } from './lib/api';
 import { isCapacitorApp, isTauriApp } from './lib/platform';
 import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
+import { describeBrowserDeviceUnlockError } from './lib/browserDeviceUnlock.js';
 import { resyncPushTokenAfterLogin } from './lib/nativePush';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -211,7 +212,7 @@ const Signup = () => {
     await setKeyPair(keyPair);
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e)); }
     }
     setOauthModalMode(null);
     setOauthModalCtx(null);
@@ -245,7 +246,7 @@ const Signup = () => {
     await setKeyPair(keyPair);
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e)); }
     }
     setOauthModalMode(null);
     setOauthModalCtx(null);
@@ -280,7 +281,7 @@ const Signup = () => {
     await setKeyPair(keyPair);
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+      catch (e) { console.warn('[Signup] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e)); }
     }
     setOauthModalMode(null);
     setOauthModalCtx(null);

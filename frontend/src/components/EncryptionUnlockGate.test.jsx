@@ -3,6 +3,7 @@ import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
+import toast from 'react-hot-toast';
 import { CryptoProvider, useCrypto } from '../contexts/CryptoContext';
 import EncryptionUnlockGate from './EncryptionUnlockGate';
 
@@ -11,6 +12,34 @@ import EncryptionUnlockGate from './EncryptionUnlockGate';
 // CryptoContext's switchToPassphraseUnlock via KeyRecoveryModal) funnel
 // through — these tests exercise its real event handling (not a
 // re-implementation), with window.Capacitor and fetch mocked.
+
+// react-hot-toast normally renders into a <Toaster/> nobody mounts in these
+// tests — mocked so "Remember this browser" enrollment-failure tests below
+// can assert the user-visible toast fired without needing a real portal.
+vi.mock('react-hot-toast', () => ({
+  default: { error: vi.fn(), success: vi.fn() },
+}));
+
+// Mocked file-wide, same convention as CryptoContext.test.jsx's own mock of
+// this module. Default state (isBrowserDeviceUnlockAvailable -> false)
+// matches what the REAL module already returns in every other test in this
+// file (plain jsdom has no window.PublicKeyCredential) — so every test above
+// the dedicated "Remember this browser" describe block below keeps behaving
+// exactly as it did before browser device unlock existed: the checkbox
+// never renders, rememberBrowser is always false, enrollBrowser is never
+// called.
+vi.mock('../lib/browserDeviceUnlock.js', () => ({
+  isBrowserDeviceUnlockAvailable: vi.fn(() => false),
+  hasBrowserDeviceUnlock: vi.fn(async () => false),
+  unlockViaBrowser: vi.fn(async () => { throw new Error('not mocked in this test'); }),
+  enrollBrowser: vi.fn(async () => { throw new Error('not mocked in this test'); }),
+  forgetBrowser: vi.fn(async () => {}),
+  describeBrowserDeviceUnlockError: vi.fn((e) => ({
+    code: e?.code ?? null,
+    name: e?.originalName ?? e?.name ?? null,
+    message: e?.originalMessage ?? e?.message ?? null,
+  })),
+}));
 
 function Probe() {
   const { keyPair } = useCrypto();
@@ -289,6 +318,177 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
       await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1));
       expect(screen.queryByText(/hardware.*unavailable/i)).not.toBeInTheDocument();
+    });
+  });
+
+  // Root-cause report follow-up (production CREATE_FAILED investigation):
+  // this exact modal (OAuthEncryptionModal's "unlock" mode, mounted here)
+  // used to catch a failed "Remember this browser" enrollment with only
+  // console.warn and silently close — the user had no way to know it
+  // didn't work. These tests exercise the fix: a user-visible toast, and
+  // confirm the failure still never affects the real unlock/recovery
+  // outcome or generates a new E2EE identity.
+  describe('"Remember this browser" enrollment failure is surfaced to the user (browser WebAuthn path)', () => {
+    beforeEach(async () => {
+      const { isBrowserDeviceUnlockAvailable, enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      isBrowserDeviceUnlockAvailable.mockReturnValue(true); // makes OAuthEncryptionModal render the checkbox
+      enrollBrowser.mockReset();
+    });
+
+    afterEach(async () => {
+      const { isBrowserDeviceUnlockAvailable, enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      isBrowserDeviceUnlockAvailable.mockReturnValue(false); // restore the default every other test in this file relies on
+      enrollBrowser.mockReset();
+      enrollBrowser.mockRejectedValue(new Error('not mocked in this test'));
+      toast.error.mockClear();
+      toast.success.mockClear();
+    });
+
+    test('handleUnlock: enrollBrowser rejecting (e.g. the real CREATE_FAILED reproduced in production) shows a visible error, never implies the E2EE key was lost, and the real unlock still succeeds', async () => {
+      const { enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      // Shape a real BrowserDeviceUnlockError would have after the Task 1
+      // fix: .code plus the preserved original DOMException name/message.
+      enrollBrowser.mockRejectedValue({
+        code: 'CREATE_FAILED',
+        message: 'The operation either timed out or was not allowed.',
+        originalName: 'NotAllowedError',
+        originalMessage: 'The operation either timed out or was not allowed.',
+      });
+
+      installNativePlugin({});
+      const token = fakeToken({ id: 20, username: 'erin' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+          return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      const { encryptPrivateKey } = await import('../lib/crypto.js');
+      const encryptedPrivateKey = await encryptPrivateKey(REAL_KP.secretKey, 'my-encryption-passphrase');
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+
+      // Attached only after mount-time settling (see the "avoids double
+      // enrollment" test's own comment above for why) — isolates the claim
+      // under test to "does the browser-enrollment-FAILURE path itself ever
+      // generate a new E2EE keypair", not CryptoProvider's unrelated
+      // mount-time auto-generation for a brand-new account.
+      const cryptoLib = await import('../lib/crypto.js');
+      const generateKeyPairSpy = vi.spyOn(cryptoLib, 'generateKeyPair');
+
+      fireNeedsPassphrase({ encryptedPrivateKey, publicKey: REAL_PUB_B64, token });
+      const passphraseInput = await screen.findByPlaceholderText(/Min 8 characters/i);
+      fireEvent.change(passphraseInput, { target: { value: 'my-encryption-passphrase' } });
+      fireEvent.click(screen.getByRole('checkbox')); // "Remember this browser"
+      fireEvent.submit(passphraseInput.closest('form'));
+
+      // The real unlock succeeds regardless of the enrollment failure.
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
+      await waitFor(() => expect(enrollBrowser).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+
+      const [message] = toast.error.mock.calls[0];
+      expect(message).toMatch(/couldn.t remember this browser/i);
+      expect(message).toMatch(/password again next time/i);
+      // Never implies the E2EE key/identity itself was lost or needs recovery.
+      expect(message).not.toMatch(/lost|deleted|gone|recover your (key|account)/i);
+
+      expect(generateKeyPairSpy).not.toHaveBeenCalled();
+      generateKeyPairSpy.mockRestore();
+    });
+
+    test('handleRecover: enrollBrowser rejecting shows the same visible error; recovery itself still succeeds and no new keypair is generated', async () => {
+      const { enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      enrollBrowser.mockRejectedValue({
+        code: 'PRF_NOT_SUPPORTED',
+        message: 'This browser/authenticator does not support the WebAuthn PRF extension.',
+      });
+
+      const RECOVERY_PHRASE = 'ABCDEFGHIJKLMNOPQRSTUVWX';
+      const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(RECOVERY_PHRASE.trim().toLowerCase()));
+      const recoveryKp = nacl.box.keyPair.fromSecretKey(new Uint8Array(hashBuf));
+      const recoveryPubB64 = encodeBase64(recoveryKp.publicKey);
+
+      installNativePlugin({});
+      const token = fakeToken({ id: 21, username: 'frank' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+          return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+        }
+        if (String(url).includes('/api/auth/setup-keys')) {
+          return { ok: true, json: async () => ({ success: true }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+
+      const cryptoLib = await import('../lib/crypto.js');
+      const generateKeyPairSpy = vi.spyOn(cryptoLib, 'generateKeyPair');
+
+      fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: recoveryPubB64, token });
+      await screen.findByPlaceholderText(/Min 8 characters/i);
+      fireEvent.click(screen.getByText(/forgot passphrase/i));
+
+      const recoveryInput = await screen.findByPlaceholderText(/ABCDEFGH/i);
+      fireEvent.change(recoveryInput, { target: { value: RECOVERY_PHRASE } });
+      fireEvent.change(screen.getByPlaceholderText(`Min 8 characters`), { target: { value: 'brand-new-passphrase' } });
+      fireEvent.change(screen.getByPlaceholderText(/Re-enter passphrase/i), { target: { value: 'brand-new-passphrase' } });
+      fireEvent.click(screen.getByRole('checkbox')); // "Remember this browser"
+      fireEvent.submit(recoveryInput.closest('form'));
+
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(recoveryPubB64));
+      await waitFor(() => expect(enrollBrowser).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(toast.error.mock.calls[0][0]).toMatch(/couldn.t remember this browser/i);
+
+      expect(generateKeyPairSpy).not.toHaveBeenCalled();
+      generateKeyPairSpy.mockRestore();
+    });
+
+    test('enrollBrowser succeeding shows no error toast (regression guard on the new wiring)', async () => {
+      const { enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      enrollBrowser.mockResolvedValue({ credentialId: 'fake-credential-id' });
+
+      installNativePlugin({});
+      const token = fakeToken({ id: 22, username: 'grace' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+          return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      const { encryptPrivateKey } = await import('../lib/crypto.js');
+      const encryptedPrivateKey = await encryptPrivateKey(REAL_KP.secretKey, 'my-encryption-passphrase');
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+
+      fireNeedsPassphrase({ encryptedPrivateKey, publicKey: REAL_PUB_B64, token });
+      const passphraseInput = await screen.findByPlaceholderText(/Min 8 characters/i);
+      fireEvent.change(passphraseInput, { target: { value: 'my-encryption-passphrase' } });
+      fireEvent.click(screen.getByRole('checkbox'));
+      fireEvent.submit(passphraseInput.closest('form'));
+
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
+      await waitFor(() => expect(enrollBrowser).toHaveBeenCalledTimes(1));
+      expect(toast.error).not.toHaveBeenCalled();
     });
   });
 });

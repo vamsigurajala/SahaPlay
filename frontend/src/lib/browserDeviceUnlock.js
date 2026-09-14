@@ -62,16 +62,49 @@ import { encodeBase64 } from 'tweetnacl-util';
 
 // ─── Errors ─────────────────────────────────────────────────────────────
 export class BrowserDeviceUnlockError extends Error {
-  constructor(code, message) {
+  /**
+   * @param {string} code one of: NOT_AVAILABLE, NOT_AUTHENTICATED, NO_LOCAL_WRAPPER,
+   *   NO_CREDENTIALS, OPTIONS_FETCH_FAILED, CREATE_FAILED, GET_FAILED,
+   *   PRF_NOT_SUPPORTED, PRF_NOT_CONFIRMED, PUBLIC_KEY_MISMATCH,
+   *   WRAP_FAILED, PERSIST_FAILED, REGISTER_VERIFY_FAILED,
+   *   AUTH_VERIFY_FAILED, STALE_WRAPPER, INVALID_REQUEST, UNKNOWN
+   * @param {string} [message]
+   * @param {{name?: string, message?: string}} [original] the underlying
+   *   browser exception (e.g. a WebAuthn DOMException) this error was
+   *   converted from, if any — kept SEPARATE from this error's own `.name`
+   *   (always 'BrowserDeviceUnlockError') so a caller can log the real
+   *   browser-reported failure (DOMException.name/.message, e.g.
+   *   "NotAllowedError" / "The operation either timed out or was not
+   *   allowed...") without losing this error's own typed `.code`. A
+   *   DOMException's name/message describe the WebAuthn ceremony's outcome
+   *   only — never key material — so this is safe to log; see
+   *   describeBrowserDeviceUnlockError below, which is the sanctioned way
+   *   to turn this into a log line.
+   */
+  constructor(code, message, original) {
     super(message || code);
     this.name = 'BrowserDeviceUnlockError';
     this.code = code;
-    // one of: NOT_AVAILABLE, NOT_AUTHENTICATED, NO_LOCAL_WRAPPER,
-    // NO_CREDENTIALS, OPTIONS_FETCH_FAILED, CREATE_FAILED, GET_FAILED,
-    // PRF_NOT_SUPPORTED, PRF_NOT_CONFIRMED, PUBLIC_KEY_MISMATCH,
-    // WRAP_FAILED, PERSIST_FAILED, REGISTER_VERIFY_FAILED,
-    // AUTH_VERIFY_FAILED, STALE_WRAPPER, INVALID_REQUEST, UNKNOWN
+    this.originalName = original?.name || null;
+    this.originalMessage = original?.message || null;
   }
+}
+
+/**
+ * Safe, secret-free diagnostic summary of a caught enrollment/unlock error,
+ * for `console.warn`/`toast` call sites — {code, name, message}. Never
+ * includes key material: a BrowserDeviceUnlockError's message/originalName/
+ * originalMessage are always either a static string this module wrote, or a
+ * WebAuthn DOMException's own .name/.message, which by spec describe the
+ * ceremony's outcome (e.g. "NotAllowedError", "The operation either timed
+ * out or was not allowed...") — never the PRF output, a private key, or any
+ * other secret, none of which this module ever passes into an Error at all.
+ */
+export function describeBrowserDeviceUnlockError(e) {
+  if (e instanceof BrowserDeviceUnlockError) {
+    return { code: e.code, name: e.originalName || null, message: e.originalMessage || e.message || null };
+  }
+  return { code: null, name: e?.name || null, message: e?.message || (typeof e === 'string' ? e : null) };
 }
 
 // ─── Availability ───────────────────────────────────────────────────────
@@ -446,7 +479,14 @@ export async function enrollBrowser(secretKeyBytes) {
   try {
     createdCredential = await navigator.credentials.create({ publicKey: creationOptionsFromJSON(optionsJson) });
   } catch (e) {
-    throw new BrowserDeviceUnlockError('CREATE_FAILED', e?.message || 'Registration was cancelled or failed');
+    // Preserve the real browser-reported failure (e.g. DOMException
+    // "NotAllowedError"/"NotSupportedError"/"InvalidStateError" + its
+    // message) on the error object as originalName/originalMessage — see
+    // BrowserDeviceUnlockError's own doc comment. This is diagnostic-only:
+    // it changes nothing about what create() was asked to do or how its
+    // result is used, and never touches key material (create() rejecting
+    // here means no key material exists yet in this call at all).
+    throw new BrowserDeviceUnlockError('CREATE_FAILED', e?.message || 'Registration was cancelled or failed', e);
   }
   if (!createdCredential) throw new BrowserDeviceUnlockError('CREATE_FAILED', 'No credential returned');
 

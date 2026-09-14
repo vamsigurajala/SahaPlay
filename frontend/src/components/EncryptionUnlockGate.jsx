@@ -40,6 +40,8 @@
  * device unlock existed — never a raw native error, never a silent no-op.
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
+import toast from 'react-hot-toast';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { useCrypto } from '../contexts/CryptoContext';
@@ -47,9 +49,11 @@ import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, hashRecovery
 import { API } from '../lib/api';
 import { isCapacitorApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
+import { describeBrowserDeviceUnlockError } from '../lib/browserDeviceUnlock.js';
 import OAuthEncryptionModal from './OAuthEncryptionModal';
 
 export default function EncryptionUnlockGate() {
+  const { t } = useTranslation();
   const { setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock } = useCrypto();
   const [ctx, setCtx] = useState(null); // { encryptedPrivateKey, publicKey, token }
   // While true, the passphrase modal stays hidden — set only when a native
@@ -116,11 +120,21 @@ export default function EncryptionUnlockGate() {
     await setKeyPair(kp);
     enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     if (rememberBrowser) {
+      // Explicit, user-initiated only (the checkbox) — separate try/catch
+      // from the unlock itself, same reasoning as KeyRecoveryModal.jsx's own
+      // handleSubmit: a failure here must never look like the passphrase
+      // unlock failed, and must never be silent — the user made a real
+      // choice here and deserves to know if it didn't work (this modal used
+      // to only console.warn and close, which is exactly why the earlier
+      // production report of this looked like a "silent" failure).
       try { await enrollBrowserDeviceUnlock(kp.secretKey); }
-      catch (e) { console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+      catch (e) {
+        console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
+        toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+      }
     }
     setCtx(null);
-  }, [ctx, setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock]);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock, t]);
 
   const handleRecover = useCallback(async (phrase, newPassphrase, rememberBrowser) => {
     const secretKey = await mnemonicToSecretKey(phrase);
@@ -140,10 +154,13 @@ export default function EncryptionUnlockGate() {
     enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(kp.secretKey); }
-      catch (e) { console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+      catch (e) {
+        console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
+        toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+      }
     }
     setCtx(null);
-  }, [ctx, setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock]);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock, t]);
 
   if (!ctx || checkingDeviceUnlock) return null;
 

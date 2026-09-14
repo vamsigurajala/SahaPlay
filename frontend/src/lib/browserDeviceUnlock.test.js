@@ -9,6 +9,7 @@ import {
   unlockViaBrowser,
   forgetBrowser,
   BrowserDeviceUnlockError,
+  describeBrowserDeviceUnlockError,
 } from './browserDeviceUnlock.js';
 
 const ORIGIN = 'http://localhost';
@@ -289,6 +290,98 @@ describe('browserDeviceUnlock.js', () => {
       expect(await hasBrowserDeviceUnlock()).toBe(false);
       expect(backend.calls.some(c => c.url.includes('register-verify'))).toBe(false);
       window.navigator.credentials.get = realGet;
+    });
+  });
+
+  // Root-cause report follow-up (production CREATE_FAILED investigation):
+  // browserDeviceUnlock.js used to discard navigator.credentials.create()'s
+  // real DOMException entirely — only the static string 'CREATE_FAILED'
+  // ever reached a caller/log. These tests exercise the fix: the original
+  // browser-reported name/message now survive on the thrown error, and the
+  // sanctioned logging helper surfaces them without ever touching secrets.
+  describe('enrollBrowser — create() rejection preserves the original DOMException (root-cause diagnostic fix)', () => {
+    test('create() rejects with a real DOMException: CREATE_FAILED carries the original name + message, nothing persisted, register-verify never called', async () => {
+      installEmulator({ hmacSecret: 'hmac-secret-mc' });
+      await setUpLoggedInAccount();
+      const kp = nacl.box.keyPair();
+      const backend = installBackend({ myKeysPublicKeyB64: encodeBase64(kp.publicKey) });
+
+      const realCreate = window.navigator.credentials.create;
+      window.navigator.credentials.create = vi.fn(async () => {
+        throw new DOMException('The operation either timed out or was not allowed.', 'NotAllowedError');
+      });
+
+      try {
+        const err = await enrollBrowser(kp.secretKey).catch(e => e);
+        expect(err).toBeInstanceOf(BrowserDeviceUnlockError);
+        expect(err.code).toBe('CREATE_FAILED');
+        expect(err.originalName).toBe('NotAllowedError');
+        expect(err.originalMessage).toBe('The operation either timed out or was not allowed.');
+        // The error's own top-level .message is unchanged/back-compatible —
+        // still the human-readable string it always was.
+        expect(err.message).toBe('The operation either timed out or was not allowed.');
+
+        expect(await hasBrowserDeviceUnlock()).toBe(false);
+        expect(backend.calls.some(c => c.url.includes('register-verify'))).toBe(false);
+      } finally {
+        window.navigator.credentials.create = realCreate;
+      }
+    });
+
+    test('create() rejects with a bare Error (no DOMException name): CREATE_FAILED still carries whatever name/message it had', async () => {
+      installEmulator({ hmacSecret: 'hmac-secret-mc' });
+      await setUpLoggedInAccount();
+      const kp = nacl.box.keyPair();
+      installBackend({ myKeysPublicKeyB64: encodeBase64(kp.publicKey) });
+
+      const realCreate = window.navigator.credentials.create;
+      window.navigator.credentials.create = vi.fn(async () => { throw new Error('simulated platform failure'); });
+
+      try {
+        const err = await enrollBrowser(kp.secretKey).catch(e => e);
+        expect(err.code).toBe('CREATE_FAILED');
+        expect(err.originalName).toBe('Error');
+        expect(err.originalMessage).toBe('simulated platform failure');
+      } finally {
+        window.navigator.credentials.create = realCreate;
+      }
+    });
+
+    test('describeBrowserDeviceUnlockError surfaces {code, name, message} for logging and never includes key material', async () => {
+      installEmulator({ hmacSecret: 'hmac-secret-mc' });
+      await setUpLoggedInAccount();
+      const kp = nacl.box.keyPair();
+      installBackend({ myKeysPublicKeyB64: encodeBase64(kp.publicKey) });
+
+      const realCreate = window.navigator.credentials.create;
+      window.navigator.credentials.create = vi.fn(async () => {
+        throw new DOMException('Requested extensions are not supported.', 'NotSupportedError');
+      });
+
+      try {
+        const err = await enrollBrowser(kp.secretKey).catch(e => e);
+        const described = describeBrowserDeviceUnlockError(err);
+        expect(described).toEqual({ code: 'CREATE_FAILED', name: 'NotSupportedError', message: 'Requested extensions are not supported.' });
+
+        // Never includes the account's actual secret key or its base64
+        // encoding — this module never puts key material into an Error in
+        // the first place (confirmed above: create() rejects before any key
+        // material is touched), but this asserts the diagnostic summary
+        // itself stays confined to exactly {code, name, message}, nothing
+        // else could leak through a wider object spread by accident.
+        expect(Object.keys(described).sort()).toEqual(['code', 'message', 'name']);
+        const serialized = JSON.stringify(described);
+        expect(serialized).not.toContain(encodeBase64(kp.secretKey));
+        expect(serialized).not.toContain(encodeBase64(kp.publicKey));
+      } finally {
+        window.navigator.credentials.create = realCreate;
+      }
+    });
+
+    test('describeBrowserDeviceUnlockError on a non-BrowserDeviceUnlockError value still returns a safe {code, name, message} shape', () => {
+      expect(describeBrowserDeviceUnlockError(new TypeError('boom'))).toEqual({ code: null, name: 'TypeError', message: 'boom' });
+      expect(describeBrowserDeviceUnlockError('a bare string')).toEqual({ code: null, name: null, message: 'a bare string' });
+      expect(describeBrowserDeviceUnlockError(undefined)).toEqual({ code: null, name: null, message: null });
     });
   });
 

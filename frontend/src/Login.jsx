@@ -15,6 +15,7 @@ import { API } from './lib/api';
 import { isCapacitorApp, isTauriApp } from './lib/platform';
 import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
 import { resyncPushTokenAfterLogin } from './lib/nativePush';
+import { describeBrowserDeviceUnlockError } from './lib/browserDeviceUnlock.js';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -309,7 +310,7 @@ const Login = () => {
     enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) { console.warn('[Login] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+      catch (e) { console.warn('[Login] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e)); }
     }
     setOauthModalMode(null);
     setOauthModalCtx(null);
@@ -345,7 +346,7 @@ const Login = () => {
     enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) { console.warn('[Login] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+      catch (e) { console.warn('[Login] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e)); }
     }
     setOauthModalMode(null);
     setOauthModalCtx(null);
@@ -381,7 +382,7 @@ const Login = () => {
     enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
     if (rememberBrowser) {
       try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) { console.warn('[Login] "Remember this browser" enrollment failed:', e?.code || e?.message || e); }
+      catch (e) { console.warn('[Login] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e)); }
     }
     setOauthModalMode(null);
     setOauthModalCtx(null);

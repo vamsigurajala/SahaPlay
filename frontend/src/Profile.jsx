@@ -26,7 +26,7 @@ import { decryptPrivateKey, encryptPrivateKey } from './lib/crypto.js';
 import { encodeBase64 } from 'tweetnacl-util';
 import OAuthEncryptionModal from './components/OAuthEncryptionModal';
 import ToggleSwitch from './components/ToggleSwitch';
-import { isBrowserDeviceUnlockAvailable } from './lib/browserDeviceUnlock.js';
+import { isBrowserDeviceUnlockAvailable, describeBrowserDeviceUnlockError } from './lib/browserDeviceUnlock.js';
 
 // Minimum time the skeleton loader stays visible on first load, so the shimmer wave
 // has time to actually be perceived instead of flashing by on fast (local) connections.
@@ -908,7 +908,7 @@ const Profile = () => {
         await enrollBrowserDeviceUnlock(keyPair.secretKey);
         setBrowserRemembered(true);
       } catch (e) {
-        console.warn('[Profile] "Remember this browser" enrollment failed:', e?.code || e?.message || e);
+        console.warn('[Profile] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
         toast.error(t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
       }
     }
