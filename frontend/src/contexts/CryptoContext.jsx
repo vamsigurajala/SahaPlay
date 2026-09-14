@@ -88,9 +88,21 @@ async function enrollDeviceUnlockSilently(secretKeyBytes) {
 // it only ever means "could not use device unlock this time," and every
 // caller below treats it as exactly that: fall back to the existing
 // passphrase/recovery UI, unchanged.
+// ─── TEMPORARY DIAGNOSTIC — remove once the "strict mode asks passphrase
+// instead of fingerprint on cold reopen" bug is confirmed fixed. ─────────
+// The test device has no USB/wireless debugging enabled, so logcat/
+// chrome://inspect aren't available — this surfaces the exact same
+// decision-point information directly on screen via a blocking alert()
+// instead, same technique that diagnosed the account-id bug earlier this
+// project. Every call site is tagged DIAG_REMOVE_ME for easy find/strip.
+const DIAG_ALERTS = true; // DIAG_REMOVE_ME
+function diag(msg) { if (DIAG_ALERTS) window.alert('[DIAG] ' + msg); } // DIAG_REMOVE_ME
+
 async function tryRestoreViaDeviceUnlock(serverPublicKeyB64, isCancelled = () => false) {
   if (!serverPublicKeyB64) return null; // nothing to verify against — never attempt
   if (!isCapacitorApp() || !isDeviceUnlockAvailable()) return null;
+
+  diag('tryRestoreViaDeviceUnlock starting, strict=' + isStrictDeviceUnlockEnabled()); // DIAG_REMOVE_ME
 
   // This runs at the very first tick of a genuinely cold app launch —
   // earlier than anything else in the app has had a chance to confirm the
@@ -116,11 +128,14 @@ async function tryRestoreViaDeviceUnlock(serverPublicKeyB64, isCancelled = () =>
       if (isCancelled()) return null; // resolved after the caller stopped caring — discard, don't call setState on an unmounted effect
       const kp = nacl.box.keyPair.fromSecretKey(secretKey);
       if (encodeBase64(kp.publicKey) !== serverPublicKeyB64) {
+        diag('attempt ' + attempt + ': native returned a key but it does NOT match the server public key'); // DIAG_REMOVE_ME
         console.warn('[CryptoContext] Device unlock returned a key that does not match the server public key — discarding and falling back to passphrase/recovery.');
         return null; // a real verification failure, not transient — never retry this
       }
+      diag('attempt ' + attempt + ': SUCCESS — key restored via device unlock'); // DIAG_REMOVE_ME
       return kp;
     } catch (e) {
+      diag('attempt ' + attempt + ' FAILED — code=' + (e?.code || 'none') + ' message=' + (e?.message || String(e))); // DIAG_REMOVE_ME
       const transient = e?.code === 'ASSERTION_FETCH_FAILED' || e?.code === 'NOT_AUTHENTICATED';
       if (!transient || attempt === MAX_ATTEMPTS) {
         // Every failure mode here — NOT_AVAILABLE, NOT_AUTHENTICATED,
@@ -247,6 +262,7 @@ export function CryptoProvider({ children }) {
           clearSessionKey();
         }
         const secretKey = strictModeActive ? null : await loadKeyFromSession();
+        diag('mount: strictModeActive=' + strictModeActive + ' hasSessionKey=' + !!(secretKey && secretKey.length === 32)); // DIAG_REMOVE_ME
         if (secretKey && secretKey.length === 32) {
           const kp = nacl.box.keyPair.fromSecretKey(secretKey);
           setKeyPairState(kp);
@@ -309,8 +325,10 @@ export function CryptoProvider({ children }) {
           // against and returns null immediately anyway (see its own guard),
           // so this always falls through to the exact same
           // needsReauth-on-network-failure behavior as before this stage.
+          diag('mount: no local session key. serverCheckOk=' + serverCheckOk + ' serverHasExistingKey=' + serverHasExistingKey); // DIAG_REMOVE_ME
           const restoredKp = serverHasExistingKey ? await tryRestoreViaDeviceUnlock(serverPublicKeyB64, () => cancelled) : null;
           if (cancelled) return; // stopped caring while the (possibly retried) restore attempt was in flight
+          diag('mount: tryRestoreViaDeviceUnlock returned ' + (restoredKp ? 'a KEY (restored!)' : 'null (falling back)')); // DIAG_REMOVE_ME
           if (restoredKp) {
             await saveKeyToSession(restoredKp.secretKey);
             setKeyPairState(restoredKp);
