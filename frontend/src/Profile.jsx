@@ -2341,7 +2341,7 @@ const Profile = () => {
                     // not a warning like that one.
                     <div style={{
                       marginTop: 10, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)',
-                      borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#c4b5fd', lineHeight: 1.5,
+                      borderRadius: 10, padding: '10px 12px', fontSize: 12, color: isLight ? '#000' : '#c4b5fd', lineHeight: 1.5,
                     }}>
                       {t('requireFingerprintEveryOpenDesc', 'When enabled, SahaPlay will ask for fingerprint/device authentication each time you reopen the app.')}
                     </div>
