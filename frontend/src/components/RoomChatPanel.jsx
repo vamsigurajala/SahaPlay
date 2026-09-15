@@ -2031,6 +2031,29 @@ export default function RoomChatPanel({ p }) {
       document.removeEventListener('touchstart', handleClickOutside);
     };
   }, [activeMessageMenu, showHeaderMenu, showHiddenMenu, longPress.activeId, longPress, p.activeReactionMsg, p.showAllEmojis, p.showGroupEmojiPicker, p.showDmEmojiPicker]);
+
+  // Attach menu (Browse/Poll) outside-click close — kept separate from the
+  // mousedown/touchstart effect above and matched to GlobalChatWidget.jsx's
+  // own identical popup exactly: a plain document 'click' listener, only
+  // attached while a menu is actually open, checked via closest() rather
+  // than a ref .contains() (the toggle button and popup are two separate,
+  // non-nested elements). Reported not closing on outside click here (it
+  // already worked in the chat window) — this popup used to be its own
+  // full-screen position:fixed catcher div instead, the same pattern
+  // GlobalChatWidget's own comment documents replacing for exactly this
+  // unreliability (a tap on a message row, long-press, etc. not always
+  // reaching the catcher).
+  React.useEffect(() => {
+    if (!showGroupAttachMenu && !showDmAttachMenu) return;
+    const handleAttachMenuOutsideClick = (e) => {
+      const t = e.target;
+      if (t.closest && (t.closest('.room-attach-menu-popup') || t.closest('.room-attach-toggle-btn'))) return;
+      setShowGroupAttachMenu(false);
+      setShowDmAttachMenu(false);
+    };
+    document.addEventListener('click', handleAttachMenuOutsideClick);
+    return () => document.removeEventListener('click', handleAttachMenuOutsideClick);
+  }, [showGroupAttachMenu, showDmAttachMenu]);
   const dmTargetRef = React.useRef(p.dmTarget);
   const [dmRelation, setDmRelation] = React.useState(null);
   // 'loading' = fetching in progress (show nothing), null = not a private chat, object = resolved
@@ -4308,25 +4331,25 @@ export default function RoomChatPanel({ p }) {
                                 of the file picker directly, matching GlobalChatWidget's
                                 own paperclip button exactly. */}
                             <div style={{ position: 'relative' }}>
-                              <button type="button" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => setShowGroupAttachMenu(v => !v)} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
+                              <button type="button" className="room-attach-toggle-btn" disabled={isUploading || isDisabled || p.allowMedia === false} onClick={() => setShowGroupAttachMenu(v => !v)} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)' : (isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4,opacity:isDisabled || p.allowMedia === false ? 0.4 : 1}}>
                                 <Paperclip size={18}/>
                               </button>
                               {showGroupAttachMenu && (
-                                // onClick (not onMouseDown) — see GlobalChatWidget.jsx's
-                                // identical attach-menu overlay for why: closing on mousedown
-                                // unmounts this full-screen overlay before the tap's own
-                                // mouseup/click fires, which then falls through onto whatever
-                                // sits underneath the pointer (e.g. a nav control), and also
-                                // makes outside-tap-to-close unreliable on touch devices.
-                                <div className="chat-attach-menu-overlay" onClick={() => setShowGroupAttachMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 100020 }}>
-                                  <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
-                                    <button type="button" onClick={() => { setShowGroupAttachMenu(false); fileInputRef.current?.click(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
-                                      <ImageIcon size={17} color="#3b82f6" /> Browse
-                                    </button>
-                                    <button type="button" onClick={() => { setShowGroupAttachMenu(false); setShowGroupPollComposer(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
-                                      <BarChart2 size={17} color="#f59e0b" /> Poll
-                                    </button>
-                                  </div>
+                                // Plain absolutely-positioned popup, closed by the
+                                // document-level click listener below — a fixed
+                                // full-screen catcher div used to sit here instead, the
+                                // same pattern GlobalChatWidget.jsx's own attach menu
+                                // moved away from (see its matching comment): a click
+                                // landing on a message row, a long-press, or similar
+                                // wasn't reliably reaching the catcher, leaving the menu
+                                // stuck open exactly as reported here.
+                                <div className="room-attach-menu-popup" style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, zIndex: 100020, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
+                                  <button type="button" onClick={() => { setShowGroupAttachMenu(false); fileInputRef.current?.click(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
+                                    <ImageIcon size={17} color="#3b82f6" /> Browse
+                                  </button>
+                                  <button type="button" onClick={() => { setShowGroupAttachMenu(false); setShowGroupPollComposer(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
+                                    <BarChart2 size={17} color="#f59e0b" /> Poll
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -5389,21 +5412,19 @@ export default function RoomChatPanel({ p }) {
                                   </button>
                                 )}
                                 <div style={{ position: 'relative' }}>
-                                  <button type="button" disabled={isUploading} onClick={() => setShowDmAttachMenu(v => !v)} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
+                                  <button type="button" className="room-attach-toggle-btn" disabled={isUploading} onClick={() => setShowDmAttachMenu(v => !v)} style={{background:'transparent',border:'none',color:isUploading?'var(--brand-1)':(isLight ? '#64748b' : '#ffffff'),cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:4}}>
                                     <Paperclip size={18}/>
                                   </button>
                                   {showDmAttachMenu && (
-                                    // onClick (not onMouseDown) — see the group tab's identical
-                                    // attach-menu overlay above for why.
-                                    <div className="chat-attach-menu-overlay" onClick={() => setShowDmAttachMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 100020 }}>
-                                      <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
-                                        <button type="button" onClick={() => { setShowDmAttachMenu(false); dmFileInputRef.current?.click(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
-                                          <ImageIcon size={17} color="#3b82f6" /> Browse
-                                        </button>
-                                        <button type="button" onClick={() => { setShowDmAttachMenu(false); setShowDmPollComposer(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
-                                          <BarChart2 size={17} color="#f59e0b" /> Poll
-                                        </button>
-                                      </div>
+                                    // See the group tab's identical popup above for why this
+                                    // isn't a full-screen catcher div anymore.
+                                    <div className="room-attach-menu-popup" style={{ position: 'absolute', bottom: 46, right: 0, minWidth: 180, zIndex: 100020, background: isLight ? '#fff' : '#1c1c22', borderRadius: 14, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 32px rgba(0,0,0,0.35)', overflow: 'hidden', padding: 6 }}>
+                                      <button type="button" onClick={() => { setShowDmAttachMenu(false); dmFileInputRef.current?.click(); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
+                                        <ImageIcon size={17} color="#3b82f6" /> Browse
+                                      </button>
+                                      <button type="button" onClick={() => { setShowDmAttachMenu(false); setShowDmPollComposer(true); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: 8, cursor: 'pointer', color: isLight ? '#0f172a' : '#fff', fontSize: 13.5, fontWeight: 600 }}>
+                                        <BarChart2 size={17} color="#f59e0b" /> Poll
+                                      </button>
                                     </div>
                                   )}
                                 </div>

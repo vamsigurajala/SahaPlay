@@ -7431,45 +7431,21 @@ const Room = () => {
       return;
     }
 
-    const token = localStorage.getItem('watch_token');
-    try {
-      const res = await fetch(`${SOCKET_SERVER_URL}/api/chats/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          type: 'room',
-          partner: (roomId || '').toLowerCase(),
-          message: encryptedPayload.ciphertext,
-          nonce: encryptedPayload.nonce,
-          e2eeKeys: encryptedPayload.keys,
-          ephemeralPublicKey: encodeBase64(myKeyPair.current.publicKey),
-          encrypted: true,
-          replyTo: null,
-          tempId,
-          isPoll: true,
-        })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || 'Poll could not be sent.');
-        setGroupMessages(prev => {
-          const next = prev.filter(m => m.id !== tempId);
-          groupMessagesRef.current = next;
-          return next;
-        });
-      }
-      // On success: backend broadcasts chat_message to the room (same event
-      // this page's own chat_message listener already reconciles by tempId),
-      // so no local success-path handling is needed here.
-    } catch (e) {
-      console.error('[Room] sendGroupPoll error:', e);
-      toast.error('Failed to send poll. Please try again.');
-      setGroupMessages(prev => {
-        const next = prev.filter(m => m.id !== tempId);
-        groupMessagesRef.current = next;
-        return next;
-      });
-    }
+    // Sent over the socket, not POST /api/chats/send — that REST endpoint
+    // requires a real JWT (authenticateToken), which a guest never has, and
+    // sending "Bearer null" is exactly what surfaced as "invalid token" for
+    // a guest trying to send a poll. Every other guest-compatible send in
+    // this file (plain text, media, edits) already goes over the socket
+    // instead, trusted by socket.username from the connection's own auth,
+    // not a request header — this now matches that same, already-working
+    // path (see the backend's socket.on('chat_message', ...) handler, which
+    // this session added isPoll/pollVotes support to specifically for this).
+    socket.emit('chat_message', {
+      roomId: (roomId || '').toLowerCase(),
+      message: encryptedPayload.ciphertext,
+      e2ee: { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) },
+      username, tempId, replyTo: null, isPoll: true,
+    });
   };
 
   const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null, caption = '') => {

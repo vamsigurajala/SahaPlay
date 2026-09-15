@@ -9133,7 +9133,7 @@ io.on('connection', (socket) => {
 
 
   // ─── Group chat message (saved in history) ───
-  socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, replyTo, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId, mediaGroupId }) => {
+  socket.on('chat_message', ({ roomId: rawRoomId, message, plaintextMessage, e2ee, replyTo, mediaUrl, mediaType, mediaFileName, mediaFileSize, mediaDuration, tempId, mediaGroupId, isPoll }) => {
     try {
     if (!checkChatRate(socket.id)) {
       socket.emit('error_notification', 'You are sending messages too fast. Please slow down.');
@@ -9206,6 +9206,7 @@ io.on('connection', (socket) => {
     }
 
     const ts = Date.now();
+    const isPollMsg = !!isPoll;
     const deliveredAt = computeInitialDeliveredAt({ isDm: false, roomId, senderUsername: username });
     const msg = {
       id: `${socket.id}-${ts}`,
@@ -9225,7 +9226,14 @@ io.on('connection', (socket) => {
       roomId: roomId,
       e2ee: e2ee || null,
       deliveredAt,
-      mediaGroupId: mediaGroupId || null
+      mediaGroupId: mediaGroupId || null,
+      // isPoll/pollVotes: same shape the REST /api/chats/send room branch
+      // broadcasts (see its own msg object) — this socket path is the ONLY
+      // one a guest can use (no JWT, so the REST endpoint's authenticateToken
+      // always rejects them), so a guest's poll needs to reach the room the
+      // same way their ordinary messages already do.
+      isPoll: isPollMsg,
+      pollVotes: isPollMsg ? {} : null,
     };
     room.groupMessages.push(msg);
     if (room.groupMessages.length > 200) room.groupMessages.shift();
@@ -9243,8 +9251,8 @@ io.on('connection', (socket) => {
       `INSERT INTO messages (
         "roomId", type, "senderId", "senderName", message, timestamp,
         "replyTo", "mediaUrl", "mediaType", nonce, "ephemeralPublicKey",
-        media_file_name, media_file_size, media_expires_at, media_duration, sender_public_key, delivered_at, media_group_id
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
+        media_file_name, media_file_size, media_expires_at, media_duration, sender_public_key, delivered_at, media_group_id, is_poll
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id`,
       [
         roomId, 'group', socket.id, socket.username, safeMessage, msg.timestamp,
         safeReplyTo ? JSON.stringify(safeReplyTo) : null,
@@ -9254,7 +9262,8 @@ io.on('connection', (socket) => {
         mediaDuration ? Number(mediaDuration) : null,
         senderPubKeyText,
         deliveredAt,
-        mediaGroupId || null
+        mediaGroupId || null,
+        isPollMsg
       ]
     ).then(res => {
         const dbId = res.rows?.[0]?.id;
