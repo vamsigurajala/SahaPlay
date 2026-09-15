@@ -13,7 +13,7 @@ import {
   SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, PhoneOff, Palette, Camera, BarChart2, ImageOff
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, getThemeSolidColor, isRgbColorDark } from '../lib/chatThemes';
-import { getMenuFloorY } from '../lib/chatMenuPlacement';
+import { getMenuPlacement } from '../lib/chatMenuPlacement';
 import CameraCapture from './CameraCapture';
 import DoubleTapBurst from './DoubleTapBurst';
 import VoiceRecorderBar from './VoiceRecorderBar';
@@ -3580,7 +3580,7 @@ export default function RoomChatPanel({ p }) {
                   if (longPress.activeId === rowKey) { longPress.close(); }
                   // Measured from the ROW's own bottom edge, not the touch point — see
                   // the identical comment on GlobalChatWidget.jsx's own copy for why.
-                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - e.currentTarget.getBoundingClientRect().bottom) < 260 ? 'up' : 'down'); }
+                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement(getMenuPlacement(e.currentTarget, '#room-chat-panel', 260)); }
                   swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
                 },
                 onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
@@ -3907,12 +3907,11 @@ export default function RoomChatPanel({ p }) {
                           {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
                             <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
                               <button className={(isLight && msg.mediaType) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) {
-                                // Measured from the ROW's own bottom edge, not the click point —
-                                // see the identical long-press/dropdown fix comment on
+                                // Measured from the ROW's own bottom/top edges, not the click
+                                // point — see the identical long-press/dropdown fix comment on
                                 // GlobalChatWidget.jsx's own copy of this button.
                                 const rowEl = e.currentTarget.closest('.msg-row');
-                                const floorRef = rowEl ? rowEl.getBoundingClientRect().bottom : e.clientY;
-                                setDropdownPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - floorRef) < 240 ? 'up' : 'down');
+                                setDropdownPlacement(getMenuPlacement(rowEl || e.currentTarget, '#room-chat-panel', 240));
                               } setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowHeaderMenu(false); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                 <ChevronDown size={14}/>
                               </button>
@@ -4449,7 +4448,7 @@ export default function RoomChatPanel({ p }) {
               const isOnline = !!uObj;
               return (
               <>
-                <div style={{
+                <div className="room-chat-panel-header" style={{
                   padding:'8px 14px',
                   background: 'var(--room-sidebar-bg)',
                   borderBottom:'1px solid var(--room-border)',
@@ -4759,7 +4758,7 @@ export default function RoomChatPanel({ p }) {
                         if (longPress.activeId === rowKey) { longPress.close(); }
                         // Measured from the ROW's own bottom edge, not the touch point — see
                   // the identical comment on GlobalChatWidget.jsx's own copy for why.
-                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - e.currentTarget.getBoundingClientRect().bottom) < 260 ? 'up' : 'down'); }
+                  else { const touch = e.touches[0]; if (touch) setLongPressPlacement(getMenuPlacement(e.currentTarget, '#room-chat-panel', 260)); }
                         swipeHandlers.onTouchStart(e); longPressHandlers.onTouchStart(e);
                       },
                       onTouchMove: (e) => { if (e.target.closest && e.target.closest('.long-press-menu')) return; swipeHandlers.onTouchMove(e); longPressHandlers.onTouchMove(e); },
@@ -4996,7 +4995,7 @@ export default function RoomChatPanel({ p }) {
                                         // own copy of this button.
                                         const rowEl = e.currentTarget.closest('.msg-row');
                                         const floorRef = rowEl ? rowEl.getBoundingClientRect().bottom : e.clientY;
-                                        setDropdownPlacement((getMenuFloorY(e.currentTarget, '#room-chat-panel') - floorRef) < 240 ? 'up' : 'down');
+                                        setDropdownPlacement(getMenuPlacement(rowEl || e.currentTarget, '#room-chat-panel', 240));
                                       } setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); p.setShowDmMenu(null); p.setShowAllEmojis(false); p.setActiveReactionMsg(null); }} style={{background: (isLight && msg.mediaType) ? 'rgba(0,0,0,0.45)' : (isMediaOnly ? 'rgba(0,0,0,0.35)' : (isMe ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.12)'))),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))), WebkitTextFillColor: (isLight && msg.mediaType) ? '#fff' : (isMediaOnly ? '#fff' : (isMe ? '#fff' : (isLight ? '#374151' : '#fff'))),padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
                                       <ChevronDown size={14}/>
                                     </button>
