@@ -8516,10 +8516,10 @@ io.on('connection', (socket) => {
                m.timestamp, m."replyTo", m."hiddenFor", m.reactions,
                m."mediaType", m."mediaUrl", m.media_expires_at, m.is_unsent,
                m.media_file_name, m.media_file_size, m.media_duration, m.media_group_id,
-               m.sender_public_key,
+               m.sender_public_key, m.is_poll, m.poll_votes,
                u."avatarPath" as "senderAvatarPath"
         FROM messages m
-        LEFT JOIN users u ON u.username = m."senderName"
+        LEFT JOIN users u ON LOWER(u.username) = LOWER(m."senderName")
         WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
     `;
     const queryParams = [roomId];
@@ -8640,7 +8640,17 @@ io.on('connection', (socket) => {
           mediaDuration: r.media_duration || null,
           mediaGroupId: r.media_group_id || null,
           replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null,
-          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
+          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null,
+          // Missing here meant a poll loaded through THIS history path (the
+          // one guests use — see the guest branch of chat_history's client
+          // handler in Room.jsx) rendered as raw decrypted JSON text instead
+          // of a real poll UI, even though it decrypted fine: the render
+          // side gates on msg.isPoll specifically, never falling back to
+          // content-sniffing. Registered users never hit this gap — they
+          // load history via GET /api/chats/history instead, which already
+          // selects/returns both fields.
+          isPoll: !!r.is_poll,
+          pollVotes: (() => { try { return r.poll_votes ? JSON.parse(r.poll_votes) : {}; } catch { return {}; } })()
         }));
         // Merge any in-memory messages not yet reflected in DB
         // (covers the window between push() and INSERT commit, or INSERT failures)
@@ -9036,10 +9046,10 @@ io.on('connection', (socket) => {
                m.timestamp, m."replyTo", m.reactions,
                m."mediaType", m."mediaUrl", m.media_expires_at,
                m.media_file_name, m.media_file_size, m.media_duration, m.media_group_id,
-               m.sender_public_key,
+               m.sender_public_key, m.is_poll, m.poll_votes,
                u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
-        LEFT JOIN users u ON u.username = m."senderName"
+        LEFT JOIN users u ON LOWER(u.username) = LOWER(m."senderName")
         WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
           AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE $2)
           AND (m.is_unsent IS NULL OR m.is_unsent = FALSE)
@@ -9132,7 +9142,9 @@ io.on('connection', (socket) => {
           mediaDuration: r.media_duration || null,
           mediaGroupId: r.media_group_id || null,
           replyTo: r.replyTo ? (() => { try { return JSON.parse(r.replyTo); } catch { return null; } })() : null,
-          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null
+          deliveredAt: r.delivered_at ? Number(r.delivered_at) : null,
+          isPoll: !!r.is_poll,
+          pollVotes: (() => { try { return r.poll_votes ? JSON.parse(r.poll_votes) : {}; } catch { return {}; } })()
         }));
 
         socket.emit('chat_history_more', { roomId, messages: history, before });
