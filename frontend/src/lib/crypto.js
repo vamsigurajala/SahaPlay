@@ -212,6 +212,53 @@ export async function decryptPrivateKey(blob64, password) {
   return new Uint8Array(plain);
 }
 
+// ─── Fast wrap for an ALREADY-RANDOM secret (session key + guest key at-rest
+// storage) ────────────────────────────────────────────────────────────────────
+// encryptPrivateKey/decryptPrivateKey above run the wrapping "password"
+// through 600k rounds of PBKDF2 — deliberate, correct slowness for a
+// human-chosen password (that's the whole point of key-stretching: make
+// guessing a low-entropy secret expensive). getOrCreateSessionPassword() and
+// getOrCreateGuestSessionPassword() in this file don't hand it a human
+// password at all — they generate a fresh crypto.getRandomValues(32) value
+// and store it right alongside the wrapped key. That's already full 256-bit
+// entropy; running PBKDF2 over it buys zero additional security and was pure
+// wasted latency (600k SHA-256 rounds — a real, measurable delay, worse on
+// slower/mobile devices) on every guest's first message and every returning
+// user's session restore. Import the random value directly as the AES-GCM
+// key instead — no derivation step at all.
+export async function encryptWithRawKey(secretKeyBytes, rawKeyB64) {
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+  // Wrapped in a Uint8Array view (not the bare ArrayBuffer b64ToBuf
+  // returns) — every other importKey call in this file passes a TypedArray,
+  // and a bare ArrayBuffer crossing a realm boundary (e.g. this file's
+  // Uint8Array vs. the test environment's own webcrypto polyfill) can fail
+  // SubtleCrypto's BufferSource check even though it's spec-legal.
+  const rawKeyBytes = new Uint8Array(b64ToBuf(rawKeyB64));
+  const aesKey = await crypto.subtle.importKey('raw', rawKeyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  const cipherBuf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, secretKeyBytes);
+  const packed = new Uint8Array(IV_LENGTH + cipherBuf.byteLength);
+  packed.set(iv, 0);
+  packed.set(new Uint8Array(cipherBuf), IV_LENGTH);
+  return bufToB64(packed.buffer);
+}
+
+/**
+ * Decrypts a blob wrapped by encryptWithRawKey. Throws on wrong key/format —
+ * callers use this to detect an old PBKDF2-wrapped blob (see decryptGuestKey/
+ * loadKeyFromSession) rather than needing any explicit format tag: AES-GCM's
+ * auth tag makes decrypting with the wrong derivation fail loudly, never
+ * silently return wrong plaintext.
+ */
+export async function decryptWithRawKey(blob64, rawKeyB64) {
+  const packed = new Uint8Array(b64ToBuf(blob64));
+  const iv     = packed.slice(0, IV_LENGTH);
+  const cipher = packed.slice(IV_LENGTH);
+  const rawKeyBytes = new Uint8Array(b64ToBuf(rawKeyB64));
+  const aesKey = await crypto.subtle.importKey('raw', rawKeyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const plain  = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, cipher);
+  return new Uint8Array(plain);
+}
+
 // ─── Key Pair Generation ──────────────────────────────────────────────────────
 export function generateKeyPair() {
   return nacl.box.keyPair();
@@ -466,10 +513,13 @@ function getOrCreateSessionPassword() {
   return pw;
 }
 
-/** Saves encrypted private key to sessionStorage (password is random, stored alongside). */
+/** Saves encrypted private key to sessionStorage (key is random, stored alongside).
+ *  Uses the fast raw-key wrap (see encryptWithRawKey's own doc comment) — this
+ *  "password" is never human-chosen, so PBKDF2 would only add latency, not
+ *  security. */
 export async function saveKeyToSession(secretKeyBytes) {
   const pw   = getOrCreateSessionPassword();
-  const blob = await encryptPrivateKey(secretKeyBytes, pw);
+  const blob = await encryptWithRawKey(secretKeyBytes, pw);
   sessionStorage.setItem(SESSION_KEY_NAME, blob);
 }
 
@@ -477,12 +527,21 @@ export async function saveKeyToSession(secretKeyBytes) {
 export async function loadKeyFromSession() {
   const blob = readMigrated(SESSION_KEY_NAME);
   if (!blob) return null;
+  const pw = getOrCreateSessionPassword();
   try {
-    const pw = getOrCreateSessionPassword();
-    return await decryptPrivateKey(blob, pw);
+    return await decryptWithRawKey(blob, pw);
   } catch {
-    clearSessionKey();
-    return null;
+    // Fall back to the old PBKDF2-wrapped format for a blob saved before
+    // this fix (same tab session, pre-upgrade page load) — then immediately
+    // re-save with the fast wrap so this slow path is only ever paid once.
+    try {
+      const sk = await decryptPrivateKey(blob, pw);
+      saveKeyToSession(sk).catch(() => {});
+      return sk;
+    } catch {
+      clearSessionKey();
+      return null;
+    }
   }
 }
 
@@ -517,16 +576,28 @@ function getOrCreateGuestSessionPassword() {
   return pw;
 }
 
-/** Wraps a guest's raw NaCl secret key for at-rest storage. */
+/** Wraps a guest's raw NaCl secret key for at-rest storage. Fast raw-key wrap
+ *  (see encryptWithRawKey's own doc comment) — this "password" is a random
+ *  per-device value, never human-chosen, so PBKDF2 here was pure wasted
+ *  latency on every brand-new guest's very first message. */
 export async function encryptGuestKey(secretKeyBytes) {
-  return encryptPrivateKey(secretKeyBytes, getOrCreateGuestSessionPassword());
+  return encryptWithRawKey(secretKeyBytes, getOrCreateGuestSessionPassword());
 }
 
 /** Unwraps a guest's saved key blob. Returns null if missing/corrupted. */
 export async function decryptGuestKey(blob64) {
+  const pw = getOrCreateGuestSessionPassword();
   try {
-    return await decryptPrivateKey(blob64, getOrCreateGuestSessionPassword());
+    return await decryptWithRawKey(blob64, pw);
   } catch {
-    return null;
+    // Fall back to the old PBKDF2-wrapped format for a guest identity saved
+    // before this fix — loadOrCreateGuestKeyPair re-saves via encryptGuestKey
+    // (now the fast wrap) right after a successful load, so this slow path
+    // is only ever paid once per existing guest, never again.
+    try {
+      return await decryptPrivateKey(blob64, pw);
+    } catch {
+      return null;
+    }
   }
 }

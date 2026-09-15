@@ -166,6 +166,17 @@ async function loadOrCreateGuestKeyPair(cleanUser) {
       if (parsed && parsed.blob && parsed.pk) {
         const sk = await decryptGuestKey(parsed.blob);
         if (sk && sk.length === 32) {
+          // decryptGuestKey transparently falls back to the old, slow
+          // PBKDF2-wrapped format for a blob saved before crypto.js's
+          // encryptWithRawKey fix — re-save now via the fast wrap so that
+          // fallback (and its ~600k-round latency) is only ever paid once
+          // for this guest, never again on any later reload/reopen.
+          try {
+            const blob = await encryptGuestKey(sk);
+            localStorage.setItem(guestKey, JSON.stringify({ pk: parsed.pk, blob }));
+          } catch (e) {
+            console.warn('[CryptoContext] Guest key fast-wrap upgrade failed (keeping old blob):', e);
+          }
           return { publicKey: new Uint8Array(parsed.pk), secretKey: sk };
         }
         // Corrupted/unreadable wrapped blob — fall through to generating a
