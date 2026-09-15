@@ -1819,9 +1819,16 @@ export default function RoomChatPanel({ p }) {
   // across both group + DM tabs, same reasoning as hoveredMsgId below: only
   // one message can be actively bursting at a time.
   const [burstMsgId, setBurstMsgId] = React.useState(null);
+  // Which emoji the current burst shows — defaults to the double-click
+  // shortcut's own ❤️, but every other way to react (quick-reaction bar,
+  // long-press bar, the full emoji picker) passes its own emoji through so
+  // the burst always matches whatever was actually picked, not always a
+  // heart. See GlobalChatWidget.jsx's identical copy of this state.
+  const [burstEmoji, setBurstEmoji] = React.useState('❤️');
   const burstTimeoutRef = React.useRef(null);
-  const triggerReactionBurst = (key) => {
+  const triggerReactionBurst = (key, emoji = '❤️') => {
     clearTimeout(burstTimeoutRef.current);
+    setBurstEmoji(emoji);
     setBurstMsgId(key);
     burstTimeoutRef.current = setTimeout(() => setBurstMsgId(null), 900);
   };
@@ -3804,7 +3811,7 @@ export default function RoomChatPanel({ p }) {
                         onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                         onMouseLeave={() => setHoveredMsgId(null)}
                         onDoubleClick={(e) => { e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, '❤️'); triggerReactionBurst(msg.id || msg.timestamp); }}>
-                          {burstMsgId === (msg.id || msg.timestamp) && <DoubleTapBurst />}
+                          {burstMsgId === (msg.id || msg.timestamp) && <DoubleTapBurst emoji={burstEmoji} />}
                           {/* Captioned media renders its image/video first (flush, full
                               width) — the caption+tick row below renders after it instead
                               of before, so it lands underneath, not on top. */}
@@ -3973,7 +3980,7 @@ export default function RoomChatPanel({ p }) {
                               boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
                             }}>
                               {QUICK_EMOJIS.map(em=>(
-                                <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
+                                <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, em); triggerReactionBurst(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
                               ))}
                               <button className="reaction-plus-trigger" onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border: isLight ? '1px solid #9ca3af' : '1px solid #cbd5e1',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#000',WebkitTextFillColor:'#000',transition:'background 0.2s'}} onMouseEnter={(e)=>{e.currentTarget.style.background= isLight ? '#b8bfc9' : '#f8fafc'}} onMouseLeave={(e)=>{e.currentTarget.style.background= isLight ? '#d1d5db' : '#e2e8f0'}}><Plus size={16} color="#000" style={{ color: '#000', WebkitTextFillColor: '#000' }}/></button>
                             </div>
@@ -3991,7 +3998,7 @@ export default function RoomChatPanel({ p }) {
                           }} onClick={e => e.stopPropagation()}>
                             <div style={{display:'flex',alignItems:'center',gap:4}}>
                               {QUICK_EMOJIS.map(em=>(
-                                <button key={em} onClick={(e)=>{ e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, em); longPress.close(); }} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:18,padding:4,borderRadius:8}} className="menu-btn">{em}</button>
+                                <button key={em} onClick={(e)=>{ e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, em); triggerReactionBurst(msg.id || msg.timestamp, em); longPress.close(); }} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:18,padding:4,borderRadius:8}} className="menu-btn">{em}</button>
                               ))}
                               <button onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true); longPress.close(); }} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border:'none',cursor:'pointer',width:30,height:30,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                                 <Plus size={15} color="#000" style={{ WebkitTextFillColor: '#000' }}/>
@@ -4863,7 +4870,7 @@ export default function RoomChatPanel({ p }) {
                               onMouseEnter={() => setHoveredMsgId(msg.id||i)}
                               onMouseLeave={() => setHoveredMsgId(null)}
                               onDoubleClick={(e) => { e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, '❤️'); triggerReactionBurst(msg.id || msg.timestamp); }}>
-                                {burstMsgId === (msg.id || msg.timestamp) && <DoubleTapBurst />}
+                                {burstMsgId === (msg.id || msg.timestamp) && <DoubleTapBurst emoji={burstEmoji} />}
                                 {/* Captioned media renders its image/video first (flush, full
                                     width) — the caption+tick row below renders after it
                                     instead of before, so it lands underneath, not on top. */}
@@ -5032,7 +5039,7 @@ export default function RoomChatPanel({ p }) {
                                       boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
                                     }}>
                                       {QUICK_EMOJIS.map(em=>(
-                                        <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
+                                        <button key={em} onClick={(e)=>{e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, em); triggerReactionBurst(msg.id || msg.timestamp, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} className="menu-btn" onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
                                       ))}
                                       <button className="reaction-plus-trigger" onClick={(e)=>{e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true);}} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border: isLight ? '1px solid #9ca3af' : '1px solid #cbd5e1',cursor:'pointer',fontSize:14,width:34,height:34,borderRadius:'50%',marginLeft:4,display:'flex',alignItems:'center',justifyContent:'center',color:'#000',WebkitTextFillColor:'#000',transition:'background 0.2s'}} onMouseEnter={(e)=>{e.currentTarget.style.background= isLight ? '#b8bfc9' : '#f8fafc'}} onMouseLeave={(e)=>{e.currentTarget.style.background= isLight ? '#d1d5db' : '#e2e8f0'}}><Plus size={16} color="#000" style={{ color: '#000', WebkitTextFillColor: '#000' }}/></button>
                                     </div>
@@ -5050,7 +5057,7 @@ export default function RoomChatPanel({ p }) {
                                   }} onClick={e => e.stopPropagation()}>
                                     <div style={{display:'flex',alignItems:'center',gap:4}}>
                                       {QUICK_EMOJIS.map(em=>(
-                                        <button key={em} onClick={(e)=>{ e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, em); longPress.close(); }} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:18,padding:4,borderRadius:8}} className="menu-btn">{em}</button>
+                                        <button key={em} onClick={(e)=>{ e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, em); triggerReactionBurst(msg.id || msg.timestamp, em); longPress.close(); }} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:18,padding:4,borderRadius:8}} className="menu-btn">{em}</button>
                                       ))}
                                       <button onClick={(e)=>{ e.stopPropagation(); p.setActiveReactionMsg(msg.id); p.setShowAllEmojis(true); longPress.close(); }} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border:'none',cursor:'pointer',width:30,height:30,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                                         <Plus size={15} color="#000" style={{ WebkitTextFillColor: '#000' }}/>
@@ -5482,10 +5489,11 @@ export default function RoomChatPanel({ p }) {
             searchPosition="sticky" 
             navPosition="bottom" 
             perLine={6} 
-            onEmojiSelect={(emojiObj) => { 
+            onEmojiSelect={(emojiObj) => {
               p.setShowAllEmojis(false);
               if (p.chatTab === 'group') p.handleGroupReact(p.activeReactionMsg, emojiObj.native);
               else p.handleDmReact(p.activeReactionMsg, emojiObj.native);
+              triggerReactionBurst(p.activeReactionMsg, emojiObj.native);
               p.setActiveReactionMsg(null);
             }}
           />

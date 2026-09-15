@@ -2335,9 +2335,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // own ~0.85s pop+fade animation so the overlay unmounts right as it
   // finishes rather than lingering invisibly.
   const [burstMsgId, setBurstMsgId] = useState(null);
+  // Which emoji the current burst shows — defaults to the double-click
+  // shortcut's own ❤️, but every other way to react (quick-reaction bar,
+  // long-press bar, the full emoji picker, re-tapping your own reaction in
+  // the reactors sheet) passes its own emoji through so the burst always
+  // matches whatever was actually picked, not always a heart.
+  const [burstEmoji, setBurstEmoji] = useState('❤️');
   const burstTimeoutRef = useRef(null);
-  const triggerReactionBurst = (key) => {
+  const triggerReactionBurst = (key, emoji = '❤️') => {
     clearTimeout(burstTimeoutRef.current);
+    setBurstEmoji(emoji);
     setBurstMsgId(key);
     burstTimeoutRef.current = setTimeout(() => setBurstMsgId(null), 900);
   };
@@ -9016,7 +9023,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                onTouchStart={gestureHandlers.onTouchStart}
                                onTouchMove={gestureHandlers.onTouchMove}
                                onTouchEnd={gestureHandlers.onTouchEnd}>
-                            {burstMsgId === (msg.id || i) && <DoubleTapBurst />}
+                            {burstMsgId === (msg.id || i) && <DoubleTapBurst emoji={burstEmoji} />}
                             <div className="swipe-reply-icon" style={{
                               position:'absolute', [isMe ? 'right' : 'left']: 8, top:'50%',
                               transform: `translateY(-50%) scale(${rowThresholdMet ? 1 : 0})`,
@@ -9315,7 +9322,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                   boxShadow: isLight ? '0 10px 30px rgba(0,0,0,0.1)' : '0 8px 24px rgba(0,0,0,0.6)'
                                 }}>
                                   {(QUICK_EMOJIS).map(em=>(
-                                    <button key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
+                                    <button key={em} onClick={(e)=>{e.stopPropagation(); handleReact(msg.id, em); triggerReactionBurst(msg.id || i, em);}} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:16,padding:'4px',borderRadius:8,transition:'transform 0.1s',display:'flex',alignItems:'center',justifyContent:'center'}} onMouseEnter={(e)=>e.currentTarget.style.transform='scale(1.3)'} onMouseLeave={(e)=>e.currentTarget.style.transform='scale(1)'}>{em}</button>
                                   ))}
                                   <button onClick={(e)=>{e.stopPropagation(); setActiveReactionMsg(msg.id); setShowAllEmojis(true);}} style={{background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)',border:'none',cursor:'pointer',fontSize:12,width:26,height:26,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',color: isLight ? '#000' : '#fff',WebkitTextFillColor: isLight ? '#000' : '#fff',transition:'background 0.2s'}} onMouseEnter={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'} onMouseLeave={(e)=>e.currentTarget.style.background= isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.1)'}><Plus size={14} color={isLight ? '#000' : '#fff'} style={{ color: isLight ? '#000' : '#fff', WebkitTextFillColor: isLight ? '#000' : '#fff' }}/></button>
                                 </div>
@@ -9333,7 +9340,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               }} onClick={e => e.stopPropagation()}>
                                 <div style={{display:'flex',alignItems:'center',gap:4}}>
                                   {QUICK_EMOJIS.map(em=>(
-                                    <button key={em} onClick={(e)=>{ e.stopPropagation(); handleReact(msg.id, em); longPress.close(); }} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:18,padding:4,borderRadius:8}}>{em}</button>
+                                    <button key={em} onClick={(e)=>{ e.stopPropagation(); handleReact(msg.id, em); triggerReactionBurst(msg.id || i, em); longPress.close(); }} style={{background:'transparent',border:'none',cursor:'pointer',fontSize:18,padding:4,borderRadius:8}}>{em}</button>
                                   ))}
                                   <button onClick={(e)=>{ e.stopPropagation(); setActiveReactionMsg(msg.id); setShowAllEmojis(true); longPress.close(); }} style={{background: isLight ? '#d1d5db' : '#e2e8f0',border:'none',cursor:'pointer',width:30,height:30,borderRadius:'50%',marginLeft:2,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                                     <Plus size={15} color="#000" style={{ WebkitTextFillColor: '#000' }}/>
@@ -10452,7 +10459,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
               searchPosition="sticky"
               navPosition="bottom" 
               perLine={6} 
-              onEmojiSelect={(emojiObj) => { setShowAllEmojis(false); handleReact(activeReactionMsg, emojiObj.native); setActiveReactionMsg(null); }}
+              onEmojiSelect={(emojiObj) => { setShowAllEmojis(false); handleReact(activeReactionMsg, emojiObj.native); triggerReactionBurst(activeReactionMsg, emojiObj.native); setActiveReactionMsg(null); }}
             />
           </div>
         )}
