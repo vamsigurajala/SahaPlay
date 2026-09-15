@@ -69,9 +69,15 @@ jobs:
       # remains (see the styles.xml step below, now blanked to a plain white
       # frame with no icon) — the very first branded logo the user sees is
       # already our animated one.
+      # @capacitor/filesystem added for the native download fix — the
+      # in-app "Save" buttons (lightbox/file-card/voice-note) need this
+      # plugin's Java side actually present in the built app; the frontend
+      # only ever calls it off window.Capacitor.Plugins.Filesystem (see
+      # nativeDownload.js's own comment on why no direct import), so this
+      # line is the ONLY place that plugin needs to be named at all.
       - name: Install Capacitor packages
         working-directory: frontend
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app @capacitor/browser @capacitor/push-notifications fs-extra
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app @capacitor/browser @capacitor/push-notifications @capacitor/filesystem fs-extra
 
       # Hand-authored, same "write the config the CLI would otherwise ask for
       # interactively" approach already used for the old TWA build's

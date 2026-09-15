@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import toast from 'react-hot-toast';
+import { downloadBlobToDevice } from '../lib/nativeDownload';
 import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
@@ -445,10 +446,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
     try {
       const resp = await fetch(url);
       const blob = await resp.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = fileName || 'download';
-      a.click();
+      await downloadBlobToDevice(blob, fileName || 'download', toast);
     } catch { toast.error('Download failed'); }
   };
 
@@ -652,10 +650,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
       const resp = await fetch(url);
       const blob = await resp.blob();
       const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `voice_note_${Date.now()}.${ext}`;
-      a.click();
+      await downloadBlobToDevice(blob, `voice_note_${Date.now()}.${ext}`, toast);
     } catch { toast.error('Download failed'); }
   };
 

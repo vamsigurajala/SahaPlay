@@ -1,5 +1,7 @@
 import React from 'react';
+import toast from 'react-hot-toast';
 import { X, ChevronLeft, ChevronRight, Download, MoreVertical, Trash2 } from 'lucide-react';
+import { downloadBlobToDevice } from '../lib/nativeDownload';
 
 const SWIPE_THRESHOLD = 50;
 const MIN_SCALE = 1;
@@ -108,11 +110,11 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
     try {
       const resp = await fetch(url);
       const blob = await resp.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = item.filename || (isImg ? `image_${Date.now()}.jpg` : `video_${Date.now()}.mp4`);
-      a.click();
-    } catch {}
+      await downloadBlobToDevice(blob, item.filename || (isImg ? `image_${Date.now()}.jpg` : `video_${Date.now()}.mp4`), toast);
+    } catch (e) {
+      console.error('[MediaLightbox] download failed:', e);
+      toast.error('Download failed');
+    }
   };
 
   // Keeps a zoomed image from being panned entirely off-screen — a rough
@@ -317,12 +319,14 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
           boxShadow: '0 4px 20px rgba(0,0,0,0.35)',
         }}
       >
-        {/* Top bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1a1a1a', borderBottom: '1px solid #2e2e2e', flexShrink: 0 }}>
-          <span style={{ color: '#ccc', fontSize: 13, fontWeight: 600 }}>
+        {/* Top bar — filename truncates with an ellipsis instead of pushing
+            the Save/menu/close buttons off the right edge of the card; those
+            buttons keep flexShrink: 0 so a long name can never move them. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#1a1a1a', borderBottom: '1px solid #2e2e2e', flexShrink: 0, gap: 10 }}>
+          <span style={{ color: '#ccc', fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {item.filename || ''}{hasMultiple ? `  ${index + 1} / ${items.length}` : ''}
           </span>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative', flexShrink: 0 }}>
             <button onClick={handleDownload} style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 8, padding: '6px 14px', color: '#111', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ color: '#111', display: 'flex' }}><Download size={14} /></span> Save
             </button>

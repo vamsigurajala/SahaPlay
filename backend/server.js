@@ -5321,10 +5321,21 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
       // participant from seeing chat history predating their own join.
       const isOfficialBulletin = partner === SAHAPLAY_OFFICIAL_ROOM_ID;
       const joinTs = isOfficialBulletin ? null : await getOrInitFirstJoined(username, partner);
+      // LOWER() on both sides — unlike the 'private' branch above, this join
+      // used to compare case-sensitively. Room messages' senderName usually
+      // comes from socket.username (whatever case the client happened to
+      // send at connect time), which doesn't always match users.username's
+      // original signup casing, so the join silently produced NULL
+      // senderPublicKey/senderAvatarPath for real, existing users purely
+      // over a casing mismatch — masked for DISPLAY by decryptRoomGroupMessages'
+      // own isMine fallback (reconstructing it from the viewer's current
+      // keyPair), but with no equivalent fallback in editGroupMessage, this
+      // was the actual cause of "Couldn't verify this media's encryption
+      // key" when editing a media caption.
       let queryStr = `
         SELECT m.*, u."avatarPath" as "senderAvatarPath", u."publicKey" as "senderPublicKey"
         FROM messages m
-        LEFT JOIN users u ON u.username = m."senderName"
+        LEFT JOIN users u ON LOWER(u.username) = LOWER(m."senderName")
         WHERE m."roomId" = $1 AND (m.type = 'room' OR m.type = 'group')
           AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE $2)
           AND (m.is_unsent IS NULL OR m.is_unsent = FALSE)
@@ -9288,6 +9299,75 @@ io.on('connection', (socket) => {
       });
     } catch (err) {
       console.error('[SOCKET] chat_message error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  // ─── Cast/change/withdraw a poll vote — socket equivalent of
+  // POST /api/chats/vote, trusted by socket.username instead of a JWT.
+  // A guest has no token at all, so that REST endpoint's authenticateToken
+  // always rejected them outright ("guest votes not registering"). Room-only
+  // (group) — a guest can never reach a DM at all (mutual-follow required),
+  // so there's no guest-relevant case for the 'private' branch the REST
+  // endpoint also handles; this mirrors that endpoint's group branch only.
+  // Same id-or-timestamp lookup, same SELECT ... FOR UPDATE serialization,
+  // same in-memory room.groupMessages patch + chat:poll_vote broadcast, so
+  // every existing listener (Room.jsx/GlobalChatWidget.jsx's own
+  // sock.on('chat:poll_vote', ...)) reconciles this identically regardless
+  // of which path a given voter's client used.
+  socket.on('chat:cast_poll_vote', async ({ messageId, roomId: rawRoomId, optionIndices }) => {
+    try {
+      const username = socket.username;
+      if (!username || !messageId || !rawRoomId || !Array.isArray(optionIndices)) return;
+      const normalizedRoomId = rawRoomId.toLowerCase();
+      if (!rooms.has(normalizedRoomId)) return; // not actually in this room — never trust the claimed roomId alone
+
+      const matchId = String(messageId);
+      let tsFromId = null;
+      const tsMatch = matchId.match(/\b(\d{13})\b/);
+      if (tsMatch) tsFromId = tsMatch[1];
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const qWhere = tsFromId
+          ? `id::text = $1 OR timestamp::text = $1 OR timestamp::text = $2`
+          : `id::text = $1 OR timestamp::text = $1`;
+        const qParams = tsFromId ? [matchId, tsFromId] : [matchId];
+        const { rows } = await client.query(
+          `SELECT id, type, "roomId", poll_votes, timestamp, is_poll FROM messages WHERE ${qWhere} LIMIT 1 FOR UPDATE`,
+          qParams
+        );
+        const row = rows[0];
+        if (!row || !row.is_poll || row.type !== 'group' || (row.roomId || '').toLowerCase() !== normalizedRoomId) {
+          await client.query('ROLLBACK');
+          return;
+        }
+
+        let votes = {};
+        try { votes = row.poll_votes ? JSON.parse(row.poll_votes) : {}; } catch {}
+        const cleaned = [...new Set(optionIndices)].filter(i => Number.isInteger(i) && i >= 0);
+        if (cleaned.length > 0) votes[username] = cleaned;
+        else delete votes[username];
+
+        await client.query('UPDATE messages SET poll_votes = $1 WHERE id = $2', [JSON.stringify(votes), row.id]);
+        await client.query('COMMIT');
+
+        const ioRoom = rooms.get(normalizedRoomId);
+        if (ioRoom) {
+          const msg = ioRoom.groupMessages.find(m => String(m.id) === String(row.id) || String(m.timestamp) === String(row.timestamp));
+          if (msg) msg.pollVotes = votes;
+        }
+        io.in(normalizedRoomId).emit('chat:poll_vote', {
+          messageId: String(row.id), timestampId: String(row.timestamp), pollVotes: votes, voterUsername: username, roomId: normalizedRoomId
+        });
+      } catch (err) {
+        try { await client.query('ROLLBACK'); } catch {}
+        console.error('[chat:cast_poll_vote] error:', err.message);
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('[SOCKET] chat:cast_poll_vote error:', err.message, 'user:', socket.username);
     }
   });
 

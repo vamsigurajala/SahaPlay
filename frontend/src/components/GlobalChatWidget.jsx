@@ -23,6 +23,7 @@ import { getRecentMessagesCache, setRecentMessagesCache, clearRecentMessagesCach
 import { API } from '../lib/api';
 import { appCache } from '../cache/appCache.js';
 import toast from 'react-hot-toast';
+import { downloadBlobToDevice } from '../lib/nativeDownload';
 import { io } from 'socket.io-client';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { mergeHistoryBatch } from '../utils/chatHelper.js';
@@ -172,10 +173,7 @@ function FileCard({ url, type, fileName, fileSize, isMe, isLight, expiresAt, loa
     try {
       const resp = await fetch(url);
       const blob = await resp.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = fileName || 'download';
-      a.click();
+      await downloadBlobToDevice(blob, fileName || 'download', toast);
     } catch { toast?.error?.('Download failed'); }
   };
 
@@ -382,10 +380,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
       const resp = await fetch(url);
       const blob = await resp.blob();
       const ext = blob.type.includes('ogg') ? 'ogg' : 'webm';
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `voice_note_${Date.now()}.${ext}`;
-      a.click();
+      await downloadBlobToDevice(blob, `voice_note_${Date.now()}.${ext}`, toast);
     } catch { toast?.error?.('Download failed'); }
   };
 
@@ -5959,6 +5954,20 @@ const GlobalChatWidget = React.memo(forwardRef(({
       else delete nextVotes[myKey];
       return { ...m, pollVotes: nextVotes };
     }));
+    // Guests have no JWT, so POST /api/chats/vote's authenticateToken always
+    // rejected them outright ("guest votes not registering"). This widget
+    // has no socket of its own (see the matching send-path comments below),
+    // so a guest's vote is delegated to Room.jsx's own
+    // guest_widget_cast_poll_vote listener, which does have one — same
+    // bridge pattern every other guest room action here already uses.
+    if (localStorage.getItem('watch_is_guest') === 'true') {
+      if (activeChat?.type === 'room') {
+        window.dispatchEvent(new CustomEvent('guest_widget_cast_poll_vote', {
+          detail: { messageId: msg.id || msg.timestamp, optionIndices }
+        }));
+      }
+      return;
+    }
     try {
       await castPollVote(msg.id || msg.timestamp, optionIndices, token);
     } catch (e) {
@@ -5995,10 +6004,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
         if (activeChat.type === 'private' && keyPair && target.senderMessage) {
           const plain = decryptDMSenderCopy(target.senderMessage, target.nonce, target.ephemeralPublicKey, encodeBase64(keyPair.secretKey));
           if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
-        } else if (activeChat.type === 'room' && keyPair && target.e2ee?.keys && target.e2ee?.senderPublicKey) {
+        } else if (activeChat.type === 'room' && keyPair && target.e2ee?.keys) {
           const myKeyWrap = target.e2ee.keys[myUsername?.toLowerCase()];
+          // senderPublicKey can be missing on a message loaded from history
+          // (a backend join-casing gap, now fixed server-side, but older
+          // cached/in-flight data can still hit it) even though it's
+          // genuinely ours — editing only ever operates on this account's
+          // own message, so reconstructing it from this account's current
+          // keyPair is always safe here, matching the same fallback
+          // GlobalChatWidget's own render path already uses for this.
+          const senderPubKeyB64 = target.e2ee.senderPublicKey || encodeBase64(keyPair.publicKey);
           if (myKeyWrap) {
-            const plain = decryptGroupMessage(target.message, target.nonce, myKeyWrap, decodeBase64(target.e2ee.senderPublicKey), keyPair.secretKey);
+            const plain = decryptGroupMessage(target.message, target.nonce, myKeyWrap, decodeBase64(senderPubKeyB64), keyPair.secretKey);
             if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
           }
         }

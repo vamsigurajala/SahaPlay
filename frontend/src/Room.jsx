@@ -7144,6 +7144,22 @@ const Room = () => {
     return () => window.removeEventListener('guest_widget_send_room_media', handler);
   }, []);
 
+  // Guest bridge: poll votes cast from the GlobalChatWidget surface delegate
+  // here too — same reason every other guest room action does (the widget
+  // has no socket of its own). Without this, a guest voting from the
+  // floating chat window (as opposed to the room's own side panel) had
+  // nothing to actually send the vote through at all.
+  useEffect(() => {
+    const handler = (e) => {
+      if (localStorage.getItem('watch_is_guest') !== 'true') return;
+      const { messageId, optionIndices } = e.detail || {};
+      if (messageId == null || !Array.isArray(optionIndices) || !socket || !roomId) return;
+      socket.emit('chat:cast_poll_vote', { messageId, roomId: roomId.toLowerCase(), optionIndices });
+    };
+    window.addEventListener('guest_widget_cast_poll_vote', handler);
+    return () => window.removeEventListener('guest_widget_cast_poll_vote', handler);
+  }, [socket, roomId]);
+
   // Guest bridge: GlobalChatWidget has no socket, so it delegates pagination requests here via event.
   useEffect(() => {
     const handler = (e) => {
@@ -7328,11 +7344,18 @@ const Room = () => {
     if (target.mediaType) {
       let existingMediaKeyB64 = null;
       try {
-        if (target.e2ee?.keys && target.e2ee?.senderPublicKey) {
+        if (target.e2ee?.keys) {
           const myLower = username?.toLowerCase();
           const myKeyWrap = target.e2ee.keys[myLower] || Object.entries(target.e2ee.keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
+          // senderPublicKey can be missing on a message loaded from history
+          // even though it's genuinely ours — decryptRoomGroupMessages hits
+          // this same gap and falls back the same way (see its own comment)
+          // for exactly this reason. Editing only ever operates on this
+          // account's own message (you can't edit anyone else's), so that
+          // fallback is always safe here, never a guess at someone else's key.
+          const senderPubKeyB64 = target.e2ee.senderPublicKey || encodeBase64(myKeyPair.current.publicKey);
           if (myKeyWrap) {
-            const plain = decryptGroupMessage(target.message, target.e2ee.nonce || target.nonce, myKeyWrap, decodeBase64(target.e2ee.senderPublicKey), myKeyPair.current.secretKey);
+            const plain = decryptGroupMessage(target.message, target.e2ee.nonce || target.nonce, myKeyWrap, decodeBase64(senderPubKeyB64), myKeyPair.current.secretKey);
             if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
           }
         }
@@ -7949,6 +7972,18 @@ const Room = () => {
         if (!key || !prev[key]) return prev;
         return { ...prev, [key]: prev[key].map(applyVote) };
       });
+    }
+    // Guests have no JWT at all, so POST /api/chats/vote's authenticateToken
+    // always rejected them outright — "guest votes not registering". A
+    // guest can only ever be voting in a group poll (never a DM — mutual-
+    // follow required), so route them over the socket instead, the same
+    // trusted-by-connection path their poll SEND already uses; registered
+    // users keep the existing REST call unchanged.
+    if (localStorage.getItem('watch_is_guest') === 'true') {
+      if (chatType === 'group' && socket) {
+        socket.emit('chat:cast_poll_vote', { messageId: msg.id || msg.timestamp, roomId: (roomId || '').toLowerCase(), optionIndices });
+      }
+      return;
     }
     castPollVote(msg.id || msg.timestamp, optionIndices, localStorage.getItem('watch_token'))
       .catch(e => { console.error('[poll] vote failed', e); toast.error('Vote failed. Please try again.'); });
