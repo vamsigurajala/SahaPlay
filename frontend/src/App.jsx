@@ -19,6 +19,7 @@ import BottomNav from './components/BottomNav';
 import AnimatedSplash from './components/AnimatedSplash';
 import KeyRecoveryModal from './components/KeyRecoveryModal';
 import EncryptionUnlockGate from './components/EncryptionUnlockGate';
+import DeviceUnlockOverlay from './components/DeviceUnlockOverlay';
 const Home = lazy(() => import('./Home'));
 const Dashboard = lazy(() => import('./Dashboard'));
 const Room = lazy(() => import('./Room'));
@@ -1394,6 +1395,7 @@ function App() {
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <Router>
           <AnimatedSplash />
+          <DeviceUnlockOverlay />
           <KeyRecoveryModal />
           <EncryptionUnlockGate />
           {/* Fixed opaque strip covering the status bar area (time/wifi/battery),

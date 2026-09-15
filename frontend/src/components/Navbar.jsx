@@ -19,6 +19,7 @@ import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 import { getPersistedGcwOpen } from '../utils/gcwPersist';
 import { isTauriApp, isStandalonePWA, isCapacitorApp } from '../lib/platform';
 import { peekPendingNotificationTap, clearPendingNotificationTap } from '../lib/nativePush';
+import { useCrypto } from '../contexts/CryptoContext';
 
 const Navbar = () => {
   const isDesktopApp = isTauriApp();
@@ -31,6 +32,7 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  const { keyPair } = useCrypto();
 
   const token = localStorage.getItem('watch_token');
   const rawUsername = localStorage.getItem('watch_username');
@@ -233,18 +235,41 @@ const Navbar = () => {
   // the window and did nothing else — there was no listener anywhere that
   // reacted to a chatId-carrying tap outside the native/standalone app.
   const [pendingOpenChat, setPendingOpenChat] = useState(null);
+  // Remembers the last chat-type tap so the keyPair-ready replay effect
+  // below can re-apply it — see that effect's own comment.
+  const lastChatTapRef = useRef(null);
+  const openChatFromTapData = (chatData) => {
+    setShowNotifications(false);
+    closeSearch();
+    setPendingOpenChat({ partner: chatData.chatId, type: chatData.type === 'dm' ? 'private' : 'room' });
+    setShowRecentChats(true);
+  };
   useEffect(() => {
     const handler = (e) => {
       const chatData = e.detail;
       if (!chatData?.chatId) return;
-      setShowNotifications(false);
-      closeSearch();
-      setPendingOpenChat({ partner: chatData.chatId, type: chatData.type === 'dm' ? 'private' : 'room' });
-      setShowRecentChats(true);
+      lastChatTapRef.current = chatData;
+      openChatFromTapData(chatData);
     };
     window.addEventListener('open_chat_from_notification', handler);
     return () => window.removeEventListener('open_chat_from_notification', handler);
   }, []);
+
+  // Re-apply the last notification-tap target once the encryption key is
+  // actually available — the desktop/.exe equivalent of BottomNav.jsx's own
+  // identical effect (see its comment for the full race it closes): a
+  // notification click that cold-starts (or wakes) the app can open this
+  // chat panel before Windows Hello/the passphrase prompt has resolved,
+  // showing "🔒 Encrypted message" placeholders instead of real text.
+  // Re-opening the exact same target the moment the key becomes available
+  // guarantees the panel is showing the correctly-decrypted chat right after
+  // unlocking, not just whatever it happened to render at tap time.
+  useEffect(() => {
+    if (!keyPair || !lastChatTapRef.current) return;
+    const chatData = lastChatTapRef.current;
+    lastChatTapRef.current = null;
+    openChatFromTapData(chatData);
+  }, [keyPair]);
 
   // Close menus when clicking outside
   useEffect(() => {

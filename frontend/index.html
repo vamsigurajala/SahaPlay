@@ -9,6 +9,30 @@
     <meta name="theme-color" content="#6366f1" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>SahaPlay</title>
+    <!--
+      Blocking, non-module, runs synchronously as soon as the parser reaches
+      it — before the bundled CSS finishes loading and well before React
+      mounts. Without this, the very first paint always used the stylesheet's
+      DEFAULT `:root` colors (dark theme — see index.css), and only App.jsx's
+      own theme effect (a useEffect, so strictly after React's first commit)
+      ever set data-theme/repainted for a light-theme user. On a normal web
+      page load that gap is one imperceptible frame; inside the Android
+      APK/.exe WebView (slower cold JS start, plus the OS's own native splash
+      frame already ahead of it) it was long enough to read as a visible
+      black-then-white/wrong-theme flash before the app's real background
+      ever showed up. Reading the same 'watch_theme' key + default App.jsx's
+      own theme effect uses keeps the two in permanent agreement — this just
+      applies it several hundred milliseconds earlier.
+    -->
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem('watch_theme') === 'light' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.style.background = theme === 'light' ? '#f7fafc' : '#0b0c10';
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

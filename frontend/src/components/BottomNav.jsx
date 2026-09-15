@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Home as HomeIcon, Globe, MessageSquare, Search as SearchIcon, User, X } from 'lucide-react';
@@ -9,6 +9,7 @@ import { API } from '../lib/api';
 import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
 import { getPersistedSearchOpen, setPersistedSearchOpen } from '../utils/searchTabPersist';
 import { peekPendingNotificationTap, clearPendingNotificationTap } from '../lib/nativePush';
+import { useCrypto } from '../contexts/CryptoContext';
 import GlobalChatWidget from './GlobalChatWidget';
 import SearchTabContent from './SearchTabContent';
 import ProfileActionMenu from './ProfileActionMenu';
@@ -31,6 +32,7 @@ export default function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+  const { keyPair } = useCrypto();
 
   const token = localStorage.getItem('watch_token');
   const rawUsername = localStorage.getItem('watch_username');
@@ -151,13 +153,27 @@ export default function BottomNav() {
   // pattern as native-google-auth) since BottomNav is the only thing
   // rendered in standalone mode, which is the only mode pushes fire in.
   const [pendingOpenChat, setPendingOpenChat] = useState(null);
+  // Remembers the last chat-type tap this component has seen so the
+  // keyPair-ready replay effect below can re-apply it — see that effect's
+  // own comment for why the very first attempt often isn't enough.
+  const lastChatTapRef = useRef(null);
+
+  const openChatFromTapData = (data) => {
+    setShowSearch(false);
+    setShowProfile(false);
+    // Room/Admin routes make this component return null (see below) even
+    // though its hooks/state still run — force back to a route where the
+    // chat overlay actually renders, same as tapping a notification in
+    // any native app takes you out of whatever you were doing.
+    navigate('/');
+    setShowChat(true);
+    setPendingOpenChat({ partner: data.chatId, type: data.type === 'dm' ? 'private' : 'room' });
+  };
 
   useEffect(() => {
     const handler = (e) => {
       const data = e.detail;
       if (!data) return;
-      setShowSearch(false);
-      setShowProfile(false);
       // Navbar.jsx owns friend-request/friend-accept taps (opens its bell
       // dropdown) — see its own peekPendingNotificationTap() check, which
       // independently claims that payload without going through this event.
@@ -165,17 +181,14 @@ export default function BottomNav() {
       // rendered on Room/Admin routes, so force back to '/' if we're on one
       // of those (a no-op navigate() when already elsewhere Navbar renders).
       if (data.type === 'friend_request' || data.type === 'friend_accept') {
+        setShowSearch(false);
+        setShowProfile(false);
         navigate('/');
         return;
       }
       if (!data.chatId) return;
-      // Room/Admin routes make this component return null (see below) even
-      // though its hooks/state still run — force back to a route where the
-      // chat overlay actually renders, same as tapping a notification in
-      // any native app takes you out of whatever you were doing.
-      navigate('/');
-      setShowChat(true);
-      setPendingOpenChat({ partner: data.chatId, type: data.type === 'dm' ? 'private' : 'room' });
+      lastChatTapRef.current = data;
+      openChatFromTapData(data);
     };
     window.addEventListener('open_chat_from_notification', handler);
     // Cold start: the native tap may have already fired (and been lost,
@@ -191,6 +204,27 @@ export default function BottomNav() {
     }
     return () => window.removeEventListener('open_chat_from_notification', handler);
   }, []);
+
+  // Re-apply the last notification-tap target once the encryption key is
+  // actually available. A cold start via a chat notification races the
+  // fingerprint/passphrase unlock: the tap above can (and typically does)
+  // land, navigate here, and open the chat panel BEFORE the user has
+  // unlocked anything, while CryptoContext's keyPair is still null — which
+  // used to read as "unlocked, but stuck on the home page" once the unlock
+  // prompt closed, because DeviceUnlockOverlay's blur (or whatever specific
+  // prompt was showing) was the only thing between the user and an
+  // already-correct-but-invisible chat view. Re-running the exact same
+  // navigate/open here the moment keyPair flips from null to real
+  // guarantees the user actually lands on the chat right after unlocking,
+  // not just "whenever the tap happened to be processed." Cleared after one
+  // replay so a later natural lock/unlock cycle (e.g. backgrounding again)
+  // doesn't keep reopening a stale target.
+  useEffect(() => {
+    if (!keyPair || !lastChatTapRef.current) return;
+    const data = lastChatTapRef.current;
+    lastChatTapRef.current = null;
+    openChatFromTapData(data);
+  }, [keyPair]);
 
   const closeOverlays = () => { setShowSearch(false); setShowProfile(false); setPersistedSearchOpen(false); };
   // Swipe-back closes Search/Profile instead of navigating away — Chat is
