@@ -4,7 +4,6 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleLogin } from '@react-oauth/google';
 import { ArrowLeft, Mail, Lock, LogIn, Eye, EyeOff, User, Shield, Ban } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { useCrypto } from './contexts/CryptoContext';
 import { decryptPrivateKey, encryptPrivateKey, generateKeyPair, mnemonicToSecretKey, hashRecoveryPhrase } from './lib/crypto.js';
 import nacl from 'tweetnacl';
@@ -16,7 +15,6 @@ import { API } from './lib/api';
 import { isCapacitorApp, isTauriApp } from './lib/platform';
 import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
 import { resyncPushTokenAfterLogin } from './lib/nativePush';
-import { describeBrowserDeviceUnlockError, isPrfUnsupportedError } from './lib/browserDeviceUnlock.js';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -43,7 +41,7 @@ const Login = () => {
   const navigate        = useNavigate();
   const location        = useLocation();
   const { t }           = useTranslation();
-  const { setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock } = useCrypto();
+  const { setKeyPair, enrollDeviceUnlockSilently } = useCrypto();
 
   const locationMsg = location.state?.message;
   const banMessage = location.state?.banMessage;
@@ -271,7 +269,7 @@ const Login = () => {
 
   // 'set' view of OAuthEncryptionModal — covers both brand-new key creation and
   // migrating an existing legacy-wrapped key onto a passphrase.
-  const handleOAuthSetPassphrase = async (passphrase, rememberBrowser) => {
+  const handleOAuthSetPassphrase = async (passphrase) => {
     const { data, isMigration, oauthPendingVerification } = oauthModalCtx;
     let keyPair;
     let phrase = null;
@@ -309,15 +307,6 @@ const Login = () => {
 
     await setKeyPair(keyPair);
     enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
-    if (rememberBrowser) {
-      try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) {
-        console.warn('[Login] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
-        toast.error(isPrfUnsupportedError(e)
-          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
-          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
-      }
-    }
     setOauthModalMode(null);
     setOauthModalCtx(null);
     // oauthPendingVerification (a brand-new, unverified Google account
@@ -339,7 +328,7 @@ const Login = () => {
   };
 
   // 'unlock' view — decrypt the already-migrated blob locally with the passphrase.
-  const handleOAuthUnlock = async (passphrase, rememberBrowser) => {
+  const handleOAuthUnlock = async (passphrase) => {
     const { data } = oauthModalCtx;
     let keyPair;
     try {
@@ -350,15 +339,6 @@ const Login = () => {
     }
     await setKeyPair(keyPair);
     enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
-    if (rememberBrowser) {
-      try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) {
-        console.warn('[Login] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
-        toast.error(isPrfUnsupportedError(e)
-          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
-          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
-      }
-    }
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));
@@ -367,7 +347,7 @@ const Login = () => {
 
   // 'forgot' view — restore via the account's recovery phrase, verify it against
   // the server's known publicKey, then re-wrap with a new passphrase.
-  const handleOAuthRecover = async (phrase, newPassphrase, rememberBrowser) => {
+  const handleOAuthRecover = async (phrase, newPassphrase) => {
     const { data } = oauthModalCtx;
     let keyPair;
     try {
@@ -391,15 +371,6 @@ const Login = () => {
 
     await setKeyPair(keyPair);
     enrollDeviceUnlockSilently(keyPair.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
-    if (rememberBrowser) {
-      try { await enrollBrowserDeviceUnlock(keyPair.secretKey); }
-      catch (e) {
-        console.warn('[Login] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
-        toast.error(isPrfUnsupportedError(e)
-          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
-          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
-      }
-    }
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));

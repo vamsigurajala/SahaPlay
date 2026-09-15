@@ -347,6 +347,18 @@ const PublicRooms = () => {
             padding: 4px 10px !important;
             font-size: 11px !important;
           }
+          /* Smooth scrolling on mobile (notably the Android app WebView):
+             backdrop-filter forces a per-frame GPU blur recomposite behind
+             every element that uses it, and with a full grid of room cards
+             (each carrying up to 2 of these small badges) on screen at once,
+             that's dozens of blur layers recomposited on every scroll frame
+             — the actual cause of the reported scroll stutter/jank. A flat,
+             slightly more opaque background reads the same at this size
+             without the compositing cost; desktop keeps the blur. */
+          .cat-badge, .room-id-badge, .private-btn {
+            backdrop-filter: none !important;
+            background: rgba(0,0,0,0.6) !important;
+          }
         }
 
         /* Tablet tweaks */

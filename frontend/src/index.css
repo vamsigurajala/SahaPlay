@@ -2111,3 +2111,16 @@ html[data-theme='light'] .player-subtitle-menu button:hover {
     justify-content: center;
   }
 }
+
+/* Encryption unlock/recovery modal (OAuthEncryptionModal.jsx) — the
+   'forgot passphrase' recovery-phrase view stacks a heading, description,
+   3 inputs and 2 buttons, which overflowed short/keyboard-shrunk mobile
+   viewports. The component's own inline style already caps this at
+   maxHeight:90vh + overflowY:auto for every screen size; this just tightens
+   the padding on small screens too so it isn't wasting vertical space it
+   doesn't have. */
+@media (max-width: 480px) {
+  .encryption-modal-card {
+    padding: 24px 20px !important;
+  }
+}

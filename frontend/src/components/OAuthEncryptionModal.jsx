@@ -28,20 +28,12 @@
 import { useState, useEffect } from 'react';
 import { Lock, Eye, EyeOff, KeyRound, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { isBrowserDeviceUnlockAvailable } from '../lib/browserDeviceUnlock.js';
 
 const MIN_LENGTH = 8;
 
 export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, isPasswordAccount, onSetPassphrase, onUnlock, onRecover, onSkip }) {
   const { t } = useTranslation();
   const [view, setView] = useState('main'); // 'main' | 'forgot'
-  // "Remember this browser" — offered on every view that ends with a real
-  // E2EE secret key becoming available (set/unlock/recover all do), gated
-  // on WebAuthn PRF actually being available in this browser (see
-  // browserDeviceUnlock.js's own doc comment) so it's simply never rendered
-  // anywhere it wouldn't work — existing behavior is unchanged there.
-  const [rememberBrowser, setRememberBrowser] = useState(false);
-  const canRememberBrowser = isBrowserDeviceUnlockAvailable();
 
   // This modal has no "click outside to dismiss" — it's always mounted
   // over real page content behind it (Home/Dashboard), and without this,
@@ -105,7 +97,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
     if (validationErr) { setError(validationErr); return; }
     setIsSubmitting(true);
     try {
-      await onSetPassphrase(passphrase, rememberBrowser);
+      await onSetPassphrase(passphrase);
     } catch (err) {
       setError(err.message || t('somethingWentWrongError', 'Something went wrong. Please try again.'));
     } finally {
@@ -119,7 +111,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
     if (!passphrase) { setError(t('encPassphraseRequired', 'Enter your encryption passphrase')); return; }
     setIsSubmitting(true);
     try {
-      await onUnlock(passphrase, rememberBrowser);
+      await onUnlock(passphrase);
     } catch (err) {
       setError(err.message || t('encPassphraseWrong', 'Incorrect passphrase. If this account also has a password set, try that.'));
     } finally {
@@ -135,7 +127,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
     if (validationErr) { setError(validationErr); return; }
     setIsSubmitting(true);
     try {
-      await onRecover(recoveryPhrase.trim(), newPassphrase, rememberBrowser);
+      await onRecover(recoveryPhrase.trim(), newPassphrase);
     } catch (err) {
       setError(err.message || t('encRecoveryPhraseInvalid', "That recovery phrase doesn't match this account."));
     } finally {
@@ -166,7 +158,17 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
           dedicated rule (that one intentionally overrides background to a
           translucent tint — exactly what this card, which needs to stay
           solid white/dark per its own `card` variable above, must avoid). */}
-      <div className="encryption-modal-card" style={{ maxWidth: 460, width: '100%', ...card, borderRadius: 24, padding: '36px 32px' }}>
+      <div className="encryption-modal-card" style={{
+        maxWidth: 460, width: '100%', ...card, borderRadius: 24, padding: '36px 32px',
+        // Fits the card to the actual viewport instead of overflowing it —
+        // the 'forgot' (recovery phrase) view in particular stacks a
+        // heading, description, 3 inputs and 2 buttons, which is taller
+        // than many phones' available height once the on-screen keyboard
+        // is up. maxHeight+overflow here (rather than only in the mobile
+        // media query below) means it never overflows on ANY screen size,
+        // it just never needs to scroll on a taller one.
+        maxHeight: '90vh', overflowY: 'auto',
+      }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%',
@@ -261,17 +263,6 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
                 onChange={e => setConfirmPassphrase(e.target.value)}
               />
             </div>
-            {canRememberBrowser && (
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                <input type="checkbox" checked={rememberBrowser} onChange={e => setRememberBrowser(e.target.checked)}
-                  style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--brand-1)', cursor: 'pointer', flexShrink: 0 }} />
-                <span style={{ fontSize: 12.5, lineHeight: 1.5, color: descColor }}>
-                  <strong style={{ color: titleColor, fontWeight: 700 }}>{t('rememberBrowser', 'Remember this browser')}</strong>
-                  {' — '}
-                  {t('rememberBrowserDesc', "Unlock your encrypted chats on this browser using your device's fingerprint/PIN instead of this passphrase. Your passphrase still works everywhere and is the only way to recover this on a new device.")}
-                </span>
-              </label>
-            )}
             <button type="submit" disabled={isSubmitting} className="stay-white" style={submitBtnStyle(isSubmitting)}>
               {isSubmitting ? t('encSaving', 'Saving...') : t('encSetContinue', 'Set passphrase & continue')}
             </button>
@@ -306,17 +297,6 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
                 </button>
               </div>
             </div>
-            {canRememberBrowser && (
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                <input type="checkbox" checked={rememberBrowser} onChange={e => setRememberBrowser(e.target.checked)}
-                  style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--brand-1)', cursor: 'pointer', flexShrink: 0 }} />
-                <span style={{ fontSize: 12.5, lineHeight: 1.5, color: descColor }}>
-                  <strong style={{ color: titleColor, fontWeight: 700 }}>{t('rememberBrowser', 'Remember this browser')}</strong>
-                  {' — '}
-                  {t('rememberBrowserDesc', "Unlock your encrypted chats on this browser using your device's fingerprint/PIN instead of this passphrase. Your passphrase still works everywhere and is the only way to recover this on a new device.")}
-                </span>
-              </label>
-            )}
             <button type="submit" disabled={isSubmitting} className="stay-white" style={submitBtnStyle(isSubmitting)}>
               {isSubmitting ? t('encUnlocking', 'Unlocking...') : t('encUnlockBtn', 'Unlock')}
             </button>
@@ -366,17 +346,6 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
                 onChange={e => setNewConfirmPassphrase(e.target.value)}
               />
             </div>
-            {canRememberBrowser && (
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                <input type="checkbox" checked={rememberBrowser} onChange={e => setRememberBrowser(e.target.checked)}
-                  style={{ marginTop: 3, width: 16, height: 16, accentColor: 'var(--brand-1)', cursor: 'pointer', flexShrink: 0 }} />
-                <span style={{ fontSize: 12.5, lineHeight: 1.5, color: descColor }}>
-                  <strong style={{ color: titleColor, fontWeight: 700 }}>{t('rememberBrowser', 'Remember this browser')}</strong>
-                  {' — '}
-                  {t('rememberBrowserDesc', "Unlock your encrypted chats on this browser using your device's fingerprint/PIN instead of this passphrase. Your passphrase still works everywhere and is the only way to recover this on a new device.")}
-                </span>
-              </label>
-            )}
             <button type="submit" disabled={isSubmitting} className="stay-white" style={submitBtnStyle(isSubmitting)}>
               {isSubmitting ? t('encRecovering', 'Recovering...') : t('encRecoverBtn', 'Recover & set new passphrase')}
             </button>

@@ -23,21 +23,6 @@ import {
   hasDeviceUnlock as nativeHasDeviceUnlock,
 } from '../lib/deviceUnlock.js';
 import { isStrictDeviceUnlockEnabled, setStrictDeviceUnlockEnabled } from '../lib/deviceUnlockSettings.js';
-// Browser-only WebAuthn "Remember this browser" device unlock — entirely
-// separate code path from the native Android/Windows imports above (see
-// browserDeviceUnlock.js's own header comment on why the two never share
-// code). No aliasing needed: no name here collides with the native imports.
-import {
-  isBrowserDeviceUnlockAvailable,
-  hasBrowserDeviceUnlock,
-  enrollBrowser,
-  unlockViaBrowser,
-  forgetBrowser,
-  describeBrowserDeviceUnlockError,
-} from '../lib/browserDeviceUnlock.js';
-// TEMPORARY MOBILE DIAGNOSTIC (see tryRestoreViaBrowserUnlock below) —
-// remove this import once the real unlock failure is identified.
-import toast from 'react-hot-toast';
 
 // Stage 5 fix: the missing half of Stage 4. Every place in this file/
 // Login.jsx/EncryptionUnlockGate.jsx that successfully obtains this
@@ -160,52 +145,6 @@ async function tryRestoreViaDeviceUnlock(serverPublicKeyB64, isCancelled = () =>
     }
   }
   return null;
-}
-
-// Browser "Remember this browser" restore — the third link in the restore
-// chain (warm session -> Android/Windows native -> THIS -> passphrase/
-// recovery). Deliberately a single attempt, no retry loop (unlike
-// tryRestoreViaDeviceUnlock above): that function's retries exist
-// specifically for a cold native-app launch racing the WebView's own
-// network stack coming up, which doesn't apply to an ordinary browser tab.
-// Same verify-before-trust contract as the native version and as
-// EncryptionUnlockGate.jsx's own device-unlock check: the recovered key is
-// only ever trusted after independently re-deriving its public key and
-// comparing it to the server's ACTUAL public key. Returns null on ANY
-// failure — unavailable, not enrolled, ceremony declined, server
-// rejection, stale wrapper, public-key mismatch — every caller below
-// treats null identically: fall back to the existing passphrase/recovery
-// UI, exactly like a failed native attempt does.
-async function tryRestoreViaBrowserUnlock(serverPublicKeyB64) {
-  if (!serverPublicKeyB64) return null; // nothing to verify against — never attempt
-  if (!isBrowserDeviceUnlockAvailable()) return null;
-  try {
-    const secretKey = await unlockViaBrowser();
-    const kp = nacl.box.keyPair.fromSecretKey(secretKey);
-    if (encodeBase64(kp.publicKey) !== serverPublicKeyB64) {
-      console.warn('[CryptoContext] Browser device unlock returned a key that does not match the server public key — discarding and falling back to passphrase/recovery.');
-      // TEMPORARY MOBILE DIAGNOSTIC — remove once the real failure is
-      // identified. Never any secret, just confirms which branch ran.
-      toast.error('[debug unlock] decrypted OK but PUBLIC_KEY_MISMATCH against server', { duration: 20000 });
-      return null;
-    }
-    return kp;
-  } catch (e) {
-    // NOT_AVAILABLE, NOT_AUTHENTICATED, NO_LOCAL_WRAPPER, NO_CREDENTIALS,
-    // GET_FAILED (ceremony cancelled/failed), PRF_NOT_CONFIRMED,
-    // VERIFICATION_FAILED (server rejected the assertion), STALE_WRAPPER,
-    // or any unexpected error — all mean the same thing here: no key via
-    // this path this time. browserDeviceUnlock.js's unlockViaBrowser
-    // already handles clearing a genuinely stale local wrapper itself; this
-    // function's only job is the same fallback every other device-unlock
-    // failure mode already gets.
-    const diag = describeBrowserDeviceUnlockError(e);
-    console.warn('[CryptoContext] Browser device unlock not used, falling back to passphrase/recovery:', diag);
-    // TEMPORARY MOBILE DIAGNOSTIC — remove once the real failure is
-    // identified. Never any secret: {code, name, message} only.
-    toast.error(`[debug unlock] ${diag.code}/${diag.name}/${diag.message}`, { duration: 20000 });
-    return null;
-  }
 }
 
 const CryptoContext = createContext(null);
@@ -386,14 +325,6 @@ export function CryptoProvider({ children }) {
           // needsReauth-on-network-failure behavior as before this stage.
           const restoredKp = serverHasExistingKey ? await tryRestoreViaDeviceUnlock(serverPublicKeyB64, () => cancelled) : null;
           if (cancelled) return; // stopped caring while the (possibly retried) restore attempt was in flight
-          // Restore order step 3: browser WebAuthn device unlock ("Remember
-          // this browser") — attempted ONLY when native (Android/Windows)
-          // restore didn't already succeed above. On native platforms this
-          // is a guaranteed no-op (isBrowserDeviceUnlockAvailable() is false
-          // there — see browserDeviceUnlock.js's own header comment), so
-          // this never races or duplicates the native attempt.
-          const restoredViaBrowser = !restoredKp && serverHasExistingKey ? await tryRestoreViaBrowserUnlock(serverPublicKeyB64) : null;
-          if (cancelled) return;
           if (restoredKp) {
             await saveKeyToSession(restoredKp.secretKey);
             setKeyPairState(restoredKp);
@@ -404,16 +335,6 @@ export function CryptoProvider({ children }) {
             // actual enrollment calls live (every password/passphrase/
             // recovery success path, none of which run when this branch does).
             console.log('[CryptoContext] Key restored via device unlock ✅');
-          } else if (restoredViaBrowser) {
-            await saveKeyToSession(restoredViaBrowser.secretKey);
-            setKeyPairState(restoredViaBrowser);
-            // Not re-enrolling here either, same reasoning as above —
-            // restoredViaBrowser only exists because a browser wrapper is
-            // ALREADY enrolled (tryRestoreViaBrowserUnlock just succeeded
-            // against it). "Remember this browser" enrollment is always an
-            // explicit, user-initiated action (the checkbox), never
-            // triggered from a successful restore.
-            console.log('[CryptoContext] Key restored via browser device unlock ✅');
           } else if (serverHasExistingKey || !serverCheckOk) {
             if (!serverCheckOk) {
               console.warn('[CryptoContext] Could not verify key status with server (network failure) — treating as needing recovery rather than risking an incorrect new keypair.');
@@ -620,54 +541,6 @@ export function CryptoProvider({ children }) {
   }, [keyPair]);
 
   /**
-   * "Remember this browser" — explicit, user-initiated (checkbox) WebAuthn
-   * PRF enrollment. Same first-device-setup guard as enrollDeviceUnlock
-   * above: there is no path from this function to generating or altering
-   * key material, and it throws rather than doing anything if there is no
-   * real E2EE key to protect yet.
-   *
-   * Accepts an OPTIONAL explicit secretKeyBytes, falling back to the
-   * current in-memory keyPair.secretKey when omitted. The explicit form
-   * matters for exactly one calling pattern: a caller (KeyRecoveryModal.jsx)
-   * that just called reloadPrivateKeyWithPassword() and wants to enroll
-   * with the key it JUST recovered, in the same handler, before this
-   * component has necessarily re-rendered with the updated `keyPair` from
-   * React state — reading the stale closed-over `keyPair` in that exact
-   * window would incorrectly throw "no key established yet" despite one
-   * having just been set. Callers that already have a stable, current
-   * keyPair (e.g. a standalone "Remember this browser" button in Profile,
-   * not chained immediately after an unlock) can simply omit the argument.
-   *
-   * Unlike enrollDeviceUnlockSilently, this is NEVER called automatically —
-   * every call site is a UI component reacting to the user explicitly
-   * checking the "Remember this browser" box, and every call site is
-   * expected to catch a rejection and show it (this function does not
-   * swallow errors the way the silent native enrollment does, since the
-   * user made an explicit choice this time and deserves to know if it
-   * didn't work).
-   */
-  const enrollBrowserDeviceUnlock = useCallback(async (secretKeyBytes) => {
-    if (localStorage.getItem('watch_is_guest') === 'true') {
-      throw new Error('Browser device unlock is not available for guest accounts.');
-    }
-    const keyToEnroll = secretKeyBytes || keyPair?.secretKey;
-    if (!keyToEnroll) {
-      throw new Error('No encryption key established yet — cannot remember this browser before your E2EE key exists.');
-    }
-    return enrollBrowser(keyToEnroll);
-  }, [keyPair]);
-
-  /** "Forget this browser" — see browserDeviceUnlock.js's forgetBrowser for why this only ever touches the local WebAuthn wrapper, never anything else. */
-  const forgetBrowserDeviceUnlock = useCallback(async () => {
-    await forgetBrowser();
-  }, []);
-
-  /** Convenience check for UI: is "Remember this browser" enrolled for the current account on THIS browser? */
-  const checkBrowserDeviceUnlockEnrolled = useCallback(async () => {
-    return hasBrowserDeviceUnlock();
-  }, []);
-
-  /**
    * Profile → Device Unlock → "Require fingerprint every time I open the
    * app" toggle handler. An Android Keystore key's authentication policy
    * (30-minute silent-reuse window vs. authenticate-on-every-use) is fixed
@@ -761,11 +634,6 @@ export function CryptoProvider({ children }) {
       keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock,
       enrollDeviceUnlock, enrollDeviceUnlockSilently, forgetDeviceUnlock, checkDeviceUnlockEnrolled,
       setDeviceUnlockRequireEveryOpen, isDeviceUnlockRequireEveryOpenEnabled: isStrictDeviceUnlockEnabled,
-      // Browser "Remember this browser" WebAuthn device unlock — see each
-      // function's own doc comment above. isBrowserDeviceUnlockAvailable is
-      // the plain imported function itself (sync, no hook state involved),
-      // same pattern isDeviceUnlockRequireEveryOpenEnabled above already uses.
-      enrollBrowserDeviceUnlock, forgetBrowserDeviceUnlock, checkBrowserDeviceUnlockEnrolled, isBrowserDeviceUnlockAvailable,
     }}>
       {children}
     </CryptoContext.Provider>

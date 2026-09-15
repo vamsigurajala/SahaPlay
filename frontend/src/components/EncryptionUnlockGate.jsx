@@ -29,19 +29,25 @@
  * 'encryption_needs_passphrase' funnel through (Login.jsx's handleLogin,
  * and CryptoContext's switchToPassphraseUnlock via KeyRecoveryModal's "use
  * passphrase instead"), which makes it the single choke point for
- * shortcutting the passphrase prompt on Android — exactly the repeated
- * re-entry this feature exists to remove. Every event `detail` here already
- * carries the account's real, server-confirmed `publicKey`, so the same
- * verify-before-trust rule CryptoContext's own cold-start path uses applies
- * here identically: a device-unlock result is only ever accepted if its
- * re-derived public key matches `ctx.publicKey`. On failure (unavailable,
- * not enrolled, network, biometric cancel, mismatch, anything) this simply
- * falls through to rendering the exact same passphrase modal as before
- * device unlock existed — never a raw native error, never a silent no-op.
+ * shortcutting the passphrase prompt on Android/Windows. Every event
+ * `detail` here already carries the account's real, server-confirmed
+ * `publicKey`, so the same verify-before-trust rule CryptoContext's own
+ * cold-start path uses applies here identically: a device-unlock result is
+ * only ever accepted if its re-derived public key matches `ctx.publicKey`.
+ * On failure (unavailable, not enrolled, network, biometric cancel,
+ * mismatch, anything) this simply falls through to rendering the exact
+ * same passphrase modal as before device unlock existed — never a raw
+ * native error, never a silent no-op.
+ *
+ * Native (Android/Windows) device unlock ONLY — a plain browser tab always
+ * goes straight to the passphrase modal below. An earlier version of this
+ * app also offered a browser-only WebAuthn PRF "Remember this browser"
+ * shortcut; it was removed after repeated production failures across
+ * different browsers/authenticators (PRF support is inconsistent enough
+ * across real devices that it was never reliable) in favor of always
+ * asking for the passphrase on a plain browser tab, which always works.
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
-import toast from 'react-hot-toast';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { useCrypto } from '../contexts/CryptoContext';
@@ -49,36 +55,23 @@ import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, hashRecovery
 import { API } from '../lib/api';
 import { isCapacitorApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
-import {
-  isBrowserDeviceUnlockAvailable,
-  unlockViaBrowser,
-  describeBrowserDeviceUnlockError,
-  isPrfUnsupportedError,
-} from '../lib/browserDeviceUnlock.js';
 import OAuthEncryptionModal from './OAuthEncryptionModal';
 
 export default function EncryptionUnlockGate() {
-  const { t } = useTranslation();
-  const { setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock } = useCrypto();
+  const { setKeyPair, enrollDeviceUnlockSilently } = useCrypto();
   const [ctx, setCtx] = useState(null); // { encryptedPrivateKey, publicKey, token }
-  // While true, the passphrase modal stays hidden — set whenever EITHER a
-  // native (Android/Windows) OR a browser WebAuthn device-unlock attempt is
-  // genuinely worth trying, so it never delays or hides the modal when
-  // neither applies. Production bug this closes: this event fires on every
-  // in-session login for a migrated/independent-passphrase account (see
-  // this file's own header comment), which is NOT the same moment as
-  // CryptoContext's own cold-start mount effect (only a fresh page LOAD
-  // with an already-existing token) — browser unlock had only ever been
-  // wired into that cold-start path, so a normal "log out, log back in"
-  // within the same tab always skipped straight to this passphrase prompt
-  // even with "Remember this browser" successfully enrolled.
+  // While true, the passphrase modal stays hidden — set whenever a native
+  // (Android/Windows) device-unlock attempt is genuinely worth trying, so
+  // it never delays or hides the modal when it isn't available. Browser
+  // (plain web tab) unlock always goes straight to the passphrase prompt —
+  // see this file's header comment.
   const [checkingDeviceUnlock, setCheckingDeviceUnlock] = useState(false);
 
   useEffect(() => {
     const handler = (e) => {
       if (e.detail?.encryptedPrivateKey) {
         setCtx(e.detail);
-        setCheckingDeviceUnlock((isCapacitorApp() && isDeviceUnlockAvailable()) || isBrowserDeviceUnlockAvailable());
+        setCheckingDeviceUnlock(isCapacitorApp() && isDeviceUnlockAvailable());
       }
     };
     window.addEventListener('encryption_needs_passphrase', handler);
@@ -119,84 +112,21 @@ export default function EncryptionUnlockGate() {
           console.warn('[EncryptionUnlockGate] Device unlock not used, falling back to the passphrase prompt:', e?.code || e?.message || e);
         }
       }
-      if (cancelled) return;
-
-      // Step 2: browser WebAuthn "Remember this browser" — same
-      // verify-before-trust rule as native above. Never re-enrolls, same
-      // reasoning as step 1.
-      if (isBrowserDeviceUnlockAvailable()) {
-        try {
-          const secretKey = await unlockViaBrowser();
-          const kp = nacl.box.keyPair.fromSecretKey(secretKey);
-          if (ctx.publicKey && encodeBase64(kp.publicKey) === ctx.publicKey) {
-            if (!cancelled) {
-              await setKeyPair(kp);
-              setCtx(null);
-            }
-            return;
-          }
-          console.warn('[EncryptionUnlockGate] Browser device unlock key did not match the server public key — falling back to the passphrase prompt.');
-        } catch (e) {
-          const diag = describeBrowserDeviceUnlockError(e);
-          console.warn('[EncryptionUnlockGate] Browser device unlock not used, falling back to the passphrase prompt:', diag);
-          // TEMPORARY MOBILE DIAGNOSTIC — remove once the real failure is
-          // identified. Never any secret: {code, name, message} only.
-          // Skips NOT_AVAILABLE/NO_LOCAL_WRAPPER — the two totally expected,
-          // non-error "nothing enrolled here" states, not worth surfacing.
-          // Gated on `cancelled` like every other UI-affecting branch in
-          // this effect — an unmounted instance's stale in-flight ceremony
-          // resolving late must never pop a toast into whatever is
-          // currently on screen.
-          if (!cancelled && diag.code !== 'NOT_AVAILABLE' && diag.code !== 'NO_LOCAL_WRAPPER') {
-            toast.error(`[debug unlock2] ${diag.code}/${diag.name}/${diag.message}`, { duration: 20000 });
-          }
-        }
-      }
 
       if (!cancelled) setCheckingDeviceUnlock(false);
     })();
     return () => { cancelled = true; };
   }, [ctx, checkingDeviceUnlock, setKeyPair]);
 
-  // rememberBrowser: explicit, user-initiated only (the "Remember this
-  // browser" checkbox OAuthEncryptionModal now renders on this exact
-  // view) — deliberately a SEPARATE try/catch from the unlock itself, same
-  // reasoning as KeyRecoveryModal.jsx's own handleSubmit: a failure here
-  // must never look like the passphrase/unlock failed.
-  const handleUnlock = useCallback(async (passphrase, rememberBrowser) => {
+  const handleUnlock = useCallback(async (passphrase) => {
     const secretKey = await decryptPrivateKey(ctx.encryptedPrivateKey, passphrase);
     const kp = nacl.box.keyPair.fromSecretKey(secretKey);
     await setKeyPair(kp);
     enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
-    if (rememberBrowser) {
-      // Explicit, user-initiated only (the checkbox) — separate try/catch
-      // from the unlock itself, same reasoning as KeyRecoveryModal.jsx's own
-      // handleSubmit: a failure here must never look like the passphrase
-      // unlock failed, and must never be silent — the user made a real
-      // choice here and deserves to know if it didn't work (this modal used
-      // to only console.warn and close, which is exactly why the earlier
-      // production report of this looked like a "silent" failure).
-      try { await enrollBrowserDeviceUnlock(kp.secretKey); }
-      catch (e) {
-        const diag = describeBrowserDeviceUnlockError(e);
-        console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', diag);
-        // TEMPORARY MOBILE DIAGNOSTIC — remove once the real failure is
-        // identified. Appends the exact {code, name, message} (never any
-        // secret) to the visible toast so it can be read/screenshotted on
-        // a phone with no DevTools access.
-        toast.error(
-          (isPrfUnsupportedError(e)
-            ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
-            : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."))
-          + ` [debug: ${diag.code}/${diag.name}/${diag.message}]`,
-          { duration: 20000 }
-        );
-      }
-    }
     setCtx(null);
-  }, [ctx, setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock, t]);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
-  const handleRecover = useCallback(async (phrase, newPassphrase, rememberBrowser) => {
+  const handleRecover = useCallback(async (phrase, newPassphrase) => {
     const secretKey = await mnemonicToSecretKey(phrase);
     const kp = nacl.box.keyPair.fromSecretKey(secretKey);
     if (encodeBase64(kp.publicKey) !== ctx.publicKey) {
@@ -212,26 +142,8 @@ export default function EncryptionUnlockGate() {
     if (!res.ok) throw new Error('Failed to save your encryption key. Please try again.');
     await setKeyPair(kp);
     enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
-    if (rememberBrowser) {
-      try { await enrollBrowserDeviceUnlock(kp.secretKey); }
-      catch (e) {
-        const diag = describeBrowserDeviceUnlockError(e);
-        console.warn('[EncryptionUnlockGate] "Remember this browser" enrollment failed:', diag);
-        // TEMPORARY MOBILE DIAGNOSTIC — remove once the real failure is
-        // identified. Appends the exact {code, name, message} (never any
-        // secret) to the visible toast so it can be read/screenshotted on
-        // a phone with no DevTools access.
-        toast.error(
-          (isPrfUnsupportedError(e)
-            ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
-            : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."))
-          + ` [debug: ${diag.code}/${diag.name}/${diag.message}]`,
-          { duration: 20000 }
-        );
-      }
-    }
     setCtx(null);
-  }, [ctx, setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock, t]);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
   if (!ctx || checkingDeviceUnlock) return null;
 

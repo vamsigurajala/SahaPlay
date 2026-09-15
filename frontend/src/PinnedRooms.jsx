@@ -106,6 +106,18 @@ const PinnedRooms = () => {
           .rooms-grid { grid-template-columns:repeat(2, 1fr); gap:12px; }
           .img-layer { height:100px; }
           .footer-layer { padding:8px 10px; }
+          /* Smooth scrolling on mobile (notably the Android app WebView):
+             backdrop-filter forces a per-frame GPU blur recomposite behind
+             every element that uses it, and with a full grid of room cards
+             on screen at once, that's dozens of blur layers recomposited on
+             every scroll frame — the actual cause of the reported scroll
+             stutter/jank. A flat, slightly more opaque background reads the
+             same at this size without the compositing cost; desktop keeps
+             the blur. */
+          .cat-badge, .room-id-badge, .unpin-btn {
+            backdrop-filter: none !important;
+            background: rgba(0,0,0,0.6) !important;
+          }
         }
         @media (min-width: 641px) and (max-width: 900px) {
           .rooms-grid { grid-template-columns:repeat(2, 1fr); gap:16px; }

@@ -572,6 +572,18 @@ const Home = () => {
           .chat-demo-inner{ flex-direction:column !important; gap:32px !important; }
           /* faq */
           .faq-q{ font-size:14px !important; padding:14px 16px !important; }
+          /* Smooth scrolling on mobile (notably the Android app WebView):
+             backdrop-filter forces a per-frame GPU blur recomposite behind
+             every element that uses it, and with a full grid of pinned-room
+             cards (each carrying up to 3 of these small badges) on screen at
+             once, that's dozens of blur layers recomposited on every scroll
+             frame — the actual cause of the reported scroll stutter/jank.
+             A flat, slightly more opaque background reads the same at this
+             size without the compositing cost; desktop keeps the blur. */
+          .cat-badge, .room-id-badge, .unpin-btn {
+            backdrop-filter: none !important;
+            background: rgba(0,0,0,0.6) !important;
+          }
         }
       `}</style>
 
