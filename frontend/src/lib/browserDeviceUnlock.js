@@ -639,7 +639,29 @@ export async function unlockViaBrowser() {
   try {
     await authedFetch('/api/auth/webauthn/auth-verify', { response: credentialToJSON(assertion) });
   } catch (e) {
-    throw e instanceof BrowserDeviceUnlockError ? e : new BrowserDeviceUnlockError('AUTH_VERIFY_FAILED', e?.message);
+    const err = e instanceof BrowserDeviceUnlockError ? e : new BrowserDeviceUnlockError('AUTH_VERIFY_FAILED', e?.message);
+    if (err.code === 'ACCOUNT_MISMATCH') {
+      // The server just told us — authoritatively, via its own account-
+      // scoped lookup (server.js's auth-verify route) — that the
+      // credential the platform picker actually returned belongs to a
+      // DIFFERENT account than the one signed in right now (e.g. the OS
+      // offered a different synced passkey than the one THIS wrapper
+      // record was created for; a real case seen with Android's Google
+      // Password Manager when multiple accounts each have a saved
+      // sahaplay.com passkey). That local wrapper record can never succeed
+      // for the CURRENT account again, so self-heal exactly like the
+      // decrypt-failure/STALE_WRAPPER case below: clear it so the next
+      // attempt starts a clean re-enrollment instead of repeating the same
+      // doomed ceremony on every login. This never touches or weakens the
+      // server's own account-scoping check above — only local bookkeeping
+      // for a wrapper already proven unusable here. Deliberately does NOT
+      // call /forget: that route is itself account-scoped to the CURRENT
+      // account, and the mismatched credential belongs to a different one
+      // — it would be a guaranteed no-op, and only that credential's own
+      // rightful account should ever be able to forget it.
+      await deleteWrapperRecord(account.accountId).catch(() => {});
+    }
+    throw err;
   }
 
   const prfOutput = extractPrfOutput(assertion);

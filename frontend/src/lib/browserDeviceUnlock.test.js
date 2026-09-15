@@ -106,6 +106,9 @@ function installBackend({ myKeysPublicKeyB64, registeredCredentialIds = [], fail
       return { ok: true, json: async () => fakeAuthOptionsJSON(registeredCredentialIds) };
     }
     if (u.includes('/api/auth/webauthn/auth-verify')) {
+      if (failAuthVerify === 'ACCOUNT_MISMATCH') {
+        return { ok: false, status: 403, json: async () => ({ error: 'This credential is not registered to your account.', code: 'ACCOUNT_MISMATCH' }) };
+      }
       if (failAuthVerify) return { ok: false, status: 400, json: async () => ({ error: 'verification failed', code: 'VERIFICATION_FAILED' }) };
       return { ok: true, json: async () => ({ verified: true }) };
     }
@@ -542,6 +545,32 @@ describe('browserDeviceUnlock.js', () => {
       // Local wrapper must still exist — an ambiguous server failure is not
       // proof the wrapper itself is unusable.
       expect(await hasBrowserDeviceUnlock()).toBe(true);
+    });
+
+    // Production follow-up: a real Android device with multiple synced
+    // Google Password Manager passkeys for sahaplay.com (across different
+    // accounts tested on the same device) produced exactly this — the
+    // platform's own picker returned a credential belonging to a DIFFERENT
+    // account than the one signed in, and the server's own account-scoped
+    // lookup correctly refused it. Unlike a generic VERIFICATION_FAILED
+    // (above — left alone, ambiguous), an ACCOUNT_MISMATCH is unambiguous:
+    // the server has authoritatively proven THIS wrapper can never succeed
+    // for the CURRENT account, so it self-heals exactly like STALE_WRAPPER.
+    test('server reports ACCOUNT_MISMATCH (the platform returned a credential belonging to a different account): unlock fails AND the local wrapper is cleared automatically', async () => {
+      installEmulator({ hmacSecret: 'hmac-secret-mc' });
+      await setUpLoggedInAccount();
+      const kp = nacl.box.keyPair();
+      installBackend({ myKeysPublicKeyB64: encodeBase64(kp.publicKey) });
+      const { credentialId } = await enrollBrowser(kp.secretKey);
+      expect(await hasBrowserDeviceUnlock()).toBe(true);
+
+      installBackend({ myKeysPublicKeyB64: encodeBase64(kp.publicKey), registeredCredentialIds: [credentialId], failAuthVerify: 'ACCOUNT_MISMATCH' });
+      await expect(unlockViaBrowser()).rejects.toMatchObject({ code: 'ACCOUNT_MISMATCH' });
+      // Unlike the ambiguous VERIFICATION_FAILED case above, this one DOES
+      // clear the local wrapper — the next login attempt gets a clean
+      // re-enrollment offer instead of repeating the same doomed ceremony
+      // forever.
+      expect(await hasBrowserDeviceUnlock()).toBe(false);
     });
 
     test('recreated/deleted credential: the ceremony+server-verify succeed but the wrapper can no longer decrypt -> STALE_WRAPPER, and the stale local enrollment is cleared automatically', async () => {
