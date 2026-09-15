@@ -6892,6 +6892,10 @@ const Room = () => {
             mediaDuration: msg.mediaDuration || null,
             forwarded: true,
             mediaGroupId: (isMedia && forwardGroupId && ((msg.mediaType || '').startsWith('image/') || (msg.mediaType || '').startsWith('video/'))) ? forwardGroupId : null,
+            // See the identical comment on GlobalChatWidget.jsx's own
+            // forwardMessages/handleForwardSend — missing this meant a
+            // forwarded poll rendered as raw JSON at the destination.
+            isPoll: !!msg.isPoll || isPollJSON(msg.decryptedText) || isPollJSON(msg.message),
           };
           const kp = myKeyPair.current;
           if (isMedia) {

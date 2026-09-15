@@ -6684,6 +6684,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
             mediaDuration: msg.mediaDuration || null,
             forwarded: true,
             mediaGroupId: (isMedia && forwardGroupId && ((msg.mediaType || '').startsWith('image/') || (msg.mediaType || '').startsWith('video/'))) ? forwardGroupId : null,
+            // Missing meant a forwarded poll's content (still genuinely a
+            // poll — recoverDmText below just carries its JSON through like
+            // any other text) landed with is_poll unset at the destination,
+            // so it rendered as raw JSON there instead of a real poll UI —
+            // the render side gates strictly on isPoll, never sniffing
+            // content shape. isPollJSON is a safety net for msg.isPoll
+            // itself being unset (an older/other gap this session already
+            // found and fixed server-side, but a stale client-side copy of
+            // that same message could still be missing it).
+            isPoll: !!msg.isPoll || isPollJSON(msg.decryptedText) || isPollJSON(msg.message),
           };
           if (isMedia) {
             let mediaKeyB64 = null;
