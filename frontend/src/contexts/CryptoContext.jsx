@@ -33,7 +33,11 @@ import {
   enrollBrowser,
   unlockViaBrowser,
   forgetBrowser,
+  describeBrowserDeviceUnlockError,
 } from '../lib/browserDeviceUnlock.js';
+// TEMPORARY MOBILE DIAGNOSTIC (see tryRestoreViaBrowserUnlock below) —
+// remove this import once the real unlock failure is identified.
+import toast from 'react-hot-toast';
 
 // Stage 5 fix: the missing half of Stage 4. Every place in this file/
 // Login.jsx/EncryptionUnlockGate.jsx that successfully obtains this
@@ -180,6 +184,9 @@ async function tryRestoreViaBrowserUnlock(serverPublicKeyB64) {
     const kp = nacl.box.keyPair.fromSecretKey(secretKey);
     if (encodeBase64(kp.publicKey) !== serverPublicKeyB64) {
       console.warn('[CryptoContext] Browser device unlock returned a key that does not match the server public key — discarding and falling back to passphrase/recovery.');
+      // TEMPORARY MOBILE DIAGNOSTIC — remove once the real failure is
+      // identified. Never any secret, just confirms which branch ran.
+      toast.error('[debug unlock] decrypted OK but PUBLIC_KEY_MISMATCH against server', { duration: 20000 });
       return null;
     }
     return kp;
@@ -192,7 +199,11 @@ async function tryRestoreViaBrowserUnlock(serverPublicKeyB64) {
     // already handles clearing a genuinely stale local wrapper itself; this
     // function's only job is the same fallback every other device-unlock
     // failure mode already gets.
-    console.warn('[CryptoContext] Browser device unlock not used, falling back to passphrase/recovery:', e?.code || e?.message || e);
+    const diag = describeBrowserDeviceUnlockError(e);
+    console.warn('[CryptoContext] Browser device unlock not used, falling back to passphrase/recovery:', diag);
+    // TEMPORARY MOBILE DIAGNOSTIC — remove once the real failure is
+    // identified. Never any secret: {code, name, message} only.
+    toast.error(`[debug unlock] ${diag.code}/${diag.name}/${diag.message}`, { duration: 20000 });
     return null;
   }
 }

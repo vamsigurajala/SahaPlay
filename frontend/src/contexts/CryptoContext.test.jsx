@@ -20,6 +20,11 @@ vi.mock('../lib/browserDeviceUnlock.js', () => ({
   unlockViaBrowser: vi.fn(async () => { throw new Error('not mocked in this test'); }),
   enrollBrowser: vi.fn(async () => { throw new Error('not mocked in this test'); }),
   forgetBrowser: vi.fn(async () => {}),
+  describeBrowserDeviceUnlockError: vi.fn((e) => ({
+    code: e?.code ?? null,
+    name: e?.originalName ?? e?.name ?? null,
+    message: e?.originalMessage ?? e?.message ?? null,
+  })),
 }));
 
 // Security verification pass, "Bug A": clearUserSession() (the function
