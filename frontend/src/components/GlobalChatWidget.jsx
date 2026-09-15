@@ -4025,7 +4025,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
               const notifBody = isHidden ? msgStr : finalizedPreview;
               // chatId/type let a click open this exact chat — see
               // showDesktopNotification's own comment on the 4th param.
-              showDesktopNotification(isGroup ? groupName : msgSender, notifBody, partnerLower, { chatId: partner, type: isGroup ? 'room' : 'dm' });
+              // 5th param (Tauri/.exe only, see that same comment): this
+              // exact chat/room is already open somewhere in the app
+              // (skipToast, computed above) — stay silent instead of also
+              // popping a Windows toast for a message the user can already
+              // see live in that panel.
+              showDesktopNotification(isGroup ? groupName : msgSender, notifBody, partnerLower, { chatId: partner, type: isGroup ? 'room' : 'dm' }, isTauriApp() && skipToast);
             }
           }
         }

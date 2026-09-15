@@ -192,10 +192,24 @@ function buildBrowserNotification(title, body, tag, data) {
 // own notification tap already produces. Omit for notifications with
 // nowhere specific to navigate (e.g. calls, which already surface their
 // own always-mounted GlobalCallOverlay).
-export function showDesktopNotification(title, body, tag, data) {
+//
+// skipIfChatOpen: Tauri/.exe only (see the branch below — the plain-
+// browser path never reads this param at all). GlobalChatWidget.jsx
+// already computes "is the user currently looking at THIS exact
+// conversation somewhere in the app" (its own in-page toast suppression,
+// `skipToast`) — this just reuses that same signal for the OS-level
+// toast too, specifically for desktop. Explicit ask: a room/chat left
+// open while the user is in a different application entirely should stay
+// silent (they're already looking at the message live in that panel);
+// only a message for a chat that ISN'T currently open anywhere in the app
+// should produce a real Windows toast. Deliberately NOT applied to the
+// window-focus check right below — that one is "is the app on-screen at
+// all," which stays exactly as it was.
+export function showDesktopNotification(title, body, tag, data, skipIfChatOpen = false) {
   if (isCapacitorApp()) return;
   if (typeof document === 'undefined') return;
   if (isTauriApp()) {
+    if (skipIfChatOpen) return null;
     isTauriWindowActuallyOnScreen().then((onScreen) => {
       if (!onScreen) showTauriToast(title, body, tag, data);
     });
