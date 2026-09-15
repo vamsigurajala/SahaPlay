@@ -252,6 +252,17 @@ const Navbar = () => {
       openChatFromTapData(chatData);
     };
     window.addEventListener('open_chat_from_notification', handler);
+    // Cold start: desktopNotify.js's toast-click bridge registers its own
+    // Tauri event listener asynchronously (a dynamic import), so a click
+    // that cold-starts/wakes the app can resolve before either that or this
+    // component's own listener is attached — same race nativePush.js's own
+    // pendingTap comment documents for the native Android app, sharing the
+    // exact same cache here rather than losing the tap outright.
+    const pending = peekPendingNotificationTap();
+    if (pending?.chatId) {
+      clearPendingNotificationTap();
+      handler({ detail: pending });
+    }
     return () => window.removeEventListener('open_chat_from_notification', handler);
   }, []);
 

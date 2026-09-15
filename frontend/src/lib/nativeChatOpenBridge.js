@@ -1,4 +1,5 @@
 import { isCapacitorApp } from './platform';
+import { setPendingNotificationTap } from './nativePush';
 
 // Bridges a tapped message notification (built manually by
 // SahaplayFirebaseMessagingService.java — see its own comment for why a
@@ -25,6 +26,15 @@ export function initNativeChatOpenLink(onOpen) {
     const chatId = params.get('chatId');
     const type = params.get('type');
     if (!chatId) return;
-    onOpen({ type: type || 'dm', chatId });
+    const data = { type: type || 'dm', chatId };
+    console.log('[nativeChatOpenBridge] appUrlOpen chat-open link fired:', data);
+    // A cold start's deep link can resolve before BottomNav.jsx/Navbar.jsx
+    // have mounted their own 'open_chat_from_notification' listener — see
+    // setPendingNotificationTap's own comment for why this is the same
+    // recoverable-cache mechanism nativePush.js already uses for the other
+    // notification-tap delivery path. Set BEFORE dispatching, same order
+    // nativePush.js's own listener uses.
+    setPendingNotificationTap(data);
+    onOpen(data);
   });
 }

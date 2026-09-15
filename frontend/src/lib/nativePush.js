@@ -45,6 +45,20 @@ export function peekPendingNotificationTap() {
 export function clearPendingNotificationTap() {
   pendingTap = null;
 }
+// Lets a SEPARATE cold-start delivery path (nativeChatOpenBridge.js's
+// sahaplay://chat-open deep link — a plain-text chat-message notification
+// tap never goes through pushNotificationActionPerformed at all, see that
+// file's own comment) share this exact same cache/peek/clear mechanism,
+// instead of every consumer (BottomNav.jsx/Navbar.jsx/Room.jsx) needing to
+// duplicate a second peek call for a second cache. Same reasoning as the
+// pendingTap comment above: initNativeChatOpenLink is wired up before React
+// even starts rendering, but the deep-link event itself can still resolve
+// before BottomNav.jsx's own listener has mounted, and a DOM CustomEvent
+// dispatched with nothing listening is just lost — this is what makes that
+// tap recoverable instead.
+export function setPendingNotificationTap(data) {
+  pendingTap = data;
+}
 
 function authHeaders() {
   const token = localStorage.getItem('watch_token');

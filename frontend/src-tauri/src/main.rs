@@ -74,6 +74,23 @@ fn show_windows_toast(app: AppHandle, title: String, body: String, tag: String, 
                     let _ = window.show();
                     let _ = window.set_focus();
                 }
+                // Same "the user just reopened" signal the tray "open" item
+                // and the single-instance relaunch handler below already
+                // emit on their own reopen paths — this was the missing
+                // third one. Without it, clicking a notification while the
+                // window was hidden (CloseRequested's handler below never
+                // actually quits the app, only hides it — see its own
+                // comment) skipped CryptoContext.jsx's strict-mode re-check
+                // entirely: the window came back on screen, but nothing
+                // ever re-ran Windows Hello or re-derived the key, so a
+                // strict-mode account sat on an already-cleared keyPair
+                // (cleared by "desktop_window_hidden" when it was closed)
+                // forever, with no code path left to unstick it. A toast is
+                // never shown while the window is already on-screen (see
+                // desktopNotify.js's isTauriWindowActuallyOnScreen check), so
+                // this always corresponds to a genuine reopen here, never a
+                // spurious re-prompt while the user is already in the app.
+                let _ = activate_handle.emit("desktop_window_shown", ());
                 let _ = activate_handle.emit("desktop_toast_clicked", launch_data.clone());
                 Ok(())
             });
