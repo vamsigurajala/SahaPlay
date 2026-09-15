@@ -43,6 +43,9 @@ const Profile = () => {
   // or the server can change underneath this component).
   const [requireFingerprintEveryOpen, setRequireFingerprintEveryOpen] = useState(() => isDeviceUnlockRequireEveryOpenEnabled());
   const [savingDeviceUnlockSetting, setSavingDeviceUnlockSetting] = useState(false);
+  // Mobile app only — click-to-expand for the "Require fingerprint every
+  // time I open the app" row's label (see its own render comment below).
+  const [deviceUnlockLabelExpanded, setDeviceUnlockLabelExpanded] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
   // This page hand-rolls its own nav instead of reusing the shared
@@ -2267,11 +2270,30 @@ const Profile = () => {
               {openSection === 'deviceUnlock' && (
                 <div className="acc-body">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ color: '#fff', fontSize: 14, flex: 1 }}>
-                      {isTauriApp()
-                        ? t('requireWindowsHelloEveryOpen', 'Require Windows Hello every time I open the app')
-                        : t('requireFingerprintEveryOpen', 'Require fingerprint every time I open the app')}
-                    </span>
+                    {isCapacitorApp() ? (
+                      // Mobile app only (per its own request — the Windows
+                      // desktop app below is untouched): same click-to-
+                      // expand single-line pattern as AppSettings.jsx's
+                      // notification rows (NotifRowText) — this label was
+                      // wrapping to 2 lines next to the toggle, which read
+                      // as visually inconsistent with every other settings
+                      // toggle row in the app.
+                      <span
+                        onClick={() => setDeviceUnlockLabelExpanded(v => !v)}
+                        style={{
+                          color: '#fff', fontSize: 14, flex: 1, minWidth: 0, cursor: 'pointer',
+                          overflow: deviceUnlockLabelExpanded ? 'visible' : 'hidden',
+                          textOverflow: deviceUnlockLabelExpanded ? 'clip' : 'ellipsis',
+                          whiteSpace: deviceUnlockLabelExpanded ? 'normal' : 'nowrap',
+                        }}
+                      >
+                        {t('requireFingerprintEveryOpen', 'Require fingerprint every time I open the app')}
+                      </span>
+                    ) : (
+                      <span style={{ color: '#fff', fontSize: 14, flex: 1 }}>
+                        {t('requireWindowsHelloEveryOpen', 'Require Windows Hello every time I open the app')}
+                      </span>
+                    )}
                     <ToggleSwitch
                       checked={requireFingerprintEveryOpen}
                       disabled={savingDeviceUnlockSetting}
@@ -2311,11 +2333,23 @@ const Profile = () => {
                       }}
                     />
                   </div>
-                  <div className="field-label" style={{ marginTop: 8 }}>
-                    {isTauriApp()
-                      ? t('requireWindowsHelloEveryOpenDesc', 'When enabled, SahaPlay will ask for Windows Hello each time you reopen the app after closing it.')
-                      : t('requireFingerprintEveryOpenDesc', 'When enabled, SahaPlay will ask for fingerprint/device authentication each time you reopen the app.')}
-                  </div>
+                  {isCapacitorApp() ? (
+                    // Mobile app only — same "info box" treatment as
+                    // AppSettings.jsx's background-notifications callout,
+                    // but a different shade (purple, matching this card's
+                    // own Fingerprint icon) since this is plain information,
+                    // not a warning like that one.
+                    <div style={{
+                      marginTop: 10, background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)',
+                      borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#c4b5fd', lineHeight: 1.5,
+                    }}>
+                      {t('requireFingerprintEveryOpenDesc', 'When enabled, SahaPlay will ask for fingerprint/device authentication each time you reopen the app.')}
+                    </div>
+                  ) : (
+                    <div className="field-label" style={{ marginTop: 8 }}>
+                      {t('requireWindowsHelloEveryOpenDesc', 'When enabled, SahaPlay will ask for Windows Hello each time you reopen the app after closing it.')}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
