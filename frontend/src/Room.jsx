@@ -6977,6 +6977,14 @@ const Room = () => {
   const sendGroupMediaRef = useRef(null);
   sendRawGroupChatRef.current = async (msgText, replyTo) => {
     if (!msgText || !socket) return;
+    // Re-hydrate from the reactive context value if the ref-sync effect
+    // hasn't fired yet — same fallback sendGroupPoll/sendPrivateChat below
+    // already use. Without it, a guest (whose keyPair is minted almost
+    // immediately on mount — see loadOrCreateGuestKeyPair) sending a
+    // message in the same tick keyPair first becomes available could still
+    // read a stale null ref and get told encryption "isn't ready" even
+    // though it plainly is.
+    if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
       return;
@@ -7120,6 +7128,7 @@ const Room = () => {
     e.preventDefault();
     if (groupEditingMessage) { editGroupMessage(); return; }
     if (!groupChatInput.trim() || !socket) return;
+    if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
       return;
@@ -7203,6 +7212,7 @@ const Room = () => {
     const target = groupEditingMessage;
     const idStr = String(target.id);
 
+    if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
       return;
@@ -7366,6 +7376,7 @@ const Room = () => {
 
   const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null, caption = '') => {
     if (!socket) return;
+    if (rawFile && !myKeyPair.current && keyPair) myKeyPair.current = keyPair;
     if (rawFile && !myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
       return;
