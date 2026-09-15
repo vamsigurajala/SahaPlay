@@ -1511,11 +1511,43 @@ export function CallProvider({ children }) {
     setIsFlippingCamera(true);
     const prevFacing = currentFacingRef.current;
     const nextFacing = prevFacing === 'environment' ? 'user' : 'environment';
+    const oldDeviceId = oldTrack.getSettings?.().deviceId;
+
+    // Some Android WebViews/browsers enumerate both physical cameras with
+    // generic labels and don't honor facingMode reliably at all — `exact`
+    // throws, and the soft (non-`exact`) facingMode fallback below is only a
+    // preference the browser is free to ignore, so it can silently re-open
+    // the SAME camera we just released instead of erroring. That's why the
+    // flip button visibly does nothing on some phones while working fine on
+    // others. Before trusting that soft fallback, try picking the OTHER
+    // physical camera explicitly by deviceId.
+    const pickDeviceIdForFacing = async (facing) => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(d => d.kind === 'videoinput');
+        if (videoInputs.length < 2) return null;
+        const pattern = facing === 'environment' ? /back|rear|environment/i : /front|user|face/i;
+        const labeled = videoInputs.find(d => pattern.test(d.label));
+        if (labeled) return labeled.deviceId;
+        const other = videoInputs.find(d => d.deviceId && d.deviceId !== oldDeviceId);
+        return other ? other.deviceId : null;
+      } catch {
+        return null;
+      }
+    };
 
     const requestFacing = async (facing) => {
       try {
         return await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: { exact: facing } } });
       } catch {
+        const deviceId = await pickDeviceIdForFacing(facing);
+        if (deviceId) {
+          try {
+            return await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, deviceId: { exact: deviceId } } });
+          } catch {
+            // fall through to plain facingMode below
+          }
+        }
         return await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: facing } });
       }
     };

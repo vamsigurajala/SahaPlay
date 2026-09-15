@@ -9537,6 +9537,7 @@ const Room = () => {
     if (!oldTrack) return;
     const nextFacing = camFacingMode === 'environment' ? 'user' : 'environment';
     setIsFlippingCam(true);
+    const oldDeviceId = oldTrack.getSettings?.().deviceId;
 
     const requestCamera = (facing, strict) => navigator.mediaDevices.getUserMedia({
       video: {
@@ -9545,6 +9546,31 @@ const Room = () => {
       },
       audio: false,
     });
+
+    // Some Android WebViews/browsers enumerate both physical cameras with
+    // generic labels and don't honor facingMode reliably at all — a soft
+    // (non-`exact`) facingMode request is only a preference the browser is
+    // free to ignore, so it can silently re-open the SAME camera we just
+    // released instead of erroring. That's why flip visibly does nothing on
+    // some phones while working fine on others. Try picking the OTHER
+    // physical camera explicitly by deviceId before trusting that fallback.
+    const requestCameraByOtherDevice = async (facing) => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(d => d.kind === 'videoinput');
+        if (videoInputs.length < 2) return null;
+        const pattern = facing === 'environment' ? /back|rear|environment/i : /front|user|face/i;
+        const labeled = videoInputs.find(d => pattern.test(d.label));
+        const deviceId = labeled ? labeled.deviceId : videoInputs.find(d => d.deviceId && d.deviceId !== oldDeviceId)?.deviceId;
+        if (!deviceId) return null;
+        return await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
+          audio: false,
+        });
+      } catch {
+        return null;
+      }
+    };
 
     // Release the current camera BEFORE requesting the other one. Requesting
     // a second physical camera while the first is still open is what was
@@ -9561,9 +9587,9 @@ const Room = () => {
       try {
         newStream = await requestCamera(nextFacing, true);
       } catch (exactErr) {
-        // Some browsers reject facingMode `exact` even when the camera
-        // genuinely exists — retry as a soft preference before giving up.
-        newStream = await requestCamera(nextFacing, false);
+        // Try the deviceId-based fallback before the soft facingMode retry,
+        // since the soft retry can silently fail to switch on some devices.
+        newStream = (await requestCameraByOtherDevice(nextFacing)) || await requestCamera(nextFacing, false);
       }
       const newTrack = newStream.getVideoTracks()[0];
       localCamRef.current.addTrack(newTrack);

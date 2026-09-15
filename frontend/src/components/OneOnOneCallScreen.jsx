@@ -102,8 +102,13 @@ function TileMenuButton({ isOpen, onOpen, onFullscreen, visible = true }) {
         <MoreVertical size={15} color="#fff" />
       </button>
       {isOpen && (
+        // stay-white: this menu is always a dark popover regardless of app
+        // theme (matches the fullscreen bar's own opt-out below) — without
+        // it, the light-mode stylesheet's blanket "force inline #fff text
+        // dark" rule makes "View full screen" unreadable against this
+        // popover's own always-dark background.
         <div
-          className="ooc-tile-menu"
+          className="ooc-tile-menu stay-white"
           onClick={(e) => e.stopPropagation()}
           style={{
             position: 'absolute', top: 30, right: 0, background: '#1c1e2a', borderRadius: 10,
@@ -112,6 +117,7 @@ function TileMenuButton({ isOpen, onOpen, onFullscreen, visible = true }) {
           }}
         >
           <button
+            className="stay-white"
             onClick={onFullscreen}
             style={{
               display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px',
@@ -609,7 +615,7 @@ export default function OneOnOneCallScreen({
                     onFullscreen={() => { setFullscreenTile(r.username); setTileMenuFor(null); }}
                   />
                 )}
-                <div className="ooc-tile-label">
+                <div className="ooc-tile-label stay-white">
                   {isRinging ? (
                     <span className="ooc-tile-ringing-dot" />
                   ) : (!r.micOn && <MicOff size={11} color="#f87171" />)}
@@ -633,7 +639,7 @@ export default function OneOnOneCallScreen({
                 onFullscreen={() => { setFullscreenTile('__me__'); setTileMenuFor(null); }}
               />
             )}
-            <div className="ooc-tile-label">
+            <div className="ooc-tile-label stay-white">
               {!isMicOn && <MicOff size={11} color="#f87171" />}
               You
             </div>
