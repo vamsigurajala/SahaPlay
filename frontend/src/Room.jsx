@@ -3814,7 +3814,19 @@ const Room = () => {
   useEffect(() => { setHasMounted(true); }, []);
 
   // ─── E2EE: Get key pair from CryptoContext (never from localStorage) ───────
-  const { keyPair, isReady: cryptoReady } = useCrypto();
+  const { keyPair, isReady: cryptoReady, retryGuestKeySetup } = useCrypto();
+
+  // Self-heal proactively, not just when a send is attempted (waitForKeyPair
+  // below covers that case too) — otherwise a guest who never tries to send
+  // anything would just sit on the "Setting up secure chat…" composer
+  // indicator forever with nothing ever prompting a retry.
+  useEffect(() => {
+    const isGuest = localStorage.getItem('watch_is_guest') === 'true';
+    if (!isGuest || keyPair) return;
+    const t = setTimeout(() => { retryGuestKeySetup?.(); }, 1200);
+    return () => clearTimeout(t);
+  }, [keyPair, retryGuestKeySetup]);
+
   useEffect(() => {
     if (keyPair) {
       myKeyPair.current = keyPair;
@@ -3855,6 +3867,19 @@ const Room = () => {
   // the instant the ref-sync effect above fires, typically well under a
   // second, with no visible delay for the vast majority of sends where the
   // key is already there.
+  // Reported live: for some guests the key never became ready at all within
+  // this wait — not slow, genuinely stuck — and only a full page reload
+  // (which re-runs CryptoContext's mount effect from scratch) recovered it.
+  // Most likely cause: a guest who lands on /room/xxx before choosing a
+  // display name has that mount effect run once with no watch_username set
+  // yet, before this room's own guest-name step ever writes one — so
+  // reaching the same recovery a reload provides, without the reload,
+  // means re-running that exact setup once watch_username is actually
+  // current. retryGuestKeySetup (CryptoContext.jsx) does exactly that, and
+  // is itself guarded to no-op for a non-guest and against overlapping
+  // calls, so firing it here unconditionally after a short grace period is
+  // safe on every account type.
+  const guestKeyRetryFiredRef = useRef(false);
   const waitForKeyPair = useCallback((maxWaitMs = 6000) => new Promise((resolve) => {
     if (myKeyPair.current) { resolve(true); return; }
     const start = Date.now();
@@ -3862,12 +3887,18 @@ const Room = () => {
       if (myKeyPair.current) {
         clearInterval(iv);
         resolve(true);
+      } else if (!guestKeyRetryFiredRef.current && Date.now() - start > 1200) {
+        // One-shot kick partway through the wait — gives the normal
+        // ref-sync path every chance first, only self-healing once it's
+        // clearly not just "still settling."
+        guestKeyRetryFiredRef.current = true;
+        retryGuestKeySetup?.();
       } else if (Date.now() - start > maxWaitMs) {
         clearInterval(iv);
         resolve(false);
       }
     }, 100);
-  }), []);
+  }), [retryGuestKeySetup]);
   useEffect(() => {
     const isGuest = localStorage.getItem('watch_is_guest') === 'true';
     if (isGuest && room && !isWaitingApproval && !roomNotFound && !kickedReason) {

@@ -9,7 +9,7 @@
  *   const { keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword } = useCrypto();
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { generateKeyPair, saveKeyToSession, loadKeyFromSession, clearSessionKey, decryptPrivateKey, encryptPrivateKey, encryptGuestKey, decryptGuestKey } from '../lib/crypto.js';
@@ -217,6 +217,63 @@ export function CryptoProvider({ children }) {
   const [keyPair, setKeyPairState] = useState(null);
   const [isReady, setIsReady]      = useState(false);
   const [needsReauth, setNeedsReauth] = useState(false);
+  // Guards retryGuestKeySetup below against overlapping calls (Room.jsx can
+  // call it as a one-shot kick while a wait is in flight) — not exposed,
+  // purely an internal re-entrancy guard.
+  const guestRetryInFlightRef = useRef(false);
+
+  // Guest key load/create, callable both at mount and on-demand (see
+  // retryGuestKeySetup below). Always re-reads localStorage fresh rather
+  // than closing over a value from an earlier call — a guest who lands on
+  // /room/xxx before choosing a display name can have this run once with
+  // no watch_username set yet (falls back to a placeholder "anon" identity)
+  // and only get their real chosen name written to localStorage moments
+  // later, well after this mount-once effect already returned. Re-reading
+  // on retry picks up whatever name is ACTUALLY current by then.
+  const restoreGuestKey = useCallback(async () => {
+    // Safe to call unconditionally (retryGuestKeySetup is exposed to
+    // Room.jsx as a generic self-heal kick) — but this logic is only ever
+    // correct for the guest/no-token case the mount effect below already
+    // gates on. A registered account calling this would incorrectly treat
+    // itself as a guest and load/create the WRONG key, so re-check the same
+    // condition here rather than trusting every future caller to remember to.
+    if (!(localStorage.getItem('watch_is_guest') === 'true' || !localStorage.getItem('watch_token'))) return null;
+    try {
+      const username = localStorage.getItem('watch_username');
+      const cleanUser = (username || 'anon').toLowerCase();
+      console.log('[CryptoContext] restoreGuestKey: loading/creating key for', cleanUser);
+      const kp = await loadOrCreateGuestKeyPair(cleanUser);
+      console.log('[CryptoContext] restoreGuestKey: key ready for', cleanUser);
+      setKeyPairState(kp);
+      setIsReady(true);
+      return kp;
+    } catch (e) {
+      // Never let a guest key failure leave keyPair silently null forever
+      // with nothing to recover it — see retryGuestKeySetup's own comment
+      // for the case this guards (an exception here previously meant the
+      // mount effect's setKeyPairState call was simply never reached, and
+      // nothing else in the app ever tried again short of a full reload).
+      console.error('[CryptoContext] restoreGuestKey failed:', e);
+      setIsReady(true);
+      return null;
+    }
+  }, []);
+
+  // Exposed so Room.jsx's send paths can self-heal instead of asking the
+  // user to refresh the page. Reported live: a brand-new guest's key
+  // sometimes never became ready at all (send stayed stuck on "Encryption
+  // keys not ready yet" indefinitely) until a hard reload — which works
+  // ONLY because it re-runs the mount effect below from scratch. This is
+  // that exact same recovery path, callable without a real reload.
+  const retryGuestKeySetup = useCallback(async () => {
+    if (guestRetryInFlightRef.current) return;
+    guestRetryInFlightRef.current = true;
+    try {
+      await restoreGuestKey();
+    } finally {
+      guestRetryInFlightRef.current = false;
+    }
+  }, [restoreGuestKey]);
 
   // On mount: restore key from sessionStorage (page refresh resilience)
   useEffect(() => {
@@ -230,16 +287,12 @@ export function CryptoProvider({ children }) {
     let cancelled = false;
     (async () => {
       try {
-        const username = localStorage.getItem('watch_username');
         const isGuest  = localStorage.getItem('watch_is_guest') === 'true';
 
         if (isGuest || !localStorage.getItem('watch_token')) {
           // Guests: key persisted (encrypted at rest, see loadOrCreateGuestKeyPair)
           // in localStorage so E2EE messages survive tab close + reopen.
-          const cleanUser = (username || 'anon').toLowerCase();
-          const kp = await loadOrCreateGuestKeyPair(cleanUser);
-          setKeyPairState(kp);
-          setIsReady(true);
+          await restoreGuestKey();
           return;
         }
 
@@ -588,6 +641,7 @@ export function CryptoProvider({ children }) {
       keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock,
       enrollDeviceUnlock, enrollDeviceUnlockSilently, forgetDeviceUnlock, checkDeviceUnlockEnrolled,
       setDeviceUnlockRequireEveryOpen, isDeviceUnlockRequireEveryOpenEnabled: isStrictDeviceUnlockEnabled,
+      retryGuestKeySetup,
     }}>
       {children}
     </CryptoContext.Provider>
