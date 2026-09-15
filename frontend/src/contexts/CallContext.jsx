@@ -1511,45 +1511,77 @@ export function CallProvider({ children }) {
     setIsFlippingCamera(true);
     const prevFacing = currentFacingRef.current;
     const nextFacing = prevFacing === 'environment' ? 'user' : 'environment';
-    const oldDeviceId = oldTrack.getSettings?.().deviceId;
+    const oldSettings = oldTrack.getSettings?.() || {};
+    const oldDeviceId = oldSettings.deviceId;
+    const oldGroupId = oldSettings.groupId;
 
-    // Some Android WebViews/browsers enumerate both physical cameras with
-    // generic labels and don't honor facingMode reliably at all — `exact`
-    // throws, and the soft (non-`exact`) facingMode fallback below is only a
-    // preference the browser is free to ignore, so it can silently re-open
-    // the SAME camera we just released instead of erroring. That's why the
-    // flip button visibly does nothing on some phones while working fine on
-    // others. Before trusting that soft fallback, try picking the OTHER
-    // physical camera explicitly by deviceId.
-    const pickDeviceIdForFacing = async (facing) => {
+    // Both `facingMode: {exact}` and a soft facingMode preference can
+    // resolve successfully while quietly handing back the SAME physical
+    // camera we just released — some Android WebViews/browsers misreport or
+    // simply ignore facingMode entirely, which is why flip can silently do
+    // nothing on one phone while working fine on another with the identical
+    // code. A resolved promise alone doesn't prove the camera changed —
+    // only comparing the actual deviceId does.
+    const isGenuinelyDifferentCamera = (track) => {
+      const deviceId = track.getSettings?.().deviceId;
+      return !oldDeviceId || !deviceId || deviceId !== oldDeviceId;
+    };
+
+    // Ranks every OTHER physical camera as a deviceId to try, best guess
+    // first: one whose label actually names the direction wanted, then
+    // anything left. Excludes by groupId as well as deviceId — some phones
+    // (seen on iQOO/vivo hardware) expose several deviceIds for the SAME
+    // physical lens (different resolutions/virtual configs), and excluding
+    // only the exact old deviceId can land back on another id for that same
+    // lens, which looks identical to "flip did nothing".
+    const rankDeviceCandidates = async (facing) => {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter(d => d.kind === 'videoinput');
-        if (videoInputs.length < 2) return null;
+        const others = devices.filter(d => (
+          d.kind === 'videoinput' && d.deviceId !== oldDeviceId && (!oldGroupId || d.groupId !== oldGroupId)
+        ));
         const pattern = facing === 'environment' ? /back|rear|environment/i : /front|user|face/i;
-        const labeled = videoInputs.find(d => pattern.test(d.label));
-        if (labeled) return labeled.deviceId;
-        const other = videoInputs.find(d => d.deviceId && d.deviceId !== oldDeviceId);
-        return other ? other.deviceId : null;
+        const labeled = others.filter(d => pattern.test(d.label));
+        const rest = others.filter(d => !labeled.includes(d));
+        return [...labeled, ...rest].map(d => d.deviceId);
+      } catch {
+        return [];
+      }
+    };
+
+    const openDevice = async (constraints) => {
+      try {
+        return await navigator.mediaDevices.getUserMedia({ video: constraints });
       } catch {
         return null;
       }
     };
 
     const requestFacing = async (facing) => {
-      try {
-        return await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: { exact: facing } } });
-      } catch {
-        const deviceId = await pickDeviceIdForFacing(facing);
-        if (deviceId) {
-          try {
-            return await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, deviceId: { exact: deviceId } } });
-          } catch {
-            // fall through to plain facingMode below
-          }
-        }
-        return await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: facing } });
+      const exactStream = await openDevice({ ...CAM_CONSTRAINTS, facingMode: { exact: facing } });
+      if (exactStream) {
+        if (isGenuinelyDifferentCamera(exactStream.getVideoTracks()[0])) return exactStream;
+        exactStream.getTracks().forEach(t => t.stop());
       }
+
+      for (const deviceId of await rankDeviceCandidates(facing)) {
+        // The just-released camera's hardware can take a beat to actually
+        // free up on some OEM camera stacks — one short retry before moving
+        // on to the next candidate device.
+        let deviceStream = await openDevice({ ...CAM_CONSTRAINTS, deviceId: { exact: deviceId } });
+        if (!deviceStream) {
+          await new Promise(r => setTimeout(r, 200));
+          deviceStream = await openDevice({ ...CAM_CONSTRAINTS, deviceId: { exact: deviceId } });
+        }
+        if (!deviceStream) continue;
+        if (isGenuinelyDifferentCamera(deviceStream.getVideoTracks()[0])) return deviceStream;
+        deviceStream.getTracks().forEach(t => t.stop());
+      }
+
+      // Last resort — a soft facingMode preference. May be a no-op on
+      // devices that don't honor it, but it's the only option left on
+      // single-camera devices or ones enumerateDevices couldn't help with.
+      return await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: facing } });
     };
 
     stream.removeTrack(oldTrack);
@@ -1564,10 +1596,14 @@ export function CallProvider({ children }) {
         if (sender) await sender.replaceTrack(newTrack);
       }
       currentFacingRef.current = nextFacing;
+      if (!isGenuinelyDifferentCamera(newTrack)) {
+        toast.error("Couldn't find your other camera on this device");
+      }
     } catch (e) {
       console.error('[Call] flipCamera failed, restoring previous camera:', e);
+      toast.error('Could not switch camera — this device may only have one.');
       try {
-        const restoredStream = await requestFacing(prevFacing);
+        const restoredStream = await navigator.mediaDevices.getUserMedia({ video: { ...CAM_CONSTRAINTS, facingMode: prevFacing } });
         const restoredTrack = restoredStream.getVideoTracks()[0];
         stream.addTrack(restoredTrack);
         for (const pc of pcsRef.current.values()) {

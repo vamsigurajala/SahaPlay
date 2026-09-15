@@ -9537,7 +9537,9 @@ const Room = () => {
     if (!oldTrack) return;
     const nextFacing = camFacingMode === 'environment' ? 'user' : 'environment';
     setIsFlippingCam(true);
-    const oldDeviceId = oldTrack.getSettings?.().deviceId;
+    const oldSettings = oldTrack.getSettings?.() || {};
+    const oldDeviceId = oldSettings.deviceId;
+    const oldGroupId = oldSettings.groupId;
 
     const requestCamera = (facing, strict) => navigator.mediaDevices.getUserMedia({
       video: {
@@ -9547,22 +9549,42 @@ const Room = () => {
       audio: false,
     });
 
-    // Some Android WebViews/browsers enumerate both physical cameras with
-    // generic labels and don't honor facingMode reliably at all — a soft
-    // (non-`exact`) facingMode request is only a preference the browser is
-    // free to ignore, so it can silently re-open the SAME camera we just
-    // released instead of erroring. That's why flip visibly does nothing on
-    // some phones while working fine on others. Try picking the OTHER
-    // physical camera explicitly by deviceId before trusting that fallback.
-    const requestCameraByOtherDevice = async (facing) => {
+    // Both `facingMode: {exact}` and a soft facingMode preference can
+    // resolve successfully while quietly handing back the SAME physical
+    // camera we just released — some Android WebViews/browsers misreport or
+    // simply ignore facingMode entirely, which is why flip can silently do
+    // nothing on one phone while working fine on another with the identical
+    // code. A resolved promise alone doesn't prove the camera changed —
+    // only comparing the actual deviceId does.
+    const isGenuinelyDifferentCamera = (track) => {
+      const deviceId = track.getSettings?.().deviceId;
+      return !oldDeviceId || !deviceId || deviceId !== oldDeviceId;
+    };
+
+    // Ranks every OTHER physical camera as a deviceId to try, best guess
+    // first: one whose label actually names the direction wanted, then
+    // anything left. Excludes by groupId as well as deviceId — some phones
+    // (seen on iQOO/vivo hardware) expose several deviceIds for the SAME
+    // physical lens (different resolutions/virtual configs), and excluding
+    // only the exact old deviceId can land back on another id for that same
+    // lens, which looks identical to "flip did nothing".
+    const rankDeviceCandidates = async (facing) => {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter(d => d.kind === 'videoinput');
-        if (videoInputs.length < 2) return null;
+        const others = devices.filter(d => (
+          d.kind === 'videoinput' && d.deviceId !== oldDeviceId && (!oldGroupId || d.groupId !== oldGroupId)
+        ));
         const pattern = facing === 'environment' ? /back|rear|environment/i : /front|user|face/i;
-        const labeled = videoInputs.find(d => pattern.test(d.label));
-        const deviceId = labeled ? labeled.deviceId : videoInputs.find(d => d.deviceId && d.deviceId !== oldDeviceId)?.deviceId;
-        if (!deviceId) return null;
+        const labeled = others.filter(d => pattern.test(d.label));
+        const rest = others.filter(d => !labeled.includes(d));
+        return [...labeled, ...rest].map(d => d.deviceId);
+      } catch {
+        return [];
+      }
+    };
+
+    const openDeviceById = async (deviceId) => {
+      try {
         return await navigator.mediaDevices.getUserMedia({
           video: { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
           audio: false,
@@ -9570,6 +9592,35 @@ const Room = () => {
       } catch {
         return null;
       }
+    };
+
+    const requestCameraVerified = async (facing) => {
+      try {
+        const exactStream = await requestCamera(facing, true);
+        if (isGenuinelyDifferentCamera(exactStream.getVideoTracks()[0])) return exactStream;
+        exactStream.getTracks().forEach(t => t.stop());
+      } catch {
+        // fall through to deviceId-based candidates below
+      }
+
+      for (const deviceId of await rankDeviceCandidates(facing)) {
+        // The just-released camera's hardware can take a beat to actually
+        // free up on some OEM camera stacks — one short retry before moving
+        // on to the next candidate device.
+        let deviceStream = await openDeviceById(deviceId);
+        if (!deviceStream) {
+          await new Promise(r => setTimeout(r, 200));
+          deviceStream = await openDeviceById(deviceId);
+        }
+        if (!deviceStream) continue;
+        if (isGenuinelyDifferentCamera(deviceStream.getVideoTracks()[0])) return deviceStream;
+        deviceStream.getTracks().forEach(t => t.stop());
+      }
+
+      // Last resort — a soft facingMode preference. May be a no-op on
+      // devices that don't honor it, but it's the only option left on
+      // single-camera devices or ones enumerateDevices couldn't help with.
+      return await requestCamera(facing, false);
     };
 
     // Release the current camera BEFORE requesting the other one. Requesting
@@ -9583,14 +9634,7 @@ const Room = () => {
     localCamRef.current.removeTrack(oldTrack);
 
     try {
-      let newStream;
-      try {
-        newStream = await requestCamera(nextFacing, true);
-      } catch (exactErr) {
-        // Try the deviceId-based fallback before the soft facingMode retry,
-        // since the soft retry can silently fail to switch on some devices.
-        newStream = (await requestCameraByOtherDevice(nextFacing)) || await requestCamera(nextFacing, false);
-      }
+      const newStream = await requestCameraVerified(nextFacing);
       const newTrack = newStream.getVideoTracks()[0];
       localCamRef.current.addTrack(newTrack);
       Object.values(cameraPcRefs.current).forEach(pc => {
@@ -9598,7 +9642,14 @@ const Room = () => {
         if (sender) sender.replaceTrack(newTrack).catch(() => {});
         else { pc.addTrack(newTrack, localCamRef.current); applyCamBitrateCap(pc); }
       });
-      setCamFacingMode(newTrack.getSettings?.()?.facingMode || nextFacing);
+      // Trust our own intended facing over the track's self-reported
+      // getSettings().facingMode — on devices where that metadata is
+      // unreliable (the exact failure mode above), trusting it here would
+      // corrupt which way the NEXT flip tap thinks it should go.
+      setCamFacingMode(nextFacing);
+      if (!isGenuinelyDifferentCamera(newTrack)) {
+        toast.error("Couldn't find your other camera on this device");
+      }
     } catch (err) {
       console.error('flipCamera error:', err);
       toast.error('Could not switch camera — this device may only have one.');
