@@ -45,6 +45,22 @@ const Profile = () => {
   const [savingDeviceUnlockSetting, setSavingDeviceUnlockSetting] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
+  // This page hand-rolls its own nav instead of reusing the shared
+  // <Navbar/> (it needs the back-button layout instead of the logo), which
+  // meant it never picked up that component's actual background treatment
+  // either: a flat, opaque `var(--bg-color)` painted over body's animated
+  // gradient background, hiding it completely and reading as a plain black
+  // bar that doesn't match Home/every other page using <Navbar/> (which
+  // leaves its background transparent at rest, showing that gradient
+  // through, and only tints/blurs itself once scrolled — same threshold,
+  // same colors, mirrored here so this page's nav looks identical to the
+  // shared one at every scroll position).
+  const [navScrolled, setNavScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setNavScrolled(window.scrollY > 20);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   const isDesktopApp = isTauriApp();
   const standalone = isStandalonePWA();
   const getLocalizedCountryName = (code, name) => {
@@ -57,6 +73,11 @@ const Profile = () => {
     }
   };
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const navBarStyle = navScrolled
+    ? (isLight
+        ? { background: 'rgba(247,248,252,0.92)', borderBottomColor: 'rgba(0,0,0,0.08)', boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }
+        : { background: 'rgba(9,9,11,0.85)', borderBottomColor: 'rgba(255,255,255,0.08)', boxShadow: '0 2px 28px rgba(0,0,0,0.45)' })
+    : { background: 'transparent', borderBottomColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.05)', boxShadow: 'none' };
   const token = localStorage.getItem('watch_token');
   const myUsername = localStorage.getItem('watch_username');
   const isGuest = !token || token === 'null' || token === 'undefined' || localStorage.getItem('watch_is_guest') === 'true';
@@ -1010,7 +1031,7 @@ const Profile = () => {
         `}</style>
 
         {/* Skeleton Navbar */}
-        <nav style={{ position: 'sticky', top: 0, zIndex: 1000, padding: isMobile ? '12px 16px' : '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: isLight ? '1px solid rgba(0,0,0,0.08)' : '1px solid rgba(255,255,255,0.05)', background: isLight ? '#fff' : 'var(--bg-color)' }}>
+        <nav style={{ position: 'sticky', top: 0, zIndex: 1000, padding: isMobile ? '12px 16px' : '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', transition: 'background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease', ...navBarStyle }}>
           <div style={{ flex: 1, display: 'flex' }}>
             <div className="sk-shim" style={{ width: isMobile ? 38 : 100, height: 38, borderRadius: isMobile ? '50%' : 16 }} />
           </div>
@@ -1371,7 +1392,7 @@ const Profile = () => {
           so it never picked up that component's position:sticky. Was
           position:'relative' — scrolled away with the page instead of
           staying pinned like every page using the shared Navbar does. */}
-      <nav style={{ position: 'sticky', top: 0, background: 'var(--bg-color)', padding: isMobile ? '12px 16px' : '16px 40px', paddingTop: `calc(${isMobile ? '12px' : '16px'} + var(--sp-status-bar-inset, 0px))`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)', zIndex: 1000 }}>
+      <nav style={{ position: 'sticky', top: 0, padding: isMobile ? '12px 16px' : '16px 40px', paddingTop: `calc(${isMobile ? '12px' : '16px'} + var(--sp-status-bar-inset, 0px))`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', transition: 'background 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease', zIndex: 1000, ...navBarStyle }}>
         {/* Left: Back Button */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
           <button className="back-btn" onClick={() => navigate(-1)}>
