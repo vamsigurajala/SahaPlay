@@ -4306,6 +4306,15 @@ const Room = () => {
       } else {
         // Guest users (no token): process socket payload directly with E2EE decrypt fallback
 
+        // Ref-vs-context re-hydrate — myKeyPair.current is a plain ref kept
+        // in sync with the `keyPair` context value by a separate effect that
+        // can lag one commit behind. chat_history fires right after joining
+        // a room, exactly the window where a guest's own keyPair is still
+        // settling, so this was the single most likely spot for it to still
+        // be null here even though `keyPair` itself is already populated —
+        // matches "guest message shows as cipher/garbled text sometimes."
+        if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+
         // ── DIAGNOSTIC: identity + keypair stability ──────────────────────────
         const _diagUser = username;
         const _diagUserLs = localStorage.getItem('watch_username');
@@ -4584,6 +4593,22 @@ const Room = () => {
       const isMine = msg.isMe !== undefined ? msg.isMe : ((msg.username && msg.username.toLowerCase() === username.toLowerCase()) || (msg.senderName && msg.senderName.toLowerCase() === username.toLowerCase()));
 
       // ─── E2EE: Decrypt group message if encrypted payload is present ──────────────────
+      // Same ref-vs-context race as every send path below (myKeyPair.current
+      // is a plain ref, kept in sync with the `keyPair` context value by a
+      // separate effect that can lag one commit behind) — but this is the
+      // LIVE RECEIVE path, which previously had no such guard. Hitting this
+      // gap here fell straight to the `else` branch further down and
+      // permanently stamped the message with LEGACY_GROUP_TEXT_PLACEHOLDER
+      // ("Sent before encryption upgrade") — permanently, because the
+      // "re-decrypt if keys arrived late" effect only re-checks messages
+      // whose raw `msg.message` still looks like ciphertext, which this
+      // placeholder-decoratedText message doesn't trip (msg.message itself
+      // is untouched, but nothing re-runs decryption for it again). Reported
+      // as an intermittent "guest message shows as cipher/garbled instead of
+      // plain text" — guests are disproportionately likely to hit this
+      // because they're often mid-join (keyPair/myKeyPair.current still
+      // settling) right when their first message arrives for everyone else.
+      if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
       let decryptedText = null;
       if (msg.e2ee && msg.e2ee.keys && myKeyPair.current) {
         try {
@@ -5113,6 +5138,9 @@ const Room = () => {
       const decryptFor = (existing) => {
         const extractCaption = (plain) => (existing.mediaType ? unpackMediaKeyAndCaption(plain).caption : plain);
         if (!nonce) return existing.mediaType ? existing.decryptedText : newMessage;
+        // Same ref-vs-context re-hydrate as the live receive handler above —
+        // an edit broadcast can arrive in that same narrow window.
+        if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
         if (!myKeyPair.current) return existing.decryptedText;
         try {
           if (keys) {
@@ -5238,6 +5266,9 @@ const Room = () => {
       let decryptedMediaUrl = msg.mediaUrl;
 
       // ─── E2EE: Decrypt DM ──────────────────────────────────────────
+      // Same ref-vs-context re-hydrate as the live group-message handler
+      // above — a DM can arrive live in that same narrow window.
+      if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
       if (msg.nonce && myKeyPair.current) {
         try {
           if (isMine) {
@@ -5441,6 +5472,9 @@ const Room = () => {
     // ─── DM history from DB (historical, server emits on join) ───
     sock.on('chat_history_dm', (dmHistory) => {
       const threads = {};
+      // Same ref-vs-context re-hydrate as the live handlers above — history
+      // can land in this same narrow window right after joining a room.
+      if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
 
       for (const [otherName, messages] of Object.entries(dmHistory)) {
          const key = otherName.toLowerCase();

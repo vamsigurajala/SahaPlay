@@ -373,77 +373,20 @@ export function CryptoProvider({ children }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Windows-only: the mount effect above handles a genuine process launch
-  // (Quit from tray + relaunch, a crash, or an OS restart/logoff) — but
-  // this app's own main.rs deliberately hides the window instead of
-  // terminating the process on the X button (so calls/notifications keep
-  // working in the background, same as Discord/Slack), which means a plain
-  // close-then-reopen from the tray never re-runs the mount effect at all.
-  // Strict mode's product spec explicitly asks for THIS exact transition
-  // to require a fresh Windows Hello check too — main.rs emits
-  // "desktop_window_hidden"/"desktop_window_shown" for precisely this
-  // (never on ordinary alt-tab/minimize/restore, which never touch that
-  // Rust code path at all — see main.rs's own comments on those two
-  // events). Entirely separate from the mount effect above; does not
-  // touch or duplicate its "genuinely brand new account" branch, since a
-  // reopen can only ever happen for an account that already had a key.
-  useEffect(() => {
-    if (!isTauriApp()) return;
-    let cancelled = false;
-    let unlistenHidden = null;
-    let unlistenShown = null;
-
-    (async () => {
-      const { listen } = await import('@tauri-apps/api/event');
-      if (cancelled) return;
-
-      unlistenHidden = await listen('desktop_window_hidden', () => {
-        if (!isStrictDeviceUnlockEnabled()) return; // OFF: preserve existing behavior exactly — no-op
-        // Drop the in-memory/session key now, so the next
-        // "desktop_window_shown" genuinely requires a fresh Windows Hello
-        // check rather than silently reusing what's still in memory — the
-        // Windows equivalent of Android's clearSessionKey() at the start
-        // of a fresh strict-mode launch.
-        clearSessionKey();
-        setKeyPairState(null);
-      });
-
-      unlistenShown = await listen('desktop_window_shown', async () => {
-        if (!isStrictDeviceUnlockEnabled()) return; // OFF: reopening never prompts — existing behavior preserved
-        const tkn = localStorage.getItem('watch_token');
-        if (!tkn || localStorage.getItem('watch_is_guest') === 'true') return; // not a registered session — nothing to unlock
-        let serverPublicKeyB64 = null;
-        try {
-          const res = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${tkn}` } });
-          if (res.ok) {
-            const data = await res.json();
-            serverPublicKeyB64 = data.publicKey || null;
-          }
-        } catch (e) { console.warn('[CryptoContext] my-keys check (strict reopen) failed:', e); }
-        if (cancelled) return;
-
-        const restoredKp = serverPublicKeyB64 ? await tryRestoreViaDeviceUnlock(serverPublicKeyB64, () => cancelled) : null;
-        if (cancelled) return;
-        if (restoredKp) {
-          await saveKeyToSession(restoredKp.secretKey);
-          setKeyPairState(restoredKp);
-          console.log('[CryptoContext] Key restored via Windows Hello device unlock (tray reopen) ✅');
-        } else {
-          // Windows Hello declined/failed/unavailable, or the my-keys check
-          // itself failed — same fallback as every other device-unlock
-          // failure mode: the existing passphrase/recovery UI, never a new
-          // keypair.
-          setNeedsReauth(true);
-        }
-      });
-    })();
-
-    return () => {
-      cancelled = true;
-      if (unlistenHidden) unlistenHidden();
-      if (unlistenShown) unlistenShown();
-    };
-  }, []);
+  // Windows: main.rs hides the window instead of terminating the process on
+  // the X button (so calls/notifications keep working in the background,
+  // same as Discord/Slack) and still emits "desktop_window_hidden"/
+  // "desktop_window_shown" around that hide/reopen — but this file
+  // deliberately does NOT listen for them anymore. An earlier version of
+  // strict mode forced a fresh Windows Hello check on every one of these
+  // transitions, including just clicking a notification while the app was
+  // still running in the background — explicitly reversed per product
+  // decision: "Require Windows Hello every time I open the app" should mean
+  // a genuinely new app launch (Quit from tray + relaunch, a crash, an OS
+  // restart/logoff — all handled by the mount effect above), never merely
+  // bringing an already-running, never-quit window back on screen. The
+  // main.rs emits are left in place (harmless with no listener) rather than
+  // removed there too, in case this is revisited later.
 
   /** Store key pair in memory + encrypted sessionStorage. */
   const setKeyPair = useCallback(async (kp) => {

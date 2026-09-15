@@ -129,6 +129,9 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
             value={roomId}
             onChange={e => setRoomId(e.target.value)}
             className="home-tab-join-input"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck="false"
           />
           <button type="submit" className="home-tab-join-btn">{t('join', 'Join')}</button>
         </form>

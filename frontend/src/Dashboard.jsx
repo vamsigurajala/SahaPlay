@@ -83,7 +83,9 @@ const Dashboard = () => {
   const handleJoin = (e) => {
     e.preventDefault();
     if (!roomId.trim()) { toast.error('Please enter a Room ID to join!'); return; }
-    navigate(`/room/${roomId.trim()}`);
+    // Room IDs are always lowercase — see the matching comment in Home.jsx's
+    // own handleJoin for why this normalization matters on mobile keyboards.
+    navigate(`/room/${roomId.trim().toLowerCase()}`);
   };
 
   const createRoom = () => {
@@ -216,7 +218,7 @@ const Dashboard = () => {
               </button>
 
               <form onSubmit={handleJoin} className="dash-join-form">
-                <input type="text" placeholder={t('enterRoomId', 'Enter Room ID...')} value={roomId} onChange={e => setRoomId(e.target.value)} className="dash-join-input" />
+                <input type="text" placeholder={t('enterRoomId', 'Enter Room ID...')} value={roomId} onChange={e => setRoomId(e.target.value)} className="dash-join-input" autoCapitalize="none" autoCorrect="off" spellCheck="false" />
                 <button type="submit" className="dash-join-btn">{t('join', 'Join')} <ArrowRight size={14} /></button>
               </form>
             </div>

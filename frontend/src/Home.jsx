@@ -172,7 +172,14 @@ const Home = () => {
   const handleJoin = (e) => {
     e.preventDefault();
     if (!roomId.trim()) { toast.error('Please enter a Room ID to join!'); return; }
-    navigate(`/room/${roomId.trim()}`);
+    // Room IDs are always lowercase (Math.random().toString(36) in
+    // CreateRoomModal.jsx never produces uppercase), but mobile keyboards
+    // auto-capitalize the first letter of a plain text input by default —
+    // typing the exact code shown in a chat still sent an uppercased first
+    // character to the case-sensitive backend lookup, producing a false
+    // "room not found" that never happened tapping a room name from chat
+    // (which navigates with the exact stored id, never touching a keyboard).
+    navigate(`/room/${roomId.trim().toLowerCase()}`);
   };
 
   const createRoom = () => {
@@ -649,7 +656,7 @@ const Home = () => {
                 <Play size={18} fill="#fff" strokeWidth={0} /><span className="stay-white">{t('createRoom', 'Create Room')}</span>
               </button>
               <form onSubmit={handleJoin} className="hero-join-form">
-                <input type="text" placeholder={t('enterRoomId', 'Enter Room ID...')} value={roomId} onChange={e => setRoomId(e.target.value)} className="hero-join-input" />
+                <input type="text" placeholder={t('enterRoomId', 'Enter Room ID...')} value={roomId} onChange={e => setRoomId(e.target.value)} className="hero-join-input" autoCapitalize="none" autoCorrect="off" spellCheck="false" />
                 <button type="submit" className="hero-join-btn">{t('join', 'Join')}</button>
               </form>
               <button className="hero-browse-btn" onClick={() => navigate('/public')}>
