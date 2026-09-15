@@ -1953,5 +1953,6 @@
   "downloadAppSmartScreenIntro": "سيعرض Windows هذه الشاشة عند أول تشغيل — وهذا أمر متوقع وليس علامة على وجود مشكلة. لم يتم توقيع SahaPlay رقميًا بعد، لذا يظهر لدى Windows كناشر غير معروف.",
   "downloadAppSmartScreenStep1": "إذا رأيت زر \"Don't run\" فقط، فانقر أولاً على \"More info\" — سيظهر بعدها زر \"Run anyway\" الموضح أعلاه.",
   "downloadAppSmartScreenStep2": "انقر على \"Run anyway\" لمتابعة التثبيت.",
-  "unlockingMessages": "جارٍ إلغاء القفل…"
+  "unlockingMessages": "جارٍ إلغاء القفل…",
+  "settingUpSecureChat": "جارٍ إعداد الدردشة الآمنة…"
 }

@@ -1941,5 +1941,6 @@
   "downloadAppSmartScreenIntro": "પ્રથમ વખત ખોલવા પર Windows આ સ્ક્રીન બતાવશે — આ સામાન્ય છે, કોઈ સમસ્યાની નિશાની નથી. SahaPlay પાસે હજુ કોડ-સાઇનિંગ નથી, તેથી Windows માટે તે અજાણ્યો પ્રકાશક છે.",
   "downloadAppSmartScreenStep1": "જો તમને ફક્ત \"Don't run\" બટન દેખાય, તો પહેલા \"More info\" પર ક્લિક કરો — તેનાથી ઉપર બતાવેલ \"Run anyway\" બટન દેખાશે.",
   "downloadAppSmartScreenStep2": "ઇન્સ્ટોલ ચાલુ રાખવા માટે \"Run anyway\" પર ક્લિક કરો.",
-  "unlockingMessages": "અનલૉક થઈ રહ્યું છે…"
+  "unlockingMessages": "અનલૉક થઈ રહ્યું છે…",
+  "settingUpSecureChat": "સુરક્ષિત ચેટ સેટ કરી રહ્યાં છીએ…"
 }

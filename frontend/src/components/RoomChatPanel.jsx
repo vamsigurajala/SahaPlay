@@ -4167,7 +4167,20 @@ export default function RoomChatPanel({ p }) {
                 </div>
               );
             })()}
-            
+
+            {/* A brand-new guest's encryption key is still being generated/
+                loaded (see waitForKeyPair in Room.jsx) — on any normal device
+                this resolves in a couple of milliseconds, so this almost
+                never actually renders; kept as an honest, real-state-driven
+                safety net for a slow device rather than a fake timer, since
+                there's no meaningful duration here to count down. */}
+            {p.encryptionPending && (
+              <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6,fontSize:10,color:'var(--brand-1)',opacity:0.85}}>
+                <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
+                {t('settingUpSecureChat', 'Setting up secure chat…')}
+              </div>
+            )}
+
             {/* Group + DM emoji pickers moved to global section below to avoid overflow clipping */}
             
             {/* Group recording / review UI (WhatsApp-style) */}
@@ -5297,6 +5310,14 @@ export default function RoomChatPanel({ p }) {
 
                     return (
                       <>
+                        {/* See the matching indicator + comment on the group
+                            composer above — same real-state safety net, DM side. */}
+                        {p.encryptionPending && (
+                          <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:6,fontSize:10,color:'var(--brand-1)',opacity:0.85}}>
+                            <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
+                            {t('settingUpSecureChat', 'Setting up secure chat…')}
+                          </div>
+                        )}
                         <form ref={dmFormRef} onSubmit={(e) => {
                           p.sendDmChat(e);
                           p.setShowDmEmojiPicker(false);

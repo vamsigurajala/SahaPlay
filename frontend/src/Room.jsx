@@ -14885,6 +14885,12 @@ const Room = () => {
                 {/* Chat tab — RoomChatPanel rendered but hidden when not active (preserves scroll/state) */}
                 <div style={{ flex: 1, minHeight: 0, display: rightPanelTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }}>
                   <RoomChatPanel p={{
+                    // See waitForKeyPair's own comment (send paths above) —
+                    // this is the same real "still generating/loading" state,
+                    // surfaced as a small, honest indicator in the composer
+                    // rather than a fake timer (resolves in a couple of ms on
+                    // any normal device, so this almost never renders).
+                    encryptionPending: localStorage.getItem('watch_is_guest') === 'true' && !keyPair,
                     chatThemes, openChatThemeSheet, bumpExpiryBannerTick,
                     chatVisible: rightPanelTab === 'chat',
                     chatTab, setChatTab, chatTabRef,
@@ -15167,6 +15173,7 @@ const Room = () => {
             /* FLOATING MODE (≤ threshold) — original RoomChatPanel, no camera management */
             (
               <RoomChatPanel p={{
+                encryptionPending: localStorage.getItem('watch_is_guest') === 'true' && !keyPair,
                 chatThemes, openChatThemeSheet, bumpExpiryBannerTick,
                 chatTab, setChatTab, chatTabRef,
                 groupMessages, groupUnread, setGroupUnread,
