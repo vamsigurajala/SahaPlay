@@ -21,19 +21,28 @@
  * blurred overlay near-instantly, so this extra base layer isn't needed
  * there and would just add a flash of blur to every ordinary page refresh.
  *
- * Deliberately just a blur+dim layer, no content of its own: it sits BELOW
- * KeyRecoveryModal (z-index 2147483600) and OAuthEncryptionModal (99999) —
- * see this file's own z-index — so whichever of those actually has
- * something to show (a password/passphrase field) renders on top of it
- * normally; this is purely the backstop for the moments neither of them
- * has rendered yet but the key still isn't ready.
+ * Shows a small spinner + label rather than a bare blur — a real-device
+ * report of a plain blank/white screen here read as "the app is frozen,"
+ * indistinguishable from an actual crash/hang, especially right after
+ * deviceUnlock.js's own 12s native-call timeout was added specifically to
+ * stop this exact state from lasting forever. Nothing shown here is
+ * sensitive (just a lock icon + "Unlocking…"), so it's safe to render even
+ * this early. Sits BELOW KeyRecoveryModal (z-index 2147483600) and
+ * OAuthEncryptionModal (99999) — see this file's own z-index — so
+ * whichever of those actually has something to show (a password/passphrase
+ * field) renders on top of it normally; this is purely the backstop for
+ * the moments neither of them has rendered yet but the key still isn't
+ * ready.
  */
 import React from 'react';
+import { Lock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useCrypto } from '../contexts/CryptoContext';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 
 export default function DeviceUnlockOverlay() {
   const { keyPair } = useCrypto();
+  const { t } = useTranslation();
 
   if (!isCapacitorApp() && !isTauriApp()) return null;
   if (keyPair) return null;
@@ -47,7 +56,6 @@ export default function DeviceUnlockOverlay() {
 
   return (
     <div
-      aria-hidden="true"
       style={{
         position: 'fixed',
         inset: 0,
@@ -55,7 +63,33 @@ export default function DeviceUnlockOverlay() {
         background: isLight ? 'rgba(241,245,249,0.94)' : 'rgba(5,5,9,0.94)',
         backdropFilter: 'blur(32px)',
         WebkitBackdropFilter: 'blur(32px)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 14,
       }}
-    />
+    >
+      <style>{`
+        @keyframes device-unlock-spin { to { transform: rotate(360deg); } }
+        @keyframes device-unlock-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+      `}</style>
+      <div style={{ position: 'relative', width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{
+          position: 'absolute', inset: 0, borderRadius: '50%',
+          border: `3px solid ${isLight ? 'rgba(15,23,42,0.12)' : 'rgba(255,255,255,0.12)'}`,
+          borderTopColor: 'var(--brand-1)',
+          animation: 'device-unlock-spin 0.9s linear infinite',
+        }} />
+        <Lock size={20} color={isLight ? '#334155' : '#cbd5e1'} />
+      </div>
+      <div style={{
+        fontSize: 13, fontWeight: 600, letterSpacing: 0.2,
+        color: isLight ? '#334155' : 'rgba(255,255,255,0.65)',
+        animation: 'device-unlock-pulse 1.6s ease-in-out infinite',
+      }}>
+        {t('unlockingMessages', 'Unlocking…')}
+      </div>
+    </div>
   );
 }

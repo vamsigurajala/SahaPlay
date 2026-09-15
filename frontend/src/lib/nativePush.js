@@ -112,9 +112,12 @@ export function initNativePush(onNotificationTap) {
   // being silently dropped by the guard below.
   p.addListener('pushNotificationActionPerformed', (action) => {
     const data = action?.notification?.data;
+    console.log('[Push] pushNotificationActionPerformed fired:', data);
     if (data?.chatId || data?.username || data?.callId) {
       pendingTap = data;
       onNotificationTap?.(data);
+    } else {
+      console.warn('[Push] Notification tap carried no chatId/username/callId — nothing to navigate to:', data);
     }
   });
 

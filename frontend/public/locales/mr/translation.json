@@ -1940,5 +1940,6 @@
   "downloadAppSubtitle": "SahaPlay नेटिव्ह डेस्कटॉप अ‍ॅप म्हणून इंस्टॉल करा — तेच अकाउंट, तेच रूम्स, स्वतःच्या विंडोमध्ये.",
   "downloadAppSmartScreenIntro": "प्रथम उघडताना Windows ही स्क्रीन दाखवेल — हे सामान्य आहे, समस्येचे लक्षण नाही. SahaPlayकडे अजून कोड-सायनिंग नाही, त्यामुळे Windows साठी तो अपरिचित प्रकाशक आहे.",
   "downloadAppSmartScreenStep1": "जर तुम्हाला फक्त \"Don't run\" बटण दिसत असेल, तर आधी \"More info\" वर क्लिक करा — त्यामुळे वर दाखवलेले \"Run anyway\" बटण दिसेल.",
-  "downloadAppSmartScreenStep2": "इंस्टॉलेशन सुरू ठेवण्यासाठी \"Run anyway\" वर क्लिक करा."
+  "downloadAppSmartScreenStep2": "इंस्टॉलेशन सुरू ठेवण्यासाठी \"Run anyway\" वर क्लिक करा.",
+  "unlockingMessages": "अनलॉक होत आहे…"
 }

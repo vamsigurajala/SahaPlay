@@ -1950,5 +1950,6 @@
   "downloadAppSubtitle": "Installiere SahaPlay als native Desktop-App – gleiches Konto, gleiche Räume, eigenes Fenster.",
   "downloadAppSmartScreenIntro": "Windows zeigt diesen Bildschirm beim ersten Start an — das ist normal, kein Zeichen eines Problems. SahaPlay ist noch nicht code-signiert, daher gilt es für Windows als unbekannter Herausgeber.",
   "downloadAppSmartScreenStep1": "Wenn du nur eine Schaltfläche „Don't run\" siehst, klicke zuerst auf „More info\" — dadurch erscheint die oben gezeigte Schaltfläche „Run anyway\".",
-  "downloadAppSmartScreenStep2": "Klicke auf „Run anyway\", um die Installation fortzusetzen."
+  "downloadAppSmartScreenStep2": "Klicke auf „Run anyway\", um die Installation fortzusetzen.",
+  "unlockingMessages": "Wird entsperrt…"
 }

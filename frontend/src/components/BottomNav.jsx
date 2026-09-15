@@ -173,6 +173,7 @@ export default function BottomNav() {
   useEffect(() => {
     const handler = (e) => {
       const data = e.detail;
+      console.log('[BottomNav] open_chat_from_notification received:', data);
       if (!data) return;
       // Navbar.jsx owns friend-request/friend-accept taps (opens its bell
       // dropdown) — see its own peekPendingNotificationTap() check, which
@@ -198,6 +199,7 @@ export default function BottomNav() {
     // not this one, so only claim (and clear) it when it's actually a chat
     // tap this component handles.
     const pending = peekPendingNotificationTap();
+    console.log('[BottomNav] mount-time peekPendingNotificationTap():', pending);
     if (pending && pending.chatId) {
       clearPendingNotificationTap();
       handler({ detail: pending });
@@ -220,9 +222,11 @@ export default function BottomNav() {
   // replay so a later natural lock/unlock cycle (e.g. backgrounding again)
   // doesn't keep reopening a stale target.
   useEffect(() => {
+    console.log('[BottomNav] keyPair-ready replay check — keyPair:', !!keyPair, 'pending tap:', lastChatTapRef.current);
     if (!keyPair || !lastChatTapRef.current) return;
     const data = lastChatTapRef.current;
     lastChatTapRef.current = null;
+    console.log('[BottomNav] replaying notification tap now that keyPair is ready:', data);
     openChatFromTapData(data);
   }, [keyPair]);
 

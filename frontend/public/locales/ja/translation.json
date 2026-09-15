@@ -1950,5 +1950,6 @@
   "downloadAppSubtitle": "SahaPlayをネイティブのデスクトップアプリとしてインストールできます — 同じアカウント、同じルーム、専用ウィンドウで。",
   "downloadAppSmartScreenIntro": "初回起動時にWindowsがこの画面を表示しますが、これは想定内の動作で問題があるわけではありません。SahaPlayはまだコード署名されていないため、Windowsからは未確認の発行元として扱われます。",
   "downloadAppSmartScreenStep1": "「Don't run」ボタンしか表示されない場合は、先に「More info」をクリックしてください — 上記の「Run anyway」ボタンが表示されます。",
-  "downloadAppSmartScreenStep2": "「Run anyway」をクリックしてインストールを続けます。"
+  "downloadAppSmartScreenStep2": "「Run anyway」をクリックしてインストールを続けます。",
+  "unlockingMessages": "ロック解除中…"
 }

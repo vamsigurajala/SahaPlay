@@ -1952,5 +1952,6 @@
   "downloadAppSubtitle": "Instale o SahaPlay como um app de desktop nativo — mesma conta, mesmas salas, sua própria janela.",
   "downloadAppSmartScreenIntro": "O Windows vai mostrar essa tela na primeira execução — isso é esperado, não é sinal de problema. O SahaPlay ainda não tem assinatura de código, então é um editor não reconhecido para o Windows.",
   "downloadAppSmartScreenStep1": "Se você só vir o botão \"Don't run\", clique primeiro em \"More info\" — isso revela o botão \"Run anyway\" mostrado acima.",
-  "downloadAppSmartScreenStep2": "Clique em \"Run anyway\" para continuar a instalação."
+  "downloadAppSmartScreenStep2": "Clique em \"Run anyway\" para continuar a instalação.",
+  "unlockingMessages": "Desbloqueando…"
 }

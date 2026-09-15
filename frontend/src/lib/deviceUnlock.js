@@ -73,6 +73,34 @@ export class DeviceUnlockError extends Error {
   }
 }
 
+// Real-device report: a notification tap that cold-starts (or wakes from
+// fully-closed) the Windows .exe reliably hung on a plain white screen
+// forever — never the Windows Hello prompt, never the passphrase fallback
+// modal, nothing. The native Windows Hello dialog appears to need the
+// window to already be focused/visible to actually show itself; on a
+// toast-activated relaunch specifically, that focus can lose the race
+// against this call, and the native `windows_device_unlock_unlock` command
+// then never resolves OR rejects — it just sits there. Every caller here
+// (CryptoContext's mount effect, its Tauri hide/show listener, and
+// EncryptionUnlockGate's own migrated-passphrase-account check) was
+// awaiting that promise with no ceiling, so the whole app sat blocked
+// behind DeviceUnlockOverlay's blur indefinitely, with no fallback UI ever
+// reachable. 12s is generous for a real biometric/Hello prompt a human is
+// actively responding to, but short enough that a genuinely stuck native
+// call surfaces the password/passphrase fallback instead of a dead screen.
+const NATIVE_UNLOCK_TIMEOUT_MS = 12000;
+function withUnlockTimeout(promise) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new DeviceUnlockError('TIMEOUT', `Device unlock did not respond within ${NATIVE_UNLOCK_TIMEOUT_MS}ms — falling back`));
+    }, NATIVE_UNLOCK_TIMEOUT_MS);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
 // Decodes (deliberately NEVER verifies — there is nothing to verify
 // client-side; JS already implicitly trusts this exact token for every
 // other authenticated API call the app makes) the current session token's
@@ -281,22 +309,28 @@ export async function setupDeviceUnlock(secretKeyBytes, { allowOverwrite = false
  */
 export async function unlockDeviceKey({ strict = false } = {}) {
   if (!isDeviceUnlockAvailable()) throw new DeviceUnlockError('NOT_AVAILABLE', 'Device unlock is not available on this platform');
-  const { accountId, assertion } = await fetchFreshAssertion();
-  let secretKeyBase64;
-  try {
-    if (isTauriApp()) {
-      secretKeyBase64 = await tauriInvoke('windows_device_unlock_unlock', { accountId, assertion, strict });
-    } else {
-      const result = await capacitorPlugin().unlockDeviceKey({ accountId, assertion });
-      secretKeyBase64 = result?.secretKeyBase64;
+  // withUnlockTimeout wraps the ENTIRE rest of this function (not just the
+  // native invoke below) — see its own comment for why: a hung assertion
+  // fetch would block just as indefinitely as a hung native call, and both
+  // need the same ceiling.
+  return withUnlockTimeout((async () => {
+    const { accountId, assertion } = await fetchFreshAssertion();
+    let secretKeyBase64;
+    try {
+      if (isTauriApp()) {
+        secretKeyBase64 = await tauriInvoke('windows_device_unlock_unlock', { accountId, assertion, strict });
+      } else {
+        const result = await capacitorPlugin().unlockDeviceKey({ accountId, assertion });
+        secretKeyBase64 = result?.secretKeyBase64;
+      }
+    } catch (err) {
+      throw nativeErrorToDeviceUnlockError(err);
     }
-  } catch (err) {
-    throw nativeErrorToDeviceUnlockError(err);
-  }
-  if (!secretKeyBase64) {
-    throw new DeviceUnlockError('UNKNOWN', 'Native resolved without returning a key');
-  }
-  return decodeBase64(secretKeyBase64);
+    if (!secretKeyBase64) {
+      throw new DeviceUnlockError('UNKNOWN', 'Native resolved without returning a key');
+    }
+    return decodeBase64(secretKeyBase64);
+  })());
 }
 
 /**

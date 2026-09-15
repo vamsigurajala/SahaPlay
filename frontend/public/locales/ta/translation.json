@@ -1938,5 +1938,6 @@
   "downloadAppSubtitle": "SahaPlay-ஐ ஒரு நேட்டிவ் டெஸ்க்டாப் ஆப்ஆக நிறுவுங்கள் — அதே கணக்கு, அதே அறைகள், சொந்த சாளரத்தில்.",
   "downloadAppSmartScreenIntro": "முதல் முறை திறக்கும்போது Windows இந்த திரையைக் காட்டும் — இது சாதாரணமானது, ஒரு பிரச்சினையின் அறிகுறி அல்ல. SahaPlay-க்கு இன்னும் கோட்-சைனிங் இல்லை, எனவே Windows-க்கு இது அடையாளம் தெரியாத வெளியீட்டாளர்.",
   "downloadAppSmartScreenStep1": "உங்களுக்கு \"Don't run\" பொத்தான் மட்டுமே தெரிந்தால், முதலில் \"More info\" ஐ கிளிக் செய்யவும் — இது மேலே காட்டப்பட்டுள்ள \"Run anyway\" பொத்தானை வெளிப்படுத்தும்.",
-  "downloadAppSmartScreenStep2": "நிறுவலைத் தொடர \"Run anyway\" ஐ கிளிக் செய்யவும்."
+  "downloadAppSmartScreenStep2": "நிறுவலைத் தொடர \"Run anyway\" ஐ கிளிக் செய்யவும்.",
+  "unlockingMessages": "திறக்கப்படுகிறது…"
 }

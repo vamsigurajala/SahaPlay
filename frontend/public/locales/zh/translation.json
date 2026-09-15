@@ -1950,5 +1950,6 @@
   "downloadAppSubtitle": "将 SahaPlay 安装为原生桌面应用——相同的账号、相同的房间,拥有独立窗口。",
   "downloadAppSmartScreenIntro": "Windows 会在首次启动时显示此画面——这是正常现象,并不代表有问题。SahaPlay 尚未进行代码签名,因此在 Windows 看来是未知发布者。",
   "downloadAppSmartScreenStep1": "如果只看到\"Don't run\"按钮,请先点击\"More info\"——这样就会显示上方的\"Run anyway\"按钮。",
-  "downloadAppSmartScreenStep2": "点击\"Run anyway\"以继续安装。"
+  "downloadAppSmartScreenStep2": "点击\"Run anyway\"以继续安装。",
+  "unlockingMessages": "解锁中…"
 }

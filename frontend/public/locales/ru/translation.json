@@ -1952,5 +1952,6 @@
   "downloadAppSubtitle": "Установите SahaPlay как нативное приложение для ПК — тот же аккаунт, те же комнаты, в отдельном окне.",
   "downloadAppSmartScreenIntro": "При первом запуске Windows покажет этот экран — это нормально и не означает проблему. SahaPlay пока не имеет цифровой подписи кода, поэтому Windows считает его неизвестным издателем.",
   "downloadAppSmartScreenStep1": "Если вы видите только кнопку «Don't run», сначала нажмите «More info» — тогда появится кнопка «Run anyway», показанная выше.",
-  "downloadAppSmartScreenStep2": "Нажмите «Run anyway», чтобы продолжить установку."
+  "downloadAppSmartScreenStep2": "Нажмите «Run anyway», чтобы продолжить установку.",
+  "unlockingMessages": "Разблокировка…"
 }

@@ -1950,5 +1950,6 @@
   "downloadAppSubtitle": "Instala SahaPlay como una app de escritorio nativa: misma cuenta, mismas salas, su propia ventana.",
   "downloadAppSmartScreenIntro": "Windows mostrará esta pantalla la primera vez que abras la app — es normal, no un problema. SahaPlay todavía no tiene firma de código, así que Windows lo ve como un editor no reconocido.",
   "downloadAppSmartScreenStep1": "Si solo ves un botón \"Don't run\", haz clic primero en \"More info\" — así aparecerá el botón \"Run anyway\" que se muestra arriba.",
-  "downloadAppSmartScreenStep2": "Haz clic en \"Run anyway\" para continuar con la instalación."
+  "downloadAppSmartScreenStep2": "Haz clic en \"Run anyway\" para continuar con la instalación.",
+  "unlockingMessages": "Desbloqueando…"
 }
