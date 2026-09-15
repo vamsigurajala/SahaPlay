@@ -1199,6 +1199,21 @@ export function CallProvider({ children }) {
     // native call directly) so a denial surfaces MediaPermissionModal's
     // real retry/Open-Settings UI instead of a dead-end toast.
     if (!(await requestMediaAccess())) return;
+    // Warms up the mic/camera NOW, during the ring, instead of waiting for
+    // connectToPeer to do it — which previously only ran once 'call:answered'
+    // came back from the server, i.e. the exact instant the callee taps
+    // Answer. getUserMedia() (hardware init, echo-cancellation pipeline
+    // setup, a real permission prompt on some platforms) is not instant, so
+    // that made the call open with isMicOn still at its default `false` for
+    // however long that took — reported live as "call connects but I'm
+    // immediately on mute, then it un-mutes itself a couple seconds later."
+    // The ring already gives several real seconds of dead time before the
+    // callee can possibly answer, which is exactly when this should happen.
+    // Not awaited — doConnect's own `ensureLocalStream(type)` call re-uses
+    // this exact same cached stream (short-circuits instantly once it
+    // resolves) whenever 'call:answered' actually arrives, so this never
+    // delays call:invite going out or makes the phone ring later.
+    ensureLocalStream(type).catch(e => console.error('[Call] pre-warm ensureLocalStream failed:', e));
     const callId = newCallId();
     peerPublicKeysRef.current = new Map();
     peerGoneRef.current = false;
