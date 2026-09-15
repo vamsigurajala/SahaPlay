@@ -908,10 +908,19 @@ const Profile = () => {
         await enrollBrowserDeviceUnlock(keyPair.secretKey);
         setBrowserRemembered(true);
       } catch (e) {
-        console.warn('[Profile] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
-        toast.error(isPrfUnsupportedError(e)
-          ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
-          : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+        const diag = describeBrowserDeviceUnlockError(e);
+        console.warn('[Profile] "Remember this browser" enrollment failed:', diag);
+        // TEMPORARY MOBILE DIAGNOSTIC — remove once the real failure is
+        // identified. Appends the exact {code, name, message} (never any
+        // secret) to the visible toast so it can be read/screenshotted on
+        // a phone with no DevTools access.
+        toast.error(
+          (isPrfUnsupportedError(e)
+            ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+            : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."))
+          + ` [debug: ${diag.code}/${diag.name}/${diag.message}]`,
+          { duration: 20000 }
+        );
       }
     }
     setShowEncPassphraseModal(false);
@@ -2394,10 +2403,20 @@ const Profile = () => {
                             setBrowserRemembered(true);
                             toast.success(t('rememberBrowserEnabled', 'This browser will unlock your encrypted chats without asking for your password next time.'));
                           } catch (e) {
-                            console.warn('[Profile] "Remember this browser" enrollment failed:', describeBrowserDeviceUnlockError(e));
-                            toast.error(isPrfUnsupportedError(e)
-                              ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
-                              : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."));
+                            const diag = describeBrowserDeviceUnlockError(e);
+                            console.warn('[Profile] "Remember this browser" enrollment failed:', diag);
+                            // TEMPORARY MOBILE DIAGNOSTIC — remove once the
+                            // real failure is identified. Appends the exact
+                            // {code, name, message} (never any secret) to
+                            // the visible toast so it can be read/
+                            // screenshotted on a phone with no DevTools.
+                            toast.error(
+                              (isPrfUnsupportedError(e)
+                                ? t('rememberBrowserPrfUnsupported', "Your device doesn't support secure browser unlock. You'll need to use your encryption passphrase on this browser.")
+                                : t('rememberBrowserFailed', "Couldn't remember this browser — you'll be asked for your password again next time."))
+                              + ` [debug: ${diag.code}/${diag.name}/${diag.message}]`,
+                              { duration: 20000 }
+                            );
                           } finally {
                             setSavingBrowserUnlock(false);
                           }
