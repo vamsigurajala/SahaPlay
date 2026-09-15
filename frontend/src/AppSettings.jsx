@@ -483,6 +483,24 @@ const AppSettings = () => {
     return () => window.removeEventListener('focus', checkStatus);
   }, []);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
+  const langDropdownRef = useRef(null);
+  useEffect(() => {
+    if (!showLangDropdown) return;
+    // Close the language list on any click/tap outside it — works the same
+    // way on desktop (.exe), browser, and mobile (APK webview) since it's
+    // just a DOM listener, not a platform-specific API.
+    const handleOutside = (e) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(e.target)) {
+        setShowLangDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('touchstart', handleOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('touchstart', handleOutside);
+    };
+  }, [showLangDropdown]);
   const [openSection, setOpenSection] = useState('general');
   const [expiryReminders, setExpiryReminders] = useState(() => localStorage.getItem('expiry_reminders') !== 'false');
   const [profile, setProfile] = useState(() => {
@@ -1820,7 +1838,7 @@ const AppSettings = () => {
           {openSection === 'language' && (
             <div className="acc-body">
               <p style={{ color: '#888', fontSize: 13, margin: '0 0 16px' }}>{t('languageDesc', 'Select your preferred language for the app interface')}</p>
-              <div style={{ position: 'relative' }}>
+              <div ref={langDropdownRef} style={{ position: 'relative' }}>
                 <button onClick={() => setShowLangDropdown(p => !p)} style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>{selectedLang.flag} {selectedLang.name}</span>
                   <ChevronDown size={16} color="#888" style={{ transform: showLangDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />

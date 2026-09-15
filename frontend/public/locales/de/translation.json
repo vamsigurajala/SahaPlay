@@ -1942,5 +1942,13 @@
   "hiwFinalCtaLine1": "Erlebe es jetzt selbst —",
   "hiwFinalCtaLine2": "dein erster Raum ist in 30 Sekunden bereit.",
   "seeHowItWorksLink": "Genau ansehen, wie es funktioniert →",
-  "seeFullFeatureListLink": "Vollständige Funktionsliste ansehen →"
+  "seeFullFeatureListLink": "Vollständige Funktionsliste ansehen →",
+  "getDesktopApp": "Desktop-App herunterladen",
+  "downloadAppTitle": "Hol dir die SahaPlay-App",
+  "downloadAppWindows": "Windows",
+  "downloadAppWindowsSub": ".exe-Installationsprogramm",
+  "downloadAppSubtitle": "Installiere SahaPlay als native Desktop-App – gleiches Konto, gleiche Räume, eigenes Fenster.",
+  "downloadAppSmartScreenIntro": "Windows zeigt diesen Bildschirm beim ersten Start an — das ist normal, kein Zeichen eines Problems. SahaPlay ist noch nicht code-signiert, daher gilt es für Windows als unbekannter Herausgeber.",
+  "downloadAppSmartScreenStep1": "Wenn du nur eine Schaltfläche „Don't run\" siehst, klicke zuerst auf „More info\" — dadurch erscheint die oben gezeigte Schaltfläche „Run anyway\".",
+  "downloadAppSmartScreenStep2": "Klicke auf „Run anyway\", um die Installation fortzusetzen."
 }

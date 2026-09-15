@@ -1932,5 +1932,13 @@
   "hiwFinalCtaLine1": "હવે તેને જાતે અનુભવો —",
   "hiwFinalCtaLine2": "તમારો પહેલો રૂમ 30 સેકન્ડમાં તૈયાર છે.",
   "seeHowItWorksLink": "તે બરાબર કેવી રીતે કામ કરે છે તે જુઓ →",
-  "seeFullFeatureListLink": "સંપૂર્ણ ફીચર સૂચિ જુઓ →"
+  "seeFullFeatureListLink": "સંપૂર્ણ ફીચર સૂચિ જુઓ →",
+  "getDesktopApp": "ડેસ્કટોપ ઍપ મેળવો",
+  "downloadAppTitle": "SahaPlay ઍપ મેળવો",
+  "downloadAppWindows": "Windows",
+  "downloadAppWindowsSub": ".exe ઇન્સ્ટોલર",
+  "downloadAppSubtitle": "SahaPlayને નેટિવ ડેસ્કટોપ ઍપ તરીકે ઇન્સ્ટોલ કરો — એ જ એકાઉન્ટ, એ જ રૂમ્સ, પોતાની વિન્ડોમાં.",
+  "downloadAppSmartScreenIntro": "પ્રથમ વખત ખોલવા પર Windows આ સ્ક્રીન બતાવશે — આ સામાન્ય છે, કોઈ સમસ્યાની નિશાની નથી. SahaPlay પાસે હજુ કોડ-સાઇનિંગ નથી, તેથી Windows માટે તે અજાણ્યો પ્રકાશક છે.",
+  "downloadAppSmartScreenStep1": "જો તમને ફક્ત \"Don't run\" બટન દેખાય, તો પહેલા \"More info\" પર ક્લિક કરો — તેનાથી ઉપર બતાવેલ \"Run anyway\" બટન દેખાશે.",
+  "downloadAppSmartScreenStep2": "ઇન્સ્ટોલ ચાલુ રાખવા માટે \"Run anyway\" પર ક્લિક કરો."
 }

@@ -1944,5 +1944,13 @@
   "hiwFinalCtaLine1": "Теперь испытайте это сами —",
   "hiwFinalCtaLine2": "ваша первая комната будет готова через 30 секунд.",
   "seeHowItWorksLink": "Посмотреть, как это работает →",
-  "seeFullFeatureListLink": "Посмотреть полный список функций →"
+  "seeFullFeatureListLink": "Посмотреть полный список функций →",
+  "getDesktopApp": "Получить приложение для ПК",
+  "downloadAppTitle": "Получите приложение SahaPlay",
+  "downloadAppWindows": "Windows",
+  "downloadAppWindowsSub": "установщик .exe",
+  "downloadAppSubtitle": "Установите SahaPlay как нативное приложение для ПК — тот же аккаунт, те же комнаты, в отдельном окне.",
+  "downloadAppSmartScreenIntro": "При первом запуске Windows покажет этот экран — это нормально и не означает проблему. SahaPlay пока не имеет цифровой подписи кода, поэтому Windows считает его неизвестным издателем.",
+  "downloadAppSmartScreenStep1": "Если вы видите только кнопку «Don't run», сначала нажмите «More info» — тогда появится кнопка «Run anyway», показанная выше.",
+  "downloadAppSmartScreenStep2": "Нажмите «Run anyway», чтобы продолжить установку."
 }

@@ -1944,5 +1944,13 @@
   "hiwFinalCtaLine1": "Agora experimente você mesmo —",
   "hiwFinalCtaLine2": "sua primeira sala fica pronta em 30 segundos.",
   "seeHowItWorksLink": "Veja exatamente como funciona →",
-  "seeFullFeatureListLink": "Ver a lista completa de recursos →"
+  "seeFullFeatureListLink": "Ver a lista completa de recursos →",
+  "getDesktopApp": "Obter o aplicativo para desktop",
+  "downloadAppTitle": "Obtenha o app do SahaPlay",
+  "downloadAppWindows": "Windows",
+  "downloadAppWindowsSub": "instalador .exe",
+  "downloadAppSubtitle": "Instale o SahaPlay como um app de desktop nativo — mesma conta, mesmas salas, sua própria janela.",
+  "downloadAppSmartScreenIntro": "O Windows vai mostrar essa tela na primeira execução — isso é esperado, não é sinal de problema. O SahaPlay ainda não tem assinatura de código, então é um editor não reconhecido para o Windows.",
+  "downloadAppSmartScreenStep1": "Se você só vir o botão \"Don't run\", clique primeiro em \"More info\" — isso revela o botão \"Run anyway\" mostrado acima.",
+  "downloadAppSmartScreenStep2": "Clique em \"Run anyway\" para continuar a instalação."
 }

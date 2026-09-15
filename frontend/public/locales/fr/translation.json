@@ -1942,5 +1942,13 @@
   "hiwFinalCtaLine1": "Découvrez-le maintenant par vous-même —",
   "hiwFinalCtaLine2": "votre premier salon est prêt en 30 secondes.",
   "seeHowItWorksLink": "Voir exactement comment ça marche →",
-  "seeFullFeatureListLink": "Voir la liste complète des fonctionnalités →"
+  "seeFullFeatureListLink": "Voir la liste complète des fonctionnalités →",
+  "getDesktopApp": "Obtenir l'application de bureau",
+  "downloadAppTitle": "Obtenez l'application SahaPlay",
+  "downloadAppWindows": "Windows",
+  "downloadAppWindowsSub": "installateur .exe",
+  "downloadAppSubtitle": "Installez SahaPlay comme une application de bureau native : même compte, mêmes salons, sa propre fenêtre.",
+  "downloadAppSmartScreenIntro": "Windows affichera cet écran au premier lancement — c'est normal, ce n'est pas un problème. SahaPlay n'est pas encore signé numériquement, Windows le considère donc comme un éditeur non reconnu.",
+  "downloadAppSmartScreenStep1": "Si vous ne voyez qu'un bouton « Don't run », cliquez d'abord sur « More info » — cela fait apparaître le bouton « Run anyway » montré ci-dessus.",
+  "downloadAppSmartScreenStep2": "Cliquez sur « Run anyway » pour poursuivre l'installation."
 }

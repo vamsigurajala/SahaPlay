@@ -1899,5 +1899,13 @@
   "hiwFinalCtaLine1": "Now experience it yourself —",
   "hiwFinalCtaLine2": "your first room is ready in 30 seconds.",
   "seeHowItWorksLink": "See exactly how it works →",
-  "seeFullFeatureListLink": "See the full feature list →"
+  "seeFullFeatureListLink": "See the full feature list →",
+  "getDesktopApp": "Get Desktop App",
+  "downloadAppTitle": "Get the SahaPlay App",
+  "downloadAppWindows": "Windows",
+  "downloadAppWindowsSub": ".exe installer",
+  "downloadAppSubtitle": "Install SahaPlay as a native desktop app — same account, same rooms, its own window.",
+  "downloadAppSmartScreenIntro": "Windows will show this screen on first launch — that's expected, not a sign of a problem. SahaPlay isn't code-signed yet, so it's an unrecognized publisher to Windows.",
+  "downloadAppSmartScreenStep1": "If you only see a \"Don't run\" button, click \"More info\" first — that reveals the \"Run anyway\" button shown above.",
+  "downloadAppSmartScreenStep2": "Click \"Run anyway\" to continue installing."
 }

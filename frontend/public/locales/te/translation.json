@@ -1942,5 +1942,13 @@
   "hiwFinalCtaLine1": "ఇప్పుడు దీన్ని మీరే అనుభవించండి —",
   "hiwFinalCtaLine2": "మీ మొదటి రూమ్ 30 సెకన్లలో సిద్ధంగా ఉంటుంది.",
   "seeHowItWorksLink": "ఇది ఖచ్చితంగా ఎలా పనిచేస్తుందో చూడండి →",
-  "seeFullFeatureListLink": "పూర్తి ఫీచర్ జాబితాను చూడండి →"
+  "seeFullFeatureListLink": "పూర్తి ఫీచర్ జాబితాను చూడండి →",
+  "getDesktopApp": "డెస్క్‌టాప్ యాప్‌ని పొందండి",
+  "downloadAppTitle": "SahaPlay యాప్‌ని పొందండి",
+  "downloadAppWindows": "Windows",
+  "downloadAppWindowsSub": ".exe ఇన్‌స్టాలర్",
+  "downloadAppSubtitle": "SahaPlayని నేటివ్ డెస్క్‌టాప్ యాప్‌గా ఇన్‌స్టాల్ చేయండి — అదే ఖాతా, అదే గదులు, దాని సొంత విండోలో.",
+  "downloadAppSmartScreenIntro": "మొదటిసారి తెరిచినప్పుడు Windows ఈ స్క్రీన్‌ను చూపిస్తుంది — ఇది సాధారణమే, సమస్యకు సంకేతం కాదు. SahaPlayకి ఇంకా కోడ్-సైనింగ్ లేదు, కాబట్టి Windowsకి ఇది గుర్తు తెలియని ప్రచురణకర్త.",
+  "downloadAppSmartScreenStep1": "మీకు \"Don't run\" బటన్ మాత్రమే కనిపిస్తే, ముందుగా \"More info\" క్లిక్ చేయండి — దీనితో పైన చూపిన \"Run anyway\" బటన్ కనిపిస్తుంది.",
+  "downloadAppSmartScreenStep2": "ఇన్‌స్టాల్‌ను కొనసాగించడానికి \"Run anyway\" క్లిక్ చేయండి."
 }
