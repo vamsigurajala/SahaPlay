@@ -25,8 +25,19 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # Explicit `packages:` because this action's own default list
+      # ("tools platform-tools") includes the legacy standalone Android SDK
+      # "tools" package — Google has since pulled it from the SDK repository
+      # XML entirely, so `sdkmanager` fails outright trying to install it
+      # ("Warning: Failed to find package 'tools'", exit code 1) on any
+      # fresh run. Only platform-tools is actually needed here — the Gradle
+      # build below (Android Gradle Plugin) fetches the specific
+      # platform/build-tools versions it needs on its own once licenses are
+      # accepted, which this action also handles.
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
 
       - name: Install frontend dependencies
         working-directory: frontend
