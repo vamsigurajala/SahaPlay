@@ -7354,10 +7354,18 @@ const Room = () => {
           // account's own message (you can't edit anyone else's), so that
           // fallback is always safe here, never a guess at someone else's key.
           const senderPubKeyB64 = target.e2ee.senderPublicKey || encodeBase64(myKeyPair.current.publicKey);
+          console.log('[E2EE DEBUG] editGroupMessage media-key recovery:', {
+            msgId: target.id, hasKeys: !!target.e2ee?.keys, keyOwners: Object.keys(target.e2ee?.keys || {}),
+            myLower, hasMyKeyWrap: !!myKeyWrap, usedSenderPKFallback: !target.e2ee.senderPublicKey,
+            hasNonce: !!(target.e2ee.nonce || target.nonce), messageLen: (target.message || '').length,
+          });
           if (myKeyWrap) {
             const plain = decryptGroupMessage(target.message, target.e2ee.nonce || target.nonce, myKeyWrap, decodeBase64(senderPubKeyB64), myKeyPair.current.secretKey);
-            if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
+            console.log('[E2EE DEBUG] editGroupMessage decrypt result:', plain === null ? 'FAILED (null)' : `OK, len ${plain.length}`);
+            if (plain !== null) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
           }
+        } else {
+          console.log('[E2EE DEBUG] editGroupMessage: target.e2ee.keys missing entirely', { msgId: target.id, hasE2ee: !!target.e2ee });
         }
       } catch (err) {
         console.error('[E2EE] Could not preserve media key while editing group caption:', err);

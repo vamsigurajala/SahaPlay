@@ -3373,7 +3373,7 @@ export default function RoomChatPanel({ p }) {
               transform: 'translateZ(0)',
             }} />
           )}
-          <div style={{
+          <div className="room-chat-panel-header" style={{
             padding:'8px 14px',
             background: 'var(--room-sidebar-bg)',
             borderBottom:'1px solid var(--room-border)',

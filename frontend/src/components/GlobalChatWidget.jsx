@@ -6005,7 +6005,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
           const plain = decryptDMSenderCopy(target.senderMessage, target.nonce, target.ephemeralPublicKey, encodeBase64(keyPair.secretKey));
           if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
         } else if (activeChat.type === 'room' && keyPair && target.e2ee?.keys) {
-          const myKeyWrap = target.e2ee.keys[myUsername?.toLowerCase()];
+          const myLower = myUsername?.toLowerCase();
+          // Case-insensitive fallback — this direct lookup used to be the
+          // only attempt, unlike Room.jsx's identical block, which already
+          // had this fallback. A key map entry stored under a different
+          // case than myUsername's current case silently missed here.
+          const myKeyWrap = target.e2ee.keys[myLower] || Object.entries(target.e2ee.keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
           // senderPublicKey can be missing on a message loaded from history
           // (a backend join-casing gap, now fixed server-side, but older
           // cached/in-flight data can still hit it) even though it's
@@ -6014,9 +6019,21 @@ const GlobalChatWidget = React.memo(forwardRef(({
           // keyPair is always safe here, matching the same fallback
           // GlobalChatWidget's own render path already uses for this.
           const senderPubKeyB64 = target.e2ee.senderPublicKey || encodeBase64(keyPair.publicKey);
+          // nonce: e2ee.nonce first, target.nonce as fallback — this used to
+          // read target.nonce ONLY, but a group message's nonce commonly
+          // lives at e2ee.nonce instead (see this file's own live-receive
+          // handler, which already checks both in this same order), so a
+          // message shaped that way had decryptGroupMessage called with an
+          // undefined nonce and failed outright every time.
+          const msgNonce = target.e2ee.nonce || target.nonce;
+          console.log('[E2EE DEBUG] GlobalChatWidget commitEditedText media-key recovery:', {
+            msgId: target.id, keyOwners: Object.keys(target.e2ee.keys || {}), myLower,
+            hasMyKeyWrap: !!myKeyWrap, usedSenderPKFallback: !target.e2ee.senderPublicKey, hasNonce: !!msgNonce,
+          });
           if (myKeyWrap) {
-            const plain = decryptGroupMessage(target.message, target.nonce, myKeyWrap, decodeBase64(senderPubKeyB64), keyPair.secretKey);
-            if (plain) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
+            const plain = decryptGroupMessage(target.message, msgNonce, myKeyWrap, decodeBase64(senderPubKeyB64), keyPair.secretKey);
+            console.log('[E2EE DEBUG] GlobalChatWidget commitEditedText decrypt result:', plain === null ? 'FAILED (null)' : `OK, len ${plain.length}`);
+            if (plain !== null) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
           }
         }
         if (!existingMediaKeyB64) {
