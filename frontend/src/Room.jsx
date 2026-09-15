@@ -3839,6 +3839,35 @@ const Room = () => {
       }
     }
   }, [keyPair, username]);
+
+  // A brand-new guest's key pair is generated/loaded asynchronously by
+  // CryptoContext (localStorage read + WebCrypto wrap/unwrap — see
+  // loadOrCreateGuestKeyPair) right as the room UI itself is already usable,
+  // so typing and hitting send within that first moment could still find
+  // myKeyPair.current genuinely null — not a stale-ref race (the effect
+  // above keeps it live), just this device's own key not existing yet.
+  // Every send/edit path used to fail outright the instant that happened
+  // ("Encryption keys not ready yet"), which is exactly what a guest who
+  // sends a message the moment they land in a room would hit every time.
+  // Reported explicitly as "should never show this error at all" — so
+  // instead of failing immediately, briefly WAIT for it: myKeyPair.current
+  // is polled directly (not the closed-over `keyPair`), so this resolves
+  // the instant the ref-sync effect above fires, typically well under a
+  // second, with no visible delay for the vast majority of sends where the
+  // key is already there.
+  const waitForKeyPair = useCallback((maxWaitMs = 6000) => new Promise((resolve) => {
+    if (myKeyPair.current) { resolve(true); return; }
+    const start = Date.now();
+    const iv = setInterval(() => {
+      if (myKeyPair.current) {
+        clearInterval(iv);
+        resolve(true);
+      } else if (Date.now() - start > maxWaitMs) {
+        clearInterval(iv);
+        resolve(false);
+      }
+    }, 100);
+  }), []);
   useEffect(() => {
     const isGuest = localStorage.getItem('watch_is_guest') === 'true';
     if (isGuest && room && !isWaitingApproval && !roomNotFound && !kickedReason) {
@@ -7019,6 +7048,7 @@ const Room = () => {
     // read a stale null ref and get told encryption "isn't ready" even
     // though it plainly is.
     if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (!myKeyPair.current) await waitForKeyPair();
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
       return;
@@ -7163,6 +7193,7 @@ const Room = () => {
     if (groupEditingMessage) { editGroupMessage(); return; }
     if (!groupChatInput.trim() || !socket) return;
     if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (!myKeyPair.current) await waitForKeyPair();
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
       return;
@@ -7247,6 +7278,7 @@ const Room = () => {
     const idStr = String(target.id);
 
     if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (!myKeyPair.current) await waitForKeyPair();
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
       return;
@@ -7324,6 +7356,7 @@ const Room = () => {
   const sendGroupPoll = async (pollDef) => {
     if (!socket || !roomId) return;
     if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (!myKeyPair.current) await waitForKeyPair();
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
       return;
@@ -7411,6 +7444,7 @@ const Room = () => {
   const sendMediaGroupChat = async (url, type, replyTo = null, rawFile = null, mediaDuration = null, mediaGroupId = null, caption = '') => {
     if (!socket) return;
     if (rawFile && !myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (rawFile && !myKeyPair.current) await waitForKeyPair();
     if (rawFile && !myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
       return;
@@ -7588,6 +7622,7 @@ const Room = () => {
         myKeyPair.current = keyPair;
       }
 
+      if (!myKeyPair.current) await waitForKeyPair();
       const token = localStorage.getItem('watch_token');
       if (!myKeyPair.current) {
         console.error('[E2EE] ABORT: My own keyPair is still missing from CryptoContext.');
@@ -7754,6 +7789,7 @@ const Room = () => {
   const sendDmPoll = async (pollDef) => {
     if (!socket || !dmTarget) return;
     if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (!myKeyPair.current) await waitForKeyPair();
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please refresh.');
       return;
@@ -7923,6 +7959,7 @@ const Room = () => {
     const idStr = String(target.id);
 
     if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+    if (!myKeyPair.current) await waitForKeyPair();
     if (!myKeyPair.current) {
       toast.error('Encryption keys not ready yet. Please refresh.');
       return;
