@@ -79,19 +79,151 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
     // fine: these tests only assert on what happens AFTER the event fires.
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     cleanup();
     vi.unstubAllGlobals();
     delete window.Capacitor;
+    // toast is a shared, file-wide mock — a test that never clears it after
+    // itself (e.g. the browser-unlock-shortcut tests below, added
+    // alongside the mount-effect fix) would otherwise leave its own
+    // recorded calls sitting at mock.calls[0] for whatever test runs next,
+    // wrongly attributing an OLD test's toast to a NEW one.
+    toast.error.mockClear();
+    toast.success.mockClear();
+    // Hard reset at the OUTERMOST afterEach, regardless of which nested
+    // describe block's own (more specific) afterEach also ran — guards
+    // against any single test's mockResolvedValue/mockRejectedValue on
+    // these two shared mocks ever leaking into a later, unrelated test.
+    const { isBrowserDeviceUnlockAvailable, unlockViaBrowser } = await import('../lib/browserDeviceUnlock.js');
+    isBrowserDeviceUnlockAvailable.mockReset();
+    isBrowserDeviceUnlockAvailable.mockReturnValue(false);
+    unlockViaBrowser.mockReset();
+    unlockViaBrowser.mockRejectedValue(new Error('not mocked in this test'));
   });
 
-  test('browser (no window.Capacitor): shows the passphrase modal immediately, device unlock never attempted', async () => {
+  test('browser (no window.Capacitor, no browser device unlock available): shows the passphrase modal immediately, device unlock never attempted', async () => {
     render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
     await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
 
     fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: REAL_PUB_B64, token: fakeToken({ id: 1 }) });
 
     await waitFor(() => expect(screen.getByPlaceholderText(/Min 8 characters/i)).toBeInTheDocument());
+  });
+
+  // Production bug this closes: browser WebAuthn "Remember this browser"
+  // unlock used to only ever be attempted from CryptoContext's own
+  // cold-start mount effect (a fresh page LOAD with an already-existing
+  // token) — this exact event, dispatched on every in-session login for a
+  // migrated/independent-passphrase account, went straight to the
+  // passphrase modal even with a browser wrapper successfully enrolled.
+  describe('browser WebAuthn device-unlock shortcut (no window.Capacitor)', () => {
+    afterEach(async () => {
+      const { isBrowserDeviceUnlockAvailable, unlockViaBrowser } = await import('../lib/browserDeviceUnlock.js');
+      isBrowserDeviceUnlockAvailable.mockReturnValue(false);
+      unlockViaBrowser.mockReset();
+      unlockViaBrowser.mockRejectedValue(new Error('not mocked in this test'));
+    });
+
+    test('enrolled + matching public key: modal never appears, key is restored via browser unlock, no re-enrollment attempt', async () => {
+      const { isBrowserDeviceUnlockAvailable, unlockViaBrowser } = await import('../lib/browserDeviceUnlock.js');
+      unlockViaBrowser.mockResolvedValue(REAL_KP.secretKey);
+      const token = fakeToken({ id: 30, username: 'kevin' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      // isBrowserDeviceUnlockAvailable stays FALSE through CryptoProvider's
+      // own mount-time cold-start restore (this test's own auto-generated,
+      // irrelevant identity) — only flips true right before the event this
+      // test actually cares about, so CryptoContext's SEPARATE cold-start
+      // Step 3 (its own tryRestoreViaBrowserUnlock) never also races to
+      // call unlockViaBrowser at mount, which would otherwise leave an
+      // extra, hard-to-track async chain live past this test's own assertions.
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+      isBrowserDeviceUnlockAvailable.mockReturnValue(true);
+
+      fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: REAL_PUB_B64, token });
+
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
+      expect(screen.queryByPlaceholderText(/Min 8 characters/i)).not.toBeInTheDocument();
+      expect(unlockViaBrowser).toHaveBeenCalledTimes(1);
+    });
+
+    test('browser unlock returns a key that does not match the server public key: rejected, falls back to the passphrase modal', async () => {
+      const { isBrowserDeviceUnlockAvailable, unlockViaBrowser } = await import('../lib/browserDeviceUnlock.js');
+      const wrongKp = nacl.box.keyPair();
+      unlockViaBrowser.mockResolvedValue(wrongKp.secretKey);
+      const token = fakeToken({ id: 31, username: 'laura' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+      isBrowserDeviceUnlockAvailable.mockReturnValue(true);
+
+      fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: REAL_PUB_B64, token });
+
+      await waitFor(() => expect(screen.getByPlaceholderText(/Min 8 characters/i)).toBeInTheDocument());
+      expect(screen.getByTestId('keypair-state').textContent).not.toBe(REAL_PUB_B64);
+    });
+
+    test('browser unlock fails (e.g. ACCOUNT_MISMATCH): falls back to the passphrase modal, no raw error surfaced to keyPair state', async () => {
+      const { isBrowserDeviceUnlockAvailable, unlockViaBrowser } = await import('../lib/browserDeviceUnlock.js');
+      unlockViaBrowser.mockRejectedValue({ code: 'ACCOUNT_MISMATCH', message: 'This credential is not registered to your account.' });
+      const token = fakeToken({ id: 32, username: 'mallory' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+      isBrowserDeviceUnlockAvailable.mockReturnValue(true);
+
+      fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: REAL_PUB_B64, token });
+
+      await waitFor(() => expect(screen.getByPlaceholderText(/Min 8 characters/i)).toBeInTheDocument());
+    });
+
+    test('Android native tried FIRST, browser tried second: native succeeding means browser unlock is never attempted', async () => {
+      const nativeUnlock = vi.fn(async () => ({ secretKeyBase64: encodeBase64(REAL_KP.secretKey) }));
+      installNativePlugin({ unlockDeviceKey: nativeUnlock });
+      const { isBrowserDeviceUnlockAvailable, unlockViaBrowser } = await import('../lib/browserDeviceUnlock.js');
+      const token = fakeToken({ id: 33, username: 'nathan' });
+      localStorage.setItem('watch_token', token);
+      vi.stubGlobal('fetch', vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+          return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      }));
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+      isBrowserDeviceUnlockAvailable.mockReturnValue(true);
+
+      fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: REAL_PUB_B64, token });
+
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
+      expect(nativeUnlock).toHaveBeenCalledTimes(1);
+      expect(unlockViaBrowser).not.toHaveBeenCalled();
+    });
   });
 
   test('Android + enrolled + matching public key: modal never appears, key is restored via device unlock, and no re-enrollment attempt is made (avoids double enrollment)', async () => {
@@ -334,14 +466,23 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
   // outcome or generates a new E2EE identity.
   describe('"Remember this browser" enrollment failure is surfaced to the user (browser WebAuthn path)', () => {
     beforeEach(async () => {
-      const { isBrowserDeviceUnlockAvailable, enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      const { isBrowserDeviceUnlockAvailable, enrollBrowser, unlockViaBrowser } = await import('../lib/browserDeviceUnlock.js');
       isBrowserDeviceUnlockAvailable.mockReturnValue(true); // makes OAuthEncryptionModal render the checkbox
+      // Also makes this component's own mount-effect Step 2 (browser
+      // unlock-restore, added alongside the checkbox fix) actually run —
+      // NO_LOCAL_WRAPPER is the realistic, expected state for every test
+      // in this block (nothing has been enrolled here yet), and is
+      // deliberately excluded from the debug toast (see this file's own
+      // component), so it never pollutes the assertions below.
+      unlockViaBrowser.mockRejectedValue({ code: 'NO_LOCAL_WRAPPER', message: 'No browser enrollment on this device for this account.' });
       enrollBrowser.mockReset();
     });
 
     afterEach(async () => {
-      const { isBrowserDeviceUnlockAvailable, enrollBrowser } = await import('../lib/browserDeviceUnlock.js');
+      const { isBrowserDeviceUnlockAvailable, enrollBrowser, unlockViaBrowser } = await import('../lib/browserDeviceUnlock.js');
       isBrowserDeviceUnlockAvailable.mockReturnValue(false); // restore the default every other test in this file relies on
+      unlockViaBrowser.mockReset();
+      unlockViaBrowser.mockRejectedValue(new Error('not mocked in this test'));
       enrollBrowser.mockReset();
       enrollBrowser.mockRejectedValue(new Error('not mocked in this test'));
       toast.error.mockClear();
@@ -441,11 +582,11 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
       await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
 
+      fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: recoveryPubB64, token });
+      await screen.findByPlaceholderText(/Min 8 characters/i);
       const cryptoLib = await import('../lib/crypto.js');
       const generateKeyPairSpy = vi.spyOn(cryptoLib, 'generateKeyPair');
 
-      fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: recoveryPubB64, token });
-      await screen.findByPlaceholderText(/Min 8 characters/i);
       fireEvent.click(screen.getByText(/forgot passphrase/i));
 
       const recoveryInput = await screen.findByPlaceholderText(/ABCDEFGH/i);
@@ -527,11 +668,11 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
       await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
 
+      fireNeedsPassphrase({ encryptedPrivateKey, publicKey: REAL_PUB_B64, token });
+      const passphraseInput = await screen.findByPlaceholderText(/Min 8 characters/i);
       const cryptoLib = await import('../lib/crypto.js');
       const generateKeyPairSpy = vi.spyOn(cryptoLib, 'generateKeyPair');
 
-      fireNeedsPassphrase({ encryptedPrivateKey, publicKey: REAL_PUB_B64, token });
-      const passphraseInput = await screen.findByPlaceholderText(/Min 8 characters/i);
       fireEvent.change(passphraseInput, { target: { value: 'my-encryption-passphrase' } });
       fireEvent.click(screen.getByRole('checkbox'));
       fireEvent.submit(passphraseInput.closest('form'));

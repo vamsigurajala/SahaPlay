@@ -49,24 +49,36 @@ import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, hashRecovery
 import { API } from '../lib/api';
 import { isCapacitorApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
-import { describeBrowserDeviceUnlockError, isPrfUnsupportedError } from '../lib/browserDeviceUnlock.js';
+import {
+  isBrowserDeviceUnlockAvailable,
+  unlockViaBrowser,
+  describeBrowserDeviceUnlockError,
+  isPrfUnsupportedError,
+} from '../lib/browserDeviceUnlock.js';
 import OAuthEncryptionModal from './OAuthEncryptionModal';
 
 export default function EncryptionUnlockGate() {
   const { t } = useTranslation();
   const { setKeyPair, enrollDeviceUnlockSilently, enrollBrowserDeviceUnlock } = useCrypto();
   const [ctx, setCtx] = useState(null); // { encryptedPrivateKey, publicKey, token }
-  // While true, the passphrase modal stays hidden — set only when a native
-  // device-unlock attempt is genuinely worth trying (Android + available),
-  // so this never delays or hides the modal on browser, where it stays
-  // `false` for the whole lifetime of a given ctx, unchanged from before.
+  // While true, the passphrase modal stays hidden — set whenever EITHER a
+  // native (Android/Windows) OR a browser WebAuthn device-unlock attempt is
+  // genuinely worth trying, so it never delays or hides the modal when
+  // neither applies. Production bug this closes: this event fires on every
+  // in-session login for a migrated/independent-passphrase account (see
+  // this file's own header comment), which is NOT the same moment as
+  // CryptoContext's own cold-start mount effect (only a fresh page LOAD
+  // with an already-existing token) — browser unlock had only ever been
+  // wired into that cold-start path, so a normal "log out, log back in"
+  // within the same tab always skipped straight to this passphrase prompt
+  // even with "Remember this browser" successfully enrolled.
   const [checkingDeviceUnlock, setCheckingDeviceUnlock] = useState(false);
 
   useEffect(() => {
     const handler = (e) => {
       if (e.detail?.encryptedPrivateKey) {
         setCtx(e.detail);
-        setCheckingDeviceUnlock(isCapacitorApp() && isDeviceUnlockAvailable());
+        setCheckingDeviceUnlock((isCapacitorApp() && isDeviceUnlockAvailable()) || isBrowserDeviceUnlockAvailable());
       }
     };
     window.addEventListener('encryption_needs_passphrase', handler);
@@ -77,33 +89,70 @@ export default function EncryptionUnlockGate() {
     if (!ctx || !checkingDeviceUnlock) return;
     let cancelled = false;
     (async () => {
-      try {
-        const secretKey = await unlockDeviceKey();
-        const kp = nacl.box.keyPair.fromSecretKey(secretKey);
-        if (ctx.publicKey && encodeBase64(kp.publicKey) === ctx.publicKey) {
-          if (!cancelled) {
-            await setKeyPair(kp);
-            // Deliberately NOT calling enrollDeviceUnlockSilently here — this
-            // key was JUST recovered via device unlock, which only succeeds
-            // if a wrapper is already enrolled. Re-enrolling would be a
-            // redundant native round-trip (and, with allowOverwrite left
-            // false, a guaranteed no-op) for every single warm/cold start,
-            // not just the one first-enrollment. handleUnlock/handleRecover
-            // below (the passphrase-prompt fallback paths) are the actual
-            // enrollment points for this gate.
-            setCtx(null);
+      // Step 1: native (Android/Windows) — tried first, unchanged from before.
+      if (isCapacitorApp() && isDeviceUnlockAvailable()) {
+        try {
+          const secretKey = await unlockDeviceKey();
+          const kp = nacl.box.keyPair.fromSecretKey(secretKey);
+          if (ctx.publicKey && encodeBase64(kp.publicKey) === ctx.publicKey) {
+            if (!cancelled) {
+              await setKeyPair(kp);
+              // Deliberately NOT calling enrollDeviceUnlockSilently here — this
+              // key was JUST recovered via device unlock, which only succeeds
+              // if a wrapper is already enrolled. Re-enrolling would be a
+              // redundant native round-trip (and, with allowOverwrite left
+              // false, a guaranteed no-op) for every single warm/cold start,
+              // not just the one first-enrollment. handleUnlock/handleRecover
+              // below (the passphrase-prompt fallback paths) are the actual
+              // enrollment points for this gate.
+              setCtx(null);
+            }
+            return;
           }
-          return;
+          console.warn('[EncryptionUnlockGate] Device unlock key did not match the server public key — falling back to the passphrase prompt.');
+        } catch (e) {
+          // NOT_AVAILABLE, NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED,
+          // NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT, KEY_INVALIDATED,
+          // CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, AUTH_FAILED, or any
+          // unexpected error — all mean the same thing here: try the next
+          // step, exactly as before this stage.
+          console.warn('[EncryptionUnlockGate] Device unlock not used, falling back to the passphrase prompt:', e?.code || e?.message || e);
         }
-        console.warn('[EncryptionUnlockGate] Device unlock key did not match the server public key — falling back to the passphrase prompt.');
-      } catch (e) {
-        // NOT_AVAILABLE, NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED,
-        // NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT, KEY_INVALIDATED,
-        // CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, AUTH_FAILED, or any
-        // unexpected error — all mean the same thing here: show the
-        // passphrase prompt, exactly as before this stage.
-        console.warn('[EncryptionUnlockGate] Device unlock not used, falling back to the passphrase prompt:', e?.code || e?.message || e);
       }
+      if (cancelled) return;
+
+      // Step 2: browser WebAuthn "Remember this browser" — same
+      // verify-before-trust rule as native above. Never re-enrolls, same
+      // reasoning as step 1.
+      if (isBrowserDeviceUnlockAvailable()) {
+        try {
+          const secretKey = await unlockViaBrowser();
+          const kp = nacl.box.keyPair.fromSecretKey(secretKey);
+          if (ctx.publicKey && encodeBase64(kp.publicKey) === ctx.publicKey) {
+            if (!cancelled) {
+              await setKeyPair(kp);
+              setCtx(null);
+            }
+            return;
+          }
+          console.warn('[EncryptionUnlockGate] Browser device unlock key did not match the server public key — falling back to the passphrase prompt.');
+        } catch (e) {
+          const diag = describeBrowserDeviceUnlockError(e);
+          console.warn('[EncryptionUnlockGate] Browser device unlock not used, falling back to the passphrase prompt:', diag);
+          // TEMPORARY MOBILE DIAGNOSTIC — remove once the real failure is
+          // identified. Never any secret: {code, name, message} only.
+          // Skips NOT_AVAILABLE/NO_LOCAL_WRAPPER — the two totally expected,
+          // non-error "nothing enrolled here" states, not worth surfacing.
+          // Gated on `cancelled` like every other UI-affecting branch in
+          // this effect — an unmounted instance's stale in-flight ceremony
+          // resolving late must never pop a toast into whatever is
+          // currently on screen.
+          if (!cancelled && diag.code !== 'NOT_AVAILABLE' && diag.code !== 'NO_LOCAL_WRAPPER') {
+            toast.error(`[debug unlock2] ${diag.code}/${diag.name}/${diag.message}`, { duration: 20000 });
+          }
+        }
+      }
+
       if (!cancelled) setCheckingDeviceUnlock(false);
     })();
     return () => { cancelled = true; };
