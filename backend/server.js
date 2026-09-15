@@ -1040,6 +1040,7 @@ app.use(helmet({
         ...frontendOrigins,
         'wss:',
         'ws:',
+        'blob:',
         'https://*.supabase.co',
         'https://accounts.google.com',
         'https://appleid.apple.com',
