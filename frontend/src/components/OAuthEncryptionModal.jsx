@@ -190,8 +190,8 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
               <p style={{ margin: '8px 0 0', color: descColor, fontSize: 13.5, lineHeight: 1.5 }}>
                 {isPasswordAccount
                   ? (isMigration
-                      ? t('encSetMigrationDescPw', "Your encrypted messages are currently protected using your account password — which this server necessarily sees on every login. Set a separate passphrase that only you know, never sent to us, to close that gap.")
-                      : t('encSetNewDescPw', "Choose a passphrase to protect your encrypted messages. This is separate from your account password — never sent to us — and different from your chat-lock PIN."))
+                      ? t('encSetMigrationDescPw', "Right now your messages are locked using your account password. Choose a passphrase only you know — we never see or store it — for extra protection.")
+                      : t('encSetNewDescPw', "Choose a passphrase to protect your messages. Only you know it — we never see or store it. It's separate from your account password and your chat-lock PIN."))
                   : (isMigration
                       ? t('encSetMigrationDesc', `Your ${oauthLabel} account's encrypted messages are currently protected by this server. Set a passphrase that only you know — never sent to us — to close that gap.`, { oauthLabel })
                       : t('encSetNewDesc', `Since you signed in with ${oauthLabel}, choose a separate passphrase to protect your encrypted messages. This is not your ${oauthLabel} password, and it's different from your chat-lock PIN.`, { oauthLabel }))}

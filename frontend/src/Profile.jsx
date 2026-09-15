@@ -2208,7 +2208,7 @@ const Profile = () => {
               {openSection === 'encryption' && (
                 <div className="acc-body">
                   <div className="field-label">
-                    {t('encryptionPassphraseDesc', "Your encrypted messages are currently protected using your account password. Set an independent passphrase — never sent to us — so your login password alone is no longer enough to unlock them.")}
+                    {t('encryptionPassphraseDesc', "Right now your messages are locked using your account password. Set a separate passphrase for extra protection — only you will know it, and we never see or store it.")}
                   </div>
                   <button className="save-btn" onClick={() => setShowEncPassphraseModal(true)} style={{ alignSelf: 'flex-start', marginTop: 12 }}>
                     {t('setEncryptionPassphrase', 'Set encryption passphrase')}
