@@ -3947,6 +3947,20 @@ const GlobalChatWidget = React.memo(forwardRef(({
           if (onNewMessage) onNewMessage(partner, msg);
           
           let skipToast = false;
+          // Separate from skipToast: whether the DESKTOP (.exe) OS
+          // notification should stay silent. Explicit ask: only suppress it
+          // when this exact chat/room's THREAD is actually open somewhere
+          // in the app — not merely "inside the room at all" the way
+          // skipToast's own hostRoomId branch below treats it. RoomChatPanel
+          // has a 'list' pseudo-tab (its conversation-picker view, before
+          // drilling into an actual thread) where chatTab isn't 'group' —
+          // reported live: sitting on that list with the room's own group
+          // chat just showing an unread badge produced no Windows toast at
+          // all, because hostRoomId's unconditional match doesn't care
+          // whether 'list' or 'group' is actually showing. Built off the
+          // same precise activeRoomTabRef+partner match already used for
+          // the DM case below, which never had this bug.
+          let skipDesktopNotif = false;
           // Call-log control messages ("sahaplay_call{...}") are rendered
           // specially inside the chat bubble itself (see the CALL_LOG_PREFIX
           // check further down this file) — showing them here would leak the
@@ -3959,15 +3973,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
           // CallContext.jsx already sends its own dedicated call
           // notifications.
           const isCallLog = !!(msg.decryptedText && msg.decryptedText.startsWith(CALL_LOG_PREFIX));
-          if (isCallLog) skipToast = true;
+          if (isCallLog) { skipToast = true; skipDesktopNotif = true; }
           // 1. Check if user is looking at this chat in the Global Widget itself
-          if (isViewingThis) skipToast = true;
+          if (isViewingThis) { skipToast = true; skipDesktopNotif = true; }
 
           // 2. Check if user is looking at this chat in the specialized Room panel
           const lowerPartner = partner.toLowerCase();
           const lowerActivePartner = (activeRoomPartnerRef.current || '').toLowerCase();
           if (isGroup) {
-             if (activeRoomTabRef.current === 'group' && lowerPartner === lowerActivePartner) skipToast = true;
+             if (activeRoomTabRef.current === 'group' && lowerPartner === lowerActivePartner) { skipToast = true; skipDesktopNotif = true; }
              // 2b. This widget instance's own host room's group chat — suppress
              // just the in-page TOAST unconditionally, not just when its tab
              // happens to be focused (see hostRoomId's own comment above for
@@ -3975,19 +3989,22 @@ const GlobalChatWidget = React.memo(forwardRef(({
              // arrives regardless of which of its own tabs is active, so a
              // toast popping up on top of the room UI would be redundant.
              //
-             // Deliberately NOT applied to the desktop notification below —
-             // that was the actual bug behind "I closed the room's chat panel
-             // (not just switched tabs) but left the room open, then
-             // backgrounded the app, and got nothing for a new group
-             // message." RoomChatPanel has no notification of its own to fall
-             // back on once its chat isn't the visible content, and
-             // showDesktopNotification already has its own, better-targeted
-             // guard for "the user is currently looking at this window at
-             // all" (document.hidden / hasFocus()) — this blanket per-room
-             // suppression only needs to protect the toast.
+             // Deliberately NOT applied to skipDesktopNotif — see that
+             // variable's own comment just above for the 'list'-tab bug this
+             // avoids, plus the original reasoning this file already had for
+             // never applying this unconditional branch to the desktop
+             // notification: "I closed the room's chat panel (not just
+             // switched tabs) but left the room open, then backgrounded the
+             // app, and got nothing for a new group message." RoomChatPanel
+             // has no notification of its own to fall back on once its chat
+             // isn't the visible content, and showDesktopNotification already
+             // has its own, better-targeted guard for "the user is currently
+             // looking at this window at all" (document.hidden / hasFocus())
+             // — this blanket per-room suppression only ever needs to
+             // protect the toast.
              if (hostRoomIdRef.current && lowerPartner === hostRoomIdRef.current.toLowerCase()) skipToast = true;
           } else {
-             if (activeRoomTabRef.current === 'dm' && lowerPartner === lowerActivePartner) skipToast = true;
+             if (activeRoomTabRef.current === 'dm' && lowerPartner === lowerActivePartner) { skipToast = true; skipDesktopNotif = true; }
           }
 
           if (!isMuted && isNotifyCategoryEnabled('messages')) {
@@ -4033,11 +4050,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
               // chatId/type let a click open this exact chat — see
               // showDesktopNotification's own comment on the 4th param.
               // 5th param (Tauri/.exe only, see that same comment): this
-              // exact chat/room is already open somewhere in the app
-              // (skipToast, computed above) — stay silent instead of also
+              // exact chat/room's THREAD is actually open somewhere in the
+              // app (skipDesktopNotif, computed above — deliberately
+              // stricter than skipToast) — stay silent instead of also
               // popping a Windows toast for a message the user can already
               // see live in that panel.
-              showDesktopNotification(isGroup ? groupName : msgSender, notifBody, partnerLower, { chatId: partner, type: isGroup ? 'room' : 'dm' }, isTauriApp() && skipToast);
+              showDesktopNotification(isGroup ? groupName : msgSender, notifBody, partnerLower, { chatId: partner, type: isGroup ? 'room' : 'dm' }, isTauriApp() && skipDesktopNotif);
             }
           }
         }
