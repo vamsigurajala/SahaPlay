@@ -785,6 +785,72 @@ public class SahaplayMediaPlugin extends Plugin {
 
     static final String MESSAGE_TONE_PREFS_KEY = "messageTone";
 
+    // Backs the app's own "Save" button (lightbox, file-card, voice-note —
+    // see frontend/src/lib/nativeDownload.js). The generic browser <a
+    // download> trick this used to fall back on does nothing at all inside
+    // an Android WebView (no download manager hook there), and Capacitor's
+    // @capacitor/filesystem Directory.Documents writes into this app's own
+    // PRIVATE sandbox (Android/data/com.sahaplay.app/...), which is hidden
+    // from a normal file manager on Android 11+ — technically "saved" but
+    // not something the user could ever find. This instead writes straight
+    // into the same public Downloads folder a real browser download lands
+    // in, via MediaStore.Downloads (API 29+) — which needs NO runtime
+    // permission at all, since an app inserting its own row into its own
+    // MediaStore-managed collection has never required one; only reading
+    // another app's files does. `data` is base64 (no data: prefix, already
+    // stripped by nativeDownload.js's blobToBase64), decoded here.
+    @PluginMethod
+    public void saveToDownloads(PluginCall call) {
+        String data = call.getString("data", "");
+        String fileName = call.getString("fileName", "");
+        String mimeType = call.getString("mimeType", "application/octet-stream");
+        if (data.isEmpty() || fileName.isEmpty()) {
+            call.reject("Missing data or fileName");
+            return;
+        }
+        Context ctx = getContext().getApplicationContext();
+        // Off the main thread: base64-decoding a large media file plus a
+        // disk write must never block the WebView/UI thread.
+        new Thread(() -> writeToDownloads(call, ctx, data, fileName, mimeType)).start();
+    }
+
+    private static void writeToDownloads(PluginCall call, Context ctx, String data, String fileName, String mimeType) {
+        try {
+            byte[] bytes = android.util.Base64.decode(data, android.util.Base64.DEFAULT);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                android.content.ContentResolver resolver = ctx.getContentResolver();
+                android.content.ContentValues values = new android.content.ContentValues();
+                values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName);
+                values.put(android.provider.MediaStore.Downloads.MIME_TYPE, mimeType);
+                values.put(android.provider.MediaStore.Downloads.IS_PENDING, 1);
+                android.net.Uri item = resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (item == null) throw new java.io.IOException("MediaStore insert returned null");
+                try (java.io.OutputStream os = resolver.openOutputStream(item)) {
+                    if (os == null) throw new java.io.IOException("openOutputStream returned null");
+                    os.write(bytes);
+                }
+                values.clear();
+                values.put(android.provider.MediaStore.Downloads.IS_PENDING, 0);
+                resolver.update(item, values, null, null);
+            } else {
+                // Pre-Q: no MediaStore.Downloads collection yet — write the
+                // file directly, gated by the maxSdkVersion=28 permission
+                // declared in the manifest for exactly this branch.
+                File downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+                downloadsDir.mkdirs();
+                try (FileOutputStream os = new FileOutputStream(new File(downloadsDir, fileName))) {
+                    os.write(bytes);
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("saved", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            android.util.Log.w("SahaplayMedia", "saveToDownloads failed for " + fileName, e);
+            call.reject("Save failed: " + e.getMessage());
+        }
+    }
+
     private static void stopBluetoothScoQuietly(AudioManager am) {
         try {
             am.setBluetoothScoOn(false);

@@ -244,9 +244,18 @@ html[data-desktop-app='true'].sp-room-active body {
    this data attribute, hardcoded to `top: 16px` internally — overriding it
    here (needs !important since the library sets it as an inline style)
    fixes every page's toast position in one place instead of threading
-   containerStyle through the ~15 separate <Toaster/> usages across pages. */
+   containerStyle through the ~15 separate <Toaster/> usages across pages.
+   z-index is overridden the same way: reported live, the "Save" toast on
+   MediaLightbox (a full-screen overlay at zIndex 999999) rendered BEHIND
+   the lightbox because every <Toaster/> either defaults to react-hot-toast's
+   own baked-in 9999 or, at best, was set to Room.jsx's 99999 — both well
+   under the lightbox's own stacking order. A toast is a transient
+   confirmation that must always be readable above whatever's open
+   (lightbox, camera capture at up to 1000000, any modal), so this beats
+   every overlay in the app rather than chasing each one's exact number. */
 [data-rht-toaster] {
   top: max(16px, calc(var(--sp-status-bar-inset, 0px) + 8px)) !important;
+  z-index: 2000000 !important;
 }
 
 @keyframes gradientPan {

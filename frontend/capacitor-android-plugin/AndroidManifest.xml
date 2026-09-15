@@ -243,6 +243,13 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- SahaplayMediaPlugin.saveToDownloads' pre-Android-10 fallback path
+         (API 29+ uses MediaStore.Downloads, which needs no permission at
+         all — an app inserting its OWN file has never required one). Below
+         Q, writing into the public Downloads folder directly does need
+         this, so it's declared capped at 28; on 29+ it's simply never
+         requested. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
