@@ -1,6 +1,5 @@
 import React from 'react';
-import toast from 'react-hot-toast';
-import { X, ChevronLeft, ChevronRight, Download, MoreVertical, Trash2 } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Download, MoreVertical, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { downloadBlobToDevice } from '../lib/nativeDownload';
 
 const SWIPE_THRESHOLD = 50;
@@ -26,6 +25,25 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
   const isVid = type?.startsWith('video/');
   const hasMultiple = items?.length > 1;
   const [showItemMenu, setShowItemMenu] = React.useState(false);
+  // Save confirmation rendered as our OWN element inside the lightbox's own
+  // card (same stacking context, painted after the card's background) —
+  // reported live: the app-wide react-hot-toast popup, despite a z-index
+  // far above the lightbox's own 999999, still showed up dim/behind on
+  // Android's WebView, matching a known Chromium/WebView bug where a
+  // backdrop-filter element (this lightbox's own blurred rgba(0,0,0,0.7)
+  // overlay) doesn't reliably respect z-index against another
+  // backdrop-filter element (the toast bubble's own frosted-glass style)
+  // painted through a completely different React tree/Toaster instance.
+  // A notice that's a plain DOM child of THIS card sidesteps that
+  // entirely — there is no cross-component stacking to get wrong.
+  const [saveNotice, setSaveNotice] = React.useState(null); // { ok: bool, text: string } | null
+  const saveNoticeTimerRef = React.useRef(null);
+  React.useEffect(() => () => clearTimeout(saveNoticeTimerRef.current), []);
+  const showSaveNotice = (ok, text) => {
+    clearTimeout(saveNoticeTimerRef.current);
+    setSaveNotice({ ok, text });
+    saveNoticeTimerRef.current = setTimeout(() => setSaveNotice(null), 2200);
+  };
   const [showArrows, setShowArrows] = React.useState(true);
   const touchRef = React.useRef({ x: 0, y: 0, active: false });
   // Set on a confirmed swipe navigation so the click that (on some mobile
@@ -107,13 +125,20 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
   const handleDownload = async (e) => {
     e.stopPropagation();
     if (!url) return;
+    // Shaped like react-hot-toast's own `toast` (downloadBlobToDevice only
+    // ever calls .success/.error on it) but renders inside this lightbox
+    // instead of the app-wide Toaster — see saveNotice's own comment above.
+    const localToast = {
+      success: (text) => showSaveNotice(true, text),
+      error: (text) => showSaveNotice(false, text),
+    };
     try {
       const resp = await fetch(url);
       const blob = await resp.blob();
-      await downloadBlobToDevice(blob, item.filename || (isImg ? `image_${Date.now()}.jpg` : `video_${Date.now()}.mp4`), toast);
+      await downloadBlobToDevice(blob, item.filename || (isImg ? `image_${Date.now()}.jpg` : `video_${Date.now()}.mp4`), localToast);
     } catch (e) {
       console.error('[MediaLightbox] download failed:', e);
-      toast.error('Download failed');
+      showSaveNotice(false, 'Download failed');
     }
   };
 
@@ -352,6 +377,22 @@ export default function MediaLightbox({ items, index, onClose, onPrev, onNext, o
             )}
           </div>
         </div>
+
+        {/* Save confirmation — see saveNotice's own comment near the top of
+            this component for why this isn't the app-wide toast. */}
+        {saveNotice && (
+          <div style={{
+            position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 20, display: 'flex', alignItems: 'center', gap: 8,
+            background: saveNotice.ok ? 'rgba(16,20,16,0.94)' : 'rgba(30,16,16,0.94)',
+            border: `1px solid ${saveNotice.ok ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.4)'}`,
+            borderRadius: 12, padding: '9px 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            color: '#fff', fontSize: 13, fontWeight: 600, maxWidth: '85%', pointerEvents: 'none',
+          }}>
+            {saveNotice.ok ? <CheckCircle2 size={16} color="#10b981" /> : <AlertCircle size={16} color="#ef4444" />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{saveNotice.text}</span>
+          </div>
+        )}
 
         {/* Media area */}
         <div
