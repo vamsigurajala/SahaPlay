@@ -834,7 +834,7 @@ const Home = () => {
             <h2 className="section-heading" style={{ fontSize: 'clamp(28px,5vw,48px)', letterSpacing: '-1px' }}>{t('threeStepsSubtitle', "Three steps. That's it.")}</h2>
             <p className="section-desc" style={{ fontSize: 17, marginTop: 16, maxWidth: 520, margin: '16px auto 0', lineHeight: 1.6 }}>
               {t('threeStepsNoSignup', 'No signup needed for guests. No downloads. No plugins. Just watch.')}{' '}
-              <Link to="/how-it-works" className="hero-link-btn">See exactly how it works →</Link>
+              <Link to="/how-it-works" className="hero-link-btn">{t('seeHowItWorksLink', 'See exactly how it works →')}</Link>
             </p>
           </div>
           <div className="steps-row" style={{ display: 'flex', alignItems: 'stretch', gap: 0, position: 'relative' }}>
@@ -1036,7 +1036,7 @@ const Home = () => {
             <h2 className="section-heading" style={{ fontSize: 'clamp(28px,5vw,46px)', letterSpacing: '-1px', marginBottom: 14 }}>{t('everythingYouNeedTitle', 'Everything you need to watch together.')}</h2>
             <p className="section-desc" style={{ fontSize: 17, lineHeight: 1.6, maxWidth: 520, margin: '0 auto' }}>
               {t('cuttingEdgeDesc', 'Built with cutting-edge technology for the ultimate viewing experience.')}{' '}
-              <Link to="/features" className="hero-link-btn">See the full feature list →</Link>
+              <Link to="/features" className="hero-link-btn">{t('seeFullFeatureListLink', 'See the full feature list →')}</Link>
             </p>
           </div>
           <div className="feat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
