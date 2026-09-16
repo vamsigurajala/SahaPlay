@@ -2906,7 +2906,7 @@ export default function RoomChatPanel({ p }) {
           const myUserLower = (myUser || '').toLowerCase();
           const pollMsgs = pollVotesTarget.chatType === 'dm' ? dmMessages : p.groupMessages;
           if (uname === myUserLower) {
-            const myAv = p.userAvatar || p.currentUser?.avatarPath || localStorage.getItem('watch_user_avatar') || p.knownAvatars?.[myUserLower] || p.knownAvatars?.[myUser] || (pollVotesTarget.msg?.senderAvatar) || null;
+            const myAv = p.userAvatar || p.currentUser?.avatarPath || localStorage.getItem('watch_user_avatar') || p.knownAvatars?.[myUserLower] || p.knownAvatars?.[myUser] || null;
             if (myAv) return getAvatarUrl(myAv);
           }
           if (pollVotesTarget.msg?.senderAvatar && uname === (pollVotesTarget.msg.senderName || pollVotesTarget.msg.username || '').toLowerCase()) {
@@ -3862,7 +3862,7 @@ export default function RoomChatPanel({ p }) {
                                   const uname = (u || '').toLowerCase();
                                   const myUserLower = (myUser || '').toLowerCase();
                                   if (uname === myUserLower) {
-                                    const myAv = p.userAvatar || p.currentUser?.avatarPath || localStorage.getItem('watch_user_avatar') || p.knownAvatars?.[myUserLower] || p.knownAvatars?.[myUser] || (msg?.senderAvatar) || null;
+                                    const myAv = p.userAvatar || p.currentUser?.avatarPath || localStorage.getItem('watch_user_avatar') || p.knownAvatars?.[myUserLower] || p.knownAvatars?.[myUser] || null;
                                     if (myAv) return getAvatarUrl(myAv);
                                   }
                                   if (msg?.senderAvatar && uname === (msg.senderName || msg.username || '').toLowerCase()) {
@@ -4928,7 +4928,7 @@ export default function RoomChatPanel({ p }) {
                                         const uname = (u || '').toLowerCase();
                                         const myUserLower = (myUser || '').toLowerCase();
                                         if (uname === myUserLower) {
-                                          const myAv = p.userAvatar || p.currentUser?.avatarPath || localStorage.getItem('watch_user_avatar') || p.knownAvatars?.[myUserLower] || p.knownAvatars?.[myUser] || (msg?.senderAvatar) || null;
+                                          const myAv = p.userAvatar || p.currentUser?.avatarPath || localStorage.getItem('watch_user_avatar') || p.knownAvatars?.[myUserLower] || p.knownAvatars?.[myUser] || null;
                                           if (myAv) return getAvatarUrl(myAv);
                                         }
                                         if (msg?.senderAvatar && uname === (msg.senderName || '').toLowerCase()) {

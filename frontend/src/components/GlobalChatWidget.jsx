@@ -8495,9 +8495,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
                           </div>
                         </div>
 
-                        <div style={{ fontSize: '0.85rem', color: isLight ? 'var(--header-btn)' : '#a1a1aa', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', flex: 1, minWidth: 0 }}>
-                            <span className="chat-preview" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: '0.85rem', color: isLight ? 'var(--header-btn)' : '#a1a1aa', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', flex: 1, minWidth: 0, paddingRight: 6 }}>
+                            <span className="chat-preview" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', width: '100%', display: 'block' }}>
                               {reactionPreviewOverrides[chatKey]
                                 ? reactionPreviewOverrides[chatKey]
                                 : (!chat.lastTimestamp || chat.lastTimestamp === 0)
@@ -8507,7 +8507,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                             </span>
                           </div>
                           
-                          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, gap: 8, marginLeft: 'auto' }}>
                             {mutedChats.includes(chatKey) && (
                               <BellOff size={14} className="chat-status-icon" color="var(--header-btn)" style={{ flexShrink: 0 }} />
                             )}

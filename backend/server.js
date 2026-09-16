@@ -3710,7 +3710,7 @@ app.post('/api/reset-password', async (req, res) => {
       }
     } else {
       await pool.query(
-        'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL, "publicKey" = NULL, "encryptedPrivateKey" = NULL, "recoveryKeyHash" = NULL, "hiddenChats" = \'[]\', "pinnedChats" = \'[]\', "mutedChats" = \'[]\', "firstJoined" = \'{}\', "chat_lock_enabled" = FALSE, "chat_lock_pin_hash" = NULL, "chat_lock_recovery_hash" = NULL, "chat_lock_attempts" = 0, "chat_lock_blocked_until" = NULL WHERE id = $2',
+        'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL, "publicKey" = NULL, "encryptedPrivateKey" = NULL, "recoveryKeyHash" = NULL, "hiddenChats" = \'[]\', "lockedChats" = \'[]\', "pinnedChats" = \'[]\', "mutedChats" = \'[]\', "firstJoined" = \'{}\', "chat_lock_enabled" = FALSE, "chat_lock_pin_hash" = NULL, "chat_lock_recovery_hash" = NULL, "chat_lock_attempts" = 0, "chat_lock_blocked_until" = NULL WHERE id = $2',
         [hashedPassword, user.id]
       );
 
