@@ -5660,18 +5660,24 @@ const GlobalChatWidget = React.memo(forwardRef(({
         }
       }
 
+      const rawText = inputValue.trim();
       const ts = Date.now();
       tempId = `opt-${ts}`;
       const optimisticMsg = {
         id: tempId,
         isMe: true,
         senderName: myUsername,
-        message: inputValue.trim(),
-        decryptedText: inputValue.trim(),
+        message: rawText,
+        decryptedText: rawText,
         timestamp: ts,
         replyTo: buildReplySnapshot(replyToMsg, activeChat?.displayName)
       };
       previousConversations = [...conversations];
+
+      // Optimistically show message in UI immediately, clear input field and reply preview
+      setMessages(prev => [...prev, optimisticMsg]);
+      setInputValue('');
+      setReplyToMsg(null);
       
       // ─── E2EE Encryption ───
       let messagePayload = null, senderMessagePayload = null, isEncrypted = false;
@@ -5792,12 +5798,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
         toast.error(err.error || 'Message could not be sent.');
         if (tempId) setMessages(prev => prev.filter(m => m.id !== tempId));
         if (previousConversations) setConversations(previousConversations);
+        setInputValue(rawText);
       }
     } catch(e) {
       console.error(e);
       toast.error(e.message || 'Failed to send message. Please try again.');
       if (tempId) setMessages(prev => prev.filter(m => m.id !== tempId));
       if (previousConversations) setConversations(previousConversations);
+      setInputValue(rawText);
     } finally {
       isSendingGlobalRef.current = false;
     }
