@@ -750,7 +750,7 @@ import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
 // shipped (the old server-side-only encryption scheme, since retired — no dual-format
 // decrypt support). Media wasn't part of that old scheme (files were always stored
 // unencrypted), so it keeps rendering normally; only legacy text is replaced.
-const LEGACY_GROUP_TEXT_PLACEHOLDER = 'Sent before encryption upgrade';
+const LEGACY_GROUP_TEXT_PLACEHOLDER = 'Start a conversation';
 
 // Shown for a group message that was edited before this fix (an edit that resent
 // plaintext, which the backend then paired with the message's OLD nonce/keys —
@@ -4901,8 +4901,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
             }
             // Legacy conversation preview (predates client-side group E2EE) — media
             // still renders via mediaMeta; legacy text gets the placeholder instead.
+            if (!c.message || !c.lastTimestamp || Number(c.lastTimestamp) === 0) {
+              return { ...c, message: 'Start a conversation', decryptedText: 'Start a conversation' };
+            }
             if (Object.keys(mediaMeta).length > 0) return { ...c, ...mediaMeta };
-            return { ...c, message: LEGACY_GROUP_TEXT_PLACEHOLDER, decryptedText: LEGACY_GROUP_TEXT_PLACEHOLDER };
+            return { ...c, message: 'Start a conversation', decryptedText: 'Start a conversation' };
           }
           return c;
        });

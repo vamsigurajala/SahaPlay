@@ -2903,21 +2903,19 @@ export default function RoomChatPanel({ p }) {
         if (!poll) return null;
         const resolveAvatar = (u) => {
           const uname = (u || '').toLowerCase();
+          const myUserLower = (myUser || '').toLowerCase();
           const pollMsgs = pollVotesTarget.chatType === 'dm' ? dmMessages : p.groupMessages;
-          // Sender check has to come first — pollVotesTarget.msg.senderAvatar
-          // is only ever the SENDER's avatar, so checking "is this me" first
-          // and falling back to it leaked the sender's own avatar onto MY
-          // vote on someone else's poll whenever they had one set.
-          if (uname === (pollVotesTarget.msg.senderName || pollVotesTarget.msg.username || '').toLowerCase()) return getAvatarUrl(pollVotesTarget.msg.senderAvatar);
-          if (uname === myUser) return p.knownAvatars?.[uname] || p.knownAvatars?.[myUser] || null;
+          if (uname === myUserLower) {
+            const myAv = p.userAvatar || p.currentUser?.avatarPath || localStorage.getItem('watch_user_avatar') || p.knownAvatars?.[myUserLower] || p.knownAvatars?.[myUser] || (pollVotesTarget.msg?.senderAvatar) || null;
+            if (myAv) return getAvatarUrl(myAv);
+          }
+          if (pollVotesTarget.msg?.senderAvatar && uname === (pollVotesTarget.msg.senderName || pollVotesTarget.msg.username || '').toLowerCase()) {
+            return getAvatarUrl(pollVotesTarget.msg.senderAvatar);
+          }
           if (pollVotesTarget.chatType === 'dm' && uname === (p.dmTarget || '').toLowerCase()) {
             return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]) || findAvatarFromMessages(uname, pollMsgs);
           }
-          // Any other voter (a group member other than the sender/me): a
-          // room member not covered by knownAvatars yet — see
-          // findAvatarFromMessages's own comment — still shows up here if
-          // they've sent even one other message in this conversation.
-          return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || findAvatarFromMessages(uname, pollMsgs) || null;
+          return getAvatarUrl(p.knownAvatars?.[u] || p.knownAvatars?.[uname]) || findAvatarFromMessages(uname, pollMsgs) || null;
         };
         const resolveDisplayName = (u) => {
           const uname = (u || '').toLowerCase();
@@ -3862,21 +3860,15 @@ export default function RoomChatPanel({ p }) {
                                 if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} />;
                                 const resolveAvatar = (u) => {
                                   const uname = (u || '').toLowerCase();
-                                  // Sender check has to come first — msg.senderAvatar is only
-                                  // ever the SENDER's avatar, so checking "is this me" first and
-                                  // falling back to it leaked the sender's own avatar onto MY
-                                  // vote on someone else's poll whenever they had one set.
-                                  if (uname === (msg.senderName || msg.username || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
-                                  // My own vote on a poll I did NOT send: knownAvatars (the room
-                                  // roster) always has my own avatar regardless of who sent it —
-                                  // msg.senderAvatar never does (not for our own optimistic send,
-                                  // and not for anyone else's poll at all).
-                                  if (uname === myUser) return p.knownAvatars?.[uname] || p.knownAvatars?.[myUser] || null;
-                                  // Any other voter: knownAvatars may not have caught up with a
-                                  // room member's avatar yet — findAvatarFromMessages (any OTHER
-                                  // message they've sent in this room) is the same fallback used
-                                  // by the poll-votes modal above.
-                                  return p.knownAvatars?.[u] || p.knownAvatars?.[uname] || findAvatarFromMessages(uname, p.groupMessages) || null;
+                                  const myUserLower = (myUser || '').toLowerCase();
+                                  if (uname === myUserLower) {
+                                    const myAv = p.userAvatar || p.currentUser?.avatarPath || localStorage.getItem('watch_user_avatar') || p.knownAvatars?.[myUserLower] || p.knownAvatars?.[myUser] || (msg?.senderAvatar) || null;
+                                    if (myAv) return getAvatarUrl(myAv);
+                                  }
+                                  if (msg?.senderAvatar && uname === (msg.senderName || msg.username || '').toLowerCase()) {
+                                    return getAvatarUrl(msg.senderAvatar);
+                                  }
+                                  return getAvatarUrl(p.knownAvatars?.[u] || p.knownAvatars?.[uname]) || findAvatarFromMessages(uname, p.groupMessages) || null;
                                 };
                                 return (
                                   <PollBubble
@@ -4934,14 +4926,18 @@ export default function RoomChatPanel({ p }) {
                                       if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} />;
                                       const resolveAvatar = (u) => {
                                         const uname = (u || '').toLowerCase();
-                                        // Sender check first — see the identical ordering comment
-                                        // on the group tab's own resolveAvatar above.
-                                        if (uname === (msg.senderName || '').toLowerCase()) return getAvatarUrl(msg.senderAvatar);
-                                        if (uname === myUser) return p.knownAvatars?.[uname] || p.knownAvatars?.[myUser] || null;
+                                        const myUserLower = (myUser || '').toLowerCase();
+                                        if (uname === myUserLower) {
+                                          const myAv = p.userAvatar || p.currentUser?.avatarPath || localStorage.getItem('watch_user_avatar') || p.knownAvatars?.[myUserLower] || p.knownAvatars?.[myUser] || (msg?.senderAvatar) || null;
+                                          if (myAv) return getAvatarUrl(myAv);
+                                        }
+                                        if (msg?.senderAvatar && uname === (msg.senderName || '').toLowerCase()) {
+                                          return getAvatarUrl(msg.senderAvatar);
+                                        }
                                         if (uname === (p.dmTarget || '').toLowerCase()) {
                                           return getAvatarUrl(p.knownAvatars?.[p.dmTarget] || p.knownAvatars?.[uname]) || findAvatarFromMessages(uname, dmMessages);
                                         }
-                                        return null;
+                                        return getAvatarUrl(p.knownAvatars?.[u] || p.knownAvatars?.[uname]) || findAvatarFromMessages(uname, dmMessages) || null;
                                       };
                                       return (
                                         <PollBubble

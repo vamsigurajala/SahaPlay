@@ -3606,26 +3606,21 @@ async function hideMessagesForUser(username, pgWhereSql, pgWhereParams, sqliteWh
     console.error('[hideMessagesForUser] PostgreSQL UPDATE failed:', err.message);
   }
 
-  await new Promise((resolve) => {
-    db.all(
-      `SELECT id, hiddenFor FROM messages WHERE ${sqliteWhereSql}`,
-      sqliteWhereParams,
-      (err, rows) => {
-        if (err || !rows?.length) { resolve(); return; }
-        let pending = rows.length;
-        rows.forEach(row => {
-          let arr = [];
-          try { arr = JSON.parse(row.hiddenFor || '[]'); } catch { arr = []; }
-          if (!Array.isArray(arr)) arr = [];
-          if (!arr.map(x => (x || '').toLowerCase()).includes(usernameLower)) arr.push(username);
-          db.run(`UPDATE messages SET hiddenFor = ? WHERE id = ?`,
-            [JSON.stringify(arr), row.id],
-            () => { if (--pending === 0) resolve(); }
-          );
-        });
-      }
-    );
-  });
+  // Fire-and-forget SQLite background update so HTTP request responds instantly (~100ms)
+  db.all(
+    `SELECT id, hiddenFor FROM messages WHERE ${sqliteWhereSql}`,
+    sqliteWhereParams,
+    (err, rows) => {
+      if (err || !rows?.length) return;
+      rows.forEach(row => {
+        let arr = [];
+        try { arr = JSON.parse(row.hiddenFor || '[]'); } catch { arr = []; }
+        if (!Array.isArray(arr)) arr = [];
+        if (!arr.map(x => (x || '').toLowerCase()).includes(usernameLower)) arr.push(username);
+        db.run(`UPDATE messages SET hiddenFor = ? WHERE id = ?`, [JSON.stringify(arr), row.id]);
+      });
+    }
+  );
 }
 
 // Soft-hides EVERY message this user can currently see — every DM thread
