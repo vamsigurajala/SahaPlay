@@ -3649,27 +3649,14 @@ async function hideAllMessagesForUser(username) {
     [usernameLower, usernameLower]
   );
 
-  // Group/room chats: find every room they've participated in, then hide
-  // the WHOLE room's history for them — not just the messages they sent.
-  let roomIds = [];
-  try {
-    const rows = await pool.query(
-      `SELECT DISTINCT "roomId" FROM messages WHERE type IN ('group','room') AND LOWER("senderName") = $1`,
-      [usernameLower]
-    );
-    roomIds = rows.rows.map(r => r.roomId).filter(Boolean);
-  } catch (err) {
-    console.error('[hideAllMessagesForUser] listing rooms failed:', err.message);
-  }
-  for (const roomId of roomIds) {
-    await hideMessagesForUser(
-      username,
-      `"roomId" = $2 AND type IN ('group','room')`,
-      [roomId],
-      `roomId = ? AND type IN ('group','room')`,
-      [roomId]
-    );
-  }
+  // Group/room chats: hide ALL group and room messages in the system for this user.
+  await hideMessagesForUser(
+    username,
+    `type IN ('group','room')`,
+    [],
+    `type IN ('group','room')`,
+    []
+  );
 }
 
 app.post('/api/reset-password', async (req, res) => {
@@ -3725,26 +3712,15 @@ app.post('/api/reset-password', async (req, res) => {
       publicKeyCache.set(user.username.toLowerCase(), publicKey);
     } else {
       await pool.query(
-        'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL WHERE id = $2',
+        'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL, "publicKey" = NULL, "encryptedPrivateKey" = NULL, "recoveryKeyHash" = NULL, "hiddenChats" = \'[]\', "pinnedChats" = \'[]\', "mutedChats" = \'[]\', "firstJoined" = \'{}\', "chatLockPin" = NULL, "lockedChats" = \'[]\' WHERE id = $2',
         [hashedPassword, user.id]
       );
 
       // The user failed to provide a recovery key — their old E2EE identity
       // (and everything encrypted to it) is now unrecoverable, so hide every
       // chat they can see, private and group alike, for THEIR view only.
-      // This used to be a hard DELETE scoped to "senderName = them OR
-      // targetName = them" — for a DM that deleted the row outright, wiping
-      // the OTHER participant's copy of every message this account ever
-      // sent them too, and for a group it left every OTHER member's own
-      // messages fully intact and visible (targetName is never set on a
-      // group row, so it could never match), which read as "my sent
-      // messages are gone but everyone else's are still right there" —
-      // correct in that no one else's access was touched, but not the
-      // "erase everything, for me" the reset warning promised. Soft-hiding
-      // (the same hiddenFor mechanism clear_dm/clear_room_chat already use)
-      // clears this account's own view of every chat, sent or received,
-      // group or private, without touching a single other person's.
       await hideAllMessagesForUser(user.username);
+      publicKeyCache.delete(user.username.toLowerCase());
     }
 
     console.log(`[RESET] Password successfully reset for @${user.username}`);
