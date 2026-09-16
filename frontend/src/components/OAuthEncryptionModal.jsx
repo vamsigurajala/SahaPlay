@@ -314,6 +314,12 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
               style={{ background: 'none', border: 'none', color: 'var(--brand-1-light)', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
               {t('encForgotPassphrase', 'Forgot passphrase?')}
             </button>
+            {onSkip && (
+              <button type="button" onClick={onSkip} disabled={isSubmitting}
+                style={{ background: 'none', border: 'none', color: labelColor, fontSize: 12.5, cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
+                {t('encSkipForNow', 'Not now / Skip')}
+              </button>
+            )}
           </form>
         )}
 

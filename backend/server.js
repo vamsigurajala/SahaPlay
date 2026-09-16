@@ -4440,8 +4440,25 @@ app.post('/api/rooms/thumbnail', authenticateToken, roomThumbnailUpload.single('
 app.use('/avatars', express.static(path.join(__dirname, 'avatars'), { maxAge: '30d' }));
 
 // â"€â"€ GET Profile (own) â"€â"€
-const queryAll = (sql, params) => new Promise((resolve, reject) => db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows)));
-const queryGet = (sql, params) => new Promise((resolve, reject) => db.get(sql, params, (err, row) => err ? reject(err) : resolve(row)));
+const queryAll = async (sql, params = []) => {
+  if (pool) {
+    let pIdx = 1;
+    const pgSql = sql.replace(/\?/g, () => `$${pIdx++}`);
+    const res = await pool.query(pgSql, params);
+    return res.rows || [];
+  }
+  return new Promise((resolve, reject) => db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || [])));
+};
+
+const queryGet = async (sql, params = []) => {
+  if (pool) {
+    let pIdx = 1;
+    const pgSql = sql.replace(/\?/g, () => `$${pIdx++}`);
+    const res = await pool.query(pgSql, params);
+    return res.rows[0] || null;
+  }
+  return new Promise((resolve, reject) => db.get(sql, params, (err, row) => err ? reject(err) : resolve(row || null)));
+};
 
 app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) => {
   try {
@@ -5066,7 +5083,10 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
 
         const hostUsername = memRoom?.hostUsername || dbRoom?.hostUsername;
 
-        const lastMsg = await queryGet('SELECT message, mediaUrl, mediaType, media_file_name, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
+        const lastMsg = await queryGet(
+          'SELECT message, mediaUrl, mediaType, media_file_name, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?) ORDER BY timestamp DESC LIMIT 1',
+          [rid, `%"${username}"%`]
+        );
         finalGroup.push({
           id: rid.toLowerCase(),
           partner: rid,
@@ -5128,17 +5148,27 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       if (allGroupIds.has(rid.toLowerCase())) continue; // already included
       const isInRoom = room.users && room.users.some(u => u.username === username);
       if (!isInRoom) continue;
+      // Filter out messages soft-hidden for this user
+      const validMemMsgs = (room.groupMessages || []).filter(m => {
+        if (!m) return false;
+        if (!m.hiddenFor) return true;
+        const hStr = typeof m.hiddenFor === 'string' ? m.hiddenFor : JSON.stringify(m.hiddenFor);
+        return !hStr.includes('"' + username + '"');
+      });
       // Get last message from in-memory or DB
-      const lastMsg = room.groupMessages.length > 0 
-        ? room.groupMessages[room.groupMessages.length - 1]
-        : await queryGet('SELECT message, mediaUrl, mediaType, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (?::text, ?::text) ORDER BY timestamp DESC LIMIT 1', [rid, 'room', 'group']);
+      const lastMsg = validMemMsgs.length > 0 
+        ? validMemMsgs[validMemMsgs.length - 1]
+        : await queryGet(
+            'SELECT message, mediaUrl, mediaType, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?) ORDER BY timestamp DESC LIMIT 1',
+            [rid, `%"${username}"%`]
+          );
       // Count unread from DB + in-memory messages since lastSeen
       const ls = lastSeenLower[rid.toLowerCase()] || 0;
       const dbUnreadRow = await queryGet(
-        `SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND roomId = ? AND timestamp > ? AND senderName != ?`,
-        [rid, ls, username]
+        `SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND roomId = ? AND timestamp > ? AND senderName != ? AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?)`,
+        [rid, ls, username, `%"${username}"%`]
       );
-      const memUnread = room.groupMessages.filter(m => m.timestamp > ls && m.username !== username).length;
+      const memUnread = validMemMsgs.filter(m => m.timestamp > ls && (m.username || m.senderName || '').toLowerCase() !== username.toLowerCase()).length;
       const roomUnread = Math.max(dbUnreadRow ? Number(dbUnreadRow.c) : 0, memUnread);
       const lmPreview = lastMsg && (!lastMsg.message && lastMsg.mediaUrl)
         ? (lastMsg.mediaType?.startsWith('video') ? '🎥 Video' : '📷 Photo')
@@ -5148,7 +5178,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         partner: rid,
         displayName: room.roomName || rid,
         partnerAvatar: room.thumbnailPath || null,
-        message: lmPreview || 'Group conversation',
+        message: lmPreview || 'Start a conversation',
         lastTimestamp: lastMsg ? lastMsg.timestamp : 0,
         lastMediaType: lastMsg?.mediaType || null,
         lastMediaDuration: lastMsg?.media_duration || lastMsg?.mediaDuration || null,

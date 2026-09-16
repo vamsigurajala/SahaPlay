@@ -7733,11 +7733,42 @@ const Room = () => {
           }
         }
 
-        // 2: check localStorage
+        // 2: HTTP API lookup for recipient public key (ensures fresh key after recipient password reset/rekey)
+        if (!isEncrypted) {
+          try {
+            const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(dmTarget)}`);
+            let freshPK = null;
+            if (pkRes.ok) {
+              const pkData = await pkRes.json();
+              freshPK = pkData.publicKey || null;
+            } else if (pkRes.status === 404) {
+              const pkRes2 = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(targetLower)}`);
+              if (pkRes2.ok) {
+                const pkData2 = await pkRes2.json();
+                freshPK = pkData2.publicKey || null;
+              }
+            }
+            if (freshPK) {
+              console.log('[E2EE] Found recipient public key via API.');
+              const enc = encryptDM(plaintext, freshPK, encodeBase64(myKeyPair.current.publicKey));
+              messagePayload   = enc.ciphertext;
+              senderMsgPayload = enc.senderCiphertext;
+              nonceVal         = enc.nonce;
+              ephKeyVal        = enc.ephemeralPublicKey;
+              isEncrypted      = true;
+              try { localStorage.setItem(`wt_pk_${targetLower}`, freshPK); } catch {}
+              try { dbPublicKeys.current[targetLower] = decodeBase64(freshPK); } catch {}
+            }
+          } catch (e) {
+            console.warn('[E2EE] API public key lookup failed, falling back to local cache', e);
+          }
+        }
+
+        // 3: Fall back to localStorage cache if network request failed
         if (!isEncrypted) {
           const localPK = localStorage.getItem(`wt_pk_${targetLower}`);
           if (localPK) {
-            console.log('[E2EE] Found key in localStorage cache.');
+            console.log('[E2EE] Found key in localStorage cache fallback.');
             const enc = encryptDM(plaintext, localPK, encodeBase64(myKeyPair.current.publicKey));
             messagePayload   = enc.ciphertext;
             senderMsgPayload = enc.senderCiphertext;
@@ -7745,46 +7776,6 @@ const Room = () => {
             ephKeyVal        = enc.ephemeralPublicKey;
             isEncrypted      = true;
             try { dbPublicKeys.current[targetLower] = decodeBase64(localPK); } catch {}
-          }
-        }
-
-        // 3: HTTP API lookup
-        if (!isEncrypted) {
-          console.log('[E2EE] Key not found locally, fetching from API...');
-          const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(dmTarget)}`);
-          if (pkRes.ok) {
-            const pkData = await pkRes.json();
-            if (pkData.publicKey) {
-              console.log('[E2EE] Found key via API.');
-              const enc = encryptDM(plaintext, pkData.publicKey, encodeBase64(myKeyPair.current.publicKey));
-              messagePayload   = enc.ciphertext;
-              senderMsgPayload = enc.senderCiphertext;
-              nonceVal         = enc.nonce;
-              ephKeyVal        = enc.ephemeralPublicKey;
-              isEncrypted      = true;
-              try { localStorage.setItem(`wt_pk_${targetLower}`, pkData.publicKey); } catch {}
-              try { dbPublicKeys.current[targetLower] = decodeBase64(pkData.publicKey); } catch {}
-            }
-          }
-        }
-
-        // 4: Case-insensitive API lookup
-        if (!isEncrypted) {
-          console.log('[E2EE] Fetching from API with lowercase fallback...');
-          const pkRes2 = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(targetLower)}`);
-          if (pkRes2.ok) {
-            const pkData2 = await pkRes2.json();
-            if (pkData2.publicKey) {
-              console.log('[E2EE] Found key via lowercase API.');
-              const enc = encryptDM(plaintext, pkData2.publicKey, encodeBase64(myKeyPair.current.publicKey));
-              messagePayload   = enc.ciphertext;
-              senderMsgPayload = enc.senderCiphertext;
-              nonceVal         = enc.nonce;
-              ephKeyVal        = enc.ephemeralPublicKey;
-              isEncrypted      = true;
-              try { localStorage.setItem(`wt_pk_${targetLower}`, pkData2.publicKey); } catch {}
-              try { dbPublicKeys.current[targetLower] = decodeBase64(pkData2.publicKey); } catch {}
-            }
           }
         }
       } catch (err) {

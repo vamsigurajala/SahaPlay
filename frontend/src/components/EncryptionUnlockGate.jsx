@@ -67,9 +67,49 @@ export default function EncryptionUnlockGate() {
   // see this file's header comment.
   const [checkingDeviceUnlock, setCheckingDeviceUnlock] = useState(false);
 
+  // Auto-dismiss gate if user navigates to login/signup or logs out
+  useEffect(() => {
+    const handleLogout = () => setCtx(null);
+    const handleCheckRoute = () => {
+      const path = (window.location.pathname || '').toLowerCase();
+      if (path === '/login' || path === '/signup' || path === '/reset-password') {
+        setCtx(null);
+      }
+    };
+    handleCheckRoute();
+
+    window.addEventListener('user_logged_out', handleLogout);
+    window.addEventListener('popstate', handleCheckRoute);
+
+    const origPushState = history.pushState;
+    const origReplaceState = history.replaceState;
+    history.pushState = function() {
+      const res = origPushState.apply(this, arguments);
+      handleCheckRoute();
+      return res;
+    };
+    history.replaceState = function() {
+      const res = origReplaceState.apply(this, arguments);
+      handleCheckRoute();
+      return res;
+    };
+
+    return () => {
+      window.removeEventListener('user_logged_out', handleLogout);
+      window.removeEventListener('popstate', handleCheckRoute);
+      history.pushState = origPushState;
+      history.replaceState = origReplaceState;
+    };
+  }, []);
+
   useEffect(() => {
     const handler = (e) => {
       if (e.detail?.encryptedPrivateKey) {
+        // Only show if user is not on login/signup page
+        const path = (window.location.pathname || '').toLowerCase();
+        if (path === '/login' || path === '/signup' || path === '/reset-password') {
+          return;
+        }
         setCtx(e.detail);
         setCheckingDeviceUnlock(isCapacitorApp() && isDeviceUnlockAvailable());
       }
@@ -90,25 +130,12 @@ export default function EncryptionUnlockGate() {
           if (ctx.publicKey && encodeBase64(kp.publicKey) === ctx.publicKey) {
             if (!cancelled) {
               await setKeyPair(kp);
-              // Deliberately NOT calling enrollDeviceUnlockSilently here — this
-              // key was JUST recovered via device unlock, which only succeeds
-              // if a wrapper is already enrolled. Re-enrolling would be a
-              // redundant native round-trip (and, with allowOverwrite left
-              // false, a guaranteed no-op) for every single warm/cold start,
-              // not just the one first-enrollment. handleUnlock/handleRecover
-              // below (the passphrase-prompt fallback paths) are the actual
-              // enrollment points for this gate.
               setCtx(null);
             }
             return;
           }
           console.warn('[EncryptionUnlockGate] Device unlock key did not match the server public key — falling back to the passphrase prompt.');
         } catch (e) {
-          // NOT_AVAILABLE, NOT_AUTHENTICATED, ASSERTION_FETCH_FAILED,
-          // NO_VALID_ASSERTION, NO_KEY_FOR_ACCOUNT, KEY_INVALIDATED,
-          // CORRUPT_WRAPPER, HARDWARE_UNAVAILABLE, AUTH_FAILED, or any
-          // unexpected error — all mean the same thing here: try the next
-          // step, exactly as before this stage.
           console.warn('[EncryptionUnlockGate] Device unlock not used, falling back to the passphrase prompt:', e?.code || e?.message || e);
         }
       }
@@ -168,6 +195,10 @@ export default function EncryptionUnlockGate() {
     setCtx(null);
   }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
+  const handleCancel = useCallback(() => {
+    setCtx(null);
+  }, []);
+
   if (!ctx || checkingDeviceUnlock) return null;
 
   return (
@@ -177,6 +208,7 @@ export default function EncryptionUnlockGate() {
       onUnlock={handleUnlock}
       onRecover={handleRecover}
       onStartFresh={handleStartFresh}
+      onSkip={handleCancel}
     />
   );
 }
