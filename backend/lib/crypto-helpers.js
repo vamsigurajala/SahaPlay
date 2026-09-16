@@ -55,25 +55,18 @@ function normalizeRecoveryKey(key) {
  * @returns {{ ok: true } | { ok: false, reason: string }}
  */
 function verifyRecoveryIdentityMatch({ existingRecoveryKeyHash, existingPublicKey, submittedRecoveryKeyHash, submittedPublicKey }) {
-  // Primary check: If an existing public key is on file, comparing the public key
-  // derived from the submitted recovery phrase against stored public key is exact
-  // mathematical verification.
-  if (existingPublicKey) {
-    if (submittedPublicKey === existingPublicKey) {
-      return { ok: true };
-    }
-    return { ok: false, reason: 'publickey-mismatch' };
+  if (!existingRecoveryKeyHash && !existingPublicKey) {
+    return { ok: false, reason: 'no-existing-verifier' };
   }
 
-  // Secondary check: If no public key on file, check stored recoveryKeyHash
-  if (existingRecoveryKeyHash) {
-    if (submittedRecoveryKeyHash === existingRecoveryKeyHash) {
-      return { ok: true };
-    }
+  if (existingRecoveryKeyHash && submittedRecoveryKeyHash !== existingRecoveryKeyHash) {
     return { ok: false, reason: 'hash-mismatch' };
   }
 
-  // Fallback: If neither exists in DB, allow setup
+  if (existingPublicKey && submittedPublicKey !== existingPublicKey) {
+    return { ok: false, reason: 'publickey-mismatch' };
+  }
+
   return { ok: true };
 }
 
