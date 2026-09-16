@@ -5334,9 +5334,10 @@ app.get('/api/chats/history', authenticateToken, async (req, res) => {
           try {
             const parsed = JSON.parse(r.ephemeralPublicKey);
             if (typeof parsed === 'object' && !Array.isArray(parsed)) {
-              e2ee = { nonce: r.nonce, keys: parsed, senderPublicKey: r.senderPublicKey || null };
+              const senderPK = r.sender_public_key || r.senderPublicKey || null;
+              e2ee = { nonce: r.nonce, keys: parsed, senderPublicKey: senderPK };
             } else {
-              e2ee = { nonce: r.nonce, keys: null, senderPublicKey: r.ephemeralPublicKey };
+              e2ee = { nonce: r.nonce, keys: null, senderPublicKey: r.sender_public_key || r.ephemeralPublicKey };
             }
           } catch {
             e2ee = { nonce: r.nonce, keys: null, senderPublicKey: r.ephemeralPublicKey };
@@ -5754,9 +5755,10 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       const deliveredAt = computeInitialDeliveredAt({ isDm: true, targetName: partner, senderUsername: username });
 
       // Store message + sender-readable copy (senderMessage) so sender can decrypt history
+      const senderPkVal = publicKeyCache.get((username || '').toLowerCase()) || req.body.senderPublicKey || null;
       const dmInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id, is_notice, notice_theme_id, is_poll)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", "targetId", "targetName", message, "senderMessage", "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id, is_notice, notice_theme_id, is_poll, sender_public_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id`,
         [roomId, 'private', String(req.user.id || 'http_client'), username, targetId, partner,
          actualMessage, senderMessageVal,
          mediaUrl || null, mediaType || null, ts,
@@ -5766,7 +5768,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          mediaFileName || null, mediaFileSize || null,
          mediaDuration ? Number(mediaDuration) : null,
          deliveredAt, isForwarded, mediaGroupId || null,
-         isNoticeMsg, isNoticeMsg ? (noticeThemeId || 'default') : null, isPollMsg]
+         isNoticeMsg, isNoticeMsg ? (noticeThemeId || 'default') : null, isPollMsg, senderPkVal]
       );
       const dmDbId = String(dmInsert.rows[0]?.id || ts);
 
@@ -8599,7 +8601,7 @@ io.on('connection', (socket) => {
             try {
               const keysMap = JSON.parse(r.ephemeralPublicKey);
               if (typeof keysMap !== 'object' || Array.isArray(keysMap)) throw new Error('not a keys map');
-              const senderPK = r.sender_public_key || usernameToPublicKey[(r.senderName || '').toLowerCase()] || null;
+              const senderPK = r.sender_public_key || r.senderPublicKey || usernameToPublicKey[(r.senderName || '').toLowerCase()] || null;
               return { nonce: r.nonce, keys: keysMap, senderPublicKey: senderPK };
             } catch(e) {
                return null;
@@ -9101,7 +9103,7 @@ io.on('connection', (socket) => {
             try {
               const keysMap = JSON.parse(r.ephemeralPublicKey);
               if (typeof keysMap !== 'object' || Array.isArray(keysMap)) throw new Error('not a keys map');
-              const senderPK = r.sender_public_key || usernameToPublicKey[(r.senderName || '').toLowerCase()] || null;
+              const senderPK = r.sender_public_key || r.senderPublicKey || usernameToPublicKey[(r.senderName || '').toLowerCase()] || null;
               return { nonce: r.nonce, keys: keysMap, senderPublicKey: senderPK };
             } catch(e) {
                return null;

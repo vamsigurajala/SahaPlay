@@ -2603,7 +2603,15 @@ const Room = () => {
           try {
             const myEncKey = msg.e2ee.keys[myUserLower]
               || Object.entries(msg.e2ee.keys).find(([k]) => k.toLowerCase() === myUserLower)?.[1];
-            const resolvedSenderKey = msg.e2ee.senderPublicKey || (isMine ? encodeBase64(kp.publicKey) : null);
+            const senderLower = (msg.username || msg.senderName || '').toLowerCase();
+            let cachedSenderPkB64 = null;
+            try {
+              cachedSenderPkB64 = localStorage.getItem(`wt_pk_${senderLower}`);
+              if (!cachedSenderPkB64 && dbPublicKeys.current?.[senderLower]) {
+                cachedSenderPkB64 = encodeBase64(dbPublicKeys.current[senderLower]);
+              }
+            } catch {}
+            const resolvedSenderKey = msg.e2ee.senderPublicKey || (isMine ? encodeBase64(kp.publicKey) : cachedSenderPkB64);
             
             if (myEncKey && resolvedSenderKey) {
                const senderPubKey = decodeBase64(resolvedSenderKey);
