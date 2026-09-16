@@ -175,29 +175,28 @@ const Login = () => {
           }
         }
       } else {
-        if (isBrowser) {
-          // In web browsers: if no key exists on file (e.g. after password reset without recovery key),
-          // prompt user to set an encryption passphrase using OAuthEncryptionModal in 'set' mode.
-          setOauthModalCtx({ data, isMigration: false, isPasswordAccount: true });
-          setOauthModalMode('set');
-        } else {
-          try {
-            const { encryptPrivateKey, secretKeyToMnemonic, hashRecoveryPhrase } = await import('./lib/crypto.js');
-            const kp                = generateKeyPair();
-            const encryptedPrivKey  = await encryptPrivateKey(kp.secretKey, password);
-            const phrase            = await secretKeyToMnemonic(kp.secretKey);
-            const recoveryKeyHash   = await hashRecoveryPhrase(phrase);
+        // If no key exists on file (e.g. after password reset without recovery key),
+        // automatically initialize a fresh E2EE keypair using the user's login password.
+        // Do NOT show any modal on login — seamlessly initialize encryption key.
+        try {
+          const { encryptPrivateKey, secretKeyToMnemonic, hashRecoveryPhrase } = await import('./lib/crypto.js');
+          const kp                = generateKeyPair();
+          const encryptedPrivKey  = await encryptPrivateKey(kp.secretKey, password);
+          const phrase            = await secretKeyToMnemonic(kp.secretKey);
+          const recoveryKeyHash   = await hashRecoveryPhrase(phrase);
 
-            await fetch(`${API}/api/auth/setup-keys`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-              body: JSON.stringify({ username: data.username, publicKey: encodeBase64(kp.publicKey), encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash })
-            });
-            await setKeyPair(kp);
-            enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
-          } catch (err) {
-            console.error('[Login] Legacy key setup failed:', err);
-          }
+          await fetch(`${API}/api/auth/setup-keys`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+            body: JSON.stringify({ username: data.username, publicKey: encodeBase64(kp.publicKey), encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash })
+          });
+          await setKeyPair(kp);
+          enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
+          const myLower = data.username.toLowerCase();
+          try { localStorage.setItem(`wt_pk_${myLower}`, encodeBase64(kp.publicKey)); } catch {}
+          window.dispatchEvent(new CustomEvent('public_key_updated', { detail: { username: data.username, publicKey: encodeBase64(kp.publicKey) } }));
+        } catch (err) {
+          console.error('[Login] Automatic key setup failed:', err);
         }
       }
       // ─────────────────────────────────────────────────────────────────────

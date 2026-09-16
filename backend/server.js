@@ -3713,7 +3713,7 @@ app.post('/api/reset-password', async (req, res) => {
       }
     } else {
       await pool.query(
-        'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL, "publicKey" = NULL, "encryptedPrivateKey" = NULL, "recoveryKeyHash" = NULL, "hiddenChats" = \'[]\', "lockedChats" = \'[]\', "pinnedChats" = \'[]\', "mutedChats" = \'[]\', "firstJoined" = \'{}\', "chat_lock_enabled" = FALSE, "chat_lock_pin_hash" = NULL, "chat_lock_recovery_hash" = NULL, "chat_lock_attempts" = 0, "chat_lock_blocked_until" = NULL WHERE id = $2',
+        'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL, "publicKey" = NULL, "encryptedPrivateKey" = NULL, "recoveryKeyHash" = NULL, "hiddenChats" = \'[]\', "lockedChats" = \'[]\', "pinnedChats" = \'[]\', "mutedChats" = \'[]\', "chat_lock_enabled" = FALSE, "chat_lock_pin_hash" = NULL, "chat_lock_recovery_hash" = NULL, "chat_lock_attempts" = 0, "chat_lock_blocked_until" = NULL WHERE id = $2',
         [hashedPassword, user.id]
       );
 
@@ -4847,29 +4847,19 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
   }
 
   try {
-    // 1. Private chats: get latest message per partner
+    // 1. Private chats: get all partners the user has ever messaged with
     const privateRows = await queryAll(`
       SELECT DISTINCT ON (CASE WHEN LOWER(m."senderName") = LOWER($1) THEN LOWER(m."targetName") ELSE LOWER(m."senderName") END)
         m.timestamp as "lastTimestamp",
         CASE WHEN LOWER(m."senderName") = LOWER($1) THEN m."targetName" ELSE m."senderName" END as partner,
         m."roomId",
-        m.message,
-        m."senderMessage" as "senderMessage",
-        m.nonce,
-        m."ephemeralPublicKey" as "ephemeralPublicKey",
-        m."mediaUrl" as "mediaUrl",
-        m."mediaType" as "mediaType",
-        m.media_file_name as "mediaFileName",
-        m.media_duration as "mediaDuration",
-        'private' as type,
-        LOWER(m."senderName") = LOWER($2) as "isMyLastMessage"
+        'private' as type
       FROM messages m
       WHERE m.type = 'private'
-        AND (LOWER(m."senderName") = LOWER($3) OR LOWER(m."targetName") = LOWER($4))
-        AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE '%' || $5 || '%')
+        AND (LOWER(m."senderName") = LOWER($2) OR LOWER(m."targetName") = LOWER($3))
         AND m.is_notice IS NOT TRUE
       ORDER BY CASE WHEN LOWER(m."senderName") = LOWER($1) THEN LOWER(m."targetName") ELSE LOWER(m."senderName") END, m.timestamp DESC, m.id DESC
-    `, [username, username, username, username, `"${username}"`]);
+    `, [username, username, username]);
 
     // A10-B2: Batch private unread counts — one query instead of N per-partner queries
     const privateUnreadMap = new Map();
@@ -4903,13 +4893,24 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       const partnerLower = row.partner.toLowerCase();
       const u = await queryGet('SELECT "displayName", "avatarPath", "publicKey" FROM users WHERE username = ?', [partnerLower]);
       
-      const isMedia = !!row.mediaUrl || !!row.mediaType;
+      const lastMsg = await queryGet(`
+        SELECT message, "senderMessage", nonce, "ephemeralPublicKey", "mediaUrl", "mediaType", media_file_name as "mediaFileName", media_duration as "mediaDuration", timestamp, (LOWER("senderName") = LOWER($1)) as "isMyLastMessage"
+        FROM messages
+        WHERE type = 'private'
+          AND ((LOWER("senderName") = LOWER($1) AND LOWER("targetName") = LOWER($2)) OR (LOWER("senderName") = LOWER($2) AND LOWER("targetName") = LOWER($1)))
+          AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE '%' || $3 || '%')
+          AND is_notice IS NOT TRUE
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 1
+      `, [username, partnerLower, `"${username}"`]);
+
+      const isMedia = lastMsg ? (!!lastMsg.mediaUrl || !!lastMsg.mediaType) : false;
       const mediaPreview = isMedia
-        ? (row.mediaType && row.mediaType.startsWith('video')
+        ? (lastMsg.mediaType && lastMsg.mediaType.startsWith('video')
             ? 'Video'
-            : row.mediaType && row.mediaType.startsWith('audio')
+            : lastMsg.mediaType && lastMsg.mediaType.startsWith('audio')
               ? 'Voice Note'
-              : row.mediaType && row.mediaType.startsWith('image')
+              : lastMsg.mediaType && lastMsg.mediaType.startsWith('image')
                 ? 'Photo'
                 : 'File')
         : null;
@@ -4918,28 +4919,24 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         partner: row.partner,
         displayName: u?.displayName || row.partner,
         partnerAvatar: u?.avatarPath || null,
-        message: mediaPreview || row.message || '',
-        senderMessage: isMedia ? null : (row.senderMessage || null),
-        nonce: isMedia ? null : (row.nonce || null),
-        ephemeralPublicKey: isMedia ? null : (row.ephemeralPublicKey || null),
+        message: lastMsg ? (mediaPreview || lastMsg.message || '') : '',
+        senderMessage: lastMsg && !isMedia ? (lastMsg.senderMessage || null) : null,
+        nonce: lastMsg && !isMedia ? (lastMsg.nonce || null) : null,
+        ephemeralPublicKey: lastMsg && !isMedia ? (lastMsg.ephemeralPublicKey || null) : null,
         partnerPublicKey: u?.publicKey || null,
-        lastTimestamp: row.lastTimestamp,
-        lastMediaType: row.mediaType || null,
-        lastMediaFileName: row.mediaFileName || null,
-        lastMediaDuration: row.mediaDuration || null,
+        lastTimestamp: lastMsg ? lastMsg.timestamp : row.lastTimestamp,
+        lastMediaType: lastMsg ? (lastMsg.mediaType || null) : null,
+        lastMediaFileName: lastMsg ? (lastMsg.mediaFileName || null) : null,
+        lastMediaDuration: lastMsg ? (lastMsg.mediaDuration || null) : null,
         type: 'private',
-        isMyLastMessage: !!row.isMyLastMessage,
+        isMyLastMessage: lastMsg ? !!lastMsg.isMyLastMessage : false,
         unread: privateUnreadMap.get(partnerLower) || 0
       };
     }));
 
     // 2. Group chats — rooms where user sent messages, OR any room the user has ever
     // joined (firstJoined map), so a "silent" member who never posted there still gets
-    // a live, accurate lastTimestamp from the server on every fetch. Without the
-    // firstJoined branch, such a room was entirely absent from this query — the
-    // frontend could only "preserve" it from whatever was already in memory/localStorage,
-    // which is empty or stale right after a logout/refresh, causing it to sort to the
-    // bottom (or vanish) instead of staying at its correct recent-activity position.
+    // a live, accurate lastTimestamp from the server on every fetch.
     let joinedRoomIds = [];
     try {
       const userFjRow = await queryGet('SELECT "firstJoined" FROM users WHERE username = ?', [username]);
@@ -4951,31 +4948,18 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       SELECT DISTINCT ON (m."roomId")
         m.timestamp as "lastTimestamp",
         m."roomId",
-        m.message,
-        m.mediaUrl,
-        m.mediaType,
-        m.media_file_name as "mediaFileName",
-        m.media_duration as "mediaDuration",
-        m."senderName" as "lastSenderName",
-        m."nonce",
-        m."ephemeralPublicKey",
-        u."publicKey" as "senderPublicKey",
-        'room' as type,
-        (m.senderName = $1) as "isMyLastMessage"
+        'room' as type
       FROM messages m
-      LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
       WHERE m.type IN ('room', 'group')
-        AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE '%' || $2 || '%')
         AND (
-          LOWER(m."roomId") = ANY($3::text[])
+          LOWER(m."roomId") = ANY($1::text[])
           OR m."roomId" IN (
             SELECT DISTINCT "roomId" FROM messages
-            WHERE LOWER("senderName") = LOWER($4) AND type IN ('room', 'group')
-            AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE '%' || $5 || '%')
+            WHERE (LOWER("senderName") = LOWER($2) OR LOWER("targetName") = LOWER($2)) AND type IN ('room', 'group')
           )
         )
       ORDER BY m."roomId", m.timestamp DESC, m.id DESC
-    `, [username, `"${username}"`, joinedRoomIds, username, `"${username}"`]);
+    `, [joinedRoomIds, username]);
     
     // A10-B2: Batch group unread counts — one query instead of N per-room queries
     const groupUnreadMap = new Map();
@@ -5027,10 +5011,21 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         }
       } catch(e){}
 
-      const e2ee = (row.nonce && row.ephemeralPublicKey) ? {
-        nonce: row.nonce,
-        keys: (() => { try { const p = JSON.parse(row.ephemeralPublicKey); return (typeof p === 'object' && !Array.isArray(p)) ? p : null; } catch(e){ return null; } })(),
-        senderPublicKey: row.senderPublicKey || null
+      const lastMsg = await queryGet(`
+        SELECT m.message, m."mediaUrl", m."mediaType", m.media_file_name as "mediaFileName", m.media_duration as "mediaDuration", m.timestamp, m."senderName" as "lastSenderName", m.nonce, m."ephemeralPublicKey", u."publicKey" as "senderPublicKey"
+        FROM messages m
+        LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
+        WHERE m.type IN ('room', 'group')
+          AND LOWER(m."roomId") = LOWER($1)
+          AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE '%' || $2 || '%')
+        ORDER BY m.timestamp DESC, m.id DESC
+        LIMIT 1
+      `, [row.roomId, `"${username}"`]);
+
+      const e2ee = (lastMsg && lastMsg.nonce && lastMsg.ephemeralPublicKey) ? {
+        nonce: lastMsg.nonce,
+        keys: (() => { try { const p = JSON.parse(lastMsg.ephemeralPublicKey); return (typeof p === 'object' && !Array.isArray(p)) ? p : null; } catch(e){ return null; } })(),
+        senderPublicKey: lastMsg.senderPublicKey || null
       } : null;
 
       return {
@@ -5039,14 +5034,14 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         displayName: displayName,
         partnerAvatar: thumbnailPath,
         e2ee: e2ee,
-        message: row.message || '',
-        lastTimestamp: row.lastTimestamp,
-        lastMediaType: row.mediaType || null,
-        lastMediaFileName: row.mediaFileName || null,
-        lastMediaDuration: row.mediaDuration || null,
-        lastSenderName: row.lastSenderName || null,
+        message: lastMsg ? (lastMsg.message || '') : '',
+        lastTimestamp: lastMsg ? lastMsg.timestamp : row.lastTimestamp,
+        lastMediaType: lastMsg ? (lastMsg.mediaType || null) : null,
+        lastMediaFileName: lastMsg ? (lastMsg.mediaFileName || null) : null,
+        lastMediaDuration: lastMsg ? (lastMsg.mediaDuration || null) : null,
+        lastSenderName: lastMsg ? (lastMsg.lastSenderName || null) : null,
         type: 'room',
-        isMyLastMessage: !!row.isMyLastMessage,
+        isMyLastMessage: lastMsg ? (lastMsg.lastSenderName || '').toLowerCase() === (username || '').toLowerCase() : false,
         isHost: hostUsername && username && hostUsername.toLowerCase() === username.toLowerCase(),
         unread: groupUnreadMap.get(row.roomId) || 0
       };
