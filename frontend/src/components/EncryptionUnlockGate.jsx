@@ -53,7 +53,7 @@ import { encodeBase64 } from 'tweetnacl-util';
 import { useCrypto } from '../contexts/CryptoContext';
 import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, secretKeyToMnemonic, hashRecoveryPhrase } from '../lib/crypto.js';
 import { API } from '../lib/api';
-import { isCapacitorApp } from '../lib/platform';
+import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
 import OAuthEncryptionModal from './OAuthEncryptionModal';
 
@@ -95,7 +95,7 @@ export default function EncryptionUnlockGate() {
           const path = (window.location.pathname || '').toLowerCase();
           if (path !== '/login' && path !== '/signup' && path !== '/reset-password') {
             setCtx(detail);
-            setCheckingDeviceUnlock(!detail.isSetup && isCapacitorApp() && isDeviceUnlockAvailable());
+            setCheckingDeviceUnlock(!detail.isSetup && (isCapacitorApp() || isTauriApp()) && isDeviceUnlockAvailable());
           }
         }, 300);
       }
@@ -109,7 +109,7 @@ export default function EncryptionUnlockGate() {
     let cancelled = false;
     (async () => {
       // Step 1: native (Android/Windows) — tried first, unchanged from before.
-      if (isCapacitorApp() && isDeviceUnlockAvailable()) {
+      if ((isCapacitorApp() || isTauriApp()) && isDeviceUnlockAvailable()) {
         try {
           const secretKey = await unlockDeviceKey();
           const kp = nacl.box.keyPair.fromSecretKey(secretKey);

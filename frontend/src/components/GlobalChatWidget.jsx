@@ -5692,6 +5692,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
           }
         } catch(e) { console.warn("[E2EE] Public key fetch failed", e); }
 
+        if (!targetPubKey && activeChat.partner) {
+          const local = localStorage.getItem(`wt_pk_${activeChat.partner.toLowerCase()}`);
+          if (local) targetPubKey = local;
+        }
+
         if (targetPubKey && keyPair) {
            console.log('=== ENCRYPTION DEBUG ===');
            console.log('myPrivateKey exists:', !!keyPair.secretKey);

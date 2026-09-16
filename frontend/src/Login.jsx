@@ -176,11 +176,30 @@ const Login = () => {
         }
       } else {
         // If no key exists on file (e.g. after password reset without recovery key),
-        // trigger the persistent EncryptionUnlockGate modal in 'set' mode so the user
-        // creates their new passphrase without it disappearing.
-        window.dispatchEvent(new CustomEvent('encryption_needs_passphrase', {
-          detail: { isSetup: true, token: data.token, username: data.username }
-        }));
+        // auto-generate a fresh E2EE key pair bound to the user's login password so the user
+        // can immediately send/receive DMs, and others can fetch their public key.
+        try {
+          const kp = generateKeyPair();
+          const encryptedPrivKey = await encryptPrivateKey(kp.secretKey, password);
+          const pubKeyStr = encodeBase64(kp.publicKey);
+          await fetch(`${API}/api/auth/setup-keys`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+            body: JSON.stringify({ publicKey: pubKeyStr, encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash: null })
+          });
+          await setKeyPair(kp);
+          enrollDeviceUnlockSilently(kp.secretKey);
+          if (data.username) {
+            try { localStorage.setItem(`wt_pk_${data.username.toLowerCase()}`, pubKeyStr); } catch {}
+            window.dispatchEvent(new CustomEvent('public_key_updated', { detail: { username: data.username, publicKey: pubKeyStr } }));
+          }
+          console.log('[Login] Fresh E2EE key pair auto-generated and registered after password reset.');
+        } catch (setupErr) {
+          console.warn('[Login] Auto E2EE key setup failed, triggering passphrase modal:', setupErr);
+          window.dispatchEvent(new CustomEvent('encryption_needs_passphrase', {
+            detail: { isSetup: true, token: data.token, username: data.username }
+          }));
+        }
       }
       // ─────────────────────────────────────────────────────────────────────
 

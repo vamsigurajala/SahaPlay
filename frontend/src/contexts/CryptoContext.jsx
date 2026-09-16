@@ -350,7 +350,7 @@ export function CryptoProvider({ children }) {
               const res = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${tkn}` } });
               if (res.ok) {
                 const data = await res.json();
-                serverHasExistingKey = !!data.publicKey;
+                serverHasExistingKey = !!(data.publicKey && data.encryptedPrivateKey);
                 serverPublicKeyB64 = data.publicKey || null;
                 serverCheckOk = true;
               }
@@ -417,6 +417,11 @@ export function CryptoProvider({ children }) {
 
               if (tkn) {
                 const pubB64 = encodeBase64(newKP.publicKey);
+                const myUname = localStorage.getItem('watch_username');
+                if (myUname) {
+                  try { localStorage.setItem(`wt_pk_${myUname.toLowerCase()}`, pubB64); } catch {}
+                  window.dispatchEvent(new CustomEvent('public_key_updated', { detail: { username: myUname, publicKey: pubB64 } }));
+                }
                 fetch(`${API}/api/auth/save-public-key`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
