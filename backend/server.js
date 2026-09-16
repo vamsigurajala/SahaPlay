@@ -5014,7 +5014,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       const lastMsg = await queryGet(`
         SELECT m.message, m."mediaUrl", m."mediaType", m.media_file_name as "mediaFileName", m.media_duration as "mediaDuration", m.timestamp, m."senderName" as "lastSenderName", m.nonce, m."ephemeralPublicKey", u."publicKey" as "senderPublicKey"
         FROM messages m
-        LEFT JOIN users u ON LOWER(u.username) = LOWER(m.senderName)
+        LEFT JOIN users u ON LOWER(u.username) = LOWER(m."senderName")
         WHERE m.type IN ('room', 'group')
           AND LOWER(m."roomId") = LOWER($1)
           AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE '%' || $2 || '%')
@@ -5916,14 +5916,14 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
     } else if (type === 'room') {
       // ─── Mandatory SahaPlay announcements group: admin-only send ───
       if (partner === SAHAPLAY_OFFICIAL_ROOM_ID) {
-        const senderRole = (await queryGet('SELECT role FROM users WHERE username = ?', [username]))?.role;
+        const senderRole = (await queryGet('SELECT role FROM users WHERE username = $1', [username]))?.role;
         if (!SAHAPLAY_BROADCAST_ROLES.includes(senderRole)) {
           return res.status(403).json({ error: 'Only SahaPlay admins can post in this group.' });
         }
       }
 
       // ─── Room Permissions Check ───
-      const roomRow = await queryGet('SELECT hostUsername, permissions, roomName FROM room_names WHERE roomId = ?', [partner]);
+      const roomRow = await queryGet('SELECT "hostUsername", permissions, "roomName" FROM room_names WHERE "roomId" = $1', [partner]);
       if (roomRow) {
         const perms = roomRow.permissions ? JSON.parse(roomRow.permissions) : {};
         // Admins have the same send privileges as the host.

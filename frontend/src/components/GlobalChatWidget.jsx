@@ -5640,6 +5640,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
     if (!inputValue.trim() || !activeChat || isSendingGlobalRef.current) return;
 
     isSendingGlobalRef.current = true;
+    let tempId = null;
+    let previousConversations = null;
     try {
       // ── Client-side room permission checks ──
       if (activeChat.type === 'room' && activeChat.permissions && !activeChat.isHost) {
@@ -5659,7 +5661,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
       }
 
       const ts = Date.now();
-      const tempId = `opt-${ts}`;
+      tempId = `opt-${ts}`;
       const optimisticMsg = {
         id: tempId,
         isMe: true,
@@ -5669,7 +5671,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
         timestamp: ts,
         replyTo: buildReplySnapshot(replyToMsg, activeChat?.displayName)
       };
-      const previousConversations = [...conversations];
+      previousConversations = [...conversations];
       
       // ─── E2EE Encryption ───
       let messagePayload = null, senderMessagePayload = null, isEncrypted = false;
@@ -5788,14 +5790,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         toast.error(err.error || 'Message could not be sent.');
-        setMessages(prev => prev.filter(m => m.id !== tempId));
-        setConversations(previousConversations);
+        if (tempId) setMessages(prev => prev.filter(m => m.id !== tempId));
+        if (previousConversations) setConversations(previousConversations);
       }
     } catch(e) {
       console.error(e);
       toast.error(e.message || 'Failed to send message. Please try again.');
-      setMessages(prev => prev.filter(m => m.id !== tempId));
-      setConversations(previousConversations);
+      if (tempId) setMessages(prev => prev.filter(m => m.id !== tempId));
+      if (previousConversations) setConversations(previousConversations);
     } finally {
       isSendingGlobalRef.current = false;
     }
