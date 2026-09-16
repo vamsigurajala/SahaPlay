@@ -2532,6 +2532,8 @@ const Room = () => {
 
 
   const chatTabRef = useRef('list');
+  const isSendingGroupRef = useRef(false);
+  const isSendingDmRef = useRef(false);
   const [groupChatInput, setGroupChatInput] = useState('');
   const [dmChatInput, setDmChatInput] = useState('');
   const [groupReplyTo, setGroupReplyTo] = useState(null);
@@ -7263,79 +7265,89 @@ const Room = () => {
 
   // Send message
   const sendGroupChat = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (groupEditingMessage) { editGroupMessage(); return; }
-    if (!groupChatInput.trim() || !socket) return;
-    if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
-    if (!myKeyPair.current) await waitForKeyPair();
-    if (!myKeyPair.current) {
-      toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
-      return;
-    }
+    if (!groupChatInput.trim() || !socket || isSendingGroupRef.current) return;
 
     const msgText = groupChatInput.trim();
-    const ts = Date.now();
-    const tempId = `opt-${ts}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Optimistic Update
-    const optimisticMsg = {
-      id: tempId,
-      tempId,
-      username,
-      message: msgText,
-      decryptedText: msgText,
-      timestamp: ts,
-      reactions: {},
-      replyTo: buildReplySnapshot(groupReplyTo),
-      _isOptimistic: true
-    };
-    
-    setGroupMessages(prev => {
-      const next = [...prev, optimisticMsg];
-      groupMessagesRef.current = next;
-      return next;
-    });
+    // Synchronously clear input and reply immediately for instant user feedback
+    setGroupChatInput('');
+    setGroupReplyTo(null);
+    isSendingGroupRef.current = true;
 
-    // ─── E2EE: Encrypt group message for all current room members ────────────
-    let encryptedPayload = null;
     try {
-      const recipients = await ensureFreshGroupRecipients();
-      encryptedPayload = encryptGroupMessage(msgText, recipients, myKeyPair.current, username);
-    } catch (err) {
-      console.warn('[E2EE] Group encrypt failed:', err);
-    }
-    // ─────────────────────────────────────────────────────────────────────────
+      if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+      if (!myKeyPair.current) await waitForKeyPair();
+      if (!myKeyPair.current) {
+        toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
+        setGroupChatInput(msgText);
+        return;
+      }
 
-    // Group E2EE is mandatory (matches DM's guarantee) — never fall back to plaintext.
-    if (!encryptedPayload) {
-      toast.error('Message not sent — encryption failed.');
+      const ts = Date.now();
+      const tempId = `opt-${ts}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Optimistic Update
+      const optimisticMsg = {
+        id: tempId,
+        tempId,
+        username,
+        message: msgText,
+        decryptedText: msgText,
+        timestamp: ts,
+        reactions: {},
+        replyTo: buildReplySnapshot(groupReplyTo),
+        _isOptimistic: true
+      };
+      
       setGroupMessages(prev => {
-        const next = prev.filter(m => m.id !== tempId);
+        const next = [...prev, optimisticMsg];
         groupMessagesRef.current = next;
         return next;
       });
-      return;
-    }
 
-    socket.emit('chat_message', {
-      roomId: (roomId || '').toLowerCase(),
-      message: encryptedPayload.ciphertext,
-      e2ee: {
-        nonce: encryptedPayload.nonce,
-        keys: encryptedPayload.keys,
-        senderPublicKey: encodeBase64(myKeyPair.current.publicKey)
-      },
-      username,
-      tempId,
-      replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo)
-    });
+      if (socket) {
+        socket.emit('chat:stop_typing', { partner: roomId, type: 'room', roomId: (roomId || '').toLowerCase() });
+      }
+      clearTimeout(typingTimer.current);
 
-    setGroupReplyTo(null);
-    setGroupChatInput('');
-    if (socket) {
-      socket.emit('chat:stop_typing', { partner: roomId, type: 'room', roomId: (roomId || '').toLowerCase() });
+      // ─── E2EE: Encrypt group message for all current room members ────────────
+      let encryptedPayload = null;
+      try {
+        const recipients = await ensureFreshGroupRecipients();
+        encryptedPayload = encryptGroupMessage(msgText, recipients, myKeyPair.current, username);
+      } catch (err) {
+        console.warn('[E2EE] Group encrypt failed:', err);
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
+      // Group E2EE is mandatory (matches DM's guarantee) — never fall back to plaintext.
+      if (!encryptedPayload) {
+        toast.error('Message not sent — encryption failed.');
+        setGroupMessages(prev => {
+          const next = prev.filter(m => m.id !== tempId);
+          groupMessagesRef.current = next;
+          return next;
+        });
+        setGroupChatInput(msgText);
+        return;
+      }
+
+      socket.emit('chat_message', {
+        roomId: (roomId || '').toLowerCase(),
+        message: encryptedPayload.ciphertext,
+        e2ee: {
+          nonce: encryptedPayload.nonce,
+          keys: encryptedPayload.keys,
+          senderPublicKey: encodeBase64(myKeyPair.current.publicKey)
+        },
+        username,
+        tempId,
+        replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo)
+      });
+    } finally {
+      isSendingGroupRef.current = false;
     }
-    clearTimeout(typingTimer.current);
   };
 
   // Group chat is E2EE (fresh key per message, no persistent group key — see
@@ -7346,93 +7358,104 @@ const Room = () => {
   // new content with the old nonce/keys server-side and permanently corrupt the
   // row (decryptGroupMessage would then always fail on it).
   const editGroupMessage = async () => {
-    if (!groupChatInput.trim() || !socket || !groupEditingMessage) return;
+    if (!groupChatInput.trim() || !socket || !groupEditingMessage || isSendingGroupRef.current) return;
     const newText = groupChatInput.trim();
     const target = groupEditingMessage;
     const idStr = String(target.id);
 
-    if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
-    if (!myKeyPair.current) await waitForKeyPair();
-    if (!myKeyPair.current) {
-      toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
-      return;
-    }
+    setGroupChatInput('');
+    setGroupEditingMessage(null);
+    isSendingGroupRef.current = true;
 
-    // A captioned media message's "message" field packs the media
-    // DECRYPTION KEY together with the caption (packMediaKeyAndCaption) —
-    // encrypting the edited caption alone would silently throw that key
-    // away, permanently breaking this image/video for everyone (the only
-    // copy of it lived in the ciphertext this edit is about to overwrite).
-    // The sender is always included in their own message's key map (see
-    // encryptGroupMessage), so re-derive it the same way render already
-    // decrypts this user's own group messages, and re-pack it with the
-    // new caption before encrypting.
-    let textToEncrypt = newText;
-    if (target.mediaType) {
-      let existingMediaKeyB64 = null;
-      try {
-        if (target.e2ee?.keys) {
-          const myLower = username?.toLowerCase();
-          const myKeyWrap = target.e2ee.keys[myLower] || Object.entries(target.e2ee.keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
-          // senderPublicKey can be missing on a message loaded from history
-          // even though it's genuinely ours — decryptRoomGroupMessages hits
-          // this same gap and falls back the same way (see its own comment)
-          // for exactly this reason. Editing only ever operates on this
-          // account's own message (you can't edit anyone else's), so that
-          // fallback is always safe here, never a guess at someone else's key.
-          const senderPubKeyB64 = target.e2ee.senderPublicKey || encodeBase64(myKeyPair.current.publicKey);
-          console.log('[E2EE DEBUG] editGroupMessage media-key recovery:', {
-            msgId: target.id, hasKeys: !!target.e2ee?.keys, keyOwners: Object.keys(target.e2ee?.keys || {}),
-            myLower, hasMyKeyWrap: !!myKeyWrap, usedSenderPKFallback: !target.e2ee.senderPublicKey,
-            hasNonce: !!(target.e2ee.nonce || target.nonce), messageLen: (target.message || '').length,
-          });
-          if (myKeyWrap) {
-            const plain = decryptGroupMessage(target.message, target.e2ee.nonce || target.nonce, myKeyWrap, decodeBase64(senderPubKeyB64), myKeyPair.current.secretKey);
-            console.log('[E2EE DEBUG] editGroupMessage decrypt result:', plain === null ? 'FAILED (null)' : `OK, len ${plain.length}`);
-            if (plain !== null) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
-          }
-        } else {
-          console.log('[E2EE DEBUG] editGroupMessage: target.e2ee.keys missing entirely', { msgId: target.id, hasE2ee: !!target.e2ee });
-        }
-      } catch (err) {
-        console.error('[E2EE] Could not preserve media key while editing group caption:', err);
-      }
-      if (!existingMediaKeyB64) {
-        toast.error("Couldn't verify this media's encryption key — reopen the room and try again.");
+    try {
+      if (!myKeyPair.current && keyPair) myKeyPair.current = keyPair;
+      if (!myKeyPair.current) await waitForKeyPair();
+      if (!myKeyPair.current) {
+        toast.error('Encryption keys not ready yet. Please wait a moment and try again.');
+        setGroupChatInput(newText);
+        setGroupEditingMessage(target);
         return;
       }
-      textToEncrypt = packMediaKeyAndCaption(existingMediaKeyB64, newText);
+
+      // A captioned media message's "message" field packs the media
+      // DECRYPTION KEY together with the caption (packMediaKeyAndCaption) —
+      // encrypting the edited caption alone would silently throw that key
+      // away, permanently breaking this image/video for everyone (the only
+      // copy of it lived in the ciphertext this edit is about to overwrite).
+      // The sender is always included in their own message's key map (see
+      // encryptGroupMessage), so re-derive it the same way render already
+      // decrypts this user's own group messages, and re-pack it with the
+      // new caption before encrypting.
+      let textToEncrypt = newText;
+      if (target.mediaType) {
+        let existingMediaKeyB64 = null;
+        try {
+          if (target.e2ee?.keys) {
+            const myLower = username?.toLowerCase();
+            const myKeyWrap = target.e2ee.keys[myLower] || Object.entries(target.e2ee.keys).find(([k]) => k.toLowerCase() === myLower)?.[1];
+            // senderPublicKey can be missing on a message loaded from history
+            // even though it's genuinely ours — decryptRoomGroupMessages hits
+            // this same gap and falls back the same way (see its own comment)
+            // for exactly this reason. Editing only ever operates on this
+            // account's own message (you can't edit anyone else's), so that
+            // fallback is always safe here, never a guess at someone else's key.
+            const senderPubKeyB64 = target.e2ee.senderPublicKey || encodeBase64(myKeyPair.current.publicKey);
+            console.log('[E2EE DEBUG] editGroupMessage media-key recovery:', {
+              msgId: target.id, hasKeys: !!target.e2ee?.keys, keyOwners: Object.keys(target.e2ee?.keys || {}),
+              myLower, hasMyKeyWrap: !!myKeyWrap, usedSenderPKFallback: !target.e2ee.senderPublicKey,
+              hasNonce: !!(target.e2ee.nonce || target.nonce), messageLen: (target.message || '').length,
+            });
+            if (myKeyWrap) {
+              const plain = decryptGroupMessage(target.message, target.e2ee.nonce || target.nonce, myKeyWrap, decodeBase64(senderPubKeyB64), myKeyPair.current.secretKey);
+              console.log('[E2EE DEBUG] editGroupMessage decrypt result:', plain === null ? 'FAILED (null)' : `OK, len ${plain.length}`);
+              if (plain !== null) existingMediaKeyB64 = unpackMediaKeyAndCaption(plain).mediaKeyB64;
+            }
+          } else {
+            console.log('[E2EE DEBUG] editGroupMessage: target.e2ee.keys missing entirely', { msgId: target.id, hasE2ee: !!target.e2ee });
+          }
+        } catch (err) {
+          console.error('[E2EE] Could not preserve media key while editing group caption:', err);
+        }
+        if (!existingMediaKeyB64) {
+          toast.error("Couldn't verify this media's encryption key — reopen the room and try again.");
+          setGroupChatInput(newText);
+          setGroupEditingMessage(target);
+          return;
+        }
+        textToEncrypt = packMediaKeyAndCaption(existingMediaKeyB64, newText);
+      }
+
+      let encryptedPayload = null;
+      try {
+        const recipients = await ensureFreshGroupRecipients();
+        encryptedPayload = encryptGroupMessage(textToEncrypt, recipients, myKeyPair.current, username);
+      } catch (err) {
+        console.warn('[E2EE] Group edit encrypt failed:', err);
+      }
+      if (!encryptedPayload) {
+        toast.error('Edit not sent — encryption failed.');
+        setGroupChatInput(newText);
+        setGroupEditingMessage(target);
+        return;
+      }
+
+      setGroupMessages(prev => {
+        const next = prev.map(m => (String(m.id) === idStr ? { ...m, message: encryptedPayload.ciphertext, decryptedText: newText, edited: true, editedAt: Date.now() } : m));
+        groupMessagesRef.current = next;
+        return next;
+      });
+
+      socket.emit('message:edit', {
+        messageId: idStr,
+        timestamp: target.timestamp ? String(target.timestamp) : undefined,
+        newMessage: encryptedPayload.ciphertext,
+        nonce: encryptedPayload.nonce,
+        e2eeKeys: encryptedPayload.keys,
+        ephemeralPublicKey: encodeBase64(myKeyPair.current.publicKey)
+      });
+    } finally {
+      isSendingGroupRef.current = false;
     }
-
-    let encryptedPayload = null;
-    try {
-      const recipients = await ensureFreshGroupRecipients();
-      encryptedPayload = encryptGroupMessage(textToEncrypt, recipients, myKeyPair.current, username);
-    } catch (err) {
-      console.warn('[E2EE] Group edit encrypt failed:', err);
-    }
-    if (!encryptedPayload) {
-      toast.error('Edit not sent — encryption failed.');
-      return;
-    }
-
-    setGroupMessages(prev => {
-      const next = prev.map(m => (String(m.id) === idStr ? { ...m, message: encryptedPayload.ciphertext, decryptedText: newText, edited: true, editedAt: Date.now() } : m));
-      groupMessagesRef.current = next;
-      return next;
-    });
-
-    socket.emit('message:edit', {
-      messageId: idStr,
-      timestamp: target.timestamp ? String(target.timestamp) : undefined,
-      newMessage: encryptedPayload.ciphertext,
-      nonce: encryptedPayload.nonce,
-      e2eeKeys: encryptedPayload.keys,
-      ephemeralPublicKey: encodeBase64(myKeyPair.current.publicKey)
-    });
-
-    setGroupEditingMessage(null);
-    setGroupChatInput('');
   };
 
   // Poll support for the room's own group chat — mirrors GlobalChatWidget's
@@ -7643,9 +7666,9 @@ const Room = () => {
   sendGroupMediaRef.current = sendMediaGroupChat;
 
   const sendDmChat = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (dmEditingMessage) { editDmMessage(); return; }
-    if (!dmChatInput.trim() || !socket || !dmTarget) return;
+    if (!dmChatInput.trim() || !socket || !dmTarget || isSendingDmRef.current) return;
 
     const token = localStorage.getItem('watch_token');
     const ts = Date.now();
@@ -7679,6 +7702,7 @@ const Room = () => {
       socket.emit('chat:stop_typing', { partner: dmTarget, type: 'private', roomId: (roomId || '').toLowerCase() });
     }
     clearTimeout(typingTimer.current);
+    isSendingDmRef.current = true;
 
     try {
       // ─── Phase 1: Sender Key Validation ───
@@ -7692,6 +7716,13 @@ const Room = () => {
       if (!myKeyPair.current) {
         console.error('[E2EE] ABORT: My own keyPair is still missing from CryptoContext.');
         toast.error('Encryption keys not ready yet. Please refresh.');
+        setDmChatInput(plaintext);
+        setDmThreads(prev => {
+          const next = { ...prev };
+          const key = dmTarget.toLowerCase();
+          if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
+          return next;
+        });
         return;
       }
 
@@ -7792,6 +7823,7 @@ const Room = () => {
           if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
           return next;
         });
+        setDmChatInput(plaintext);
         return;
       }
 
@@ -7822,10 +7854,8 @@ const Room = () => {
           if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
           return next;
         });
+        setDmChatInput(plaintext);
       }
-      // On success: backend emits private_message via emitToUser to ALL sockets for dmTarget.
-      // The private_message listener below will also fire for the sender's socket (isMe:true)
-      // but since backend does NOT re-echo to sender from HTTP path, the optimistic msg stays as-is.
     } catch (err) {
       console.error('[Room DM] sendDmChat error:', err);
       toast.error('Failed to send message.');
@@ -7835,6 +7865,9 @@ const Room = () => {
         if (next[key]) next[key] = next[key].filter(m => m.id !== tempId);
         return next;
       });
+      setDmChatInput(plaintext);
+    } finally {
+      isSendingDmRef.current = false;
     }
   };
 

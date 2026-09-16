@@ -2741,6 +2741,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const prevMsgCountRef = useRef(0);
   const isFirstRenderGlobalChat = useRef(true);
   const inputRef = useRef(null);
+  const isSendingGlobalRef = useRef(false);
   useAutoResizeTextarea(inputRef, inputValue);
   const socketRef = useRef(null);
   // Tracks which token the live socket was authenticated with, so a token
@@ -5633,97 +5634,43 @@ const GlobalChatWidget = React.memo(forwardRef(({
     }
   };
 
-
-
-
-
   const handleSend = async (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (editingMsg) { handleEditMessage(); return; }
-    if (!inputValue.trim() || !activeChat) return;
+    if (!inputValue.trim() || !activeChat || isSendingGlobalRef.current) return;
 
-    // ── Client-side room permission checks ──
-    if (activeChat.type === 'room' && activeChat.permissions && !activeChat.isHost) {
-      const perms = activeChat.permissions;
+    isSendingGlobalRef.current = true;
+    try {
+      // ── Client-side room permission checks ──
+      if (activeChat.type === 'room' && activeChat.permissions && !activeChat.isHost) {
+        const perms = activeChat.permissions;
 
-      // Check host-only messaging FIRST — before any optimistic update
-      if (perms.chat === 'host') {
-        toast.error('Only the host can send messages in this room.');
-        return;
+        // Check host-only messaging FIRST — before any optimistic update
+        if (perms.chat === 'host') {
+          toast.error('Only the host can send messages in this room.');
+          return;
+        }
+
+        const linkRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/g;
+        if (perms.allowLinks === false && linkRegex.test(inputValue.trim())) {
+          toast.error('🔗 Links are not allowed in this room.');
+          return;
+        }
       }
 
-      const linkRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/[^\s]*)?)/g;
-      if (perms.allowLinks === false && linkRegex.test(inputValue.trim())) {
-        toast.error('🔗 Links are not allowed in this room.');
-        return;
-      }
-    }
-
-    const ts = Date.now();
-    const tempId = `opt-${ts}`;
-    const optimisticMsg = {
-      id: tempId,
-      isMe: true,
-      senderName: myUsername,
-      message: inputValue.trim(),
-      decryptedText: inputValue.trim(),
-      timestamp: ts,
-      replyTo: buildReplySnapshot(replyToMsg, activeChat?.displayName)
-    };
-    const previousConversations = [...conversations];
-    
-    setMessages(prev => [...prev, optimisticMsg]);
-    setInputValue('');
-    setReplyToMsg(null);
-    // Tapping the send button (not a physical Enter key) moves focus onto it
-    // first — once the input clears and the button goes disabled again right
-    // after, nothing holds focus and the on-screen keyboard closes itself
-    // between every single message. Reclaiming focus keeps it open across
-    // sends; closing it is left entirely to the user's own back gesture/tap-away.
-    requestAnimationFrame(() => inputRef.current?.focus());
-
-    // Register this as the most-recently-sent message for this partner.
-    // handleNewMsg uses this to ignore stale server echoes (message 1's echo arriving after
-    // message 2 was already sent) which would otherwise revert the sidebar preview.
-    lastSentTempIdRef.current[activeChat.partner || activeChat.id] = tempId;
-
-    // Immediately update sidebar preview and order for sender
-    setConversations(prev => {
-      const convs = Array.isArray(prev) ? prev : [];
-      const partner = activeChat.partner || activeChat.id;
-      const exists = convs.find(c => c.partner === partner || c.id === partner);
-      const isGroup = activeChat.type === 'room';
+      const ts = Date.now();
+      const tempId = `opt-${ts}`;
+      const optimisticMsg = {
+        id: tempId,
+        isMe: true,
+        senderName: myUsername,
+        message: inputValue.trim(),
+        decryptedText: inputValue.trim(),
+        timestamp: ts,
+        replyTo: buildReplySnapshot(replyToMsg, activeChat?.displayName)
+      };
+      const previousConversations = [...conversations];
       
-      const previewText = inputValue.slice(0, 50);
-      const updatedItem = exists
-        ? { ...exists, message: previewText, decryptedText: previewText, lastMediaType: null, lastMediaDuration: null, lastTimestamp: optimisticMsg.timestamp, lastSenderName: myUsername, isMyLastMessage: true, unread: 0 }
-        : {
-            id: isGroup ? partner : undefined,
-            partner,
-            displayName: activeChat.displayName,
-            partnerAvatar: activeChat.partnerAvatar,
-            lastTimestamp: optimisticMsg.timestamp,
-            message: previewText,
-            decryptedText: previewText,
-            lastMediaType: null,
-            lastMediaDuration: null,
-            lastSenderName: myUsername,
-            isMyLastMessage: true,
-            type: activeChat.type,
-            unread: 0
-          };
-      const others = convs.filter(c => c.partner !== partner && c.id !== partner);
-      return [updatedItem, ...others].sort((a,b) => getSortTime(b) - getSortTime(a));
-    });
-
-    // ─── E2EE Encryption ───
-    let messagePayload    = null; // [SECURE] Initialized to null
-    let senderMessagePayload = null;
-    let isEncrypted       = false;
-    let nonceValue        = null;
-    let ephemeralKey      = null;
-    let e2eeKeysGroup     = null;
-
     try {
       // ─── E2EE Encryption ───
       let targetPubKey = null;
@@ -5843,6 +5790,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
       toast.error(e.message || 'Failed to send message. Please try again.');
       setMessages(prev => prev.filter(m => m.id !== tempId));
       setConversations(previousConversations);
+    } finally {
+      isSendingGlobalRef.current = false;
     }
   };
 
@@ -9781,7 +9730,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                }, 3000);
                             }
                           }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                           // Re-captured on every physical tap, not just
                           // onFocus below: dismissing the on-screen keyboard
                           // via Android's back gesture doesn't always fire a

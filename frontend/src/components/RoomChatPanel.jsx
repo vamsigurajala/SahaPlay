@@ -4245,7 +4245,7 @@ export default function RoomChatPanel({ p }) {
                         rows={1}
                         value={p.groupChatInput}
                         onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                         // Re-captured on every physical tap (not just onFocus
                         // below) — see the matching comment on this ref's
                         // declaration: dismissing the keyboard via Android's
@@ -5355,7 +5355,7 @@ export default function RoomChatPanel({ p }) {
                             rows={1}
                             value={p.dmChatInput}
                             onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
-                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 1024) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                             // See the identical comment on the group composer's
                             // textarea above — same fix, same reason.
                             onPointerDown={() => { wasNearBottomOnFocusRef.current = isScrollNearBottom(); }}
