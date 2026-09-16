@@ -2401,12 +2401,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [hoveredMenuBtn, setHoveredMenuBtn] = useState(null); // tracks hovered header menu button
   const [showVaultMenu, setShowVaultMenu] = useState(false);
-  const [keysMissing, setKeysMissing] = useState(false);
-  const [repairingKeys, setRepairingKeys] = useState(false);
   const [showMasterKeyModal, setShowMasterKeyModal] = useState(false);
   const [showChangePinModal, setShowChangePinModal] = useState(false);
   const [vaultMasterKey, setVaultMasterKey] = useState('');
-  const [repairPassword, setRepairPassword] = useState('');
   const globalMenuRef = useRef(null);
   const selectionMenuRef = useRef(null);
   const chatMenuRef = useRef(null);
@@ -5622,61 +5619,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
 
 
 
-  // ─── E2EE Key Repair ───
-  const setupE2EEKeys = async (password) => {
-    if (!password) return;
-    setRepairingKeys(true);
-    try {
-      const { encryptPrivateKey, secretKeyToMnemonic, hashRecoveryPhrase, generateKeyPair } = await import('../lib/crypto.js');
-      const kp = generateKeyPair();
-      const encryptedPrivKey = await encryptPrivateKey(kp.secretKey, password);
-      const phrase = await secretKeyToMnemonic(kp.secretKey);
-      const recoveryKeyHash = await hashRecoveryPhrase(phrase);
 
-      const res = await fetch(`${API}/api/auth/setup-keys`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          username: myUsername,
-          publicKey: encodeBase64(kp.publicKey),
-          encryptedPrivateKey: encryptedPrivKey,
-          recoveryKeyHash
-        })
-      });
-      if (!res.ok) throw new Error('Failed to save keys to server');
-      
-      await setKeyPair(kp);
-      setKeysMissing(false);
-      toast.success('Encryption keys set up successfully!');
-    } catch (err) {
-      console.error('[KeyRepair] Failed:', err);
-      toast.error('Failed to setup encryption keys.');
-    } finally {
-      setRepairingKeys(false);
-    }
-  };
-
-  // Check for missing keys on load
-  useEffect(() => {
-    if (isReady && !keyPair && token && !localStorage.getItem('watch_is_guest')) {
-      // Check if server has keys but they just aren't in session
-      const checkKeys = async () => {
-        try {
-          const res = await fetch(`${API}/api/auth/public-key/${myUsername}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (!data.publicKey) {
-              setKeysMissing(true);
-            }
-          }
-        } catch {}
-      };
-      checkKeys();
-    }
-  }, [isReady, keyPair, token, myUsername]);
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -10483,44 +10426,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
           </div>,
           document.body
         )}
-      {/* E2EE Key Repair Overlay */}
-      {keysMissing && (
-        <div style={{
-          position: 'absolute', bottom: 80, left: 20, right: 20,
-          background: 'rgba(17,18,28,0.95)', border: '1px solid rgba(var(--brand-1-rgb),0.3)',
-          borderRadius: 16, padding: '16px', zIndex: 1000,
-          boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
-          backdropFilter: 'blur(10px)',
-          animation: 'scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(var(--brand-1-rgb),0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ShieldAlert size={20} color="var(--brand-1-light)" />
-            </div>
-            <div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>Secure Chat Setup</div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Complete setup to send encrypted messages</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input 
-              type="password"
-              placeholder="Confirm Password"
-              value={repairPassword}
-              onChange={e => setRepairPassword(e.target.value)}
-              style={{ flex: 1, background: '#0a0a0a', border: '1px solid #333', borderRadius: 8, padding: '8px 12px', fontSize: '0.8rem', color: '#fff' }}
-            />
-            <button 
-              onClick={() => setupE2EEKeys(repairPassword)}
-              disabled={repairingKeys || !repairPassword}
-              style={{ background: 'var(--brand-1)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
-            >
-              {repairingKeys ? <Loader2 size={16} className="animate-spin" /> : 'Setup'}
-            </button>
-            <button onClick={() => setKeysMissing(false)} style={{ background: 'transparent', border: 'none', color: '#666', cursor: 'pointer' }}><X size={16} /></button>
-          </div>
-        </div>
-      )}
+
 
       {/* Show Master Key Modal */}
       {showMasterKeyModal && (
