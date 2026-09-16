@@ -120,6 +120,9 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
     setPin(clean);
     setError(false);
     setErrorMsg('');
+    if (clean.length === PIN_LENGTH) {
+      verifyPin(clean);
+    }
   };
 
   const handleVerify = () => {

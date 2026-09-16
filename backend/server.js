@@ -1883,6 +1883,9 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "pinnedChats" TEXT DEFAULT '[]'`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] pinnedChats:', e.message);
   });
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "lockedChats" TEXT DEFAULT '[]'`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] lockedChats:', e.message);
+  });
   // Custom ringtone: a user-uploaded audio file (max ~1 minute, enforced
   // client-side + a generous server-side size cap) that plays instead of
   // the default synthesized ring chime when THIS user receives a call —
@@ -11855,28 +11858,22 @@ app.post('/api/chat-lock/self-destruct', authenticateToken, async (req, res) => 
     const username = req.user.username;
     const userLow = username.toLowerCase();
 
-    // 1. Identify all locked conversation targets (DM partners and roomIds)
+    // 1. Identify all locked conversation targets (DM partners and roomIds) for THIS user
     let lockedTargets = [];
     try {
-      const lockedRes = await pool.query(
-        `SELECT DISTINCT
-           CASE
-             WHEN LOWER("senderName") = $1 THEN LOWER("targetName")
-             ELSE LOWER("senderName")
-           END AS partner,
-           "roomId"
-         FROM messages
-         WHERE "is_chat_locked" = TRUE
-           AND (LOWER("senderName") = $1 OR LOWER("targetName") = $1)`,
-        [userLow]
-      );
-      lockedTargets = lockedRes.rows || [];
+      const uRes = await pool.query('SELECT "lockedChats" FROM users WHERE LOWER(username) = LOWER($1)', [userLow]);
+      let list = [];
+      if (uRes.rows[0]?.lockedChats) {
+        try { list = JSON.parse(uRes.rows[0].lockedChats || '[]'); } catch { list = []; }
+      }
+      if (!Array.isArray(list)) list = [];
+      lockedTargets = list.map(c => String(c).toLowerCase());
     } catch (e) {
       console.warn('[chat-lock/self-destruct] Error querying locked targets:', e.message);
     }
 
-    const lockedPartners = [...new Set(lockedTargets.map(r => r.partner).filter(Boolean))];
-    const lockedRooms = [...new Set(lockedTargets.map(r => r.roomId).filter(Boolean))];
+    const lockedPartners = [...new Set(lockedTargets.filter(id => !id.startsWith('room-') && id.length !== 36 && !id.includes('-')))];
+    const lockedRooms = [...new Set(lockedTargets.filter(id => id.startsWith('room-') || id.length === 36 || id.includes('-')))];
 
     // 2. Erase all messages for locked DM partners from PostgreSQL and SQLite
     for (const partner of lockedPartners) {
@@ -11969,11 +11966,9 @@ app.post('/api/chat-lock/disable', authenticateToken, async (req, res) => {
     const valid = await bcrypt.compare(pin, user.chat_lock_pin_hash);
     if (!valid) return res.status(401).json({ error: 'Incorrect PIN' });
     await pool.query(
-      `UPDATE users SET "chat_lock_enabled"=FALSE, "chat_lock_pin_hash"=NULL, "chat_lock_recovery_hash"=NULL, "chat_lock_attempts"=0, "chat_lock_blocked_until"=NULL WHERE LOWER(username)=LOWER($1)`,
+      `UPDATE users SET "chat_lock_enabled"=FALSE, "lockedChats"='[]', "chat_lock_pin_hash"=NULL, "chat_lock_recovery_hash"=NULL, "chat_lock_attempts"=0, "chat_lock_blocked_until"=NULL WHERE LOWER(username)=LOWER($1)`,
       [req.user.username]
     );
-    // Also unlock all locked chats for this user
-    await pool.query('UPDATE messages SET "is_chat_locked"=FALSE WHERE "senderName"=$1 OR "targetName"=$1', [req.user.username]).catch(() => {});
     invalidateCacheForUser(req.user.username);
     return res.json({ success: true });
   } catch (err) {
@@ -12012,8 +12007,7 @@ app.post('/api/chat-lock/toggle-chat', authenticateToken, async (req, res) => {
   const { chatId, lock, pin } = req.body; // chatId = partner username or roomId
   if (!chatId) return res.status(400).json({ error: 'chatId required' });
   try {
-    // Always verify PIN before any lock toggle to prevent brute-force exposure
-    const result = await pool.query('SELECT "chat_lock_pin_hash","chat_lock_enabled" FROM users WHERE LOWER(username)=LOWER($1)', [req.user.username]);
+    const result = await pool.query('SELECT "chat_lock_pin_hash","chat_lock_enabled","lockedChats" FROM users WHERE LOWER(username)=LOWER($1)', [req.user.username]);
     const user = result.rows[0];
     if (!user?.chat_lock_enabled) return res.status(400).json({ error: 'Chat Lock not enabled' });
     
@@ -12026,20 +12020,24 @@ app.post('/api/chat-lock/toggle-chat', authenticateToken, async (req, res) => {
     }
 
     const username = req.user.username.toLowerCase();
-    // Mark/unmark messages as locked in DB
-    // For private chats: identify by senderName/targetName pair
-    // For group chats: identify by roomId
-    const isRoom = chatId.startsWith('room-') || chatId.length === 36 || chatId.includes('-');
-    if (isRoom) {
-      await pool.query('UPDATE messages SET "is_chat_locked"=$1 WHERE "roomId"=$2', [!!lock, chatId]);
+    const cId = String(chatId).toLowerCase();
+    let currentLocked = [];
+    try {
+      currentLocked = JSON.parse(user.lockedChats || '[]');
+    } catch { currentLocked = []; }
+    if (!Array.isArray(currentLocked)) currentLocked = [];
+
+    if (lock) {
+      if (!currentLocked.includes(cId)) currentLocked.push(cId);
     } else {
-      const partner = chatId.toLowerCase();
-      await pool.query(
-        `UPDATE messages SET "is_chat_locked"=$1 WHERE (LOWER("senderName")=$2 AND LOWER("targetName")=$3) OR (LOWER("senderName")=$3 AND LOWER("targetName")=$2)`,
-        [!!lock, username, partner]
-      );
+      currentLocked = currentLocked.filter(k => String(k).toLowerCase() !== cId);
     }
-    return res.json({ success: true, locked: !!lock });
+
+    const jsonStr = JSON.stringify(currentLocked);
+    await pool.query('UPDATE users SET "lockedChats" = $1 WHERE LOWER(username) = LOWER($2)', [jsonStr, username]);
+
+    invalidateCacheForUser(req.user.username);
+    return res.json({ success: true, locked: !!lock, lockedChats: currentLocked });
   } catch (err) {
     console.error('[chat-lock/toggle-chat]', err);
     return res.status(500).json({ error: 'Database error' });
@@ -12165,19 +12163,15 @@ app.get('/api/chat-lock/locked-chats', authenticateToken, async (req, res) => {
   try {
     const username = req.user.username.toLowerCase();
     const result = await pool.query(
-      `SELECT DISTINCT
-         CASE
-           WHEN LOWER("senderName") = $1 THEN LOWER("targetName")
-           ELSE LOWER("senderName")
-         END AS partner,
-         "roomId"
-       FROM messages
-       WHERE "is_chat_locked" = TRUE
-         AND (LOWER("senderName") = $1 OR LOWER("targetName") = $1)`,
+      'SELECT "lockedChats" FROM users WHERE LOWER(username) = LOWER($1)',
       [username]
     );
-    const locked = result.rows.map(r => r.partner || r.roomId).filter(Boolean);
-    return res.json({ lockedChats: [...new Set(locked)] });
+    let locked = [];
+    if (result.rows[0]?.lockedChats) {
+      try { locked = JSON.parse(result.rows[0].lockedChats); } catch { locked = []; }
+    }
+    if (!Array.isArray(locked)) locked = [];
+    return res.json({ lockedChats: [...new Set(locked.map(c => String(c).toLowerCase()))] });
   } catch (err) {
     console.error('[chat-lock/locked-chats]', err);
     return res.status(500).json({ error: 'Database error' });

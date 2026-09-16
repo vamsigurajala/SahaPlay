@@ -3872,7 +3872,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
           }
         } catch (e) { console.warn('[E2EE] Decryption failed', e); }
       }
-      if (!isGroup && !decryptedMessage && msg.message && (msg.nonce || msg.ephemeralPublicKey || msg.message.startsWith('Vs!') || (msg.message.length > 25 && !msg.message.includes(' ') && (msg.message.endsWith('=') || msg.message.includes('+') || msg.message.includes('/'))))) {
+      if (!isGroup && !msg.mediaType && !decryptedMessage && msg.message && (msg.nonce || msg.ephemeralPublicKey || msg.message.startsWith('Vs!') || (msg.message.length > 25 && !msg.message.includes(' ') && (msg.message.endsWith('=') || msg.message.includes('+') || msg.message.includes('/'))))) {
         decryptedMessage = '\uD83D\uDD12 Encrypted message';
       }
       // ─── Post-Decryption Processing ───
@@ -6204,6 +6204,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
       mediaGroupId: mediaGroupId || null
     };
     setMessages(prev => [...prev, optimisticMsg]);
+    if (activeChat?.partner || activeChat?.id) {
+      lastSentTempIdRef.current[activeChat.partner || activeChat.id] = tempId;
+    }
 
     // Optimistically update the conversations list for the sender so the preview
     // shows the media type immediately (before the socket bounce arrives).
