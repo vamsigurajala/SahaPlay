@@ -10287,17 +10287,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 </div>
                 <h3 style={{ margin: 0, color: isLight ? '#0f172a' : '#fff', fontSize: 24, fontWeight: 900 }}>Clear Chat</h3>
               </div>
-              <p style={{color: isLight ? '#475569' : '#aaa',fontSize:15,marginBottom:16,lineHeight:1.4}}>Are you sure you want to clear your chat history with <strong>{clearChatModalOpen.displayName || clearChatModalOpen.partner}</strong>?</p>
-              <label style={{display:'flex',alignItems:'center',gap:12,color: isLight ? '#0f172a' : '#eee',fontSize:14,marginBottom:24,cursor:'pointer', padding: '12px 16px', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.04)', borderRadius: 12, border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.08)'}}>
-                <input type="checkbox" checked={clearForBoth} onChange={e=>setClearForBoth(e.target.checked)} style={{accentColor:'#ef4444',cursor:'pointer', width: 20, height: 20}}/>
-                Also clear chat history for {clearChatModalOpen.displayName || clearChatModalOpen.partner}
-              </label>
+              <p style={{color: isLight ? '#475569' : '#aaa',fontSize:15,marginBottom:24,lineHeight:1.4}}>Are you sure you want to clear your chat history with <strong>{clearChatModalOpen.displayName || clearChatModalOpen.partner}</strong>? This will clear messages for your view only.</p>
               <div style={{display:'flex',gap:14,justifyContent:'flex-end'}}>
                 <button onClick={()=>setClearChatModalOpen(false)} className="modal-btn-transition" style={{padding:'14px 28px',background: isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:800, borderRadius: 18, fontSize: 15}}>Cancel</button>
                 <button onClick={()=>{
                   const dmPartner = clearChatModalOpen?.partner;
                   const dmPartnerLower = (dmPartner || '').toLowerCase();
-                  if (socketRef.current) socketRef.current.emit('clear_dm', { targetUsername: dmPartner, clearForBoth });
+                  if (socketRef.current) socketRef.current.emit('clear_dm', { targetUsername: dmPartner, clearForBoth: false });
                   // Cancel any in-flight history fetch so it can't restore cleared messages
                   latestHistoryRequestRef.current++;
                   // Prevent loadMoreHistory from fetching pre-clear pages

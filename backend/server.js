@@ -9616,103 +9616,71 @@ io.on('connection', (socket) => {
     emitToUser(targetName, 'chat:private_reaction', { messageId, senderName, emoji, targetName });
   });
 
-  // ─── Clear DM ───
-  socket.on('clear_dm', async ({ targetUsername, clearForBoth }) => {
+  // ─── Clear DM (for me only — soft hide via hiddenFor) ───
+  socket.on('clear_dm', async ({ targetUsername }) => {
     const sender = socket.username;
     if (!sender || !targetUsername) return;
 
-    const payload = { userA: sender, userB: targetUsername, clearedBy: sender, clearForBoth: !!clearForBoth };
+    const payload = { userA: sender, userB: targetUsername, clearedBy: sender, clearForBoth: false };
     const senderLow = sender.toLowerCase();
     const targetLow = targetUsername.toLowerCase();
 
-    if (clearForBoth) {
-      // ── Hard DELETE: permanently erase for both parties ──
-      let pgDeleted = 0;
-      try {
-        const pgResult = await pool.query(
-          `DELETE FROM messages WHERE type = 'private'
-           AND ((LOWER("senderName") = $1 AND LOWER("targetName") = $2)
-             OR (LOWER("senderName") = $2 AND LOWER("targetName") = $1))`,
-          [senderLow, targetLow]
-        );
-        pgDeleted = pgResult.rowCount || 0;
-      } catch (err) {
-        console.error('[CLEAR_DM] clearForBoth — PostgreSQL DELETE failed:', err.message);
-      }
-
-      // Also delete from SQLite — DM history is read entirely from SQLite on join/refresh
-      await new Promise((resolve) => {
-        db.run(
-          `DELETE FROM messages WHERE type = 'private' AND (
-             (LOWER(senderName) = ? AND LOWER(targetName) = ?) OR
-             (LOWER(senderName) = ? AND LOWER(targetName) = ?)
-          )`,
-          [senderLow, targetLow, targetLow, senderLow],
-          (err) => { if (err) console.error('[CLEAR_DM] SQLite DELETE failed:', err); resolve(); }
-        );
-      });
-
-      // Emit to both participants
-      emitToUser(sender, 'dm_cleared', payload);
-      emitToUser(targetUsername, 'dm_cleared', payload);
-    } else {
-      // ── Soft hide: only the requester stops seeing the messages ──
-      // Uses the same hiddenFor mechanism as per-message "delete for me".
-      // The other participant's view is completely unaffected.
-      // Explicit ::text casts make this work whether hiddenFor is TEXT or JSONB.
-      let pgUpdated = 0;
-      try {
-        const pgResult = await pool.query(
-          `UPDATE messages
-           SET "hiddenFor" = CASE
-             WHEN "hiddenFor" IS NULL OR "hiddenFor"::text IN ('', 'null', '[]')
-               THEN jsonb_build_array($1::text)::text
-             WHEN NOT ("hiddenFor"::jsonb @> jsonb_build_array($1::text))
-               THEN ("hiddenFor"::jsonb || jsonb_build_array($1::text))::text
-             ELSE "hiddenFor"::text
-           END
-           WHERE type = 'private'
-             AND ((LOWER("senderName") = $2 AND LOWER("targetName") = $3)
-               OR (LOWER("senderName") = $3 AND LOWER("targetName") = $2))`,
-          [
-            sender,    // $1 — username to add to hiddenFor array
-            senderLow, // $2
-            targetLow  // $3
-          ]
-        );
-        pgUpdated = pgResult.rowCount || 0;
-      } catch (err) {
-        console.error('[CLEAR_DM] clearForMe — PostgreSQL UPDATE failed:', err.message);
-      }
-
-      // Also update hiddenFor in SQLite — DM history is read entirely from SQLite on join/refresh
-      await new Promise((resolve) => {
-        db.all(
-          `SELECT id, hiddenFor FROM messages WHERE type = 'private' AND (
-             (LOWER(senderName) = ? AND LOWER(targetName) = ?) OR
-             (LOWER(senderName) = ? AND LOWER(targetName) = ?)
-          )`,
-          [senderLow, targetLow, targetLow, senderLow],
-          (err, rows) => {
-            if (err || !rows?.length) { resolve(); return; }
-            let pending = rows.length;
-            rows.forEach(row => {
-              let arr = [];
-              try { arr = JSON.parse(row.hiddenFor || '[]'); } catch { arr = []; }
-              if (!Array.isArray(arr)) arr = [];
-              if (!arr.map(x => (x || '').toLowerCase()).includes(sender.toLowerCase())) arr.push(sender);
-              db.run(`UPDATE messages SET hiddenFor = ? WHERE id = ?`,
-                [JSON.stringify(arr), row.id],
-                () => { if (--pending === 0) resolve(); }
-              );
-            });
-          }
-        );
-      });
-
-      // Emit only to the requester (partner keeps their history)
-      emitToUser(sender, 'dm_cleared', payload);
+    // ── Soft hide: only the requester stops seeing the messages ──
+    // Uses the same hiddenFor mechanism as per-message "delete for me".
+    // The other participant's view is completely unaffected.
+    // Explicit ::text casts make this work whether hiddenFor is TEXT or JSONB.
+    let pgUpdated = 0;
+    try {
+      const pgResult = await pool.query(
+        `UPDATE messages
+         SET "hiddenFor" = CASE
+           WHEN "hiddenFor" IS NULL OR "hiddenFor"::text IN ('', 'null', '[]')
+             THEN jsonb_build_array($1::text)::text
+           WHEN NOT ("hiddenFor"::jsonb @> jsonb_build_array($1::text))
+             THEN ("hiddenFor"::jsonb || jsonb_build_array($1::text))::text
+           ELSE "hiddenFor"::text
+         END
+         WHERE type = 'private'
+           AND ((LOWER("senderName") = $2 AND LOWER("targetName") = $3)
+             OR (LOWER("senderName") = $3 AND LOWER("targetName") = $2))`,
+        [
+          sender,    // $1 — username to add to hiddenFor array
+          senderLow, // $2
+          targetLow  // $3
+        ]
+      );
+      pgUpdated = pgResult.rowCount || 0;
+    } catch (err) {
+      console.error('[CLEAR_DM] clearForMe — PostgreSQL UPDATE failed:', err.message);
     }
+
+    // Also update hiddenFor in SQLite — DM history is read entirely from SQLite on join/refresh
+    await new Promise((resolve) => {
+      db.all(
+        `SELECT id, hiddenFor FROM messages WHERE type = 'private' AND (
+           (LOWER(senderName) = ? AND LOWER(targetName) = ?) OR
+           (LOWER(senderName) = ? AND LOWER(targetName) = ?)
+        )`,
+        [senderLow, targetLow, targetLow, senderLow],
+        (err, rows) => {
+          if (err || !rows?.length) { resolve(); return; }
+          let pending = rows.length;
+          rows.forEach(row => {
+            let arr = [];
+            try { arr = JSON.parse(row.hiddenFor || '[]'); } catch { arr = []; }
+            if (!Array.isArray(arr)) arr = [];
+            if (!arr.map(x => (x || '').toLowerCase()).includes(sender.toLowerCase())) arr.push(sender);
+            db.run(`UPDATE messages SET hiddenFor = ? WHERE id = ?`,
+              [JSON.stringify(arr), row.id],
+              () => { if (--pending === 0) resolve(); }
+            );
+          });
+        }
+      );
+    });
+
+    // Emit only to the requester (partner keeps their history)
+    emitToUser(sender, 'dm_cleared', payload);
   });
 
   // ─── Clear Room Chat (for me only — soft hide via hiddenFor) ───

@@ -248,16 +248,12 @@ export default function RoomModals({
                 </div>
                 <h3 style={{ margin: 0, color: textPrimary, fontSize: 20, fontWeight: 900 }}>{t('clearChatTitle', 'Clear Chat')}</h3>
               </div>
-              <p style={{ color: textSecondary, fontSize: 14, marginBottom: 16, lineHeight: 1.5 }}>
-                {t('clearChatConfirm', 'Are you sure you want to clear your chat history with')} <strong style={{ color: textPrimary }}>{clearChatTarget}</strong>?
+              <p style={{ color: textSecondary, fontSize: 14, marginBottom: 20, lineHeight: 1.5 }}>
+                {t('clearChatConfirm', 'Are you sure you want to clear your chat history with')} <strong style={{ color: textPrimary }}>{clearChatTarget}</strong>? {t('clearForMeOnly', 'This will clear messages for your view only.')}
               </p>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, color: textPrimary, fontSize: 14, marginBottom: 20, cursor: 'pointer', padding: '10px 14px', background: surfaceBg, borderRadius: 12, border }}>
-                <input type="checkbox" checked={clearForBoth} onChange={e => setClearForBoth && setClearForBoth(e.target.checked)} style={{ accentColor: '#ef4444', cursor: 'pointer', width: 16, height: 16 }} />
-                {t('alsoClearFor', 'Also clear chat history for')} {clearChatTarget}
-              </label>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button onClick={() => { setClearChatModalOpen(false); if (setClearForBoth) setClearForBoth(false); }} style={{ padding: '12px 24px', background: surfaceBg, border, color: textPrimary, cursor: 'pointer', fontWeight: 700, borderRadius: 12, fontSize: 14 }}>{t('cancel', 'Cancel')}</button>
-                <button onClick={() => { if (onClearDm) onClearDm(clearChatTarget); socket.emit('clear_dm', { targetUsername: clearChatTarget, clearForBoth }); setClearChatModalOpen(false); if (setClearForBoth) setClearForBoth(false); toast.success(t('chatCleared', 'Chat history cleared')); }} className="danger-red-btn stay-white" style={{ padding: '12px 28px', background: '#ef4444', border: 'none', borderRadius: 14, color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 14, boxShadow: '0 4px 14px rgba(239,68,68,0.3)' }}><span className="stay-white" style={{ color: '#fff' }}>{t('clearChat', 'Clear Chat')}</span></button>
+                <button onClick={() => { if (onClearDm) onClearDm(clearChatTarget); socket.emit('clear_dm', { targetUsername: clearChatTarget, clearForBoth: false }); setClearChatModalOpen(false); if (setClearForBoth) setClearForBoth(false); toast.success(t('chatCleared', 'Chat history cleared')); }} className="danger-red-btn stay-white" style={{ padding: '12px 28px', background: '#ef4444', border: 'none', borderRadius: 14, color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 14, boxShadow: '0 4px 14px rgba(239,68,68,0.3)' }}><span className="stay-white" style={{ color: '#fff' }}>{t('clearChat', 'Clear Chat')}</span></button>
               </div>
             </div>
           </div>

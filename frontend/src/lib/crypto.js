@@ -276,13 +276,17 @@ export async function secretKeyToMnemonic(secretKeyBytes) {
  * Converts a 24-word mnemonic or a 24-letter key back to the 32-byte secret key (async, verifies checksum).
  */
 export async function mnemonicToSecretKey(mnemonic) {
-  const m = mnemonic.trim().toLowerCase();
-  if (m.includes(' ')) {
+  const raw = (mnemonic || '').trim().toLowerCase();
+  const normalizedKey = raw.replace(/[-\s]/g, '');
+  if (/^[a-z]{24}$/.test(normalizedKey)) {
+    // 24-letter recovery key (with or without spaces/dashes)
+    const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalizedKey));
+    return new Uint8Array(hashBuf);
+  } else if (raw.includes(' ')) {
     // Legacy BIP39 24-word phrase
-    return mnemonicToEntropy(m);
+    return mnemonicToEntropy(raw);
   } else {
-    // New 24-letter recovery key
-    const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(m));
+    const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalizedKey));
     return new Uint8Array(hashBuf);
   }
 }
@@ -293,7 +297,10 @@ export async function mnemonicToSecretKey(mnemonic) {
  */
 export async function hashRecoveryPhrase(mnemonic) {
   const enc  = new TextEncoder();
-  const hash = await crypto.subtle.digest('SHA-256', enc.encode(mnemonic.trim().toLowerCase()));
+  const raw = (mnemonic || '').trim().toLowerCase();
+  const normalizedKey = raw.replace(/[-\s]/g, '');
+  const target = /^[a-z]{24}$/.test(normalizedKey) ? normalizedKey : raw;
+  const hash = await crypto.subtle.digest('SHA-256', enc.encode(target));
   return bufToB64(hash);
 }
 
