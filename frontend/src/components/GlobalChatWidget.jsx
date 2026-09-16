@@ -5671,7 +5671,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
       };
       const previousConversations = [...conversations];
       
-    try {
       // ─── E2EE Encryption ───
       let targetPubKey = null;
       if (activeChat.type === 'private' && keyPair) {
