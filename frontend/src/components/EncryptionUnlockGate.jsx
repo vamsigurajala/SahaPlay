@@ -67,7 +67,7 @@ export default function EncryptionUnlockGate() {
   // see this file's header comment.
   const [checkingDeviceUnlock, setCheckingDeviceUnlock] = useState(false);
 
-  // Auto-dismiss gate if user navigates to login/signup or logs out
+  // Auto-dismiss gate ONLY if user explicitly logs out or navigates BACK to login/signup
   useEffect(() => {
     const handleLogout = () => setCtx(null);
     const handleCheckRoute = () => {
@@ -76,42 +76,28 @@ export default function EncryptionUnlockGate() {
         setCtx(null);
       }
     };
-    handleCheckRoute();
 
     window.addEventListener('user_logged_out', handleLogout);
     window.addEventListener('popstate', handleCheckRoute);
 
-    const origPushState = history.pushState;
-    const origReplaceState = history.replaceState;
-    history.pushState = function() {
-      const res = origPushState.apply(this, arguments);
-      handleCheckRoute();
-      return res;
-    };
-    history.replaceState = function() {
-      const res = origReplaceState.apply(this, arguments);
-      handleCheckRoute();
-      return res;
-    };
-
     return () => {
       window.removeEventListener('user_logged_out', handleLogout);
       window.removeEventListener('popstate', handleCheckRoute);
-      history.pushState = origPushState;
-      history.replaceState = origReplaceState;
     };
   }, []);
 
   useEffect(() => {
     const handler = (e) => {
-      if (e.detail?.encryptedPrivateKey) {
-        // Only show if user is not on login/signup page
-        const path = (window.location.pathname || '').toLowerCase();
-        if (path === '/login' || path === '/signup' || path === '/reset-password') {
-          return;
-        }
-        setCtx(e.detail);
-        setCheckingDeviceUnlock(isCapacitorApp() && isDeviceUnlockAvailable());
+      if (e.detail?.encryptedPrivateKey || e.detail?.isSetup) {
+        const detail = e.detail;
+        // If dispatched during login navigation, wait briefly for navigation to land on home
+        setTimeout(() => {
+          const path = (window.location.pathname || '').toLowerCase();
+          if (path !== '/login' && path !== '/signup' && path !== '/reset-password') {
+            setCtx(detail);
+            setCheckingDeviceUnlock(!detail.isSetup && isCapacitorApp() && isDeviceUnlockAvailable());
+          }
+        }, 300);
       }
     };
     window.addEventListener('encryption_needs_passphrase', handler);
@@ -119,7 +105,7 @@ export default function EncryptionUnlockGate() {
   }, []);
 
   useEffect(() => {
-    if (!ctx || !checkingDeviceUnlock) return;
+    if (!ctx || ctx.isSetup || !checkingDeviceUnlock) return;
     let cancelled = false;
     (async () => {
       // Step 1: native (Android/Windows) — tried first, unchanged from before.
@@ -150,6 +136,28 @@ export default function EncryptionUnlockGate() {
     const kp = nacl.box.keyPair.fromSecretKey(secretKey);
     await setKeyPair(kp);
     enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
+    setCtx(null);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
+
+  const handleSetPassphrase = useCallback(async (passphrase) => {
+    const kp = nacl.box.keyPair();
+    const encryptedPrivKey = await encryptPrivateKey(kp.secretKey, passphrase);
+    const pubKeyStr = encodeBase64(kp.publicKey);
+    const phrase = await secretKeyToMnemonic(kp.secretKey);
+    const recoveryKeyHash = await hashRecoveryPhrase(phrase);
+    const res = await fetch(`${API}/api/auth/setup-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ctx.token}` },
+      body: JSON.stringify({ username: ctx.username, publicKey: pubKeyStr, encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash })
+    });
+    if (!res.ok) throw new Error('Failed to save your new encryption key. Please try again.');
+    await setKeyPair(kp);
+    enrollDeviceUnlockSilently(kp.secretKey);
+    const myUsername = ctx.username || localStorage.getItem('watch_username');
+    if (myUsername) {
+      try { localStorage.setItem(`wt_pk_${myUsername.toLowerCase()}`, pubKeyStr); } catch {}
+      window.dispatchEvent(new CustomEvent('public_key_updated', { detail: { username: myUsername, publicKey: pubKeyStr } }));
+    }
     setCtx(null);
   }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
@@ -203,8 +211,9 @@ export default function EncryptionUnlockGate() {
 
   return (
     <OAuthEncryptionModal
-      mode="unlock"
+      mode={ctx.isSetup ? "set" : "unlock"}
       isPasswordAccount
+      onSetPassphrase={handleSetPassphrase}
       onUnlock={handleUnlock}
       onRecover={handleRecover}
       onStartFresh={handleStartFresh}
