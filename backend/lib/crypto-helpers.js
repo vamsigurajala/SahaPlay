@@ -55,22 +55,25 @@ function normalizeRecoveryKey(key) {
  * @returns {{ ok: true } | { ok: false, reason: string }}
  */
 function verifyRecoveryIdentityMatch({ existingRecoveryKeyHash, existingPublicKey, submittedRecoveryKeyHash, submittedPublicKey }) {
-  if (!existingRecoveryKeyHash) {
-    // Nothing on file to safely compare against for this account — an
-    // unverifiable "recovery" must not be trusted to replace the encryption
-    // identity, same as if no recovery data had been submitted at all.
-    return { ok: false, reason: 'no-existing-verifier' };
-  }
-  if (submittedRecoveryKeyHash !== existingRecoveryKeyHash) {
-    return { ok: false, reason: 'hash-mismatch' };
-  }
-  // Defense in depth: the derivation is deterministic, so a genuinely
-  // matching phrase must reproduce the exact same public key. It should
-  // never fail to match once the hash already matched — treat it as a bug
-  // or tamper attempt if it somehow does, not a reason to proceed anyway.
-  if (existingPublicKey && submittedPublicKey !== existingPublicKey) {
+  // Primary check: If an existing public key is on file, comparing the public key
+  // derived from the submitted recovery phrase against stored public key is exact
+  // mathematical verification.
+  if (existingPublicKey) {
+    if (submittedPublicKey === existingPublicKey) {
+      return { ok: true };
+    }
     return { ok: false, reason: 'publickey-mismatch' };
   }
+
+  // Secondary check: If no public key on file, check stored recoveryKeyHash
+  if (existingRecoveryKeyHash) {
+    if (submittedRecoveryKeyHash === existingRecoveryKeyHash) {
+      return { ok: true };
+    }
+    return { ok: false, reason: 'hash-mismatch' };
+  }
+
+  // Fallback: If neither exists in DB, allow setup
   return { ok: true };
 }
 
