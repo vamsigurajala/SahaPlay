@@ -6,6 +6,7 @@ import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import toast from 'react-hot-toast';
 import { downloadBlobToDevice } from '../lib/nativeDownload';
+import { wipeLockedChatsData } from '../lib/chatLockUtils';
 import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
@@ -2211,7 +2212,14 @@ export default function RoomChatPanel({ p }) {
               .finally(() => setDmRelationLoading(false));
           }
         }
+      });
 
+      p.socket.on('self_destruct_executed', () => {
+        wipeLockedChatsData(myUser);
+        setLockedChats([]);
+        setHiddenChats([]);
+        setPinnedRoomChats([]);
+        setMutedChats([]);
       });
     }
 

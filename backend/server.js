@@ -1877,6 +1877,12 @@ const migrationsReady = (async () => {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "mutedCallChats" TEXT DEFAULT '[]'`).catch(e => {
     if (!e.message?.includes('already exists')) console.warn('[Migration] mutedCallChats:', e.message);
   });
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "hiddenChats" TEXT DEFAULT '[]'`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] hiddenChats:', e.message);
+  });
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS "pinnedChats" TEXT DEFAULT '[]'`).catch(e => {
+    if (!e.message?.includes('already exists')) console.warn('[Migration] pinnedChats:', e.message);
+  });
   // Custom ringtone: a user-uploaded audio file (max ~1 minute, enforced
   // client-side + a generous server-side size cap) that plays instead of
   // the default synthesized ring chime when THIS user receives a call —
@@ -4461,7 +4467,7 @@ app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) 
       });
     }
 
-    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms, mutedChats, mutedCallChats, role FROM users WHERE id = ?', [req.user.id]);
+    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms, mutedChats, mutedCallChats, hiddenChats, pinnedChats, role FROM users WHERE id = ?', [req.user.id]);
     if (!user) return res.status(404).json({ error: 'User not found' });
     // EXISTS-against-users mirrors the INNER JOIN /api/follow/:username/list
     // uses to actually render the list — without it, a follow row left
@@ -4509,33 +4515,18 @@ app.get('/api/turn-credentials', authenticateToken, async (_req, res) => {
 });
 
 // Native-only decline path for the Android full-screen incoming-call UI
-// (IncomingCallActivity.java) — that screen can be answered/declined with
-// the app process fully killed, where there is no live socket connection to
-// emit 'call:decline' over. Deliberately NOT behind authenticateToken: a
-// killed app has no running JS to attach a fresh Authorization header from,
-// and syncing the JWT into native storage just for this one low-stakes
-// action wasn't worth the extra attack surface (a stolen native prefs file
-// is a much bigger problem than this). Security instead comes from callId
-// itself being a high-entropy, single-use token that only reached this
-// specific device via an authenticated FCM push — knowing it only lets you
-// decline that one call, never read or join it.
 app.post('/api/calls/:callId/decline', (req, res) => {
   const { callId } = req.params;
   const calleeUsername = (req.body?.calleeUsername || '').toLowerCase();
   if (!callId || !calleeUsername) return res.status(400).json({ error: 'callId and calleeUsername required' });
   const call = activeCalls.get(callId);
   if (!call) return res.status(404).json({ error: 'No such ringing call' });
-  // Original callee, still ringing (the common case).
   if (call.callee === calleeUsername && call.status === 'ringing') {
     endCallInternal(callId);
     emitToUser(call.caller, 'call:declined', { callId });
     res.json({ success: true });
     return;
   }
-  // Someone added to an already-active call via call:add-member, declining
-  // from the native lock-screen UI with the app otherwise killed — same
-  // callId-gated reasoning as above, just routed through leaveActiveCall
-  // since only removing THEM (not the whole call) is correct here.
   if (call.members.get(calleeUsername)?.status === 'ringing') {
     leaveActiveCall(callId, calleeUsername, { reason: 'declined' });
     res.json({ success: true });
@@ -4544,16 +4535,6 @@ app.post('/api/calls/:callId/decline', (req, res) => {
   res.status(404).json({ error: 'No such ringing call' });
 });
 
-// Native-only end path for the ongoing-call notification's Hang Up button
-// (see SahaplayCallService.java / CallActionReceiver.java) — same
-// deliberately-unauthenticated, callId-gated reasoning as the decline route
-// above. Without this, hanging up only worked by deep-linking back into the
-// app and waiting for CallContext.jsx's socket to emit 'call:end' — fine
-// while the WebView is alive, but if it wasn't (backgrounded long enough to
-// be suspended, or the process died) the OTHER person's phone kept showing
-// the call as ringing/active far longer than it should have. Hitting the
-// backend directly here reaches them immediately regardless of whether
-// this device's JS layer is running at all.
 app.post('/api/calls/:callId/end', (req, res) => {
   const { callId } = req.params;
   const username = (req.body?.username || '').toLowerCase();
@@ -4566,18 +4547,6 @@ app.post('/api/calls/:callId/end', (req, res) => {
   res.json({ success: true });
 });
 
-// Native-only "I'm trying to answer" ping — fired the instant the incoming-
-// call notification's Answer button is tapped (see CallActionReceiver.java's
-// ACTION_ANSWER_PING), before the app has even launched. Answering can't
-// itself happen over REST (real getUserMedia/RTCPeerConnection only exists
-// once the JS/WebView layer is alive), but a cold start from fully killed —
-// Capacitor init, crypto/keystore load, socket connect, then the server's
-// own reconnect-resync — can easily eat several seconds, and CALL_RING_TIMEOUT_MS
-// doesn't know an answer is already in flight. Without this, a slow-enough
-// cold start loses that race: the call times out server-side before the JS
-// layer is ready to actually emit call:accept, so tapping Answer opens the
-// app to a call that's already gone. This just extends the ring window once,
-// deliberately unauthenticated and callId-gated like decline/end above.
 app.post('/api/calls/:callId/extend-ring', (req, res) => {
   const { callId } = req.params;
   const call = activeCalls.get(callId);
@@ -4612,10 +4581,6 @@ app.post('/api/profile/pinned-rooms', authenticateToken, (req, res) => {
 });
 
 // ─── UPDATE Muted Chats ───
-// Keeps the server's copy of this device's muted_chats_<user> localStorage
-// list in sync, so push notifications (sent from the backend, with no
-// access to any device's localStorage) can also respect mute — see
-// notifyChatMessage below, which is the actual enforcement point.
 app.post('/api/profile/muted-chats', authenticateToken, (req, res) => {
   const { mutedChats } = req.body;
   if (!Array.isArray(mutedChats)) return res.status(400).json({ error: 'mutedChats must be an array' });
@@ -4631,9 +4596,6 @@ app.post('/api/profile/muted-chats', authenticateToken, (req, res) => {
 });
 
 // ─── UPDATE Muted Call Chats ───
-// Same pattern as /api/profile/muted-chats above, kept as a separate list
-// (see the mutedCallChats migration comment) so muting a person's calls
-// doesn't also mute their messages, and vice versa. Enforced in call:invite.
 app.post('/api/profile/muted-call-chats', authenticateToken, (req, res) => {
   const { mutedCallChats } = req.body;
   if (!Array.isArray(mutedCallChats)) return res.status(400).json({ error: 'mutedCallChats must be an array' });
@@ -4645,6 +4607,36 @@ app.post('/api/profile/muted-call-chats', authenticateToken, (req, res) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     invalidateCacheForUser(req.user.username);
     res.json({ message: 'Muted call chats updated', mutedCallChats: jsonStr });
+  });
+});
+
+// ─── UPDATE Hidden Chats ───
+app.post('/api/profile/hidden-chats', authenticateToken, (req, res) => {
+  const { hiddenChats } = req.body;
+  if (!Array.isArray(hiddenChats)) return res.status(400).json({ error: 'hiddenChats must be an array' });
+  let jsonStr = '[]';
+  try {
+    jsonStr = JSON.stringify(hiddenChats.map(c => String(c).toLowerCase()));
+  } catch (e) {}
+  db.run('UPDATE users SET hiddenChats = ? WHERE id = ?', [jsonStr, req.user.id], function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    invalidateCacheForUser(req.user.username);
+    res.json({ message: 'Hidden chats updated', hiddenChats: jsonStr });
+  });
+});
+
+// ─── UPDATE Pinned Chats ───
+app.post('/api/profile/pinned-chats', authenticateToken, (req, res) => {
+  const { pinnedChats } = req.body;
+  if (!Array.isArray(pinnedChats)) return res.status(400).json({ error: 'pinnedChats must be an array' });
+  let jsonStr = '[]';
+  try {
+    jsonStr = JSON.stringify(pinnedChats.map(c => String(c).toLowerCase()));
+  } catch (e) {}
+  db.run('UPDATE users SET pinnedChats = ? WHERE id = ?', [jsonStr, req.user.id], function(err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    invalidateCacheForUser(req.user.username);
+    res.json({ message: 'Pinned chats updated', pinnedChats: jsonStr });
   });
 });
 
@@ -11906,17 +11898,109 @@ app.post('/api/chat-lock/verify-recovery', authenticateToken, chatLockRateLimit,
   }
 });
 
-// POST /api/chat-lock/self-destruct — WIPE EVERYTHING for this user
+// POST /api/chat-lock/self-destruct — WIPE EVERYTHING for locked chats of this user
 app.post('/api/chat-lock/self-destruct', authenticateToken, async (req, res) => {
   try {
     const username = req.user.username;
-    // 1. Delete only LOCKED chats (DMs or Group messages that are marked as locked)
-    await pool.query('DELETE FROM messages WHERE ("senderName" = $1 OR "targetName" = $1) AND "is_chat_locked" = TRUE', [username]);
-    // 2. Clear locked/hidden status for the user
-    await pool.query('UPDATE users SET "chat_lock_enabled" = FALSE, "chat_lock_pin_hash" = NULL, "chat_lock_recovery_hash" = NULL, "chat_lock_attempts" = 0, "chat_lock_blocked_until" = NULL WHERE LOWER(username) = LOWER($1)', [username]);
-    
+    const userLow = username.toLowerCase();
+
+    // 1. Identify all locked conversation targets (DM partners and roomIds)
+    let lockedTargets = [];
+    try {
+      const lockedRes = await pool.query(
+        `SELECT DISTINCT
+           CASE
+             WHEN LOWER("senderName") = $1 THEN LOWER("targetName")
+             ELSE LOWER("senderName")
+           END AS partner,
+           "roomId"
+         FROM messages
+         WHERE "is_chat_locked" = TRUE
+           AND (LOWER("senderName") = $1 OR LOWER("targetName") = $1)`,
+        [userLow]
+      );
+      lockedTargets = lockedRes.rows || [];
+    } catch (e) {
+      console.warn('[chat-lock/self-destruct] Error querying locked targets:', e.message);
+    }
+
+    const lockedPartners = [...new Set(lockedTargets.map(r => r.partner).filter(Boolean))];
+    const lockedRooms = [...new Set(lockedTargets.map(r => r.roomId).filter(Boolean))];
+
+    // 2. Erase all messages for locked DM partners from PostgreSQL and SQLite
+    for (const partner of lockedPartners) {
+      const partnerLow = partner.toLowerCase();
+      try {
+        await pool.query(
+          `DELETE FROM messages WHERE type = 'private'
+           AND ((LOWER("senderName") = $1 AND LOWER("targetName") = $2)
+             OR (LOWER("senderName") = $2 AND LOWER("targetName") = $1))`,
+          [userLow, partnerLow]
+        );
+      } catch (err) {
+        console.error('[chat-lock/self-destruct] PostgreSQL DM wipe failed:', err.message);
+      }
+
+      await new Promise((resolve) => {
+        db.run(
+          `DELETE FROM messages WHERE type = 'private' AND (
+             (LOWER(senderName) = ? AND LOWER(targetName) = ?) OR
+             (LOWER(senderName) = ? AND LOWER(targetName) = ?)
+          )`,
+          [userLow, partnerLow, partnerLow, userLow],
+          (err) => { if (err) console.error('[chat-lock/self-destruct] SQLite DM wipe failed:', err); resolve(); }
+        );
+      });
+    }
+
+    // 3. Erase all messages for locked rooms from PostgreSQL and SQLite
+    for (const roomId of lockedRooms) {
+      try {
+        await pool.query('DELETE FROM messages WHERE "roomId" = $1', [roomId]);
+      } catch (err) {
+        console.error('[chat-lock/self-destruct] PostgreSQL room wipe failed:', err.message);
+      }
+
+      await new Promise((resolve) => {
+        db.run('DELETE FROM messages WHERE roomId = ?', [roomId], (err) => {
+          if (err) console.error('[chat-lock/self-destruct] SQLite room wipe failed:', err);
+          resolve();
+        });
+      });
+    }
+
+    // 4. Wipe any remaining messages flagged as locked for this user
+    try {
+      await pool.query(
+        'DELETE FROM messages WHERE (LOWER("senderName") = $1 OR LOWER("targetName") = $1) AND "is_chat_locked" = TRUE',
+        [userLow]
+      );
+    } catch (err) {
+      console.error('[chat-lock/self-destruct] PostgreSQL fallback wipe failed:', err.message);
+    }
+
+    await new Promise((resolve) => {
+      db.run(
+        `DELETE FROM messages WHERE (LOWER(senderName) = ? OR LOWER(targetName) = ?) AND is_chat_locked = 1`,
+        [userLow, userLow],
+        (err) => { resolve(); }
+      );
+    });
+
+    // 5. Clear chat lock configuration for the user
+    await pool.query(
+      'UPDATE users SET "chat_lock_enabled" = FALSE, "chat_lock_pin_hash" = NULL, "chat_lock_recovery_hash" = NULL, "chat_lock_attempts" = 0, "chat_lock_blocked_until" = NULL WHERE LOWER(username) = LOWER($1)',
+      [username]
+    );
+
     invalidateCacheForUser(username);
-    return res.json({ success: true, message: 'All data has been securely wiped.' });
+
+    // 6. Broadcast real-time event to all connected devices/tabs of this user
+    try {
+      emitToUser(username, 'self_destruct_executed', { username });
+    } catch (e) {}
+
+    return res.json({ success: true, message: 'All locked chats and associated data have been permanently wiped.' });
   } catch (err) {
     console.error('[chat-lock/self-destruct]', err);
     return res.status(500).json({ error: 'Failed to wipe data' });

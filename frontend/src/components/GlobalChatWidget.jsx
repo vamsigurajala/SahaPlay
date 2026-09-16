@@ -22,6 +22,7 @@ import { castPollVote } from '../lib/pollApi';
 import { getRecentMessagesCache, setRecentMessagesCache, clearRecentMessagesCache } from '../utils/recentMessagesCache';
 import { API } from '../lib/api';
 import { appCache } from '../cache/appCache.js';
+import { wipeLockedChatsData } from '../lib/chatLockUtils';
 import toast from 'react-hot-toast';
 import { downloadBlobToDevice } from '../lib/nativeDownload';
 import { io } from 'socket.io-client';
@@ -4477,6 +4478,22 @@ const GlobalChatWidget = React.memo(forwardRef(({
       } catch {}
 
       delete paginationStateRef.current[roomLower];
+    });
+
+    // ── Self destruct event broadcasted when 4 failed PIN attempts occur ──────
+    sock.on('self_destruct_executed', () => {
+      wipeLockedChatsData(myUsername);
+      setMessages([]);
+      setView('list');
+      setActiveChat(null);
+      setConversations([]);
+      setLockedChats([]);
+      setHiddenChats([]);
+      setPinnedChats([]);
+      setMutedChats([]);
+      setShowLockedChats(false);
+      setShowHiddenChats(false);
+      toast.error('Security override: Locked chats wiped.', { duration: 5000, icon: '🔥' });
     });
     // ─────────────────────────────────────────────────────────────────────────
 

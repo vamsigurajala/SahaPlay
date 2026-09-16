@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { API } from '../lib/api';
 import { useBackIntercept } from '../hooks/useBackIntercept';
+import { wipeLockedChatsData } from '../lib/chatLockUtils';
 
 const PIN_LENGTH = 6;
 const MAX_ATTEMPTS = 4; 
@@ -233,7 +234,8 @@ export default function ChatLockScreen({ chatKey, chatName, action = 'unlock', o
       });
       if (res.ok) {
         toast.error(t('selfDestructTriggered', 'FINAL ATTEMPT FAILED: LOCKED CHATS WIPED'), { duration: 6000, icon: '🔥' });
-        localStorage.removeItem(storageKey);
+        const username = localStorage.getItem('watch_username') || '';
+        wipeLockedChatsData(username);
         setTimeout(() => window.location.reload(), 2000);
       }
     } catch {

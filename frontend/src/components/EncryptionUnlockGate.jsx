@@ -51,7 +51,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { useCrypto } from '../contexts/CryptoContext';
-import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, hashRecoveryPhrase } from '../lib/crypto.js';
+import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, secretKeyToMnemonic, hashRecoveryPhrase } from '../lib/crypto.js';
 import { API } from '../lib/api';
 import { isCapacitorApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
@@ -145,6 +145,23 @@ export default function EncryptionUnlockGate() {
     setCtx(null);
   }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
+  const handleStartFresh = useCallback(async (newPassphrase) => {
+    const kp = nacl.box.keyPair();
+    const encryptedPrivKey = await encryptPrivateKey(kp.secretKey, newPassphrase);
+    const pubKeyStr = encodeBase64(kp.publicKey);
+    const phrase = await secretKeyToMnemonic(kp.secretKey);
+    const recoveryKeyHash = await hashRecoveryPhrase(phrase);
+    const res = await fetch(`${API}/api/auth/setup-keys`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ctx.token}` },
+      body: JSON.stringify({ publicKey: pubKeyStr, encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash })
+    });
+    if (!res.ok) throw new Error('Failed to save your new encryption key. Please try again.');
+    await setKeyPair(kp);
+    enrollDeviceUnlockSilently(kp.secretKey);
+    setCtx(null);
+  }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
+
   if (!ctx || checkingDeviceUnlock) return null;
 
   return (
@@ -153,6 +170,7 @@ export default function EncryptionUnlockGate() {
       isPasswordAccount
       onUnlock={handleUnlock}
       onRecover={handleRecover}
+      onStartFresh={handleStartFresh}
     />
   );
 }

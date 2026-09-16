@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next';
 
 const MIN_LENGTH = 8;
 
-export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, isPasswordAccount, onSetPassphrase, onUnlock, onRecover, onSkip }) {
+export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, isPasswordAccount, onSetPassphrase, onUnlock, onRecover, onStartFresh, onSkip }) {
   const { t } = useTranslation();
   const [view, setView] = useState('main'); // 'main' | 'forgot'
 
@@ -204,7 +204,7 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
                 {t('encUnlockTitle', 'Enter your encryption passphrase')}
               </h2>
               <p style={{ margin: '8px 0 0', color: descColor, fontSize: 13.5, lineHeight: 1.5 }}>
-                {t('encUnlockDesc', 'This unlocks your encrypted messages on this device. It is not your login password or your chat-lock PIN.')}
+                {t('encUnlockDesc', 'This unlocks your encrypted messages on this device. If you forget your passphrase and recovery key, past encrypted messages cannot be decrypted. It is not your login password or your chat-lock PIN.')}
               </p>
             </>
           )}
@@ -215,6 +215,16 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
               </h2>
               <p style={{ margin: '8px 0 0', color: descColor, fontSize: 13.5, lineHeight: 1.5 }}>
                 {t('encRecoverDesc', 'Enter the recovery phrase you saved when this key was first created, then choose a new encryption passphrase.')}
+              </p>
+            </>
+          )}
+          {view === 'start_fresh' && (
+            <>
+              <h2 style={{ margin: 0, fontSize: 21, fontWeight: 800, color: titleColor, fontFamily: "'Outfit', sans-serif" }}>
+                {t('encStartFreshTitle', 'Set new encryption key')}
+              </h2>
+              <p style={{ margin: '8px 0 0', color: descColor, fontSize: 13.5, lineHeight: 1.5 }}>
+                {t('encStartFreshDesc', 'Choose a new encryption passphrase. All your chat threads, hidden chats, and locked chats remain present in your app. Past encrypted messages that cannot be decrypted will show a placeholder, and new messages will use your new key.')}
               </p>
             </>
           )}
@@ -349,7 +359,67 @@ export default function OAuthEncryptionModal({ mode, oauthLabel, isMigration, is
             <button type="submit" disabled={isSubmitting} className="stay-white" style={submitBtnStyle(isSubmitting)}>
               {isSubmitting ? t('encRecovering', 'Recovering...') : t('encRecoverBtn', 'Recover & set new passphrase')}
             </button>
-            <button type="button" onClick={() => { setError(''); setView('main'); }}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+              <button type="button" onClick={() => { setError(''); setView('main'); }}
+                style={{ background: 'none', border: 'none', color: 'var(--brand-1-light)', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+                {t('encBackToUnlock', '← Back')}
+              </button>
+              <button type="button" onClick={() => { setError(''); setView('start_fresh'); }}
+                style={{ background: 'none', border: 'none', color: '#f87171', fontSize: 12.5, cursor: 'pointer', fontWeight: 600 }}>
+                {t('encLostRecoveryPhraseBtn', 'Lost recovery phrase?')}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {view === 'start_fresh' && (
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setError('');
+            const valErr = validatePassphrase(newPassphrase, newConfirmPassphrase);
+            if (valErr) { setError(valErr); return; }
+            setIsSubmitting(true);
+            try {
+              if (onStartFresh) {
+                await onStartFresh(newPassphrase);
+              } else {
+                await onSetPassphrase(newPassphrase);
+              }
+            } catch (err) {
+              setError(err.message || t('somethingWentWrongError', 'Something went wrong. Please try again.'));
+            } finally {
+              setIsSubmitting(false);
+            }
+          }} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={{ fontSize: 12.5, color: labelColor, marginBottom: 6, display: 'block', fontWeight: 600 }}>
+                {t('encNewPassphraseLabel', 'New encryption passphrase')}
+              </label>
+              <input
+                type="password"
+                style={inputStyle}
+                placeholder={t('encPassphrasePlaceholder', `Min ${MIN_LENGTH} characters`)}
+                value={newPassphrase}
+                onChange={e => setNewPassphrase(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 12.5, color: labelColor, marginBottom: 6, display: 'block', fontWeight: 600 }}>
+                {t('encConfirmPassphraseLabel', 'Confirm passphrase')}
+              </label>
+              <input
+                type="password"
+                style={inputStyle}
+                placeholder={t('encConfirmPassphrasePlaceholder', 'Re-enter passphrase')}
+                value={newConfirmPassphrase}
+                onChange={e => setNewConfirmPassphrase(e.target.value)}
+              />
+            </div>
+            <button type="submit" disabled={isSubmitting} className="stay-white" style={submitBtnStyle(isSubmitting)}>
+              {isSubmitting ? t('encSaving', 'Saving...') : t('encStartFreshSubmitBtn', 'Set new passphrase & continue')}
+            </button>
+            <button type="button" onClick={() => { setError(''); setView('forgot'); }}
               style={{ background: 'none', border: 'none', color: 'var(--brand-1-light)', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
               {t('encBackToUnlock', '← Back')}
             </button>
