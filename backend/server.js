@@ -4476,7 +4476,7 @@ app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) 
       });
     }
 
-    const user = await queryGet('SELECT id, username, email, displayName, avatarPath, bio, country, country_code, showCountry, pinnedRooms, mutedChats, mutedCallChats, hiddenChats, pinnedChats, role FROM users WHERE id = ?', [req.user.id]);
+    const user = await queryGet('SELECT id, username, email, "displayName", "avatarPath", bio, country, country_code, "showCountry", "pinnedRooms", "mutedChats", "mutedCallChats", "hiddenChats", "pinnedChats", role FROM users WHERE id = ?', [req.user.id]);
     if (!user) return res.status(404).json({ error: 'User not found' });
     // EXISTS-against-users mirrors the INNER JOIN /api/follow/:username/list
     // uses to actually render the list — without it, a follow row left
@@ -4484,8 +4484,8 @@ app.get('/api/profile', authenticateToken, apiCacheMiddleware, async (req, res) 
     // `follows`) still counts here but can never appear in the list itself,
     // which is exactly the "count says 6, list shows 5" mismatch.
     const [followersRow, followingRow] = await Promise.all([
-      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f.followingId) = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f.followerId))`, [user.username]),
-      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f.followerId) = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f.followingId))`, [user.username])
+      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f."followingId") = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f."followerId"))`, [user.username]),
+      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f."followerId") = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f."followingId"))`, [user.username])
     ]);
 
     res.json({
@@ -4688,7 +4688,7 @@ app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, a
     if (myBlock.rows.length > 0) return res.json({ isBlockedByMe: true, username });
     if (theirBlock.rows.length > 0) return res.status(404).json({ error: 'User not found' });
     
-    const user = await queryGet('SELECT username, displayName, avatarPath, bio, country, country_code, showCountry FROM users WHERE LOWER(username) = LOWER(?)', [username]);
+    const user = await queryGet('SELECT username, "displayName", "avatarPath", bio, country, country_code, "showCountry" FROM users WHERE LOWER(username) = LOWER(?)', [username]);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const isSelf = viewerUsername.toLowerCase() === (user.username || '').toLowerCase();
@@ -4703,10 +4703,10 @@ app.get('/api/users/:username', authenticateTokenOptional, apiCacheMiddleware, a
     // users), or a follow row orphaned by a deleted account inflates the
     // number without ever showing up in the list itself.
     const [followersRow, followingRow, followRow, theyFollowMeRow] = await Promise.all([
-      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f.followingId) = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f.followerId))`, [user.username]),
-      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f.followerId) = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f.followingId))`, [user.username]),
-      queryGet('SELECT status FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', [viewerUsername, user.username]),
-      queryGet('SELECT status FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', [user.username, viewerUsername])
+      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f."followingId") = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f."followerId"))`, [user.username]),
+      queryGet(`SELECT COUNT(*) as count FROM follows f WHERE LOWER(f."followerId") = LOWER(?) AND f.status = 'accepted' AND EXISTS (SELECT 1 FROM users u WHERE LOWER(u.username) = LOWER(f."followingId"))`, [user.username]),
+      queryGet('SELECT status FROM follows WHERE LOWER("followerId") = LOWER(?) AND LOWER("followingId") = LOWER(?)', [viewerUsername, user.username]),
+      queryGet('SELECT status FROM follows WHERE LOWER("followerId") = LOWER(?) AND LOWER("followingId") = LOWER(?)', [user.username, viewerUsername])
     ]);
     
     res.json({
@@ -4849,10 +4849,10 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
   try {
     // 1. Private chats: get latest message per partner
     const privateRows = await queryAll(`
-      SELECT DISTINCT ON (partner)
+      SELECT DISTINCT ON (CASE WHEN LOWER(m."senderName") = LOWER($1) THEN LOWER(m."targetName") ELSE LOWER(m."senderName") END)
         m.timestamp as "lastTimestamp",
-        CASE WHEN LOWER(m.senderName) = LOWER($1) THEN m.targetName ELSE m.senderName END as partner,
-        m.roomId,
+        CASE WHEN LOWER(m."senderName") = LOWER($1) THEN m."targetName" ELSE m."senderName" END as partner,
+        m."roomId",
         m.message,
         m."senderMessage" as "senderMessage",
         m.nonce,
@@ -4862,13 +4862,13 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         m.media_file_name as "mediaFileName",
         m.media_duration as "mediaDuration",
         'private' as type,
-        LOWER(m.senderName) = LOWER($2) as "isMyLastMessage"
+        LOWER(m."senderName") = LOWER($2) as "isMyLastMessage"
       FROM messages m
       WHERE m.type = 'private'
         AND (LOWER(m."senderName") = LOWER($3) OR LOWER(m."targetName") = LOWER($4))
-        AND (m.hiddenFor IS NULL OR m.hiddenFor NOT LIKE '%' || $5 || '%')
+        AND (m."hiddenFor" IS NULL OR m."hiddenFor" NOT LIKE '%' || $5 || '%')
         AND m.is_notice IS NOT TRUE
-      ORDER BY partner, m.timestamp DESC, m.id DESC
+      ORDER BY CASE WHEN LOWER(m."senderName") = LOWER($1) THEN LOWER(m."targetName") ELSE LOWER(m."senderName") END, m.timestamp DESC, m.id DESC
     `, [username, username, username, username, `"${username}"`]);
 
     // A10-B2: Batch private unread counts — one query instead of N per-partner queries
@@ -5812,8 +5812,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
         return res.status(400).json({ error: 'Message rejected: missing encryption fields' });
       }
 
-      const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [username, partner]);
-      const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [partner, username]);
+      const rel1 = await queryGet('SELECT status FROM follows WHERE LOWER("followerId") = LOWER(?) AND LOWER("followingId") = LOWER(?)', [username, partner]);
+      const rel2 = await queryGet('SELECT status FROM follows WHERE LOWER("followerId") = LOWER(?) AND LOWER("followingId") = LOWER(?)', [partner, username]);
       const areFriends = (rel1?.status === 'accepted') && (rel2?.status === 'accepted');
 
       if (!areFriends) {
