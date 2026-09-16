@@ -5079,7 +5079,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         const hostUsername = memRoom?.hostUsername || dbRoom?.hostUsername;
 
         const lastMsg = await queryGet(
-          'SELECT message, "mediaUrl", "mediaType", media_file_name, media_duration, timestamp, "senderName" FROM messages WHERE "roomId" = ? AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?) ORDER BY timestamp DESC LIMIT 1',
+          'SELECT message, "mediaUrl", "mediaType", media_file_name, media_duration, timestamp, "senderName" FROM messages WHERE "roomId" = $1 AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE $2) ORDER BY timestamp DESC LIMIT 1',
           [rid, `%"${username}"%`]
         );
         finalGroup.push({
@@ -5107,12 +5107,12 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     // have at least one message.
     if (!finalGroup.some(g => g.id === SAHAPLAY_OFFICIAL_ROOM_ID)) {
       const lastMsg = await queryGet(
-        'SELECT message, "mediaUrl", "mediaType", media_file_name, media_duration, timestamp, "senderName" FROM messages WHERE "roomId" = ? AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?) ORDER BY timestamp DESC LIMIT 1',
+        'SELECT message, "mediaUrl", "mediaType", media_file_name, media_duration, timestamp, "senderName" FROM messages WHERE "roomId" = $1 AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE $2) ORDER BY timestamp DESC LIMIT 1',
         [SAHAPLAY_OFFICIAL_ROOM_ID, `%"${username}"%`]
       );
       const officialLs = lastSeenLower[SAHAPLAY_OFFICIAL_ROOM_ID] || 0;
       const officialUnreadRow = await queryGet(
-        'SELECT COUNT(*) as c FROM messages WHERE "roomId" = ? AND type IN (\'room\', \'group\') AND timestamp > ? AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?)',
+        'SELECT COUNT(*) as c FROM messages WHERE "roomId" = $1 AND type IN (\'room\', \'group\') AND timestamp > $2 AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE $3)',
         [SAHAPLAY_OFFICIAL_ROOM_ID, officialLs, `%"${username}"%`]
       );
       finalGroup.push({
