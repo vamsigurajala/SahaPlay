@@ -120,8 +120,10 @@ export function getMessagePreview(chat, myUsername) {
       content = callLogContent(text, myUsername) || 'Call'
     } else if (isPollJSON(text)) {
       content = <><PreviewIcon Icon={BarChart2} color="#f59e0b" />Poll</>
-    } else if (!text || looksLikeCiphertext(text)) {
-      content = isMe ? 'Message sent' : 'Message'
+    } else if (!text) {
+      content = chat.type === 'room' ? 'Start a conversation' : 'Start a private chat';
+    } else if (looksLikeCiphertext(text)) {
+      content = isMe ? 'Message sent' : 'Encrypted message';
     } else {
       // Infer media type from filename extension when lastMediaType is missing.
       // This handles legacy DB rows where mediaType was null but the message field

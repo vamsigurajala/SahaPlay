@@ -2112,13 +2112,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
     if (!keyPair) return;
     const partnerLower = (partner || '').toLowerCase();
     try {
-      let targetPubKey = localStorage.getItem(`wt_pk_${partnerLower}`);
-      if (!targetPubKey) {
+      let targetPubKey = null;
+      try {
         const pkRes = await fetch(`${API}/api/auth/public-key/${encodeURIComponent(partnerLower)}`);
         if (pkRes.ok) {
           const pkData = await pkRes.json();
           targetPubKey = pkData.publicKey || null;
+          if (targetPubKey) {
+            try { localStorage.setItem(`wt_pk_${partnerLower}`, targetPubKey); } catch {}
+          }
         }
+      } catch (e) {}
+      if (!targetPubKey) {
+        targetPubKey = localStorage.getItem(`wt_pk_${partnerLower}`);
       }
       if (!targetPubKey) return;
       const enc = encryptDM('Changed the chat theme', targetPubKey, encodeBase64(keyPair.publicKey));
@@ -4288,6 +4294,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
     sock.on('room_renamed', applyRoomRename);
     sock.on('room_renamed_global', applyRoomRename);
 
+    sock.on('public_key_updated', ({ username, publicKey }) => {
+      if (!username) return;
+      const userLower = username.toLowerCase();
+      if (publicKey) {
+        try { localStorage.setItem(`wt_pk_${userLower}`, publicKey); } catch {}
+      } else {
+        try { localStorage.removeItem(`wt_pk_${userLower}`); } catch {}
+      }
+    });
+
     // Re-unified typing indicator is now handled by sock.on('chat:typing') at the top
     sock.on('dm_cleared', (data) => {
       const { userA, userB, targetUsername: legacyTarget } = data;
@@ -5690,6 +5706,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
             const pkData = await pkRes.json();
             if (pkData.publicKey) {
               targetPubKey = pkData.publicKey;
+              try { localStorage.setItem(`wt_pk_${activeChat.partner.toLowerCase()}`, targetPubKey); } catch {}
             }
           } else if (pkRes.status === 404) {
             const pkResLower = await fetch(`${API}/api/auth/public-key/${activeChat.partner.toLowerCase()}`);
@@ -5697,6 +5714,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
               const pkDataLower = await pkResLower.json();
               if (pkDataLower.publicKey) {
                 targetPubKey = pkDataLower.publicKey;
+                try { localStorage.setItem(`wt_pk_${activeChat.partner.toLowerCase()}`, targetPubKey); } catch {}
               }
             }
           }
