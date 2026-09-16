@@ -3647,12 +3647,12 @@ async function hideAllMessagesForUser(username) {
     [usernameLower, usernameLower]
   );
 
-  // Group/room chats: hide ALL group and room messages in the system for this user.
+  // Group/room chats: hide ALL group and room messages in the system for this user, EXCEPT sahaplay-official.
   await hideMessagesForUser(
     username,
-    `type IN ('group','room')`,
+    `type IN ('group','room') AND LOWER(COALESCE("targetName", "roomId", '')) != 'sahaplay-official'`,
     [],
-    `type IN ('group','room')`,
+    `type IN ('group','room') AND LOWER(COALESCE(targetName, roomId, '')) != 'sahaplay-official'`,
     []
   );
 }
@@ -3800,7 +3800,12 @@ app.post('/api/auth/rekey', async (req, res) => {
     if (recoveryKeyHash) { updates.push(`"recoveryKeyHash" = $${params.length + 1}`); params.push(recoveryKeyHash); }
     params.push(decoded.id);
     await pool.query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
-    if (publicKey) publicKeyCache.delete(decoded.username.toLowerCase());
+    if (publicKey) {
+      publicKeyCache.set(decoded.username.toLowerCase(), publicKey);
+      if (io) {
+        io.emit('public_key_updated', { username: decoded.username, publicKey });
+      }
+    }
     res.json({ success: true });
   } catch (err) {
     console.error('[rekey] DB error:', err);
@@ -3834,6 +3839,9 @@ app.post('/api/auth/save-public-key', authenticateToken, async (req, res) => {
     );
     if (result.rowCount > 0) {
       publicKeyCache.set(req.user.username.toLowerCase(), publicKey);
+      if (io) {
+        io.emit('public_key_updated', { username: req.user.username, publicKey });
+      }
     }
     res.json({ success: true });
   } catch (err) {
@@ -5194,6 +5202,45 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
   } catch(err) {
     console.error('Recent chats error:', err);
     res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/api/chats/mark-read', authenticateToken, async (req, res) => {
+  const username = req.user.username;
+  const { chatId, isDm } = req.body;
+  if (!chatId) return res.status(400).json({ error: 'chatId is required' });
+  const now = Date.now();
+
+  try {
+    const userRow = await queryGet('SELECT "lastSeen" FROM users WHERE username = ?', [username]);
+    let ls = {};
+    try { ls = JSON.parse(userRow?.lastSeen || '{}'); } catch(e){}
+    ls[chatId] = now;
+    const lsStr = JSON.stringify(ls);
+
+    if (pool) {
+      await pool.query('UPDATE users SET "lastSeen" = $1 WHERE username = $2', [lsStr, username]);
+    }
+    db.run('UPDATE users SET lastSeen = ? WHERE username = ?', [lsStr, username]);
+
+    const targetRoomId = await getRoomIdForChat(chatId, username, isDm);
+    const queryStr = `
+      INSERT INTO message_seen (message_id, room_id, username, seen_at)
+      SELECT id, "roomId", $1::varchar, $2::bigint
+      FROM messages
+      WHERE "roomId" = $3::varchar
+        AND LOWER("senderName") != LOWER($1::varchar)
+        AND timestamp <= $2::bigint
+        AND ("is_unsent" IS NULL OR "is_unsent" = FALSE)
+      ON CONFLICT (message_id, username) DO NOTHING;
+    `;
+    await pool.query(queryStr, [username, now, targetRoomId]).catch(() => {});
+
+    emitToUser(username, 'chat:mark_read', { chatId, timestamp: now });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[mark-read endpoint] error:', err);
+    res.status(500).json({ error: 'Failed to mark read' });
   }
 });
 
@@ -9392,16 +9439,23 @@ io.on('connection', (socket) => {
     // 1. Get the actual roomId used in messages table
     const targetRoomId = await getRoomIdForChat(chatId, socket.username, isDm);
 
-    // 2. Persist lastSeen to users table (existing logic)
-    db.get('SELECT lastSeen FROM users WHERE username = ?', [socket.username], (err, row) => {
+    // 2. Persist lastSeen to users table (both Postgres and SQLite)
+    try {
+      const userRow = await queryGet('SELECT "lastSeen" FROM users WHERE username = ?', [socket.username]);
       let ls = {};
-      try { ls = JSON.parse(row?.lastSeen || '{}'); } catch(e){}
+      try { ls = JSON.parse(userRow?.lastSeen || '{}'); } catch(e){}
       ls[chatId] = now;
-      db.run('UPDATE users SET lastSeen = ? WHERE username = ?', [JSON.stringify(ls), socket.username]);
+      const lsStr = JSON.stringify(ls);
+      if (pool) {
+        await pool.query('UPDATE users SET "lastSeen" = $1 WHERE username = $2', [lsStr, socket.username]);
+      }
+      db.run('UPDATE users SET lastSeen = ? WHERE username = ?', [lsStr, socket.username]);
       
       // Broadcast to other sockets of the same user to sync unread badges across tabs
       emitToUser(socket.username, 'chat:mark_read', { chatId, timestamp: now });
-    });
+    } catch (e) {
+      console.error('[chat:mark_read] lastSeen update error:', e);
+    }
 
     // 3. Mark messages as seen in message_seen table
     const queryStr = `
@@ -9621,45 +9675,39 @@ io.on('connection', (socket) => {
     emitToUser(targetName, 'chat:private_reaction', { messageId, senderName, emoji, targetName });
   });
 
-  // ─── Clear DM (for me only — soft hide via hiddenFor) ───
-  socket.on('clear_dm', async ({ targetUsername }) => {
+  // ─── Clear DM (soft hide via hiddenFor — for me or for both) ───
+  socket.on('clear_dm', async ({ targetUsername, clearForBoth }) => {
     const sender = socket.username;
     if (!sender || !targetUsername) return;
 
-    const payload = { userA: sender, userB: targetUsername, clearedBy: sender, clearForBoth: false };
+    const isBoth = !!clearForBoth;
+    const payload = { userA: sender, userB: targetUsername, clearedBy: sender, clearForBoth: isBoth };
     const senderLow = sender.toLowerCase();
     const targetLow = targetUsername.toLowerCase();
+    const usersToAdd = isBoth ? [sender, targetUsername] : [sender];
 
-    // ── Soft hide: only the requester stops seeing the messages ──
-    // Uses the same hiddenFor mechanism as per-message "delete for me".
-    // The other participant's view is completely unaffected.
-    // Explicit ::text casts make this work whether hiddenFor is TEXT or JSONB.
-    let pgUpdated = 0;
     try {
-      const pgResult = await pool.query(
-        `UPDATE messages
-         SET "hiddenFor" = CASE
-           WHEN "hiddenFor" IS NULL OR "hiddenFor"::text IN ('', 'null', '[]')
-             THEN jsonb_build_array($1::text)::text
-           WHEN NOT ("hiddenFor"::jsonb @> jsonb_build_array($1::text))
-             THEN ("hiddenFor"::jsonb || jsonb_build_array($1::text))::text
-           ELSE "hiddenFor"::text
-         END
-         WHERE type = 'private'
-           AND ((LOWER("senderName") = $2 AND LOWER("targetName") = $3)
-             OR (LOWER("senderName") = $3 AND LOWER("targetName") = $2))`,
-        [
-          sender,    // $1 — username to add to hiddenFor array
-          senderLow, // $2
-          targetLow  // $3
-        ]
-      );
-      pgUpdated = pgResult.rowCount || 0;
+      for (const u of usersToAdd) {
+        await pool.query(
+          `UPDATE messages
+           SET "hiddenFor" = CASE
+             WHEN "hiddenFor" IS NULL OR "hiddenFor"::text IN ('', 'null', '[]')
+               THEN jsonb_build_array($1::text)::text
+             WHEN NOT ("hiddenFor"::jsonb @> jsonb_build_array($1::text))
+               THEN ("hiddenFor"::jsonb || jsonb_build_array($1::text))::text
+             ELSE "hiddenFor"::text
+           END
+           WHERE type = 'private'
+             AND ((LOWER("senderName") = $2 AND LOWER("targetName") = $3)
+               OR (LOWER("senderName") = $3 AND LOWER("targetName") = $2))`,
+          [u, senderLow, targetLow]
+        );
+      }
     } catch (err) {
-      console.error('[CLEAR_DM] clearForMe — PostgreSQL UPDATE failed:', err.message);
+      console.error('[CLEAR_DM] PostgreSQL UPDATE failed:', err.message);
     }
 
-    // Also update hiddenFor in SQLite — DM history is read entirely from SQLite on join/refresh
+    // Also update hiddenFor in SQLite
     await new Promise((resolve) => {
       db.all(
         `SELECT id, hiddenFor FROM messages WHERE type = 'private' AND (
@@ -9674,7 +9722,9 @@ io.on('connection', (socket) => {
             let arr = [];
             try { arr = JSON.parse(row.hiddenFor || '[]'); } catch { arr = []; }
             if (!Array.isArray(arr)) arr = [];
-            if (!arr.map(x => (x || '').toLowerCase()).includes(sender.toLowerCase())) arr.push(sender);
+            usersToAdd.forEach(u => {
+              if (!arr.map(x => (x || '').toLowerCase()).includes(u.toLowerCase())) arr.push(u);
+            });
             db.run(`UPDATE messages SET hiddenFor = ? WHERE id = ?`,
               [JSON.stringify(arr), row.id],
               () => { if (--pending === 0) resolve(); }
@@ -9684,8 +9734,10 @@ io.on('connection', (socket) => {
       );
     });
 
-    // Emit only to the requester (partner keeps their history)
     emitToUser(sender, 'dm_cleared', payload);
+    if (isBoth) {
+      emitToUser(targetUsername, 'dm_cleared', payload);
+    }
   });
 
   // ─── Clear Room Chat (for me only — soft hide via hiddenFor) ───

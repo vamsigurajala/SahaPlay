@@ -3088,9 +3088,25 @@ const GlobalChatWidget = React.memo(forwardRef(({
     setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
       (c.id === chatKey || c.partner === chatKey) ? { ...c, unread: 0 } : c
     ));
+    try {
+      const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
+      delete localCounts[chatKey];
+      delete localCounts[(chatKey || '').toLowerCase()];
+      localStorage.setItem('chat_unread_counts', JSON.stringify(localCounts));
+    } catch (e) {}
+
     if (socketRef.current) {
       socketRef.current.emit('chat:mark_read', { chatId: chatKey, isDm });
     }
+    const token = localStorage.getItem('watch_token');
+    if (token) {
+      fetch(`${API}/api/chats/mark-read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ chatId: chatKey, isDm })
+      }).catch(() => {});
+    }
+
     // Also notify parent (Room.jsx) so the global badge updates immediately
     if (typeof onMarkRead === 'function') {
       onMarkRead(chatKey);
@@ -5786,6 +5802,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
       // Aborting here (before postBody is built) means an unencrypted message never
       // leaves the client at all, not even inside a request the server goes on to
       // reject — matching how group send/edit/forward and DM media already behave.
+      if (activeChat.type === 'private' && !targetPubKey) {
+        throw new Error(`@${activeChat.displayName || activeChat.partner} has not set up encryption keys yet.`);
+      }
       if ((activeChat.type === 'private' || activeChat.type === 'room') && !isEncrypted) {
         throw new Error('Message not sent — encryption failed.');
       }
@@ -5821,7 +5840,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
       }
     } catch(e) {
       console.error(e);
-      toast.error('Failed to send message. Please try again.');
+      toast.error(e.message || 'Failed to send message. Please try again.');
       setMessages(prev => prev.filter(m => m.id !== tempId));
       setConversations(previousConversations);
     }
@@ -10233,13 +10252,24 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 </div>
                 <h3 style={{ margin: 0, color: isLight ? '#0f172a' : '#fff', fontSize: 24, fontWeight: 900 }}>Clear Chat</h3>
               </div>
-              <p style={{color: isLight ? '#475569' : '#aaa',fontSize:15,marginBottom:24,lineHeight:1.4}}>Are you sure you want to clear your chat history with <strong>{clearChatModalOpen.displayName || clearChatModalOpen.partner}</strong>? This will clear messages for your view only.</p>
+              <p style={{color: isLight ? '#475569' : '#aaa',fontSize:15,marginBottom:16,lineHeight:1.4}}>
+                Are you sure you want to clear your chat history with <strong>{clearChatModalOpen.displayName || clearChatModalOpen.partner}</strong>? {clearForBoth ? 'This will clear messages for both of you.' : 'This will clear messages for your view only.'}
+              </p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 24, fontSize: 14, color: isLight ? '#334155' : '#cbd5e1', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={clearForBoth}
+                  onChange={e => setClearForBoth(e.target.checked)}
+                  style={{ width: 18, height: 18, accentColor: '#ef4444', cursor: 'pointer', borderRadius: 4 }}
+                />
+                <span>Also clear for <strong>@{clearChatModalOpen.displayName || clearChatModalOpen.partner}</strong></span>
+              </label>
               <div style={{display:'flex',gap:14,justifyContent:'flex-end'}}>
-                <button onClick={()=>setClearChatModalOpen(false)} className="modal-btn-transition" style={{padding:'14px 28px',background: isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:800, borderRadius: 18, fontSize: 15}}>Cancel</button>
+                <button onClick={()=>{ setClearChatModalOpen(false); setClearForBoth(false); }} className="modal-btn-transition" style={{padding:'14px 28px',background: isLight ? '#f8fafc' : 'rgba(255, 255, 255, 0.08)', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.1)', color: isLight ? '#000' : '#fff',cursor:'pointer',fontWeight:800, borderRadius: 18, fontSize: 15}}>Cancel</button>
                 <button onClick={()=>{
                   const dmPartner = clearChatModalOpen?.partner;
                   const dmPartnerLower = (dmPartner || '').toLowerCase();
-                  if (socketRef.current) socketRef.current.emit('clear_dm', { targetUsername: dmPartner, clearForBoth: false });
+                  if (socketRef.current) socketRef.current.emit('clear_dm', { targetUsername: dmPartner, clearForBoth: clearForBoth });
                   // Cancel any in-flight history fetch so it can't restore cleared messages
                   latestHistoryRequestRef.current++;
                   // Prevent loadMoreHistory from fetching pre-clear pages
@@ -10256,7 +10286,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   ));
                   setClearChatModalOpen(false);
                   setClearForBoth(false);
-                  toast.success('Chat history cleared');
+                  toast.success(clearForBoth ? 'Chat history cleared for both users' : 'Chat history cleared');
                 }} className="modal-btn-transition danger-red-btn stay-white" style={{padding:'14px 36px',background:'#ef4444',border:'none',borderRadius:18,color:'#fff',cursor:'pointer',fontWeight:900, fontSize: 15, boxShadow: '0 6px 20px rgba(239, 68, 68, 0.3)'}}>
                   <span className="stay-white" style={{color: '#fff'}}>Clear Chat</span>
                 </button>
