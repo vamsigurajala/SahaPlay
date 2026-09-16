@@ -13,6 +13,7 @@ import { useState, useEffect } from 'react';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useCrypto } from '../contexts/CryptoContext';
+import { isCapacitorApp, isTauriApp } from '../lib/platform';
 
 export default function KeyRecoveryModal() {
   const { needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock } = useCrypto();
@@ -23,18 +24,11 @@ export default function KeyRecoveryModal() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [switching, setSwitching] = useState(false);
 
-  // This component is always mounted at the App level and only
-  // conditionally renders (the `if (!needsReauth) return null` below), so
-  // this hook has to run every render regardless — it just no-ops unless
-  // the modal is actually showing. Locking body ALONE wasn't enough here —
-  // index.css deliberately gives <html> its own independent
-  // `overflow-y: auto` (its own comment: "Prevent html-level scroll lock
-  // on mobile"), so with body's overflow hidden but html's still auto, the
-  // browser promotes <html> to the actual scrolling element and mouse
-  // wheel/touch scroll kept moving the page behind this modal through it.
-  // Locking both together actually stops it.
   useEffect(() => {
     if (!needsReauth) return;
+    if (!isCapacitorApp() && !isTauriApp()) {
+      switchToPassphraseUnlock().catch(() => {});
+    }
     const originalHtml = document.documentElement.style.overflow;
     const originalBody = document.body.style.overflow;
     document.documentElement.style.overflow = 'hidden';
@@ -43,7 +37,7 @@ export default function KeyRecoveryModal() {
       document.documentElement.style.overflow = originalHtml;
       document.body.style.overflow = originalBody;
     };
-  }, [needsReauth]);
+  }, [needsReauth, switchToPassphraseUnlock]);
 
   if (!needsReauth) return null;
 

@@ -154,54 +154,50 @@ const Login = () => {
       navigate(safeNext || '/');
 
       // ─── E2EE Key Decryption ─────────────────────────────────────────────
+      const isBrowser = !isCapacitorApp() && !isTauriApp();
       if (data.encryptedPrivateKey) {
-        try {
-          const secretKey = await decryptPrivateKey(data.encryptedPrivateKey, password);
-          const kp = nacl.box.keyPair.fromSecretKey(secretKey);
-          await setKeyPair(kp);
-          enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
-        } catch (cryptoErr) {
-          // The login password no longer unwraps this account's stored key
-          // blob. This used to be treated as "corrupted, regenerate a fresh
-          // key" — which silently overwrote the account's public key
-          // server-side, permanently orphaning every message anyone had
-          // ever encrypted to the OLD key (on every device, including this
-          // account's own sent history). That is never the right response
-          // to a decrypt failure here.
-          //
-          // The real cause, now that email/password accounts can migrate to
-          // an independent encryption passphrase (see Profile.jsx's
-          // "Encryption passphrase" section — the same fix this closes:
-          // wrapping with the login password meant the server, which sees
-          // it on every login, could in principle derive the same wrapping
-          // key): this account has already migrated, so the login password
-          // is no longer the right secret. Ask for the passphrase instead —
-          // dispatched as an event (not rendered here) because navigate()
-          // above already unmounts this component before this async block
-          // resolves; EncryptionUnlockGate (mounted once at the App level)
-          // picks it up and renders the unlock/recover flow.
-          console.warn('[Login] Login password did not unwrap the stored key — likely migrated to an independent passphrase.', cryptoErr);
+        if (isBrowser) {
+          // In web browsers: always present the encryption passphrase modal on login / relogin
           window.dispatchEvent(new CustomEvent('encryption_needs_passphrase', {
             detail: { encryptedPrivateKey: data.encryptedPrivateKey, publicKey: data.publicKey, token: data.token }
           }));
+        } else {
+          try {
+            const secretKey = await decryptPrivateKey(data.encryptedPrivateKey, password);
+            const kp = nacl.box.keyPair.fromSecretKey(secretKey);
+            await setKeyPair(kp);
+            enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
+          } catch (cryptoErr) {
+            console.warn('[Login] Login password did not unwrap the stored key — likely migrated to an independent passphrase.', cryptoErr);
+            window.dispatchEvent(new CustomEvent('encryption_needs_passphrase', {
+              detail: { encryptedPrivateKey: data.encryptedPrivateKey, publicKey: data.publicKey, token: data.token }
+            }));
+          }
         }
       } else {
-        try {
-          const { encryptPrivateKey, secretKeyToMnemonic, hashRecoveryPhrase } = await import('./lib/crypto.js');
-          const kp                = generateKeyPair();
-          const encryptedPrivKey  = await encryptPrivateKey(kp.secretKey, password);
-          const phrase            = await secretKeyToMnemonic(kp.secretKey);
-          const recoveryKeyHash   = await hashRecoveryPhrase(phrase);
+        if (isBrowser) {
+          // In web browsers: if no key exists on file (e.g. after password reset without recovery key),
+          // prompt user to set an encryption passphrase using OAuthEncryptionModal in 'set' mode.
+          setOauthModalCtx({ data, isMigration: false, isPasswordAccount: true });
+          setOauthModalMode('set');
+        } else {
+          try {
+            const { encryptPrivateKey, secretKeyToMnemonic, hashRecoveryPhrase } = await import('./lib/crypto.js');
+            const kp                = generateKeyPair();
+            const encryptedPrivKey  = await encryptPrivateKey(kp.secretKey, password);
+            const phrase            = await secretKeyToMnemonic(kp.secretKey);
+            const recoveryKeyHash   = await hashRecoveryPhrase(phrase);
 
-          await fetch(`${API}/api/auth/setup-keys`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
-            body: JSON.stringify({ username: data.username, publicKey: encodeBase64(kp.publicKey), encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash })
-          });
-          await setKeyPair(kp);
-          enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
-        } catch (err) {
-          console.error('[Login] Legacy key setup failed:', err);
+            await fetch(`${API}/api/auth/setup-keys`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${data.token}` },
+              body: JSON.stringify({ username: data.username, publicKey: encodeBase64(kp.publicKey), encryptedPrivateKey: encryptedPrivKey, recoveryKeyHash })
+            });
+            await setKeyPair(kp);
+            enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
+          } catch (err) {
+            console.error('[Login] Legacy key setup failed:', err);
+          }
         }
       }
       // ─────────────────────────────────────────────────────────────────────
