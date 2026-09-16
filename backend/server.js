@@ -3710,6 +3710,9 @@ app.post('/api/reset-password', async (req, res) => {
         [hashedPassword, publicKey, encryptedPrivateKey, recoveryKeyHash, user.id]
       );
       publicKeyCache.set(user.username.toLowerCase(), publicKey);
+      if (io) {
+        io.emit('public_key_updated', { username: user.username, publicKey });
+      }
     } else {
       await pool.query(
         'UPDATE users SET password = $1, "resetToken" = NULL, "resetTokenExpiry" = NULL, "publicKey" = NULL, "encryptedPrivateKey" = NULL, "recoveryKeyHash" = NULL, "hiddenChats" = \'[]\', "pinnedChats" = \'[]\', "mutedChats" = \'[]\', "firstJoined" = \'{}\', "chatLockPin" = NULL, "lockedChats" = \'[]\' WHERE id = $2',
@@ -3721,6 +3724,9 @@ app.post('/api/reset-password', async (req, res) => {
       // chat they can see, private and group alike, for THEIR view only.
       await hideAllMessagesForUser(user.username);
       publicKeyCache.delete(user.username.toLowerCase());
+      if (io) {
+        io.emit('public_key_updated', { username: user.username, publicKey: null });
+      }
     }
 
     console.log(`[RESET] Password successfully reset for @${user.username}`);
@@ -3760,6 +3766,10 @@ app.post('/api/auth/setup-keys', authenticateToken, async (req, res) => {
       'UPDATE users SET "publicKey" = $1, "encryptedPrivateKey" = $2, "recoveryKeyHash" = COALESCE($3, "recoveryKeyHash") WHERE id = $4',
       [publicKey, encryptedPrivateKey, recoveryKeyHash || null, req.user.id]
     );
+    publicKeyCache.set(req.user.username.toLowerCase(), publicKey);
+    if (io) {
+      io.emit('public_key_updated', { username: req.user.username, publicKey });
+    }
     res.json({ success: true });
   } catch (err) {
     console.error('[setup-keys] DB error:', err);

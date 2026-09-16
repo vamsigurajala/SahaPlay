@@ -3557,6 +3557,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
       handleTypingStatus(data, isStarting);
     });
 
+    sock.on('public_key_updated', ({ username: targetUser, publicKey: newPK }) => {
+      if (!targetUser) return;
+      const targetLower = targetUser.toLowerCase();
+      if (newPK) {
+        try { localStorage.setItem(`wt_pk_${targetLower}`, newPK); } catch {}
+      } else {
+        try { localStorage.removeItem(`wt_pk_${targetLower}`); } catch {}
+      }
+      if (activeChatRef.current && activeChatRef.current.toLowerCase() === targetLower) {
+        setPartnerPublicKey(newPK || null);
+      }
+    });
+
     sock.on('blocking_updated', ({ blocker, blocked, isBlocked }) => {
       const myUsername = localStorage.getItem('watch_username');
       if (!myUsername) return;
@@ -3851,12 +3864,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     decryptedMediaUrl = null;
                   }
                 } else if (msg.message) {
-                  decryptedMessage = decryptDM(msg.message, msg.nonce, senderPK, encodeBase64(activeKey.secretKey)) || '\uD83D\uDD12 Encrypted message';
+                  const plain = decryptDM(msg.message, msg.nonce, senderPK, encodeBase64(activeKey.secretKey));
+                  decryptedMessage = plain != null ? plain : '\uD83D\uDD12 Encrypted message';
                 }
               }
             }
           }
         } catch (e) { console.warn('[E2EE] Decryption failed', e); }
+      }
+      if (!isGroup && !decryptedMessage && msg.message && (msg.nonce || msg.ephemeralPublicKey || msg.message.startsWith('Vs!') || (msg.message.length > 25 && !msg.message.includes(' ') && (msg.message.endsWith('=') || msg.message.includes('+') || msg.message.includes('/'))))) {
+        decryptedMessage = '\uD83D\uDD12 Encrypted message';
       }
       // ─── Post-Decryption Processing ───
       msg.decryptedText = decryptedMessage;
