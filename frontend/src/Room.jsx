@@ -5271,6 +5271,21 @@ const Room = () => {
       });
     });
 
+    sock.on('public_key_updated', ({ username: targetUser, publicKey: newPK }) => {
+      if (!targetUser) return;
+      const targetLower = targetUser.toLowerCase();
+      if (newPK) {
+        try { localStorage.setItem(`wt_pk_${targetLower}`, newPK); } catch {}
+        try {
+          const dec = robustDecode(newPK);
+          if (dec && dec.length === 32) dbPublicKeys.current[targetLower] = dec;
+        } catch {}
+      } else {
+        try { localStorage.removeItem(`wt_pk_${targetLower}`); } catch {}
+        delete dbPublicKeys.current[targetLower];
+      }
+    });
+
     // Poll vote sync — server broadcasts this to the whole room (group polls)
     // or to both DM participants (private polls) whenever anyone casts,
     // changes or withdraws a vote. Matches by id OR timestamp the same way
@@ -7041,26 +7056,26 @@ const Room = () => {
   // most one network round trip instead of silently producing an
   // undecryptable message for someone.
   const ensureFreshGroupRecipients = async () => {
-    let recipients = buildGroupRecipients();
-    const otherLiveUsernames = userList
-      .map(u => u.username.toLowerCase())
-      .filter(u => u !== username.toLowerCase());
-    const haveAll = otherLiveUsernames.every(u => recipients.some(r => r.username === u));
-    if (haveAll || !roomId) return recipients;
-    try {
-      const token = localStorage.getItem('watch_token');
-      const res = await fetch(`${SOCKET_SERVER_URL}/api/rooms/${roomId.toLowerCase()}/public-keys`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      });
-      const data = await res.json();
-      if (data && Array.isArray(data.keys)) {
-        data.keys.forEach(({ username: uname, publicKey: pk }) => {
-          if (uname && pk) {
-            try { dbPublicKeys.current[uname.toLowerCase()] = decodeBase64(pk); } catch {}
-          }
+    if (roomId) {
+      try {
+        const token = localStorage.getItem('watch_token');
+        const res = await fetch(`${SOCKET_SERVER_URL}/api/rooms/${roomId.toLowerCase()}/public-keys`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         });
-      }
-    } catch (e) { console.warn('[E2EE] Fresh recipient re-fetch failed:', e); }
+        const data = await res.json();
+        if (data && Array.isArray(data.keys)) {
+          data.keys.forEach(({ username: uname, publicKey: pk }) => {
+            if (uname && pk) {
+              try {
+                const dec = robustDecode(pk);
+                if (dec && dec.length === 32) dbPublicKeys.current[uname.toLowerCase()] = dec;
+              } catch {}
+              try { localStorage.setItem(`wt_pk_${uname.toLowerCase()}`, pk); } catch {}
+            }
+          });
+        }
+      } catch (e) { console.warn('[E2EE] Fresh recipient re-fetch failed:', e); }
+    }
     return buildGroupRecipients();
   };
 

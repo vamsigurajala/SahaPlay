@@ -159,6 +159,12 @@ export default function EncryptionUnlockGate() {
     if (!res.ok) throw new Error('Failed to save your new encryption key. Please try again.');
     await setKeyPair(kp);
     enrollDeviceUnlockSilently(kp.secretKey);
+    const myUsername = localStorage.getItem('watch_username');
+    if (myUsername) {
+      const pubStr = encodeBase64(kp.publicKey);
+      try { localStorage.setItem(`wt_pk_${myUsername.toLowerCase()}`, pubStr); } catch {}
+      window.dispatchEvent(new CustomEvent('public_key_updated', { detail: { username: myUsername, publicKey: pubStr } }));
+    }
     setCtx(null);
   }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
