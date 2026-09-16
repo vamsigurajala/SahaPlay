@@ -5005,7 +5005,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
 
     // Fill in room names + unread counts
     const finalGroup = await Promise.all(groupRows.map(async (row) => {
-      const dbRoom = await queryGet('SELECT roomName, hostUsername, thumbnailPath, permissions, settings FROM room_names WHERE roomId = ?', [row.roomId]);
+      const dbRoom = await queryGet('SELECT "roomName", "hostUsername", "thumbnailPath", permissions, settings FROM room_names WHERE "roomId" = ?', [row.roomId]);
       const memRoom = rooms.get(row.roomId);
       const displayName = memRoom?.roomName || dbRoom?.roomName || row.roomId;
       const hostUsername = memRoom?.hostUsername || dbRoom?.hostUsername;
@@ -5053,7 +5053,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     }));
 
     // 3. Pinned rooms: show even if no messages
-    const userRow = await queryGet('SELECT pinnedRooms, role FROM users WHERE username = ?', [username]);
+    const userRow = await queryGet('SELECT "pinnedRooms", role FROM users WHERE username = ?', [username]);
     let pinnedIds = [];
     try { pinnedIds = JSON.parse(userRow?.pinnedRooms || '[]'); } catch(e) { console.error('Error parsing pinnedRooms:', e); }
 
@@ -5074,7 +5074,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     const groupRoomIds = new Set(finalGroup.map(g => g.id));
     for (const rid of pinnedIds) {
       if (!groupRoomIds.has(rid)) {
-        const dbRoom = await queryGet('SELECT roomName, thumbnailPath, settings FROM room_names WHERE roomId = ?', [rid]);
+        const dbRoom = await queryGet('SELECT "roomName", "thumbnailPath", settings FROM room_names WHERE "roomId" = ?', [rid]);
         const memRoom = rooms.get(rid);
         const displayName = memRoom?.roomName || dbRoom?.roomName || rid;
         const thumbnailPath = memRoom?.thumbnailPath || dbRoom?.thumbnailPath || null;
@@ -5084,7 +5084,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
         const hostUsername = memRoom?.hostUsername || dbRoom?.hostUsername;
 
         const lastMsg = await queryGet(
-          'SELECT message, mediaUrl, mediaType, media_file_name, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?) ORDER BY timestamp DESC LIMIT 1',
+          'SELECT message, "mediaUrl", "mediaType", media_file_name, media_duration, timestamp, "senderName" FROM messages WHERE "roomId" = ? AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?) ORDER BY timestamp DESC LIMIT 1',
           [rid, `%"${username}"%`]
         );
         finalGroup.push({
@@ -5111,11 +5111,14 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     // the message-driven query above, which only surfaces rooms that already
     // have at least one message.
     if (!finalGroup.some(g => g.id === SAHAPLAY_OFFICIAL_ROOM_ID)) {
-      const lastMsg = await queryGet('SELECT message, mediaUrl, mediaType, media_file_name, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type = ?::text ORDER BY timestamp DESC LIMIT 1', [SAHAPLAY_OFFICIAL_ROOM_ID, 'group']);
+      const lastMsg = await queryGet(
+        'SELECT message, "mediaUrl", "mediaType", media_file_name, media_duration, timestamp, "senderName" FROM messages WHERE "roomId" = ? AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?) ORDER BY timestamp DESC LIMIT 1',
+        [SAHAPLAY_OFFICIAL_ROOM_ID, `%"${username}"%`]
+      );
       const officialLs = lastSeenLower[SAHAPLAY_OFFICIAL_ROOM_ID] || 0;
       const officialUnreadRow = await queryGet(
-        `SELECT COUNT(*) as c FROM messages WHERE roomId = ? AND type = ?::text AND timestamp > ?`,
-        [SAHAPLAY_OFFICIAL_ROOM_ID, 'group', officialLs]
+        'SELECT COUNT(*) as c FROM messages WHERE "roomId" = ? AND type IN (\'room\', \'group\') AND timestamp > ? AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?)',
+        [SAHAPLAY_OFFICIAL_ROOM_ID, officialLs, `%"${username}"%`]
       );
       finalGroup.push({
         id: SAHAPLAY_OFFICIAL_ROOM_ID,
@@ -5159,13 +5162,13 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
       const lastMsg = validMemMsgs.length > 0 
         ? validMemMsgs[validMemMsgs.length - 1]
         : await queryGet(
-            'SELECT message, mediaUrl, mediaType, media_duration, timestamp, senderName FROM messages WHERE roomId = ? AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?) ORDER BY timestamp DESC LIMIT 1',
+            'SELECT message, "mediaUrl", "mediaType", media_duration, timestamp, "senderName" FROM messages WHERE "roomId" = ? AND type IN (\'room\', \'group\') AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?) ORDER BY timestamp DESC LIMIT 1',
             [rid, `%"${username}"%`]
           );
       // Count unread from DB + in-memory messages since lastSeen
       const ls = lastSeenLower[rid.toLowerCase()] || 0;
       const dbUnreadRow = await queryGet(
-        `SELECT COUNT(*) as c FROM messages WHERE type IN ('room','group') AND roomId = ? AND timestamp > ? AND senderName != ? AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?)`,
+        'SELECT COUNT(*) as c FROM messages WHERE type IN (\'room\',\'group\') AND "roomId" = ? AND timestamp > ? AND LOWER("senderName") != LOWER(?) AND ("hiddenFor" IS NULL OR "hiddenFor" NOT LIKE ?)',
         [rid, ls, username, `%"${username}"%`]
       );
       const memUnread = validMemMsgs.filter(m => m.timestamp > ls && (m.username || m.senderName || '').toLowerCase() !== username.toLowerCase()).length;
