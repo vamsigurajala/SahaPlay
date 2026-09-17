@@ -60,18 +60,37 @@ export async function resolveDmRecipientPublicKey({
     if (res.ok) {
       const data = await res.json();
       publicKey = data.publicKey || null;
-    } else if (res.status === 404 && targetLower !== targetUsername) {
-      const res2 = await fetchImpl(`${apiBase}/api/auth/public-key/${encodeURIComponent(targetLower)}`, { cache: 'no-store' });
-      if (res2.ok) {
-        const data2 = await res2.json();
-        publicKey = data2.publicKey || null;
+    } else if (res.status === 404) {
+      if (targetLower !== targetUsername) {
+        const res2 = await fetchImpl(`${apiBase}/api/auth/public-key/${encodeURIComponent(targetLower)}`, { cache: 'no-store' });
+        if (res2.ok) {
+          const data2 = await res2.json();
+          publicKey = data2.publicKey || null;
+        } else if (res2.status !== 404) {
+          // A real error on the retry (500/502/503/etc.) — not confirmation
+          // the user doesn't exist. See the comment below on why this must
+          // not be treated the same as an authoritative "no key".
+          networkFailure = true;
+        }
       }
+      // else: 404 on the lowercase form too (or already lowercase) is a
+      // genuine "no such user" — authoritative, not a network failure.
+    } else {
+      // Any other non-ok status (500, 502, 503, a proxy timeout, etc.) is
+      // the server itself failing to answer — fetch() doesn't throw for
+      // these, it resolves normally with res.ok === false, so this branch
+      // is the ONLY place that catches them. Confirmed live: a backend
+      // cold-start/restart returned 500/502/503 across several unrelated
+      // endpoints at once — treating that the same as "this account has no
+      // key" would silently wipe a perfectly good cached key over a
+      // transient backend hiccup, then encrypt against nothing at all.
+      networkFailure = true;
     }
 
     if (publicKey) {
       setLocal(`wt_pk_${targetLower}`, publicKey);
       try { memoryCache[targetLower] = decodeBase64(publicKey); } catch {}
-    } else {
+    } else if (!networkFailure) {
       // Authoritative "no key" — never leave a stale rotation-era key
       // sitting in a cache that a future network-failure fallback (below)
       // could pick back up.

@@ -121,6 +121,55 @@ describe('resolveDmRecipientPublicKey', () => {
     expect(calls.length).toBe(2);
   });
 
+  test('a 500/502/503 server error is treated as a network failure, not an authoritative "no key" — a backend cold-start/restart must never wipe a good cached key', async () => {
+    // fetch() does NOT throw for a 5xx response — it resolves normally with
+    // res.ok === false. Confirmed live: a Render backend cold-start/restart
+    // returned 500/502/503 across several unrelated endpoints at once; the
+    // public-key lookup landing in that same window must fall back to the
+    // last-known-good key exactly like a genuine network failure, never be
+    // read as "the server confirms this user has no key at all".
+    const cachedKp = nacl.box.keyPair();
+    const memoryCache = { bob: cachedKp.publicKey };
+    const removedKeys = [];
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 503 }));
+
+    const { publicKey, networkFailure } = await resolveDmRecipientPublicKey({
+      targetUsername: 'bob',
+      apiBase: 'https://api.test',
+      memoryCache,
+      fetchImpl,
+      getLocal: () => null,
+      setLocal: () => {},
+      removeLocal: (k) => removedKeys.push(k),
+    });
+
+    expect(networkFailure).toBe(true);
+    expect(publicKey).toBe(encodeBase64(cachedKp.publicKey));
+    // The critical assertion: the cache must survive a 5xx, not be cleared.
+    expect(memoryCache.bob).toBe(cachedKp.publicKey);
+    expect(removedKeys).toEqual([]);
+  });
+
+  test('a genuine 404 (user does not exist on either case) is still authoritative "no key" — clears a stale cache', async () => {
+    const staleKp = nacl.box.keyPair();
+    const memoryCache = { bob: staleKp.publicKey };
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 404 }));
+
+    const { publicKey, networkFailure } = await resolveDmRecipientPublicKey({
+      targetUsername: 'Bob',
+      apiBase: 'https://api.test',
+      memoryCache,
+      fetchImpl,
+      getLocal: () => null,
+      setLocal: () => {},
+      removeLocal: () => {},
+    });
+
+    expect(networkFailure).toBe(false);
+    expect(publicKey).toBeNull();
+    expect(memoryCache.bob).toBeUndefined();
+  });
+
   test('TEST 9: network failure with a known cached key falls back to it rather than blocking the send ("do NOT overwrite a known key")', async () => {
     const cachedKp = nacl.box.keyPair();
     const memoryCache = makeMemoryCache({ bob: cachedKp.publicKey });
