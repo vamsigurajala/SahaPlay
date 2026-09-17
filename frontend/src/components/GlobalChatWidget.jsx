@@ -2507,8 +2507,23 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // sessionStorage below) but not-yet-fetched chat right on top of the
   // profile the user actually tapped through to see: a blank pane with a
   // spinner that looks like "the chat came back instead of the profile."
+  // Validated against the SPECIFIC profile leaveChatToViewProfile actually
+  // navigated to (gcw_hidden_for_profile_target), not just "are we anywhere
+  // under /profile" — without this, tapping through to a second, different
+  // profile from the first one (a follower/following list, a search result,
+  // anything that stays within /profile/* the whole time) never left that
+  // path prefix, so the effect below that clears this flag never fired: the
+  // widget stayed display:none behind EVERY later profile page, permanently,
+  // with its chat icon toggling internal state that had nothing to show.
+  // Confirmed worse on Tauri (.exe) specifically because its WebView's
+  // sessionStorage can outlive a full app restart, unlike a plain browser
+  // tab losing it on close — so the stuck flag survives even relaunching.
   const cameFromOpenChatRef = useRef((() => {
-    try { return sessionStorage.getItem('gcw_hidden_for_profile') === 'true'; } catch { return false; }
+    try {
+      const target = sessionStorage.getItem('gcw_hidden_for_profile_target');
+      const here = location.pathname.startsWith('/profile/') ? location.pathname.slice('/profile/'.length).toLowerCase() : null;
+      return sessionStorage.getItem('gcw_hidden_for_profile') === 'true' && !!target && target === here;
+    } catch { return false; }
   })());
   // Declared up here (ahead of gcwBaseLevel/gcwLevel below, which reads it)
   // rather than down by leaveChatToViewProfile where it conceptually
@@ -2522,7 +2537,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // own Message button would set activeChat/view correctly but stay
   // display:none forever — this widget instance never became visible because
   // the route-based hide fired unconditionally for every /profile/* route.
-  const hiddenByProfileRoute = location.pathname.startsWith('/profile') && cameFromOpenChatRef.current;
+  // Checked against the live pathname on every render (not just the ref,
+  // which only updates via the effect below on the NEXT commit) so
+  // navigating from the profile a chat led to straight into a different one
+  // — still under /profile/*, so no prefix change ever fires that effect —
+  // never renders hidden even for the one frame before it would catch up.
+  const hiddenByProfileRouteTarget = (() => {
+    try { return sessionStorage.getItem('gcw_hidden_for_profile_target'); } catch { return null; }
+  })();
+  const hiddenByProfileRouteHere = location.pathname.startsWith('/profile/') ? location.pathname.slice('/profile/'.length).toLowerCase() : null;
+  const hiddenByProfileRoute = cameFromOpenChatRef.current
+    && !!hiddenByProfileRouteTarget
+    && hiddenByProfileRouteTarget === hiddenByProfileRouteHere;
 
   // Any transient overlay (forward picker, rename/clear-chat confirms, vault
   // modals) open on top of the chat view gets its own back-intercept level,
@@ -2666,7 +2692,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
       sessionStorage.setItem('gcw_is_open', 'true');
       // Persisted counterpart to cameFromOpenChatRef — see its declaration
       // above for why the in-memory ref alone doesn't survive this trip.
+      // The target username is stored alongside it so a LATER, different
+      // profile visit (still under /profile/*, so the pathname-based reset
+      // effect never fires) doesn't inherit this hide flag — only the exact
+      // profile this navigation is headed to honors it.
       sessionStorage.setItem('gcw_hidden_for_profile', 'true');
+      sessionStorage.setItem('gcw_hidden_for_profile_target', (targetUsername || '').toLowerCase());
     } catch {}
     suppressNextPop();
     navigate(`/profile/${targetUsername}`);
@@ -2688,10 +2719,25 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // brand-new Room.jsx widget instance whose first render already needs to
   // decide hiddenByProfileRoute correctly, before this effect even runs.
   useEffect(() => {
-    if (!location.pathname.startsWith('/profile')) {
+    // Also clears when we're STILL under /profile/* but it's now a
+    // DIFFERENT profile than the one leaveChatToViewProfile actually sent us
+    // to (e.g. tapping a follower/following entry, or a search result, from
+    // the profile the chat led to) — this component doesn't necessarily
+    // remount across that navigation, so cameFromOpenChatRef's value from
+    // the FIRST profile visit would otherwise silently carry over and hide
+    // this widget behind every later profile page too, with no pathname-
+    // prefix change to ever trigger a reset.
+    const here = location.pathname.startsWith('/profile/') ? location.pathname.slice('/profile/'.length).toLowerCase() : null;
+    let target = null;
+    try { target = sessionStorage.getItem('gcw_hidden_for_profile_target'); } catch {}
+    const stillOnTheHiddenForTarget = !!here && !!target && here === target;
+    if (!stillOnTheHiddenForTarget) {
       navigatingToProfileRef.current = false;
       cameFromOpenChatRef.current = false;
-      try { sessionStorage.removeItem('gcw_hidden_for_profile'); } catch {}
+      try {
+        sessionStorage.removeItem('gcw_hidden_for_profile');
+        sessionStorage.removeItem('gcw_hidden_for_profile_target');
+      } catch {}
     }
   }, [location.pathname]);
   const [searchQuery, setSearchQuery] = useState('');
