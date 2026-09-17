@@ -617,12 +617,26 @@ jobs:
             grep -B2 -A2 "MESSAGING_EVENT" "$manifest" || echo "::warning::No MESSAGING_EVENT service found in merged manifest"
           fi
 
+      # Unlike desktop-build.yml, this workflow has no GitHub Release publish
+      # step after this — these two artifacts (downloaded manually and
+      # uploaded to Play Console / side-loaded) are the ONLY way this build
+      # ever reaches anyone, so they can't be made continue-on-error the way
+      # desktop-build's redundant copies were. This workflow runs often
+      # during active development, and with no retention-days set here
+      # (defaulting to the repo's max, commonly 90 days), every single run's
+      # signed .aab+.apk — each commonly tens of MB — piled up for up to 90
+      # days each. That's almost certainly what actually filled the account's
+      # shared Actions artifact storage quota (the thing that then made
+      # desktop-build.yml's own upload step fail). A build only ever needs to
+      # be grabbed shortly after it finishes, so a much shorter window is
+      # plenty and keeps this workflow from refilling the quota as fast.
       - name: Upload signed .aab artifact
         uses: actions/upload-artifact@v4
         with:
           name: sahaplay-android-aab
           path: frontend/android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
+          retention-days: 14
 
       # Standard AGP `assembleRelease` output path (parallel to the .aab's
       # own outputs/bundle/release/ above). Directly installable via
@@ -634,3 +648,4 @@ jobs:
           name: sahaplay-android-apk
           path: frontend/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          retention-days: 14
