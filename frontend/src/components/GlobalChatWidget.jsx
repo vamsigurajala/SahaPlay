@@ -1796,58 +1796,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // latest key pair — without this, handlers capture keyPair=null and silently fail to decrypt.
   const keyPairRef = useRef(null);
   useEffect(() => { keyPairRef.current = keyPair; }, [keyPair]);
-  // A DM's decrypt is attempted exactly once, at the instant it arrives over
-  // the socket, using whatever keyPairRef.current happens to be right then
-  // (see the "─── DM Decryption ───" block further down) — never retried on
-  // its own. keyPair genuinely cycles through null/guest/real-account states
-  // during app start (confirmed live), so a message landing in that window
-  // gets stuck showing ENCRYPTED_PLACEHOLDER forever, with nothing short of
-  // reopening the chat (which re-fetches and decrypts the whole history
-  // fresh) ever fixing it. This re-attempts just those specific messages —
-  // never touching pagination, scroll position, or any other open-chat
-  // state — the moment keyPair actually becomes available or changes (e.g.
-  // after CryptoContext's own mount-time server-verification resolves).
-  // Scoped to private chats only; group decrypt needs each message's own
-  // per-recipient key wrap, which already always uses a live-fetched
-  // recipient list on send and isn't affected by this specific race.
-  useEffect(() => {
-    if (!keyPair || !activeChat || activeChat.type !== 'private') return;
-    // TEMPORARY DIAGNOSTIC — remove once the intermittent "Encrypted
-    // message" DM issue is confirmed fixed.
-    console.log('[DEBUG-DM-RETRY] effect fired', { partner: activeChat.partner, ownPublicKey: encodeBase64(keyPair.publicKey) });
-    setMessages(prev => {
-      let changed = false;
-      let attempted = 0, fixed = 0;
-      const next = prev.map(m => {
-        if (m.decryptedText !== ENCRYPTED_PLACEHOLDER || m.mediaType || !m.nonce) return m;
-        attempted++;
-        try {
-          let plain = null;
-          if (m.isMe) {
-            if (m.senderMessage && m.ephemeralPublicKey) {
-              plain = decryptDMSenderCopy(m.senderMessage, m.nonce, m.ephemeralPublicKey, encodeBase64(keyPair.secretKey));
-            }
-          } else {
-            const senderPK = m.ephemeralPublicKey || m.senderPublicKey || null;
-            if (senderPK && m.message) {
-              plain = decryptDM(m.message, m.nonce, senderPK, encodeBase64(keyPair.secretKey));
-            }
-          }
-          if (plain != null) {
-            changed = true;
-            fixed++;
-            return { ...m, decryptedText: plain };
-          }
-        } catch { /* still not decryptable with this key — leave the placeholder */ }
-        return m;
-      });
-      if (attempted > 0) {
-        // TEMPORARY DIAGNOSTIC — see above; remove together.
-        console.log('[DEBUG-DM-RETRY] result', { attempted, fixed, stillStuck: attempted - fixed });
-      }
-      return changed ? next : prev;
-    });
-  }, [keyPair, activeChat?.partner, activeChat?.type]);
   const isOpenRef = useRef(isOpen);
   useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
   // Tracks partners whose chat was cleared — persisted in localStorage so they survive page refresh
@@ -2310,6 +2258,58 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // further below, once forwardPickerOpen/bulkDeleteConfirm/etc. are declared.
 
   const [messages, setMessages] = useState([]);
+  // A DM's decrypt is attempted exactly once, at the instant it arrives over
+  // the socket, using whatever keyPairRef.current happens to be right then
+  // (see the "─── DM Decryption ───" block further down) — never retried on
+  // its own. keyPair genuinely cycles through null/guest/real-account states
+  // during app start (confirmed live), so a message landing in that window
+  // gets stuck showing ENCRYPTED_PLACEHOLDER forever, with nothing short of
+  // reopening the chat (which re-fetches and decrypts the whole history
+  // fresh) ever fixing it. This re-attempts just those specific messages —
+  // never touching pagination, scroll position, or any other open-chat
+  // state — the moment keyPair actually becomes available or changes (e.g.
+  // after CryptoContext's own mount-time server-verification resolves).
+  // Scoped to private chats only; group decrypt needs each message's own
+  // per-recipient key wrap, which already always uses a live-fetched
+  // recipient list on send and isn't affected by this specific race.
+  useEffect(() => {
+    if (!keyPair || !activeChat || activeChat.type !== 'private') return;
+    // TEMPORARY DIAGNOSTIC — remove once the intermittent "Encrypted
+    // message" DM issue is confirmed fixed.
+    console.log('[DEBUG-DM-RETRY] effect fired', { partner: activeChat.partner, ownPublicKey: encodeBase64(keyPair.publicKey) });
+    setMessages(prev => {
+      let changed = false;
+      let attempted = 0, fixed = 0;
+      const next = prev.map(m => {
+        if (m.decryptedText !== ENCRYPTED_PLACEHOLDER || m.mediaType || !m.nonce) return m;
+        attempted++;
+        try {
+          let plain = null;
+          if (m.isMe) {
+            if (m.senderMessage && m.ephemeralPublicKey) {
+              plain = decryptDMSenderCopy(m.senderMessage, m.nonce, m.ephemeralPublicKey, encodeBase64(keyPair.secretKey));
+            }
+          } else {
+            const senderPK = m.ephemeralPublicKey || m.senderPublicKey || null;
+            if (senderPK && m.message) {
+              plain = decryptDM(m.message, m.nonce, senderPK, encodeBase64(keyPair.secretKey));
+            }
+          }
+          if (plain != null) {
+            changed = true;
+            fixed++;
+            return { ...m, decryptedText: plain };
+          }
+        } catch { /* still not decryptable with this key — leave the placeholder */ }
+        return m;
+      });
+      if (attempted > 0) {
+        // TEMPORARY DIAGNOSTIC — see above; remove together.
+        console.log('[DEBUG-DM-RETRY] result', { attempted, fixed, stillStuck: attempted - fixed });
+      }
+      return changed ? next : prev;
+    });
+  }, [keyPair, activeChat?.partner, activeChat?.type]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeReactionMsg, setActiveReactionMsg] = useState(null);
