@@ -270,11 +270,6 @@ export default function CameraCapture({ onCapture, onClose }) {
     startStream(next);
   };
 
-  const doScreenFlash = () => {
-    setFlashActive(true);
-    setTimeout(() => setFlashActive(false), 180);
-  };
-
   const capturePhoto = async () => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
@@ -282,17 +277,36 @@ export default function CameraCapture({ onCapture, onClose }) {
     // Real hardware torch when the active (rear) camera track supports it —
     // most browsers only expose this on Android Chrome for the environment-
     // facing camera, and there's no web API for it on iOS at all, so the
-    // screen-flash below always fires too as the guaranteed-to-work fallback.
+    // screen-flash below is the fallback whenever torch isn't available
+    // (always true for the front camera, and common on rear cameras whose
+    // browser/webview never exposes the torch capability at all).
     let torchTrack = null;
     if (flashOn && facingMode === 'environment' && streamRef.current) {
       const track = streamRef.current.getVideoTracks()[0];
       if (track?.getCapabilities?.().torch) {
         torchTrack = track;
-        try { await track.applyConstraints({ advanced: [{ torch: true }] }); } catch { /* torch toggle unsupported here, screen-flash below still fires */ }
-        await new Promise(r => setTimeout(r, 150));
+        try { await track.applyConstraints({ advanced: [{ torch: true }] }); } catch { torchTrack = null; }
+        if (torchTrack) await new Promise(r => setTimeout(r, 150));
       }
     }
-    if (flashOn) doScreenFlash();
+
+    // The screen-flash fallback used to set flashActive and immediately fall
+    // through to drawImage in the same synchronous tick — the white overlay
+    // (which used to auto-fade out via a fixed 180ms CSS animation
+    // regardless of how long anything actually held it) never got a chance
+    // to actually paint, let alone stay bright long enough to illuminate
+    // anything, before the frame was already grabbed.
+    // That's exactly the reported bug: the flash visibly flickers on screen
+    // but a shot taken in the dark still comes out black. Waiting two rAFs
+    // guarantees the style change has actually painted, then holding it at
+    // full brightness for a beat gives it a real chance to help before the
+    // frame is captured — same principle as the torch's own 150ms hold above.
+    const usingScreenFlash = flashOn && !torchTrack;
+    if (usingScreenFlash) {
+      setFlashActive(true);
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await new Promise(r => setTimeout(r, 220));
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
@@ -307,6 +321,7 @@ export default function CameraCapture({ onCapture, onClose }) {
     if (torchTrack) {
       try { await torchTrack.applyConstraints({ advanced: [{ torch: false }] }); } catch { /* best-effort torch-off */ }
     }
+    if (usingScreenFlash) setFlashActive(false);
 
     canvas.toBlob((blob) => {
       if (!blob) return;
@@ -680,7 +695,12 @@ export default function CameraCapture({ onCapture, onClose }) {
       )}
 
       {flashActive && (
-        <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'camFlash 0.18s ease-out' }} />
+        // Stays at full opacity for exactly as long as capturePhoto keeps
+        // flashActive true (its own hold duration, so it can actually light
+        // the subject) — no independent CSS-timed fade here, since that was
+        // what previously made this disappear before the frame was even
+        // captured regardless of how long JS tried to hold it.
+        <div style={{ position: 'absolute', inset: 0, background: '#fff', opacity: 1 }} />
       )}
 
       {!ready && !error && !capturedUrl && (
@@ -891,9 +911,6 @@ export default function CameraCapture({ onCapture, onClose }) {
         </div>
       )}
 
-      <style>{`
-        @keyframes camFlash { from { opacity: 0.9; } to { opacity: 0; } }
-      `}</style>
     </div>
   );
 }
