@@ -7899,7 +7899,7 @@ app.post('/api/stream/init', authenticateToken, (req, res) => {
   }
 });
 
-app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpload.single('chunk'), (req, res) => {
+app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateTokenOptional, chunkUpload.single('chunk'), (req, res) => {
   try {
     const { streamKey, chunkIndex } = req.params;
     const stream = activeStreams.get(streamKey);
@@ -7924,13 +7924,10 @@ app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpl
       room.streamPending.progress = progress;
     }
 
-    // Emit stream_ready as soon as a small initial buffer is on disk, not once the
-    // whole upload finishes — the GET endpoint below already serves whatever chunks
-    // have arrived (with correct partial Content-Range), so viewers can start
-    // progressive playback while the rest of the file keeps uploading in the
-    // background. Without this, everyone but the uploader waited for 100% of a
-    // multi-minute upload before their player got a URL at all.
-    const readyThreshold = Math.min(stream.totalChunks, Math.max(3, Math.ceil(stream.totalChunks * 0.08)));
+    // Emit stream_ready as soon as a small initial buffer (2-4MB) is on disk,
+    // so viewers can start progressive playback almost immediately without waiting for
+    // large percentage thresholds that take too long on mobile connections.
+    const readyThreshold = Math.min(stream.totalChunks, Math.max(2, Math.min(4, Math.ceil(stream.totalChunks * 0.02))));
     // contiguousReceived, not newCount — the GET endpoint below can only
     // safely serve a contiguous run of chunks from the start of the file,
     // so "ready" has to mean that run is long enough, not just that this
@@ -8125,7 +8122,8 @@ setInterval(() => {
 // for a connection that's actually gone (the chunk fetch() calls die with
 // the page, they don't survive a refresh/navigation the way the socket
 // reconnect logic elsewhere in this file does).
-const STALE_STREAM_MS = 25 * 1000;
+// Allow up to 3 minutes of silence for slow or mobile networks before declaring a stream abandoned
+const STALE_STREAM_MS = 180 * 1000;
 setInterval(() => {
   const now = Date.now();
   for (const [key, stream] of activeStreams.entries()) {
