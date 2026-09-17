@@ -759,6 +759,12 @@ const LEGACY_GROUP_TEXT_PLACEHOLDER = 'Start a conversation';
 // from LEGACY_GROUP_TEXT_PLACEHOLDER so it's not confused with an unrelated
 // pre-upgrade message.
 const CORRUPTED_EDIT_PLACEHOLDER = 'This edited message can no longer be decrypted';
+// A message decrypted with whatever keyPair happened to be available the
+// INSTANT it arrived over the socket (see the retry effect near
+// keyPairRef below for why that's sometimes too early) — never
+// re-attempted afterward on its own, so this exact string doubles as the
+// marker the retry effect looks for.
+const ENCRYPTED_PLACEHOLDER = '🔒 Encrypted message';
 
 const resolveMediaUrl = (url, baseUrl) => {
   if (!url) return '';
@@ -1790,6 +1796,48 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // latest key pair — without this, handlers capture keyPair=null and silently fail to decrypt.
   const keyPairRef = useRef(null);
   useEffect(() => { keyPairRef.current = keyPair; }, [keyPair]);
+  // A DM's decrypt is attempted exactly once, at the instant it arrives over
+  // the socket, using whatever keyPairRef.current happens to be right then
+  // (see the "─── DM Decryption ───" block further down) — never retried on
+  // its own. keyPair genuinely cycles through null/guest/real-account states
+  // during app start (confirmed live), so a message landing in that window
+  // gets stuck showing ENCRYPTED_PLACEHOLDER forever, with nothing short of
+  // reopening the chat (which re-fetches and decrypts the whole history
+  // fresh) ever fixing it. This re-attempts just those specific messages —
+  // never touching pagination, scroll position, or any other open-chat
+  // state — the moment keyPair actually becomes available or changes (e.g.
+  // after CryptoContext's own mount-time server-verification resolves).
+  // Scoped to private chats only; group decrypt needs each message's own
+  // per-recipient key wrap, which already always uses a live-fetched
+  // recipient list on send and isn't affected by this specific race.
+  useEffect(() => {
+    if (!keyPair || !activeChat || activeChat.type !== 'private') return;
+    setMessages(prev => {
+      let changed = false;
+      const next = prev.map(m => {
+        if (m.decryptedText !== ENCRYPTED_PLACEHOLDER || m.mediaType || !m.nonce) return m;
+        try {
+          let plain = null;
+          if (m.isMe) {
+            if (m.senderMessage && m.ephemeralPublicKey) {
+              plain = decryptDMSenderCopy(m.senderMessage, m.nonce, m.ephemeralPublicKey, encodeBase64(keyPair.secretKey));
+            }
+          } else {
+            const senderPK = m.ephemeralPublicKey || m.senderPublicKey || null;
+            if (senderPK && m.message) {
+              plain = decryptDM(m.message, m.nonce, senderPK, encodeBase64(keyPair.secretKey));
+            }
+          }
+          if (plain != null) {
+            changed = true;
+            return { ...m, decryptedText: plain };
+          }
+        } catch { /* still not decryptable with this key — leave the placeholder */ }
+        return m;
+      });
+      return changed ? next : prev;
+    });
+  }, [keyPair, activeChat?.partner, activeChat?.type]);
   const isOpenRef = useRef(isOpen);
   useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
   // Tracks partners whose chat was cleared — persisted in localStorage so they survive page refresh
@@ -3816,7 +3864,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                     decryptedMediaUrl = null;
                   }
                 } else if (msg.message) {
-                  decryptedMessage = decryptGroupMessage(msg.message, msgNonce, userKeyWrap, senderPK, activeKey.secretKey) || (msg.edited ? CORRUPTED_EDIT_PLACEHOLDER : '\uD83D\uDD12 Encrypted message');
+                  decryptedMessage = decryptGroupMessage(msg.message, msgNonce, userKeyWrap, senderPK, activeKey.secretKey) || (msg.edited ? CORRUPTED_EDIT_PLACEHOLDER : ENCRYPTED_PLACEHOLDER);
                 }
               }
             } else {
@@ -3890,7 +3938,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   }
                 } else if (msg.message) {
                   const plain = decryptDM(msg.message, msg.nonce, senderPK, encodeBase64(activeKey.secretKey));
-                  decryptedMessage = plain != null ? plain : '\uD83D\uDD12 Encrypted message';
+                  decryptedMessage = plain != null ? plain : ENCRYPTED_PLACEHOLDER;
                 }
               }
             }
@@ -3898,7 +3946,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
         } catch (e) { console.warn('[E2EE] Decryption failed', e); }
       }
       if (!isGroup && !msg.mediaType && !decryptedMessage && msg.message && (msg.nonce || msg.ephemeralPublicKey || msg.message.startsWith('Vs!') || (msg.message.length > 25 && !msg.message.includes(' ') && (msg.message.endsWith('=') || msg.message.includes('+') || msg.message.includes('/'))))) {
-        decryptedMessage = '\uD83D\uDD12 Encrypted message';
+        // Most commonly reached with activeKey === null \u2014 this account's own
+        // key hadn't finished being established yet at the exact instant
+        // this message arrived (see the retry effect near keyPairRef below).
+        // Never a permanent failure by itself; the retry effect re-attempts
+        // exactly this case once keyPair actually becomes available.
+        decryptedMessage = ENCRYPTED_PLACEHOLDER;
       }
       // ─── Post-Decryption Processing ───
       msg.decryptedText = decryptedMessage;
