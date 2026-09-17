@@ -1174,6 +1174,7 @@ const Room = () => {
   
   const urlParams = new URLSearchParams(window.location.search);
   const isTvMode = urlParams.get('mode') === 'tv';
+  const isLight = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
 
   const [username, setUsername] = useState(localStorage.getItem('watch_username') || '');
   const usernameRef = useRef(username);
@@ -2374,11 +2375,12 @@ const Room = () => {
 
     if (showControls) {
       setStatusBarHidden(false, true);
-      syncStatusBarTheme(isLight ? 'light' : 'dark');
+      const currentTheme = (typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light') ? 'light' : 'dark';
+      syncStatusBarTheme(currentTheme);
     } else {
       setStatusBarHidden(true, true);
     }
-  }, [showControls, isMobileFsMode, isFullscreen, isTouchPlayer, isMobile, isLight]);
+  }, [showControls, isMobileFsMode, isFullscreen, isTouchPlayer, isMobile]);
 
   useEffect(() => {
     return () => {
@@ -10200,8 +10202,6 @@ const Room = () => {
       </div>
     );
   }
-
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
 
   // ─── Kicked / Not Found Modal ───
   if (roomNotFound || kickedReason || forceMembersOnlyLock) {
