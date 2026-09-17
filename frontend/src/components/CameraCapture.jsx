@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, RotateCw, RotateCcw, Send, Zap, ZapOff, Image as ImageIcon, Download, Trash2 } from 'lucide-react';
 import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
+import { useAutoResizeTextarea } from '../hooks/useAutoResizeTextarea';
 
 // Full-screen in-app camera capture — mobile/tablet composer's "Camera" button
 // opens this instead of the OS's own camera app, so the whole flow (open →
@@ -97,6 +98,7 @@ export default function CameraCapture({ onCapture, onClose }) {
   // "slow"/"glitchy" typing and re-editing on a real device.
   const textInputRef = useRef(null);
   const latestColorRef = useRef('#ffffff');
+  const captionInputRef = useRef(null);
 
   const [facingMode, setFacingMode] = useState('environment');
   const [ready, setReady] = useState(false);
@@ -116,6 +118,12 @@ export default function CameraCapture({ onCapture, onClose }) {
   const [textDraftColor, setTextDraftColor] = useState('#ffffff');
   const [caption, setCaption] = useState('');
   const [sending, setSending] = useState(false);
+  // Was a plain <input> — inputs can never wrap, so a caption longer than the
+  // bar's width just scrolled sideways as one unreadable line instead of
+  // growing like every other caption/message box in this app. maxHeight
+  // matches the chat composer's own cap (~3 lines) rather than growing
+  // without bound over this already-small preview screen.
+  useAutoResizeTextarea(captionInputRef, caption, 90);
 
   // Two levels: 1 = live camera open, 2 = reviewing a captured/picked photo.
   // A swipe-back (or the Android hardware back gesture) from level 2 drops
@@ -150,17 +158,27 @@ export default function CameraCapture({ onCapture, onClose }) {
       // scratch, which is the main thing slowing camera open down. Falls
       // back to facingMode alone (ideal, not exact) if that ever fails, so
       // a stale/invalid cached id can't leave the camera unable to open.
+      //
+      // No width constraint: an `ideal` resolution still makes the browser
+      // evaluate candidate camera modes against it before picking one,
+      // rather than just starting the camera's own fastest/default preview
+      // mode outright — confirmed live as a chunk of the "camera/flip feels
+      // slow" delay on Android WebViews specifically. The preview is already
+      // objectFit:cover, so whatever native resolution comes back displays
+      // correctly regardless; capturePhoto below reads the actual video
+      // frame dimensions, not a requested constraint, so capture quality is
+      // unaffected.
       const cachedId = resolvedDeviceId[mode];
       const constraints = cachedId
-        ? { video: { deviceId: { ideal: cachedId }, width: { ideal: 720 } }, audio: false }
-        : { video: { facingMode: { ideal: mode }, width: { ideal: 720 } }, audio: false };
+        ? { video: { deviceId: { ideal: cachedId } }, audio: false }
+        : { video: { facingMode: { ideal: mode } }, audio: false };
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (err) {
         if (cachedId) {
           resolvedDeviceId[mode] = null;
-          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: mode }, width: { ideal: 720 } }, audio: false });
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: mode } }, audio: false });
         } else {
           throw err;
         }
@@ -769,15 +787,28 @@ export default function CameraCapture({ onCapture, onClose }) {
           position: 'absolute', bottom: 0, left: 0, right: 0,
           background: 'linear-gradient(transparent, rgba(0,0,0,0.6))',
           padding: '16px 16px max(20px, env(safe-area-inset-bottom))',
-          display: 'flex', alignItems: 'center', gap: 10,
+          display: 'flex', alignItems: 'flex-end', gap: 10,
         }}>
-          <input
+          <textarea
+            ref={captionInputRef}
+            rows={1}
             value={caption}
             onChange={e => setCaption(e.target.value)}
+            onKeyDown={e => {
+              // Enter sends (matching the main chat composer) — Shift+Enter
+              // still inserts a real line break for anyone who wants one.
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) {
+                e.preventDefault();
+                send();
+              }
+            }}
             placeholder="Add a caption..."
+            className="no-scrollbar"
             style={{
-              flex: 1, background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999,
+              flex: 1, background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20,
               padding: '12px 16px', color: '#fff', fontSize: 14, outline: 'none',
+              resize: 'none', overflowY: 'auto', maxHeight: 90, lineHeight: 1.35,
+              fontFamily: 'inherit',
             }}
           />
           <button
