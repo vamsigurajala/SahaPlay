@@ -72,20 +72,34 @@ jobs:
         shell: bash
         run: cp frontend/src-tauri/target/release/sahaplay-desktop.exe SahaPlay-Windows-Portable.exe
 
+      # These two are purely a convenience download from the Actions run's own
+      # UI — the step that actually ships the app is "Publish to GitHub
+      # Release" below, which uploads to a GitHub Release's asset storage, a
+      # completely separate pool from Actions artifact storage and unaffected
+      # by this. continue-on-error here means a full Actions artifact-storage
+      # quota (an account-level limit, hit once already — see this workflow's
+      # own run history) can no longer abort the job before reaching the
+      # Release publish step, which is what actually update the live "Get
+      # Desktop App" download link. retention-days keeps future runs from
+      # recreating the same quota problem as quickly.
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: sahaplay-windows-installer
           path: |
             frontend/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
+          retention-days: 7
 
       - name: Upload portable exe artifact
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: sahaplay-windows-portable
           path: SahaPlay-Windows-Portable.exe
           if-no-files-found: error
+          retention-days: 7
 
       # Publishes both build outputs to a GitHub Release under a fixed,
       # never-changing tag ("desktop-latest") — DownloadAppModal.jsx's "Get
