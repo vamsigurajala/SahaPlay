@@ -4267,7 +4267,7 @@ async function ensureOfficialGroupExists() {
   if (officialGroupEnsured) return;
   try {
     await pool.query(
-      `INSERT INTO room_names (roomId, roomName, isPublic) VALUES ($1, $2, false) ON CONFLICT(roomId) DO NOTHING`,
+      `INSERT INTO room_names ("roomId", "roomName", "isPublic") VALUES ($1, $2, false) ON CONFLICT("roomId") DO NOTHING`,
       [SAHAPLAY_OFFICIAL_ROOM_ID, SAHAPLAY_OFFICIAL_DISPLAY_NAME]
     );
     officialGroupEnsured = true;
@@ -8039,8 +8039,15 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
       }
       const maxAvailableByteForRange = Math.min(totalSize - 1, currChunk * CHUNK_SIZE - 1);
 
-      const requestedEnd = parts[1] ? parseInt(parts[1], 10) : maxAvailableByteForRange;
-      const end = Math.min(isNaN(requestedEnd) ? maxAvailableByteForRange : requestedEnd, maxAvailableByteForRange);
+      // Cap each Range response to a 4MB window (4 chunks)
+      // Browsers handle 206 Partial Content by requesting successive ranges as playback progresses.
+      // Capping range chunks prevents loading hundreds of megabytes into Node.js buffer memory
+      // simultaneously when clients request "Range: bytes=0-", which would otherwise trigger OOM restarts
+      // on low-memory environments like Render (512MB RAM).
+      const MAX_BURST_BYTES = 4 * 1024 * 1024; // 4MB per request
+      const rawRequestedEnd = parts[1] ? parseInt(parts[1], 10) : (start + MAX_BURST_BYTES - 1);
+      const requestedEnd = isNaN(rawRequestedEnd) ? (start + MAX_BURST_BYTES - 1) : rawRequestedEnd;
+      const end = Math.min(requestedEnd, start + MAX_BURST_BYTES - 1, maxAvailableByteForRange);
       if (end < start) {
         res.setHeader('Content-Range', `bytes */${totalSize}`);
         return res.status(416).end();
@@ -8073,15 +8080,19 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
         const remaining = chunkLen - bytesWritten;
         if (data.length > remaining) data = data.subarray(0, remaining);
 
-        res.write(data);
+        const ok = res.write(data);
         bytesWritten += data.length;
         if (bytesWritten >= chunkLen) break;
+        if (!ok) {
+          await new Promise(r => res.once('drain', r));
+        }
       }
       res.end();
     } else {
-      // No Range header — serve contiguous chunks received from chunk 0
+      // No Range header — cap fallback response to max 4MB so we don't dump entire file into RAM
+      const maxChunks = Math.min(stream.contiguousReceived, 4);
       let availableBytes = 0;
-      for (let i = 0; i < stream.contiguousReceived; i++) {
+      for (let i = 0; i < maxChunks; i++) {
         const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
         try {
           const stats = await fs.promises.stat(chunkPath);
@@ -8091,11 +8102,12 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
 
       res.setHeader('Content-Length', availableBytes);
       res.writeHead(200);
-      for (let i = 0; i < stream.contiguousReceived; i++) {
+      for (let i = 0; i < maxChunks; i++) {
         const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
         try {
           const data = await fs.promises.readFile(chunkPath);
-          res.write(data);
+          const ok = res.write(data);
+          if (!ok) await new Promise(r => res.once('drain', r));
         } catch (_) {}
       }
       res.end();
