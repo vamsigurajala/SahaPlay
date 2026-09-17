@@ -8,7 +8,7 @@ import { requestMediaAccess } from './lib/mediaPermissionGate.js';
 import { evaluateRoomMediaAccess } from './lib/roomMediaAccess.js';
 import { getCenterFeedbackType } from './lib/playbackFeedback.js';
 import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
-import { setStatusBarHidden } from './lib/nativeShell.js';
+import { setStatusBarHidden, syncStatusBarTheme } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
 import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_WALLPAPERS } from './lib/chatThemes';
 import data from '@emoji-mart/data';
@@ -2136,16 +2136,26 @@ const Room = () => {
         // .catch() fallback lock — or even the primary one above — could
         // succeed without ever being reflected here, letting the CSS
         // fake-rotate fallback stay wrongly active on top of a real one).
-        if (playerWrapRef.current?.requestFullscreen) {
-          playerWrapRef.current.requestFullscreen()
-            .then(() => screen?.orientation?.lock?.(targetOrientation))
-            .catch(() => {
-              // Fullscreen unsupported/denied (iPhone Safari has no element
-              // Fullscreen at all) or the lock itself was rejected — try a bare
-              // lock anyway just in case; the CSS takeover below covers it
-              // either way until/unless a real rotation is confirmed.
-              screen?.orientation?.lock?.(targetOrientation).catch(() => {});
-            });
+        const reqFs = playerWrapRef.current?.requestFullscreen
+          || playerWrapRef.current?.webkitRequestFullscreen
+          || playerWrapRef.current?.mozRequestFullScreen
+          || playerWrapRef.current?.msRequestFullscreen;
+
+        if (reqFs) {
+          const fsPromise = (() => {
+            try { return reqFs.call(playerWrapRef.current, { navigationUI: 'hide' }); } catch {
+              try { return reqFs.call(playerWrapRef.current); } catch { return null; }
+            }
+          })();
+          if (fsPromise?.then) {
+            fsPromise
+              .then(() => screen?.orientation?.lock?.(targetOrientation))
+              .catch(() => {
+                screen?.orientation?.lock?.(targetOrientation).catch(() => {});
+              });
+          } else {
+            screen?.orientation?.lock?.(targetOrientation).catch(() => {});
+          }
         } else if (screen?.orientation?.lock) {
           screen.orientation.lock(targetOrientation).catch(() => {});
         }
@@ -2354,6 +2364,21 @@ const Room = () => {
       resetControlsTimer();
     }
   };
+
+  // Sync phone status bar (wifi, battery, signal) with player controls in mobile landscape/fullscreen:
+  // Tap screen -> controls show -> status bar appears (themed for light/dark);
+  // Tap again or auto-hide after 3s -> controls hide -> status bar closes smoothly.
+  useEffect(() => {
+    const inLandscapeFs = (isFullscreen || isMobileFsMode) && (isTouchPlayer || isMobile);
+    if (!inLandscapeFs) return;
+
+    if (showControls) {
+      setStatusBarHidden(false, true);
+      syncStatusBarTheme(isLight ? 'light' : 'dark');
+    } else {
+      setStatusBarHidden(true, true);
+    }
+  }, [showControls, isMobileFsMode, isFullscreen, isTouchPlayer, isMobile, isLight]);
 
   useEffect(() => {
     return () => {
@@ -10642,13 +10667,14 @@ const Room = () => {
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, 
         padding: isOverlay ? '8px 0' : '16px 0', 
         position: isOverlay ? 'absolute' : 'relative', 
-        bottom: isOverlay ? (isFloatingBarMinimized ? 20 : 60) : 'auto', 
+        bottom: isOverlay ? (isFloatingBarMinimized ? 20 : (showControls ? 74 : 24)) : 'auto', 
         left: 0, right: 0, zIndex: 100, pointerEvents: 'none',
         marginTop: isOverlay ? 0 : 12,
         marginBottom: isOverlay ? 0 : 12,
         background: isOverlay ? 'transparent' : (isLight ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)'),
         borderRadius: isOverlay ? 0 : 24,
-        border: isOverlay ? 'none' : (isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.05)')
+        border: isOverlay ? 'none' : (isLight ? '1px solid rgba(0,0,0,0.05)' : '1px solid rgba(255,255,255,0.05)'),
+        transition: 'bottom 0.25s cubic-bezier(0.4, 0, 0.2, 1)'
       }}>
         {totalPages > 1 && (
           <button onClick={() => setCamPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} style={{ pointerEvents: 'auto', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentPage === 0 ? '#444' : '#fff', cursor: currentPage === 0 ? 'default' : 'pointer' }}>
@@ -10703,8 +10729,10 @@ const Room = () => {
                   setIsDraggingCam(true);
                   const onMouseMove = (m) => {
                     if (!draggingCamRef.current) return;
-                    const dx = m.clientX - draggingCamRef.current.startX;
-                    const dy = m.clientY - draggingCamRef.current.startY;
+                    const rawDx = m.clientX - draggingCamRef.current.startX;
+                    const rawDy = m.clientY - draggingCamRef.current.startY;
+                    const dx = isRotatedFs ? rawDy : rawDx;
+                    const dy = isRotatedFs ? -rawDx : rawDy;
                     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) draggingCamRef.current.moved = true;
                     setCamPositions(prev => ({ ...prev, [draggingCamRef.current.id]: { x: draggingCamRef.current.initialX + dx, y: draggingCamRef.current.initialY + dy } }));
 
@@ -10750,8 +10778,10 @@ const Room = () => {
                     if (!draggingCamRef.current) return;
                     if (m.cancelable) m.preventDefault();
                     const t = m.touches[0];
-                    const dx = t.clientX - draggingCamRef.current.startX;
-                    const dy = t.clientY - draggingCamRef.current.startY;
+                    const rawDx = t.clientX - draggingCamRef.current.startX;
+                    const rawDy = t.clientY - draggingCamRef.current.startY;
+                    const dx = isRotatedFs ? rawDy : rawDx;
+                    const dy = isRotatedFs ? -rawDx : rawDy;
                     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) draggingCamRef.current.moved = true;
                     setCamPositions(prev => ({ ...prev, [draggingCamRef.current.id]: { x: draggingCamRef.current.initialX + dx, y: draggingCamRef.current.initialY + dy } }));
                     const zone = document.getElementById('cam-remove-zone');
@@ -14720,11 +14750,16 @@ const Room = () => {
             })()}
 
             {/* Camera Streams Overlay (only inside player-wrap when in fullscreen, floating mode only) */}
-            {isFullscreen && !shouldUseManagedCameraLayout && !areCamerasHidden && (
+            {(isFullscreen || isMobileFsMode) && !areCamerasHidden && (
+              (isTouchPlayer || isMobile)
+                ? (activeCameraUsers.length > 0 && activeCameraUsers.length <= 4)
+                : !shouldUseManagedCameraLayout
+            ) && (
               <div style={{
                 position: 'absolute', inset: 0, 
-                zIndex: (isDraggingCam || isResizingCam) ? 99999 : 1, 
+                zIndex: (isDraggingCam || isResizingCam) ? 99999 : 60, 
                 pointerEvents: 'none',
+                overflow: 'visible',
                 transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s'
               }}>
                 {renderCameras(true)}
@@ -14732,16 +14767,16 @@ const Room = () => {
             )}
 
             {/* Drag-to-Remove Zone (only when in fullscreen — normal view zone is in root overlay) */}
-            {isDraggingCam && isFullscreen && (
+            {isDraggingCam && (isFullscreen || isMobileFsMode) && (
               <div 
                 id="cam-remove-zone"
                 style={{
                   position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)',
-                zIndex: 1000, pointerEvents: 'none',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                opacity: 1, transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                animation: 'slideInUp 0.3s ease'
-              }}>
+                  zIndex: 100000, pointerEvents: 'none',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                  opacity: 1, transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                  animation: 'slideInUp 0.3s ease'
+                }}>
                 <div className="stay-white" style={{
                   width: isOverRemoveZone ? 72 : 64, height: isOverRemoveZone ? 72 : 64,
                   borderRadius: '50%', background: isOverRemoveZone ? '#ef4444' : 'rgba(0,0,0,0.5)',
@@ -14763,10 +14798,14 @@ const Room = () => {
             )}
 
             {/* Unhide Videos Bubble */}
-            {hiddenCams.size > 0 && !isTvMode && (
+            {((hiddenCams.size > 0) || (areCamerasHidden && activeCameraUsers.length > 0)) && !isTvMode && (
               <button
                 onClick={() => {
-                  setHiddenCams(new Set());
+                  if (hiddenCams.size > 0) setHiddenCams(new Set());
+                  if (areCamerasHidden) {
+                    setAreCamerasHidden(false);
+                    localStorage.setItem('sahaplay_hide_camera_tiles', 'false');
+                  }
                   toast.success('All videos restored', { icon: '👁️' });
                 }}
                 style={{
@@ -14781,7 +14820,7 @@ const Room = () => {
                   border: isLight ? '1px solid rgba(0,0,0,0.1)' : '1px solid rgba(255,255,255,0.15)',
                   backdropFilter: 'blur(10px)',
                   display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-                  boxShadow: 'none', fontWeight: 600, fontSize: 12,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.3)', fontWeight: 600, fontSize: 12,
                   opacity: (showControls || screenActive) ? 1 : 0,
                   visibility: (showControls || screenActive) ? 'visible' : 'hidden',
                   pointerEvents: (showControls || screenActive) ? 'auto' : 'none',
@@ -14797,17 +14836,19 @@ const Room = () => {
               >
                 <Video size={14} />
                 <span>Unhide Videos</span>
-                <div style={{
-                  background: 'transparent', 
-                  border: `1px solid ${isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)'}`,
-                  color: 'inherit',
-                  borderRadius: 6,
-                  padding: '1px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 10, fontWeight: 800,
-                  minWidth: 18
-                }}>
-                  {hiddenCams.size}
-                </div>
+                {hiddenCams.size > 0 && (
+                  <div style={{
+                    background: 'transparent', 
+                    border: `1px solid ${isLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.3)'}`,
+                    color: 'inherit',
+                    borderRadius: 6,
+                    padding: '1px 6px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 10, fontWeight: 800,
+                    minWidth: 18
+                  }}>
+                    {hiddenCams.size}
+                  </div>
+                )}
               </button>
             )}
 

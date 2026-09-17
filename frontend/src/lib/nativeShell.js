@@ -138,7 +138,7 @@ export async function initNativeStatusBarInset() {
 // very top of the page, above even the fullscreen video player. With the
 // real status bar hidden there's nothing left to cover, so leaving the var
 // at its normal value just cut a visible bar across the top of the video.
-export function setStatusBarHidden(hidden) {
+export function setStatusBarHidden(hidden, keepInsetZero = false) {
   // Was unconditional — on a plain mobile browser tab (no Capacitor, no
   // status bar to hide/show at all), Room.jsx's setStatusBarHidden(false)
   // calls (fullscreen exit, mount, etc.) still wrote a hardcoded 28px
@@ -149,8 +149,15 @@ export function setStatusBarHidden(hidden) {
   // a room and never clears until a real page reload, on EVERY page in the
   // app (every element that reads this var, not just Room's own UI).
   if (!isCapacitorApp()) return;
-  document.documentElement.style.setProperty(STATUS_BAR_INSET_VAR, hidden ? '0px' : `${lastKnownInsetPx}px`);
+  document.documentElement.style.setProperty(STATUS_BAR_INSET_VAR, (hidden || keepInsetZero) ? '0px' : `${lastKnownInsetPx}px`);
   const sb = statusBar();
   if (!sb) return;
-  (hidden ? sb.hide() : sb.show())?.catch?.(() => {});
+  try {
+    const opts = { animation: 'fade' };
+    (hidden ? sb.hide(opts) : sb.show(opts))?.catch?.(() => {
+      (hidden ? sb.hide() : sb.show())?.catch?.(() => {});
+    });
+  } catch (_) {
+    (hidden ? sb.hide() : sb.show())?.catch?.(() => {});
+  }
 }
