@@ -5947,13 +5947,24 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
       }
 
       // Store: ephemeralPublicKey column = JSON key-map {username: keyWrap, ...}
-      // The sender's own publicKey is fetched from users table on history read
+      // sender_public_key = a SNAPSHOT of the sender's own long-term public key
+      // AT SEND TIME (the same value broadcast below as e2eeBroadcast.senderPublicKey).
+      // This used to be omitted entirely, relying on history-read joining the
+      // *current* users.publicKey instead (see the SELECT queries' `u."publicKey"
+      // as "senderPublicKey"` fallback) — harmless while the sender's key never
+      // changes, but the moment they reset their passphrase (new keypair), every
+      // group message they ever sent through this endpoint got re-resolved
+      // against their NEW key on the next history fetch, breaking decryption of
+      // that history for EVERY group member, not just the sender. Persisting the
+      // send-time key here (matching the socket 'chat_message' insert, which
+      // already did this correctly) makes history decryption immune to later
+      // key rotations, for the sender and everyone else alike.
       const ephemText = e2eeKeys ? JSON.stringify(e2eeKeys) : null;
       const deliveredAt = computeInitialDeliveredAt({ isDm: false, roomId: partner, senderUsername: username });
 
       const roomInsert = await pool.query(
-        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id, is_poll)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
+        `INSERT INTO messages ("roomId", type, "senderId", "senderName", message, "mediaUrl", "mediaType", timestamp, "replyTo", nonce, "ephemeralPublicKey", media_expires_at, media_file_name, media_file_size, media_duration, delivered_at, forwarded, media_group_id, is_poll, sender_public_key)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id`,
         [partner, 'group', String(req.user.id || 'http_client'), username,
          actualMessage, mediaUrl || null, mediaType || null, ts,
          safeReplyTo ? JSON.stringify(safeReplyTo) : null,
@@ -5962,7 +5973,8 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
          mediaUrl ? computeMediaExpiry(mediaType) : null,
          mediaFileName || null, mediaFileSize || null,
          mediaDuration ? Number(mediaDuration) : null,
-         deliveredAt, isForwarded, mediaGroupId || null, isPollMsg]
+         deliveredAt, isForwarded, mediaGroupId || null, isPollMsg,
+         ephemeralPublicKey || null]
       );
       const roomDbId = String(roomInsert.rows[0]?.id || ts);
 
