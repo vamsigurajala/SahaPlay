@@ -5684,12 +5684,15 @@ const Room = () => {
 
     sock.on('stream_started', (data) => {
       setStreamPending({ streamKey: data.streamKey, filename: data.filename, progress: 0 });
+      setMediaUrl('');
+      setIsPlaying(false);
     });
 
     sock.on('stream_progress', (data) => {
       setStreamPending(prev => {
-        if (!prev || prev.streamKey !== data.streamKey) return prev;
-        return { ...prev, progress: data.progress };
+        if (!prev) return { streamKey: data.streamKey, filename: '', progress: data.progress };
+        if (prev.streamKey && prev.streamKey !== data.streamKey) return prev;
+        return { ...prev, streamKey: data.streamKey, progress: data.progress };
       });
     });
 
@@ -6708,9 +6711,13 @@ const Room = () => {
   // blob preview playing, but we still set streamPending so the upload
   // progress overlay can render on top of the playing video.
   useEffect(() => {
-    if (!isEffectiveHost || !uploadState.isUploading) return;
-    setStreamPending({ streamKey: uploadState.streamKey, filename: uploadState.filename, progress: uploadState.progress });
-  }, [isEffectiveHost, uploadState.isUploading, uploadState.streamKey, uploadState.filename, uploadState.progress]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (uploadState.isUploading) {
+      setStreamPending({ streamKey: uploadState.streamKey, filename: uploadState.filename, progress: uploadState.progress });
+    } else if (isTauriApp() && !uploadState.canPlay) {
+      // If upload finished with error or was cancelled on Tauri, clear streamPending
+      setStreamPending(null);
+    }
+  }, [uploadState.isUploading, uploadState.streamKey, uploadState.filename, uploadState.progress, uploadState.canPlay]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync isPlaying state → local <video> element for stream URLs
   useEffect(() => {
@@ -8967,6 +8974,13 @@ const Room = () => {
       setMediaUrl(localUrl);
       setIsPlaying(true);
       prepTargetTimeRef.current = 0;
+    } else {
+      // On Tauri desktop shell (WebView2), blob URLs cannot handle range requests properly.
+      // Clear any previously loaded media so the "Getting the video ready…" loading screen
+      // renders immediately, and prime streamPending synchronously so there is zero delay.
+      setMediaUrl('');
+      setIsPlaying(false);
+      setStreamPending({ streamKey: null, filename: file.name, progress: 0 });
     }
 
     console.log('[FILE] Calling uploadFile, roomId:', roomId, 'socket:', !!socket);
@@ -12554,7 +12568,7 @@ const Room = () => {
                 </div>
                 {/* Removed local play/pause overlay and LIVE badge for cleaner screenshare */}
               </>
-            ) : hasMounted && mediaUrl ? (
+            ) : hasMounted && mediaUrl && !(isTauriApp() && uploadState.isUploading) ? (
               <>
                 {mediaUrl === 'lobby://crazygames' ? (
                   <div style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: isMobile ? 0 : 16, overflow: 'hidden' }}>
@@ -13558,18 +13572,11 @@ const Room = () => {
                   </>
                 )}
               </>
-            ) : streamPending ? (
-              // Someone else in the room (almost always the host — they're already
-              // watching their own local blob URL by this point, so this branch is
-              // never theirs) just started uploading a file. stream_started/
-              // stream_progress were always wired into streamPending state, but
-              // nothing ever actually rendered it — everyone else saw this exact
-              // "No Media Selected" empty state the whole time the upload was
-              // in flight, indistinguishable from no media having been chosen at
-              // all, until stream_ready (usually within the first ~8% of the
-              // upload, but that's still real time on a big file/slow connection)
-              // finally handed them a playable URL. This replaces that blank wait
-              // with a visible, live-updating "it's coming" state instead.
+            ) : (streamPending || (isTauriApp() && uploadState.isUploading)) ? (
+              // Someone else in the room (or the host on Tauri desktop shell where
+              // local blob URLs aren't supported) is uploading a video file.
+              // Live-updating "Getting the video ready…" placeholder until stream_ready
+              // delivers the progressive stream URL.
               <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
                 <div style={{
                   width: 86, height: 86, borderRadius: 28,
@@ -13591,16 +13598,34 @@ const Room = () => {
                   {t('mediaUploading', 'Getting the video ready…')}
                 </h3>
                 <p className={(isFullscreen || isTvMode) ? 'stay-white' : undefined} style={{ margin: '0 0 4px', color: (isFullscreen || isTvMode) ? 'rgba(255,255,255,0.75)' : (isLight ? '#64748b' : 'rgba(255,255,255,0.6)'), fontSize: 14, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {streamPending.filename || t('videoFile', 'Video file')}
+                  {(streamPending?.filename || uploadState.filename) || t('videoFile', 'Video file')}
                 </p>
                 <div style={{ width: '100%', maxWidth: 220, background: (isFullscreen || isTvMode) ? 'rgba(255,255,255,0.15)' : (isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)'), borderRadius: 999, height: 4, overflow: 'hidden', marginTop: 4 }}>
                   <div style={{
                     background: 'linear-gradient(90deg, var(--brand-2-dark), var(--brand-1-light))',
                     height: '100%', borderRadius: 999,
-                    width: `${Math.max(4, Math.round(streamPending.progress || 0))}%`,
+                    width: `${Math.max(4, Math.round((streamPending?.progress ?? uploadState.progress) || 0))}%`,
                     transition: 'width 0.3s ease',
                   }} />
                 </div>
+                {uploadState.isUploading && (
+                  <button
+                    onClick={cancelUpload}
+                    style={{
+                      marginTop: 16,
+                      background: 'rgba(239,68,68,0.15)',
+                      color: '#ef4444',
+                      border: '1px solid rgba(239,68,68,0.3)',
+                      borderRadius: 8,
+                      padding: '4px 14px',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {t('cancel', 'Cancel Upload')}
+                  </button>
+                )}
               </div>
             ) : (
               <div style={{ flex: 1, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
