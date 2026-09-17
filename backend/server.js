@@ -7952,7 +7952,8 @@ app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateToken, chunkUpl
         streamKey,
         filename: stream.filename,
         progress,
-        canPlay: true
+        canPlay: true,
+        currentTime: room ? (room.currentTime || 0) : 0
       });
     }
 
@@ -8311,6 +8312,7 @@ io.on('connection', (socket) => {
     room.currentMedia = '';
     room.currentTime = 0;
     room.isPlaying = false;
+    room.timestampUpdatedAt = Date.now();
     room.streamPending = {
       streamKey: data.streamKey,
       filename: data.filename,

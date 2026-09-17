@@ -1590,6 +1590,11 @@ const Room = () => {
   // of the upload on disk for progressive playback — lets the host's own resync effect
   // fire within seconds instead of waiting for the entire upload to finish.
   const [earlyStreamReadyKey, setEarlyStreamReadyKey] = useState(null);
+  // When stream_ready fires for a viewer, store the time they should seek/play
+  // to — their <video> element hasn't loaded metadata yet, so the host's
+  // play/seek commands arrive before the player can act on them. This lets
+  // the viewer's onCanPlay callback auto-seek + auto-play to the right spot.
+  const pendingStreamAutoPlayRef = useRef(null);
   const { uploadState, uploadFile, cancelUpload } = useVideoUpload({ socket, roomId, serverUrl: SOCKET_SERVER_URL });
   const [hasMounted, setHasMounted] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -5704,10 +5709,15 @@ const Room = () => {
       }
 
       const streamUrl = `${SOCKET_SERVER_URL}/api/stream/${data.streamKey}/video`;
+      // Store the position the viewer should seek to when their player is ready —
+      // the host's play/seek commands may arrive before the <video> element has
+      // loaded metadata, so those commands get silently dropped. This ref lets
+      // the viewer's onCanPlay callback reliably auto-seek + auto-play.
+      pendingStreamAutoPlayRef.current = data.currentTime || 0;
       setMediaUrl(streamUrl);
       setIsPlaying(false);
-      prepTargetTimeRef.current = 0;
-      if (playerRef.current) playerRef.current.seekTo(0);
+      prepTargetTimeRef.current = data.currentTime || 0;
+      if (playerRef.current) playerRef.current.seekTo(data.currentTime || 0);
     });
 
     sock.on('media_changed', url => {
@@ -6650,17 +6660,22 @@ const Room = () => {
     if (streamCanPlayFiredRef.current) return;
     streamCanPlayFiredRef.current = true;
 
-    // Host keeps watching the local blob URL. Seek/play viewers ~1.5s later so their
-    // player has had a moment to load the stream URL's metadata first.
+    // Host keeps watching the local blob URL. Emit seek/play twice — once
+    // quickly so viewers with a fast connection start near-immediately, and
+    // again 3s later as a backup for viewers whose <video> element hadn't
+    // loaded metadata yet when the first pair arrived. Viewers also have
+    // their own pendingStreamAutoPlayRef fallback, but this double-emit
+    // covers cases where the ref fires slightly too early or too late.
     const currentPos = localVideoRef.current?.currentTime || 0;
-    setTimeout(() => {
-      if (socket) {
-        const freshPos = localVideoRef.current?.currentTime || currentPos;
-        console.log('[STREAM Sync] Syncing viewers to host time:', freshPos);
-        socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: freshPos });
-        socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: freshPos });
-      }
-    }, 1500);
+    const emitSync = () => {
+      if (!socket) return;
+      const freshPos = localVideoRef.current?.currentTime || currentPos;
+      console.log('[STREAM Sync] Syncing viewers to host time:', freshPos);
+      socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: freshPos });
+      socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: freshPos });
+    };
+    setTimeout(emitSync, 1500);
+    setTimeout(emitSync, 4000);
   }, [earlyStreamReadyKey, uploadState.streamKey, isEffectiveHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Once the upload is fully done, just persist the final URL server-side (for
@@ -6685,15 +6700,15 @@ const Room = () => {
     }
   }, [uploadState.isUploading, uploadState.canPlay]);
 
-  // On Tauri, the host no longer gets an instant blob preview (see
-  // handleFileUpload), so they need the same "Getting the video ready…"
-  // placeholder viewers see while waiting for stream_ready — but
-  // stream_started/stream_progress are emitted via socket.to() (excludes
-  // the sender), so the host never receives their own copy over the
-  // socket. Mirror the already-local uploadState into streamPending
-  // directly instead of round-tripping through the server.
+  // The host never receives their own stream_started/stream_progress
+  // events (they're emitted via socket.to() which excludes the sender).
+  // Mirror the already-local uploadState into streamPending directly.
+  // On Tauri, the host doesn't get a blob preview so they need the full
+  // "Getting the video ready…" placeholder. On browser, the host has a
+  // blob preview playing, but we still set streamPending so the upload
+  // progress overlay can render on top of the playing video.
   useEffect(() => {
-    if (!isTauriApp() || !isEffectiveHost || !uploadState.isUploading) return;
+    if (!isEffectiveHost || !uploadState.isUploading) return;
     setStreamPending({ streamKey: uploadState.streamKey, filename: uploadState.filename, progress: uploadState.progress });
   }, [isEffectiveHost, uploadState.isUploading, uploadState.streamKey, uploadState.filename, uploadState.progress]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -12946,6 +12961,25 @@ const Room = () => {
                                 console.log('[VIDEO] onCanPlay fired')
                                 setIsPreparing(false)
                                 setIsStreamBuffering(false)
+                                // Viewer auto-play: if stream_ready stored a pending
+                                // position, the <video> has now loaded enough data
+                                // to seek + play — do it now instead of hoping the
+                                // host's timed play/seek commands arrived at exactly
+                                // the right moment.
+                                if (pendingStreamAutoPlayRef.current !== null) {
+                                  const pos = pendingStreamAutoPlayRef.current;
+                                  pendingStreamAutoPlayRef.current = null;
+                                  const el = localVideoRef.current;
+                                  if (el) {
+                                    if (pos > 1) el.currentTime = pos;
+                                    el.play().catch(() => {
+                                      el.muted = true;
+                                      setPlayerMuted(true);
+                                      el.play().catch(() => {});
+                                    });
+                                    setIsPlaying(true);
+                                  }
+                                }
                               }}
                               onLoadStart={() => console.log('[VIDEO] onLoadStart')}
                               onLoadedMetadata={(e) => {
@@ -13343,6 +13377,14 @@ const Room = () => {
                           </span>
                           <style>{`@keyframes sp-buffer-spin { to { transform: rotate(360deg); } }`}</style>
                         </div>
+                      )}
+
+                      {/* Host upload progress overlay — shown when the host is
+                          uploading a video and already playing it locally via
+                          blob URL. Renders on top of the playing video so the
+                          host knows the upload is still in progress. */}
+                      {uploadState.isUploading && isEffectiveHost && isLocalStream && (
+                        <StreamUploadProgress uploadState={uploadState} onCancel={cancelUpload} />
                       )}
 
                       {/* --- Platform UI Layer (Twitch/Vimeo) --- */}
