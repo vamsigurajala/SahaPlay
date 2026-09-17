@@ -52,6 +52,7 @@ import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { useCrypto } from '../contexts/CryptoContext';
 import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, hashRecoveryPhrase } from '../lib/crypto.js';
+import { markKeyResetForBanner } from '../lib/keyResetBanner.js';
 import { API } from '../lib/api';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
@@ -244,6 +245,13 @@ export default function EncryptionUnlockGate() {
       try { localStorage.setItem(`wt_pk_${myUsername.toLowerCase()}`, pubStr); } catch {}
       window.dispatchEvent(new CustomEvent('public_key_updated', { detail: { username: myUsername, publicKey: pubStr } }));
     }
+    // This is the "forgot recovery key, mint a new identity" path — every
+    // existing private chat's decrypt now depends on every contact's client
+    // noticing the rotation before their next send. That's usually fast but
+    // not instant (see keyResetBanner.js's own doc comment), so flag a short
+    // window for GlobalChatWidget to show a plain-language heads-up instead
+    // of leaving a transient "Encrypted message" looking like a bug.
+    markKeyResetForBanner(myUsername);
     setCtx(null);
   }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 

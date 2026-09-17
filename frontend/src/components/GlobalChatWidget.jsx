@@ -42,6 +42,8 @@ import { ensureDesktopNotifyPermission, showDesktopNotification } from '../lib/d
 import { playNotificationTone } from '../lib/notificationSounds';
 import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, CHAT_WALLPAPERS, findWallpaper, getWallpaperDominantColor, getThemeSolidColor, isRgbColorDark } from '../lib/chatThemes';
 import ExpiryReminderBanner from './ExpiryReminderBanner';
+import KeyResetSyncBanner from './KeyResetSyncBanner';
+import { shouldShowKeyResetBanner, dismissKeyResetBanner } from '../lib/keyResetBanner.js';
 import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntilClose, clearExpiryBannerCloseSuppression } from '../utils/expiryReminders';
 import DownloadAppModal from './DownloadAppModal';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
@@ -2793,6 +2795,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // dismissal/snooze state lives in localStorage (shared across chats), not
   // React state — this forces a re-check of countSoonExpiringMedia.
   const [expiryBannerTick, setExpiryBannerTick] = useState(0);
+  // Same localStorage-backed re-render-forcing trick as expiryBannerTick
+  // above — see keyResetBanner.js's own doc comment for what sets the flag
+  // this reads.
+  const [keyResetBannerTick, setKeyResetBannerTick] = useState(0);
   const bannerChatKey = activeChat ? (activeChat.type === 'room' ? (activeChat.partner || activeChat.id) : activeChat.partner)?.toLowerCase() : null;
   // "Remind me later" only suppresses the banner until this chat is closed
   // (navigated back to the list, or the target/widget itself changes) —
@@ -4260,7 +4266,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
             displayName: isGroup
               ? (msg.roomName || exists.displayName || 'Room Chat')
               : (exists.displayName || (isMine ? partner : (msg.senderName || msg.username || partner))),
-            partnerAvatar: exists.partnerAvatar || (isMine ? msg.partnerAvatar : msg.senderAvatar) || null,
+            // A group chat has no per-message "avatar" of its own — msg.senderAvatar
+            // is that ONE member's personal avatar, never the room's. Falling back to
+            // it here (as the private-DM branch correctly does for a partner's avatar)
+            // briefly painted a group's list entry with whoever just happened to send
+            // the live message, snapping back to the real (often blank) group avatar
+            // only on the next full conversation refetch — confirmed live: "sender's
+            // avatar shows on the group for a moment after going back to the list."
+            partnerAvatar: isGroup ? (exists.partnerAvatar || null) : (exists.partnerAvatar || (isMine ? msg.partnerAvatar : msg.senderAvatar) || null),
             // Sync permissions from each incoming message so the widget stays current
             ...(isGroup && msg.roomPermissions ? { permissions: msg.roomPermissions } : {}),
             ...(isGroup && msg.isHost !== undefined ? { isHost: msg.isHost } : {})
@@ -4276,7 +4289,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
             id: isGroup ? partner : undefined,
             partner,
             displayName: isGroup ? (msg.roomName || 'Room Chat') : (isMine ? partner : (msg.senderName || msg.username || partner)),
-            partnerAvatar: isMine ? (msg.partnerAvatar || null) : (msg.senderAvatar || msg.partnerAvatar || null),
+            // See the matching comment on the other branch above — a group has no
+            // per-message avatar, so this must never borrow msg.senderAvatar.
+            partnerAvatar: isGroup ? null : (isMine ? (msg.partnerAvatar || null) : (msg.senderAvatar || msg.partnerAvatar || null)),
             lastTimestamp: msgTs,
             lastMessageId: msg.id || null,
             message: finalizedPreview,
@@ -8748,6 +8763,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 onGotIt={() => { dismissExpiryBanner12h(bannerChatKey); setExpiryBannerTick(v => v + 1); }}
                 onRemindLater={() => { snoozeExpiryBannerUntilClose(bannerChatKey); setExpiryBannerTick(v => v + 1); }}
                 onClose={() => { snoozeExpiryBannerUntilClose(bannerChatKey); setExpiryBannerTick(v => v + 1); }}
+              />
+            );
+          })()}
+
+          {view === 'chat' && activeChat?.type === 'private' && (() => {
+            // eslint-disable-next-line no-unused-expressions
+            keyResetBannerTick;
+            if (!shouldShowKeyResetBanner(myUsername)) return null;
+            return (
+              <KeyResetSyncBanner
+                isLight={isLight}
+                onGotIt={() => { dismissKeyResetBanner(myUsername); setKeyResetBannerTick(v => v + 1); }}
               />
             );
           })()}
