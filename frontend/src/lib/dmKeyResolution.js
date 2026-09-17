@@ -53,12 +53,15 @@ export async function resolveDmRecipientPublicKey({
   let networkFailure = false;
 
   try {
-    const res = await fetchImpl(`${apiBase}/api/auth/public-key/${encodeURIComponent(targetUsername)}`);
+    // no-store: this answer decides what a message gets encrypted against —
+    // it must never be served from an intermediate HTTP cache (browser or
+    // otherwise) after the recipient rotates their identity.
+    const res = await fetchImpl(`${apiBase}/api/auth/public-key/${encodeURIComponent(targetUsername)}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       publicKey = data.publicKey || null;
     } else if (res.status === 404 && targetLower !== targetUsername) {
-      const res2 = await fetchImpl(`${apiBase}/api/auth/public-key/${encodeURIComponent(targetLower)}`);
+      const res2 = await fetchImpl(`${apiBase}/api/auth/public-key/${encodeURIComponent(targetLower)}`, { cache: 'no-store' });
       if (res2.ok) {
         const data2 = await res2.json();
         publicKey = data2.publicKey || null;

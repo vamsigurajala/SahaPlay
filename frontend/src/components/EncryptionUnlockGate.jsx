@@ -51,7 +51,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import { useCrypto } from '../contexts/CryptoContext';
-import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, secretKeyToMnemonic, hashRecoveryPhrase } from '../lib/crypto.js';
+import { decryptPrivateKey, encryptPrivateKey, mnemonicToSecretKey, hashRecoveryPhrase } from '../lib/crypto.js';
 import { API } from '../lib/api';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
@@ -152,10 +152,24 @@ export default function EncryptionUnlockGate() {
   }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
   const handleSetPassphrase = useCallback(async (passphrase) => {
-    const kp = nacl.box.keyPair();
+    // 24-letter recovery key — same format and derivation Signup.jsx uses
+    // (phrase's SHA-256 IS the secret key), not the 24-word BIP39 mnemonic
+    // secretKeyToMnemonic produces. Two different recovery-credential formats
+    // for the same feature was needlessly inconsistent (reported: users who
+    // go through this screen got a 24-word phrase while everyone who signs
+    // up normally gets a compact 24-letter key). mnemonicToSecretKey already
+    // recognizes this exact 24-letter shape (see its own doc comment), so
+    // handleRecover's "enter your recovery phrase" input keeps working
+    // unchanged for accounts created either way.
+    const chars = 'abcdefghijklmnopqrstuvwxyz';
+    const randBytes = crypto.getRandomValues(new Uint8Array(24));
+    let phraseStr = '';
+    for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
+    const phrase = phraseStr.toUpperCase();
+    const secretKey = await mnemonicToSecretKey(phrase);
+    const kp = nacl.box.keyPair.fromSecretKey(secretKey);
     const encryptedPrivKey = await encryptPrivateKey(kp.secretKey, passphrase);
     const pubKeyStr = encodeBase64(kp.publicKey);
-    const phrase = await secretKeyToMnemonic(kp.secretKey);
     const recoveryKeyHash = await hashRecoveryPhrase(phrase);
     const res = await fetch(`${API}/api/auth/setup-keys`, {
       method: 'POST',
@@ -204,10 +218,17 @@ export default function EncryptionUnlockGate() {
   }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
 
   const handleStartFresh = useCallback(async (newPassphrase) => {
-    const kp = nacl.box.keyPair();
+    // Same 24-letter recovery-key format as handleSetPassphrase above —
+    // see its comment for why this replaced secretKeyToMnemonic here too.
+    const chars = 'abcdefghijklmnopqrstuvwxyz';
+    const randBytes = crypto.getRandomValues(new Uint8Array(24));
+    let phraseStr = '';
+    for (let i = 0; i < 24; i++) phraseStr += chars[randBytes[i] % chars.length];
+    const phrase = phraseStr.toUpperCase();
+    const secretKey = await mnemonicToSecretKey(phrase);
+    const kp = nacl.box.keyPair.fromSecretKey(secretKey);
     const encryptedPrivKey = await encryptPrivateKey(kp.secretKey, newPassphrase);
     const pubKeyStr = encodeBase64(kp.publicKey);
-    const phrase = await secretKeyToMnemonic(kp.secretKey);
     const recoveryKeyHash = await hashRecoveryPhrase(phrase);
     const res = await fetch(`${API}/api/auth/setup-keys`, {
       method: 'POST',

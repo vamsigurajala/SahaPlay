@@ -193,6 +193,10 @@ describe('Guest key at-rest wrapping (encryptGuestKey/decryptGuestKey)', () => {
 
 describe('Password-account key-wrap migration (Phase 4 — independent encryption passphrase)', () => {
   test('a key wrapped by the login password can be migrated to an independent passphrase, preserving the exact same keypair', async () => {
+    // Four real, deliberately slow 600k-iteration PBKDF2 operations in one
+    // test (two encrypts, two decrypts) — can exceed the default 5000ms
+    // testTimeout under full-suite CPU contention (same documented
+    // allowance used throughout this codebase for real PBKDF2 timing).
     const kp = generateKeyPair();
     const loginPassword = 'the-account-login-password-123!';
     const encryptionPassphrase = 'a totally different secret only the user knows';
@@ -215,7 +219,7 @@ describe('Password-account key-wrap migration (Phase 4 — independent encryptio
     // changed, only what protects the private key at rest.
     const finalSecretKey = await decryptPrivateKey(migratedBlob, encryptionPassphrase);
     expect(Array.from(finalSecretKey)).toEqual(Array.from(kp.secretKey));
-  });
+  }, 15000);
 
   test('after migration, the OLD login password no longer unwraps the key — proving the server can no longer derive it from a password it sees on login', async () => {
     const kp = generateKeyPair();

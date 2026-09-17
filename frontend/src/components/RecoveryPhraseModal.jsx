@@ -150,7 +150,7 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
               transition: 'all 0.25s'
             }}
           >
-            {copied ? <><Check size={15} /> {t('copiedLabel', 'Copied!')}</> : <><Copy size={15} /> {t('copyAll24Words', 'Copy all 24 words')}</>}
+            {copied ? <><Check size={15} /> {t('copiedLabel', 'Copied!')}</> : <><Copy size={15} /> {isLetters ? t('copyRecoveryKey', 'Copy recovery key') : t('copyAll24Words', 'Copy all 24 words')}</>}
           </button>
         )}
 
@@ -163,7 +163,9 @@ export default function RecoveryPhraseModal({ phrase, onConfirmed }) {
             style={{ width: 18, height: 18, marginTop: 2, accentColor: 'var(--brand-1)', flexShrink: 0 }}
           />
           <span style={{ fontSize: 13, color: ackTextColor, lineHeight: 1.5 }}>
-            {t('recoveryAcknowledgeCheckbox', 'I have written down or securely stored my 24-word recovery phrase. I understand this is the only way to recover my encrypted messages.')}
+            {isLetters
+              ? t('recoveryAcknowledgeCheckboxKey', 'I have written down or securely stored my 24-letter recovery key. I understand this is the only way to recover my encrypted messages.')
+              : t('recoveryAcknowledgeCheckbox', 'I have written down or securely stored my 24-word recovery phrase. I understand this is the only way to recover my encrypted messages.')}
           </span>
         </label>
 

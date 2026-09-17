@@ -227,8 +227,11 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       fireEvent.change(passphraseInput, { target: { value: 'my-encryption-passphrase' } });
       fireEvent.submit(passphraseInput.closest('form'));
 
-      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
-      await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1));
+      // decryptPrivateKey below is real, deliberately slow 600k-iteration
+      // PBKDF2 — can exceed waitFor's default 1000ms under full-suite CPU
+      // contention (same documented allowance used elsewhere in this file).
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64), { timeout: 5000 });
+      await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1), { timeout: 5000 });
       const [[setupArg]] = nativeSetup.mock.calls;
       expect(decodeBase64(setupArg.secretKeyBase64)).toEqual(REAL_KP.secretKey);
       expect(setupArg.allowOverwrite).toBe(false);
@@ -275,8 +278,11 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       fireEvent.change(screen.getByPlaceholderText(/Re-enter passphrase/i), { target: { value: 'brand-new-passphrase' } });
       fireEvent.submit(recoveryInput.closest('form'));
 
-      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(recoveryPubB64));
-      await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1));
+      // encryptPrivateKey below is real, deliberately slow 600k-iteration
+      // PBKDF2 — can exceed waitFor's default 1000ms under full-suite CPU
+      // contention (same documented allowance used elsewhere in this file).
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(recoveryPubB64), { timeout: 5000 });
+      await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1), { timeout: 5000 });
       const [[setupArg]] = nativeSetup.mock.calls;
       expect(decodeBase64(setupArg.secretKeyBase64)).toEqual(recoveryKp.secretKey);
     });
@@ -460,13 +466,15 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
         await waitFor(() => expect(screen.getByText(/Your Recovery Phrase/i)).toBeInTheDocument(), { timeout: 5000 });
 
         // Reveal to read the displayed phrase back out of the DOM. This is
-        // secretKeyToMnemonic's real 24-word BIP39 output (space-separated),
-        // not the 24-letter scheme other flows in this app use — Recovery
-        // PhraseModal renders each word in its own .recovery-phrase-word span.
+        // the same 24-letter recovery-key format Signup.jsx's normal signup
+        // flow already uses (not secretKeyToMnemonic's 24-word BIP39 output)
+        // — RecoveryPhraseModal renders it as 6 blocks of 4 letters, each in
+        // its own .recovery-phrase-word span, with no separator between them.
         fireEvent.click(screen.getByText(/Click to reveal phrase/i));
-        const displayedWords = Array.from(document.querySelectorAll('.recovery-phrase-word')).map(el => el.textContent);
-        expect(displayedWords).toHaveLength(24);
-        const displayedPhrase = displayedWords.join(' ');
+        const displayedBlocks = Array.from(document.querySelectorAll('.recovery-phrase-word')).map(el => el.textContent);
+        expect(displayedBlocks).toHaveLength(6);
+        const displayedPhrase = displayedBlocks.join('');
+        expect(displayedPhrase).toMatch(/^[A-Z]{24}$/);
 
         const { hashRecoveryPhrase } = await import('../lib/crypto.js');
         const displayedHash = await hashRecoveryPhrase(displayedPhrase);

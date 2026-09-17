@@ -742,6 +742,7 @@ import { useStableViewportHeight } from '../hooks/useStableViewportHeight';
 import { useDebounce } from '../hooks/useDebounce';
 import { useCrypto } from '../contexts/CryptoContext';
 import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia, packMediaKeyAndCaption, unpackMediaKeyAndCaption, sanitizeReplyToForWire } from '../lib/crypto';
+import { resolveDmRecipientPublicKey } from '../lib/dmKeyResolution.js';
 import { isSahaplayOfficialGroup } from '../lib/sahaplayOfficial';
 import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64 } from 'tweetnacl-util';
@@ -2114,7 +2115,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
     try {
       let targetPubKey = null;
       try {
-        const pkRes = await fetch(`${API}/api/auth/public-key/${encodeURIComponent(partnerLower)}`);
+        const pkRes = await fetch(`${API}/api/auth/public-key/${encodeURIComponent(partnerLower)}`, { cache: 'no-store' });
         if (pkRes.ok) {
           const pkData = await pkRes.json();
           targetPubKey = pkData.publicKey || null;
@@ -3578,15 +3579,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
     });
 
     sock.on('public_key_updated', ({ username: targetUser, publicKey: newPK }) => {
+      // Real-time key-rotation propagation: this fires the instant a peer
+      // establishes/rotates their E2EE identity (signup, password reset,
+      // etc.), so the cache below is corrected immediately instead of only
+      // on the next page load. Every DM send already does its own live
+      // fetch before encrypting (see handleSend), so this alone isn't what
+      // makes sends correct — it just keeps the localStorage fallback (used
+      // only if that live fetch itself fails) from ever going stale.
       if (!targetUser) return;
       const targetLower = targetUser.toLowerCase();
       if (newPK) {
         try { localStorage.setItem(`wt_pk_${targetLower}`, newPK); } catch {}
       } else {
         try { localStorage.removeItem(`wt_pk_${targetLower}`); } catch {}
-      }
-      if (activeChatRef.current && activeChatRef.current.toLowerCase() === targetLower) {
-        setPartnerPublicKey(newPK || null);
       }
     });
 
@@ -5699,47 +5704,31 @@ const GlobalChatWidget = React.memo(forwardRef(({
       let messagePayload = null, senderMessagePayload = null, isEncrypted = false;
       let nonceValue = null, ephemeralKey = null, e2eeKeysGroup = null;
       let targetPubKey = null;
+      let dmNetworkFailure = false;
       if (activeChat.type === 'private' && keyPair) {
-        try {
-          const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`);
-          if (pkRes.ok) {
-            const pkData = await pkRes.json();
-            if (pkData.publicKey) {
-              targetPubKey = pkData.publicKey;
-              try { localStorage.setItem(`wt_pk_${activeChat.partner.toLowerCase()}`, targetPubKey); } catch {}
-            }
-          } else if (pkRes.status === 404) {
-            const pkResLower = await fetch(`${API}/api/auth/public-key/${activeChat.partner.toLowerCase()}`);
-            if (pkResLower.ok) {
-              const pkDataLower = await pkResLower.json();
-              if (pkDataLower.publicKey) {
-                targetPubKey = pkDataLower.publicKey;
-                try { localStorage.setItem(`wt_pk_${activeChat.partner.toLowerCase()}`, targetPubKey); } catch {}
-              }
-            }
-          }
-        } catch(e) { console.warn("[E2EE] Public key fetch failed", e); }
-
-        if (!targetPubKey && activeChat.partner) {
-          const local = localStorage.getItem(`wt_pk_${activeChat.partner.toLowerCase()}`);
-          if (local) targetPubKey = local;
-        }
+        // Live-fetch-first, authoritative-on-success, cache-fallback only on
+        // a genuine network failure — same vetted resolver Room.jsx's DM
+        // sends use (see dmKeyResolution.js's own doc comment for why a
+        // hand-rolled "fetch, then unconditionally fall back to whatever's
+        // in localStorage" pattern is exactly how a message ends up
+        // encrypted against a recipient's stale, already-rotated key.
+        const resolved = await resolveDmRecipientPublicKey({
+          targetUsername: activeChat.partner,
+          apiBase: API,
+          memoryCache: {},
+        });
+        targetPubKey = resolved.publicKey;
+        dmNetworkFailure = resolved.networkFailure;
 
         if (targetPubKey && keyPair) {
-           console.log('=== ENCRYPTION DEBUG ===');
-           console.log('myPrivateKey exists:', !!keyPair.secretKey);
-           console.log('recipientPublicKey:', targetPubKey);
-           console.log('message:', optimisticMsg.message);
-           
            try {
              // pass my publicKey so our own message copy can be rendered
              const enc = encryptDM(optimisticMsg.message, targetPubKey, encodeBase64(keyPair.publicKey));
              messagePayload = enc.ciphertext;
              nonceValue = enc.nonce;
-             ephemeralKey = enc.ephemeralPublicKey; 
+             ephemeralKey = enc.ephemeralPublicKey;
              senderMessagePayload = enc.senderCiphertext;
              isEncrypted = true;
-             console.log('[E2EE] DM Encryption success');
            } catch (err) {
              console.error('[E2EE] DM Encryption failed:', err);
              // isEncrypted remains false
@@ -5781,8 +5770,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
       // Aborting here (before postBody is built) means an unencrypted message never
       // leaves the client at all, not even inside a request the server goes on to
       // reject — matching how group send/edit/forward and DM media already behave.
+      //
+      // Order matters here: !keyPair (no send attempted at all — the whole
+      // fetch-and-encrypt block above is gated on it) must be checked BEFORE
+      // !targetPubKey, or a sender who skipped their own passphrase setup
+      // sees the confusing, factually wrong "@<recipient> hasn't set up
+      // encryption keys yet" — it's the sender who hasn't, not them.
+      if (activeChat.type === 'private' && !keyPair) {
+        throw new Error('Set up your encryption key in Account Settings first.');
+      }
       if (activeChat.type === 'private' && !targetPubKey) {
-        throw new Error(`@${activeChat.displayName || activeChat.partner} has not set up encryption keys yet.`);
+        throw new Error(dmNetworkFailure
+          ? "Couldn't verify the recipient's encryption key — check your connection and try again."
+          : `@${activeChat.displayName || activeChat.partner} has not set up encryption keys yet.`);
       }
       if ((activeChat.type === 'private' || activeChat.type === 'room') && !isEncrypted) {
         throw new Error('Message not sent — encryption failed.');
@@ -5861,7 +5861,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
     try {
       let targetPubKey = null;
       if (activeChat.type === 'private' && keyPair) {
-        const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`);
+        const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`, { cache: 'no-store' });
         if (pkRes.ok) {
           const pkData = await pkRes.json();
           if (pkData.publicKey) targetPubKey = pkData.publicKey;
@@ -6040,7 +6040,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
     try {
       if (activeChat.type === 'private' && keyPair) {
         let targetPubKey = null;
-        const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`);
+        const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`, { cache: 'no-store' });
         if (pkRes.ok) {
           const pkData = await pkRes.json();
           if (pkData.publicKey) targetPubKey = pkData.publicKey;
@@ -6211,11 +6211,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
       try {
         if (activeChat.type === 'private' && keyPair && mediaKeyB64) {
           let targetPubKey = null;
-          const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`);
+          const pkRes = await fetch(`${API}/api/auth/public-key/${activeChat.partner}`, { cache: 'no-store' });
           if (pkRes.ok) {
             targetPubKey = (await pkRes.json()).publicKey;
           } else if (pkRes.status === 404) {
-             const pkResLower = await fetch(`${API}/api/auth/public-key/${activeChat.partner.toLowerCase()}`);
+             const pkResLower = await fetch(`${API}/api/auth/public-key/${activeChat.partner.toLowerCase()}`, { cache: 'no-store' });
              if (pkResLower.ok) targetPubKey = (await pkResLower.json()).publicKey;
           }
           if (targetPubKey) {
@@ -6637,7 +6637,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
       let groupRecipients = null;
       if (destType === 'private') {
         try {
-          const pkRes = await fetch(`${API}/api/auth/public-key/${destPartner}`);
+          const pkRes = await fetch(`${API}/api/auth/public-key/${destPartner}`, { cache: 'no-store' });
           if (pkRes.ok) { const d = await pkRes.json(); targetPubKey = d.publicKey || null; }
         } catch {}
       } else {
