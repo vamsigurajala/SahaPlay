@@ -10188,6 +10188,27 @@ io.on('connection', (socket) => {
       io.in(roomId).emit('webrtc_screenshare_stopped');
     }
 
+    if (!mediaUrl) {
+      room.currentMedia = '';
+      room.currentTime = 0;
+      room.isPlaying = false;
+      room.streamPending = null;
+      room.subtitles = null;
+      room.timestampUpdatedAt = Date.now();
+      for (const [key, stream] of activeStreams.entries()) {
+        if (stream.roomId === roomId) {
+          activeStreams.delete(key);
+          try { fs.rmSync(path.join(__dirname, 'uploads', 'streams', key), { recursive: true, force: true }); } catch (_) {}
+        }
+      }
+      io.in(roomId).emit('action_pause', 0);
+      io.in(roomId).emit('media_stopped');
+      io.in(roomId).emit('media_changed', '');
+      io.in(roomId).emit('stream_cancelled');
+      io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
+      return;
+    }
+
     room.currentMedia = mediaUrl; room.currentTime = 0; room.isPlaying = false; room.timestampUpdatedAt = Date.now();
     room.subtitles = null;
     io.in(roomId).emit('media_changed', mediaUrl);
@@ -10195,6 +10216,33 @@ io.on('connection', (socket) => {
     io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
     } catch (err) {
       console.error('[SOCKET] change_media error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  socket.on('media_stopped', ({ roomId: rawRoomId }) => {
+    try {
+      const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId)) return;
+      const room = rooms.get(roomId);
+      room.currentMedia = '';
+      room.currentTime = 0;
+      room.isPlaying = false;
+      room.streamPending = null;
+      room.subtitles = null;
+      room.timestampUpdatedAt = Date.now();
+      for (const [key, stream] of activeStreams.entries()) {
+        if (stream.roomId === roomId) {
+          activeStreams.delete(key);
+          try { fs.rmSync(path.join(__dirname, 'uploads', 'streams', key), { recursive: true, force: true }); } catch (_) {}
+        }
+      }
+      io.in(roomId).emit('action_pause', 0);
+      io.in(roomId).emit('media_stopped');
+      io.in(roomId).emit('media_changed', '');
+      io.in(roomId).emit('stream_cancelled');
+      io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
+    } catch (err) {
+      console.error('[SOCKET] media_stopped error:', err.message);
     }
   });
 

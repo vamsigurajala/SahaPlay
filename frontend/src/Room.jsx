@@ -4210,6 +4210,17 @@ const Room = () => {
         // Set seek target SYNCHRONOUSLY so onLoadedMetadata can seek immediately
         // (the 500ms timeout below runs after onLoadedMetadata fires, so it was too late)
         if (state.currentTime > 0) prepTargetTimeRef.current = state.currentTime;
+      } else {
+        setMediaUrl('');
+        setIsPlaying(false);
+        if (localVideoRef.current) {
+          try {
+            localVideoRef.current.pause();
+            localVideoRef.current.currentTime = 0;
+            localVideoRef.current.removeAttribute('src');
+            localVideoRef.current.load();
+          } catch (_) {}
+        }
       }
       // Connect straight to an already-running Hyperbeam virtual browser session.
       // Without this, anyone who joins (or reconnects/refreshes) after the host
@@ -5676,6 +5687,22 @@ const Room = () => {
       setBufferedSeconds(0);
       setIsPreparing(false);
       setActiveExternalApp(null);
+      setStreamPending(null);
+      setEarlyStreamReadyKey(null);
+      pendingStreamAutoPlayRef.current = null;
+      streamSyncTimersRef.current.forEach(clearTimeout);
+      streamSyncTimersRef.current = [];
+      if (localVideoRef.current) {
+        try {
+          localVideoRef.current.pause();
+          localVideoRef.current.currentTime = 0;
+          localVideoRef.current.removeAttribute('src');
+          localVideoRef.current.load();
+        } catch (_) {}
+      }
+      if (playerRef.current) {
+        try { playerRef.current.seekTo(0); } catch (_) {}
+      }
       setSubtitlesUrl(oldUrl => {
         if (oldUrl) URL.revokeObjectURL(oldUrl);
         return null;
@@ -5725,7 +5752,7 @@ const Room = () => {
 
     sock.on('media_changed', url => {
       // If we are playing locally via blob URL, do not overwrite it with the stream URL
-      if (url.includes('/api/stream/') && mediaUrlRef.current?.startsWith('blob:')) {
+      if (url && url.includes('/api/stream/') && mediaUrlRef.current?.startsWith('blob:')) {
         console.log('[SOCKET] Ignoring media_changed because we are playing locally');
         return;
       }
@@ -5736,16 +5763,26 @@ const Room = () => {
       });
       // PRIORITY RESET: When media changes, stop all interfering processes
       setMediaUrl(url);
-      // Viewers never call changeMedia() themselves — this is the only place they
-      // learn the room switched to a placeholder app (Netflix/Prime/etc.), so it's
-      // where their own isVirtualBrowserMedia stickiness has to be set too, or
-      // they'd independently hit the same blocked plain-iframe attempt the host's
-      // changeMedia() already avoids.
       const changedItem = OPTIONS.find(o => o.url === url || (o.url && (url.includes(o.url) || o.url.includes(url))));
       setIsVirtualBrowserMedia(changedItem?.type === 'placeholder');
       if (changedItem?.type === 'placeholder') setIframeBlockSuspected(false);
       setIsPlaying(false);
       playerRef.current?.seekTo(0);
+      if (!url) {
+        setStreamPending(null);
+        setEarlyStreamReadyKey(null);
+        pendingStreamAutoPlayRef.current = null;
+        streamSyncTimersRef.current.forEach(clearTimeout);
+        streamSyncTimersRef.current = [];
+        if (localVideoRef.current) {
+          try {
+            localVideoRef.current.pause();
+            localVideoRef.current.currentTime = 0;
+            localVideoRef.current.removeAttribute('src');
+            localVideoRef.current.load();
+          } catch (_) {}
+        }
+      }
 
       // Clear all embedded browsers
       setShowYtBrowser(false);
@@ -6658,6 +6695,7 @@ const Room = () => {
   // so a friend on a slow connection watching a multi-minute video would see it load
   // but never actually start until the whole file was up. ──
   const streamCanPlayFiredRef = useRef(false);
+  const streamSyncTimersRef = useRef([]);
   useEffect(() => {
     if (!earlyStreamReadyKey || earlyStreamReadyKey !== uploadState.streamKey || !socket || !isEffectiveHost) return;
     if (streamCanPlayFiredRef.current) return;
@@ -6677,8 +6715,9 @@ const Room = () => {
       socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: freshPos });
       socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: freshPos });
     };
-    setTimeout(emitSync, 1500);
-    setTimeout(emitSync, 4000);
+    const t1 = setTimeout(emitSync, 1500);
+    const t2 = setTimeout(emitSync, 4000);
+    streamSyncTimersRef.current.push(t1, t2);
   }, [earlyStreamReadyKey, uploadState.streamKey, isEffectiveHost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Once the upload is fully done, just persist the final URL server-side (for
@@ -8381,6 +8420,28 @@ const Room = () => {
   if (socket) socket.__username = username;
 
   const handleStopMedia = useCallback(() => {
+    // 1. Cancel background upload and any queued sync timers immediately
+    cancelUpload();
+    streamSyncTimersRef.current.forEach(clearTimeout);
+    streamSyncTimersRef.current = [];
+    streamCanPlayFiredRef.current = true;
+    pendingStreamAutoPlayRef.current = null;
+    setEarlyStreamReadyKey(null);
+    setStreamPending(null);
+
+    // 2. Immediately stop, mute and unload local video element so audio/video cut out instantly
+    if (localVideoRef.current) {
+      try {
+        localVideoRef.current.pause();
+        localVideoRef.current.currentTime = 0;
+        localVideoRef.current.removeAttribute('src');
+        localVideoRef.current.load();
+      } catch (_) {}
+    }
+    if (playerRef.current) {
+      try { playerRef.current.seekTo(0); } catch (_) {}
+    }
+
     // A call is a two-person conversation, not host-controlled shared media: if we're
     // leaving activity://videocall or activity://voicecall, hang up properly no matter
     // which button triggered this (End Call, Exit, the Stop menu, player Stop, etc.) —
@@ -8410,8 +8471,14 @@ const Room = () => {
     setIsPreparing(false);
     setActiveExternalApp(null);
     setInputUrl('');
-    if (socket) socket.emit('change_media', { roomId: (roomId || '').toLowerCase(), mediaUrl: '' });
-  }, [socket, roomId, hbSessionId, hyperbeamSession, mediaUrl, isCamOn, isMicOnCam]);
+    if (socket) {
+      const rid = (roomId || '').toLowerCase();
+      socket.emit('pause', { roomId: rid, currentTime: 0 });
+      socket.emit('media_stopped', { roomId: rid });
+      socket.emit('change_media', { roomId: rid, mediaUrl: '' });
+      socket.emit('stream_cancelled', { roomId: rid });
+    }
+  }, [socket, roomId, hbSessionId, hyperbeamSession, mediaUrl, isCamOn, isMicOnCam, cancelUpload]);
 
   const handleCast = () => {
     setShowCastDiscovery(true);
