@@ -1812,10 +1812,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // recipient list on send and isn't affected by this specific race.
   useEffect(() => {
     if (!keyPair || !activeChat || activeChat.type !== 'private') return;
+    // TEMPORARY DIAGNOSTIC — remove once the intermittent "Encrypted
+    // message" DM issue is confirmed fixed.
+    console.log('[DEBUG-DM-RETRY] effect fired', { partner: activeChat.partner, ownPublicKey: encodeBase64(keyPair.publicKey) });
     setMessages(prev => {
       let changed = false;
+      let attempted = 0, fixed = 0;
       const next = prev.map(m => {
         if (m.decryptedText !== ENCRYPTED_PLACEHOLDER || m.mediaType || !m.nonce) return m;
+        attempted++;
         try {
           let plain = null;
           if (m.isMe) {
@@ -1830,11 +1835,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
           }
           if (plain != null) {
             changed = true;
+            fixed++;
             return { ...m, decryptedText: plain };
           }
         } catch { /* still not decryptable with this key — leave the placeholder */ }
         return m;
       });
+      if (attempted > 0) {
+        // TEMPORARY DIAGNOSTIC — see above; remove together.
+        console.log('[DEBUG-DM-RETRY] result', { attempted, fixed, stillStuck: attempted - fixed });
+      }
       return changed ? next : prev;
     });
   }, [keyPair, activeChat?.partner, activeChat?.type]);
@@ -3748,6 +3758,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
 
 
     const handleNewMsg = (msg) => {
+      // TEMPORARY DIAGNOSTIC — remove once the intermittent "Encrypted
+      // message" DM issue and the wrong/missing group-chat avatar issue are
+      // both confirmed fixed. This is the RAW payload exactly as the server
+      // sent it, before any client-side processing — the ground truth for
+      // telling a server-side bug (wrong data sent) apart from a client
+      // rendering bug (right data, wrong display).
+      console.log('[DEBUG-RAW-MSG]', {
+        id: msg.id, type: msg.type, isGroup: !!(msg.type === 'group' || msg.type === 'room' || msg.roomId),
+        senderName: msg.senderName || msg.username, senderAvatar: msg.senderAvatar,
+        hasNonce: !!msg.nonce, hasEphemeralPublicKey: !!msg.ephemeralPublicKey,
+        hasSenderPublicKey: !!msg.senderPublicKey, hasE2ee: !!msg.e2ee, isMe: !!msg.isMe,
+      });
       // Standardize timestamp
       const msgTs = Number(msg.timestamp) || Date.now();
       msg.timestamp = msgTs;
@@ -3908,6 +3930,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
               }
             } else {
               const senderPK = msg.ephemeralPublicKey || msg.senderPublicKey || null;
+              // TEMPORARY DIAGNOSTIC — remove once the intermittent
+              // "Encrypted message" DM issue is confirmed fixed. Logs only
+              // metadata (ids, key presence/length, a boolean) — never
+              // plaintext, the raw ciphertext, or key material itself.
+              console.log('[DEBUG-DM-RECV]', {
+                msgId: msg.id, from: msg.senderName || msg.username,
+                haveOwnKey: !!activeKey,
+                ownPublicKey: activeKey ? encodeBase64(activeKey.publicKey) : null,
+                senderPKFromPayload: senderPK,
+                usedEphemeralPublicKey: !!msg.ephemeralPublicKey,
+                usedSenderPublicKeyFallback: !msg.ephemeralPublicKey && !!msg.senderPublicKey,
+                hasNonce: !!msg.nonce, hasCiphertext: !!msg.message,
+              });
               if (senderPK) {
                 if (msg.mediaType && msg.mediaUrl) {
                   // msg.message holds the ENCRYPTED MEDIA KEY (plus a caption,
@@ -3939,11 +3974,21 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 } else if (msg.message) {
                   const plain = decryptDM(msg.message, msg.nonce, senderPK, encodeBase64(activeKey.secretKey));
                   decryptedMessage = plain != null ? plain : ENCRYPTED_PLACEHOLDER;
+                  // TEMPORARY DIAGNOSTIC — see [DEBUG-DM-RECV] above; remove together.
+                  console.log('[DEBUG-DM-RECV] decrypt result', { msgId: msg.id, success: plain != null });
                 }
+              } else {
+                console.log('[DEBUG-DM-RECV] no senderPK at all — cannot even attempt decrypt', { msgId: msg.id });
               }
             }
           }
         } catch (e) { console.warn('[E2EE] Decryption failed', e); }
+      }
+      if (!isGroup && !isMine && msg.message && !activeKey) {
+        // TEMPORARY DIAGNOSTIC — see [DEBUG-DM-RECV] above; remove together.
+        // This is the specific "own key wasn't ready yet at arrival" case
+        // the retry effect near keyPairRef exists to fix.
+        console.log('[DEBUG-DM-RECV] activeKey was null at arrival — this message will show Encrypted message until the retry effect fires', { msgId: msg.id });
       }
       if (!isGroup && !msg.mediaType && !decryptedMessage && msg.message && (msg.nonce || msg.ephemeralPublicKey || msg.message.startsWith('Vs!') || (msg.message.length > 25 && !msg.message.includes(' ') && (msg.message.endsWith('=') || msg.message.includes('+') || msg.message.includes('/'))))) {
         // Most commonly reached with activeKey === null \u2014 this account's own
@@ -9078,6 +9123,21 @@ const GlobalChatWidget = React.memo(forwardRef(({
                            } catch (err) { console.error('[GCW] block-check failed, treating as not blocked', err); }
                            const sName = isBlocked ? 'User' : sNameOriginal;
                            const aSrc = isBlocked ? null : getAvatarUrl(msg.senderAvatar);
+                           // TEMPORARY DIAGNOSTIC — remove once the intermittent
+                           // wrong/missing group-chat avatar issue is confirmed
+                           // fixed. Logs exactly what this message's own row
+                           // received/computed — compare senderName/senderAvatar
+                           // across consecutive log lines to see whether the
+                           // SERVER ever sends one sender's name with another's
+                           // avatar (a backend bug) vs. the values being correct
+                           // here but a wrong avatar still painting on screen (a
+                           // React rendering/key-recycling bug instead).
+                           console.log('[DEBUG-AVATAR]', {
+                             renderIndex: i, msgId: msg.id, tempId: msg.tempId,
+                             reactKey: msg.tempId || msg.id || i,
+                             senderName: sNameOriginal, rawSenderAvatar: msg.senderAvatar,
+                             computedAvatarSrc: aSrc, chatType: activeChat?.type,
+                           });
                            return (
                              <div
                                onClick={(e) => {
