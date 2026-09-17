@@ -3676,9 +3676,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
         });
         fetchConversations();
       } else if (blockedLow === meLow) {
-        // Someone blocked/unblocked me
+        // Someone blocked/unblocked me — blockingMe holds THEIR usernames, so
+        // an unblock must filter out blockerLow (whoever unblocked me), not
+        // blockedLow (my own username, from the destructured event payload —
+        // never actually in this array). That mismatch meant this branch's
+        // filter never matched anything, so a formerly-blocking contact
+        // stayed stuck in blockingMe (and this chat kept showing "you were
+        // blocked by this person" instead of the normal friend-request UI)
+        // until a full page reload re-fetched it from scratch.
         setBlockingMe(prev => {
-          const next = isBlocked ? [...new Set([...prev, blocker])] : prev.filter(u => u.toLowerCase() !== blockedLow);
+          const next = isBlocked ? [...new Set([...prev, blocker])] : prev.filter(u => u.toLowerCase() !== blockerLow);
           localStorage.setItem(`blocking_me_${myUsername}`, JSON.stringify(next));
           return next;
         });

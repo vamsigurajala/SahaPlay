@@ -643,7 +643,10 @@ const Profile = () => {
   const fetchBlockedUsers = useCallback(() => {
     if (!token) return;
     setLoadingBlocked(true);
-    fetch(`${API}/api/blocks`, { headers: { 'Authorization': `Bearer ${token}` } })
+    // no-store: this list drives an account-safety UI (who can/can't reach
+    // you) — it must never come back from an intermediate HTTP cache right
+    // after a block/unblock elsewhere in the app.
+    fetch(`${API}/api/blocks`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' })
       .then(r => r.json())
       .then(data => {
         setBlockedUsers(data);
@@ -720,11 +723,14 @@ const Profile = () => {
     if (openSection === 'blockedUsers') {
       fetchBlockedUsers();
     }
-    const handleBlockedUpdate = () => {
-      if (openSection === 'blockedUsers') {
-        fetchBlockedUsers();
-      }
-    };
+    // Always refetch on a live block/unblock, not just while the accordion
+    // happens to already be open — GlobalChatWidget/RoomChatPanel dispatch
+    // this the instant their 'blocking_updated' socket event arrives (a
+    // block/unblock from ANY surface: chat, a profile page, another tab),
+    // and gating this on openSection meant blocking someone from chat while
+    // this section was collapsed left it stale until a full page reload,
+    // even after opening it — reopening alone doesn't re-run this effect.
+    const handleBlockedUpdate = () => fetchBlockedUsers();
     window.addEventListener('blocked_chats_updated', handleBlockedUpdate);
     return () => {
       window.removeEventListener('blocked_chats_updated', handleBlockedUpdate);
