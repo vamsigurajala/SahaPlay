@@ -7497,6 +7497,23 @@ function getSerializableRoom(room, roomId) {
     lastMediaSavedAt: room.lastMediaSavedAt || null,
     streamPending: room.streamPending || null,
     subtitles: room.subtitles || null,
+    streamInfo: (() => {
+      if (room.currentMedia && room.currentMedia.includes('/api/stream/')) {
+        const match = room.currentMedia.match(/\/api\/stream\/([^/]+)/);
+        if (match && activeStreams.has(match[1])) {
+          const s = activeStreams.get(match[1]);
+          return {
+            streamKey: match[1],
+            totalChunks: s.totalChunks,
+            chunksReceived: s.chunksReceived,
+            contiguousReceived: s.contiguousReceived,
+            totalSize: s.totalSize,
+            isComplete: s.chunksReceived >= s.totalChunks
+          };
+        }
+      }
+      return null;
+    })(),
     roomTheme: room.roomTheme || 'default',
     timerState: room.timerState || null,
     users: buildUserList(room)
@@ -7998,10 +8015,10 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
       const startChunk = Math.floor(start / CHUNK_SIZE);
 
       // Check if startChunk is on disk. If not yet received and upload is still active,
-      // poll up to 12s so slow networks don't trigger fatal 416 error.
-      const waitDeadline = Date.now() + 12000;
+      // poll up to 3s so slow networks have a chance without freezing playback for 12s.
+      const waitDeadline = Date.now() + 3000;
       while (!stream.receivedIndices?.has(startChunk) && stream.chunksReceived < stream.totalChunks && Date.now() < waitDeadline) {
-        await new Promise(r => setTimeout(r, 250));
+        await new Promise(r => setTimeout(r, 200));
       }
 
       if (!stream.receivedIndices?.has(startChunk)) {

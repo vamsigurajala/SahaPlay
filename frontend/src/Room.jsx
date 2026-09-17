@@ -1580,6 +1580,18 @@ const Room = () => {
   useEffect(() => {
     setIsStreamBuffering(!!(mediaUrl && (mediaUrl.includes('/api/stream/') || mediaUrl.startsWith('blob:'))));
   }, [mediaUrl]);
+
+  // Safety timeout: isStreamBuffering should never stay stuck permanently if
+  // playback begins, time advances, or if the player is paused.
+  useEffect(() => {
+    if (!isStreamBuffering) return;
+    const timer = setTimeout(() => {
+      if (!isPlaying || (localVideoRef.current && (localVideoRef.current.currentTime > 0 || localVideoRef.current.paused))) {
+        setIsStreamBuffering(false);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [isStreamBuffering, isPlaying]);
   const [bufferedSeconds, setBufferedSeconds] = useState(0);
   const lastPrepUrl = useRef('');
 
@@ -4234,9 +4246,24 @@ const Room = () => {
         setMediaUrl(state.currentMedia);
         const joinedItem = OPTIONS.find(o => o.url === state.currentMedia || (o.url && (state.currentMedia.includes(o.url) || o.url.includes(state.currentMedia))));
         setIsVirtualBrowserMedia(joinedItem?.type === 'placeholder');
-        // Set seek target SYNCHRONOUSLY so onLoadedMetadata can seek immediately
-        // (the 500ms timeout below runs after onLoadedMetadata fires, so it was too late)
-        if (state.currentTime > 0) prepTargetTimeRef.current = state.currentTime;
+        
+        const isStream = state.currentMedia.includes('/api/stream/') || state.currentMedia.startsWith('blob:');
+        let seekTarget = state.currentTime || 0;
+        if (isStream) {
+          if (state.streamInfo && !state.streamInfo.isComplete && state.streamInfo.totalChunks > 0) {
+            const availFraction = state.streamInfo.contiguousReceived / state.streamInfo.totalChunks;
+            if (availFraction < 0.95 && state.currentTime > 0 && state.streamInfo.contiguousReceived < 5) {
+              seekTarget = 0;
+            }
+          }
+          pendingStreamAutoPlayRef.current = {
+            time: seekTarget,
+            shouldPlay: !!state.isPlaying
+          };
+          prepTargetTimeRef.current = seekTarget;
+        } else if (state.currentTime > 0) {
+          prepTargetTimeRef.current = state.currentTime;
+        }
       } else {
         setMediaUrl('');
         setIsPlaying(false);
@@ -4326,9 +4353,18 @@ const Room = () => {
           playerRef.current.seekTo(state.currentTime, 'seconds');
         }
         if (localVideoRef.current && state.currentTime > 0 && drift(localVideoRef.current, localVideoRef.current.currentTime)) {
-          localVideoRef.current.currentTime = state.currentTime;
+          if (localVideoRef.current.readyState >= 1) {
+            localVideoRef.current.currentTime = state.currentTime;
+          }
         }
         setIsPlaying(state.isPlaying);
+        if (state.isPlaying && localVideoRef.current && localVideoRef.current.paused) {
+          localVideoRef.current.play().catch(() => {
+            localVideoRef.current.muted = true;
+            setPlayerMuted(true);
+            localVideoRef.current.play().catch(() => {});
+          });
+        }
       }, 500);
     });
 
@@ -5774,7 +5810,10 @@ const Room = () => {
       // the host's play/seek commands may arrive before the <video> element has
       // loaded metadata, so those commands get silently dropped. This ref lets
       // the viewer's onCanPlay callback reliably auto-seek + auto-play.
-      pendingStreamAutoPlayRef.current = data.currentTime || 0;
+      pendingStreamAutoPlayRef.current = {
+        time: data.currentTime || 0,
+        shouldPlay: true
+      };
       setMediaUrl(streamUrl);
       setIsPlaying(false);
       prepTargetTimeRef.current = data.currentTime || 0;
@@ -13069,34 +13108,59 @@ const Room = () => {
                                 setIsPlaying(false);
                               }}
                               onSeeked={(e) => {
+                                setIsStreamBuffering(false);
+                                if (isPlaying && localVideoRef.current && localVideoRef.current.paused) {
+                                  localVideoRef.current.play().catch(() => {});
+                                }
                                 if (!isEffectiveHost) return;
                                 if (Date.now() - lastExternalUpdate.current < 500) return;
                                 socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: e.target.currentTime });
                               }}
-                              onTimeUpdate={(e) => setCurrentTime(e.target.currentTime)}
+                              onTimeUpdate={(e) => {
+                                setCurrentTime(e.target.currentTime);
+                                if (isStreamBuffering) setIsStreamBuffering(false);
+                              }}
                               onDurationChange={(e) => setDuration(e.target.duration)}
                               onCanPlay={() => {
-                                console.log('[VIDEO] onCanPlay fired')
-                                setIsPreparing(false)
-                                setIsStreamBuffering(false)
-                                // Viewer auto-play: if stream_ready stored a pending
-                                // position, the <video> has now loaded enough data
-                                // to seek + play — do it now instead of hoping the
-                                // host's timed play/seek commands arrived at exactly
-                                // the right moment.
+                                console.log('[VIDEO] onCanPlay fired');
+                                setIsPreparing(false);
+                                setIsStreamBuffering(false);
+                                const el = localVideoRef.current;
+                                if (!el) return;
+
                                 if (pendingStreamAutoPlayRef.current !== null) {
-                                  const pos = pendingStreamAutoPlayRef.current;
+                                  const target = pendingStreamAutoPlayRef.current;
                                   pendingStreamAutoPlayRef.current = null;
-                                  const el = localVideoRef.current;
-                                  if (el) {
-                                    if (pos > 1) el.currentTime = pos;
-                                    el.play().catch(() => {
+                                  const pos = typeof target === 'object' ? (target.time || 0) : (target || 0);
+                                  const shouldPlay = typeof target === 'object' ? !!target.shouldPlay : true;
+
+                                  if (pos > 1 && Math.abs(el.currentTime - pos) > 1) {
+                                    try {
+                                      el.currentTime = pos;
+                                    } catch (err) {
+                                      console.warn('[VIDEO] seek error in onCanPlay:', err);
+                                    }
+                                  }
+                                  if (shouldPlay) {
+                                    el.play().then(() => {
+                                      setIsStreamBuffering(false);
+                                      setIsPlaying(true);
+                                    }).catch(() => {
                                       el.muted = true;
                                       setPlayerMuted(true);
-                                      el.play().catch(() => {});
+                                      el.play().then(() => {
+                                        setIsStreamBuffering(false);
+                                        setIsPlaying(true);
+                                        toast('Video muted to start playback — tap the volume icon to unmute', { icon: '🔇' });
+                                      }).catch(() => {});
                                     });
-                                    setIsPlaying(true);
                                   }
+                                } else if (isPlaying && el.paused) {
+                                  el.play().catch(() => {
+                                    el.muted = true;
+                                    setPlayerMuted(true);
+                                    el.play().catch(() => {});
+                                  });
                                 }
                               }}
                               onLoadStart={() => console.log('[VIDEO] onLoadStart')}
@@ -13105,8 +13169,11 @@ const Room = () => {
                                 e.target.volume = playerVolume;
                                 e.target.muted = playerMuted;
                                 if (prepTargetTimeRef.current > 0) {
-                                  e.target.currentTime = prepTargetTimeRef.current;
+                                  const target = prepTargetTimeRef.current;
                                   prepTargetTimeRef.current = 0;
+                                  if (!pendingStreamAutoPlayRef.current && target > 1) {
+                                    e.target.currentTime = target;
+                                  }
                                 }
                               }}
                               onLoadedData={() => console.log('[VIDEO] onLoadedData')}
@@ -13114,10 +13181,32 @@ const Room = () => {
                                 console.error('[VIDEO] onError:',
                                   e.target.error?.code,
                                   e.target.error?.message
-                                )
+                                );
+                                setIsStreamBuffering(false);
+                                if (localVideoRef.current && localVideoRef.current.currentTime > 0) {
+                                  console.warn('[VIDEO] Recovering from seek error by resetting to 0');
+                                  try {
+                                    localVideoRef.current.currentTime = 0;
+                                    if (isPlaying) {
+                                      localVideoRef.current.play().catch(() => {
+                                        localVideoRef.current.muted = true;
+                                        setPlayerMuted(true);
+                                        localVideoRef.current.play().catch(() => {});
+                                      });
+                                    }
+                                  } catch (_) {}
+                                }
                               }}
-                              onStalled={() => setIsStreamBuffering(true)}
-                              onWaiting={() => setIsStreamBuffering(true)}
+                              onStalled={() => {
+                                if (isPlaying || uploadState.isUploading) {
+                                  setIsStreamBuffering(true);
+                                }
+                              }}
+                              onWaiting={() => {
+                                if (isPlaying || uploadState.isUploading) {
+                                  setIsStreamBuffering(true);
+                                }
+                              }}
                               onPlaying={() => setIsStreamBuffering(false)}
                             />
                             {/* Custom subtitle overlay */}
@@ -13478,7 +13567,7 @@ const Room = () => {
                           for local streams, so without this a viewer catching up to the still-
                           uploading edge of the file saw the video silently freeze — this makes
                           clear it's still loading rather than looking broken. --- */}
-                      {isStreamBuffering && isLocalStream && !effectiveIsPreparing && (
+                      {isStreamBuffering && isLocalStream && !effectiveIsPreparing && (isPlaying || uploadState.isUploading) && (
                         <div style={{
                           position: 'absolute', inset: 0, zIndex: 1150,
                           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
