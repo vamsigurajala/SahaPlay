@@ -325,37 +325,67 @@ export function CryptoProvider({ children }) {
           clearSessionKey();
         }
         const secretKey = strictModeActive ? null : await loadKeyFromSession();
-        if (secretKey && secretKey.length === 32) {
-          const kp = nacl.box.keyPair.fromSecretKey(secretKey);
-          setKeyPairState(kp);
+        const sessionKp = (secretKey && secretKey.length === 32) ? nacl.box.keyPair.fromSecretKey(secretKey) : null;
+
+        // Fetch the server's current key status up front, whether or not a
+        // session key was found — a key cached in THIS tab's sessionStorage
+        // from before this account's server-side identity was rotated
+        // (password reset without a recovery key, or any future re-setup)
+        // must never be trusted just because it's present and well-formed.
+        // The old code only ever checked the server when sessionStorage was
+        // EMPTY, so a tab whose cached key silently fell behind the
+        // account's actual registered key kept using it forever — a page
+        // refresh reloads that exact same stale sessionStorage entry, never
+        // re-consulting the server, so nothing short of an explicit logout
+        // (which clears it) ever recovered. Confirmed live: after
+        // completing the passphrase-setup flow, another already-open tab
+        // for the same account kept its pre-reset key and could no longer
+        // decrypt anything encrypted against the new one, indefinitely.
+        const tkn = localStorage.getItem('watch_token');
+        let serverCheckOk = false;
+        let serverHasExistingKey = false;
+        let serverPublicKeyB64 = null;
+        if (tkn) {
+          try {
+            const res = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${tkn}` }, cache: 'no-store' });
+            if (res.ok) {
+              const data = await res.json();
+              serverHasExistingKey = !!(data.publicKey && data.encryptedPrivateKey);
+              serverPublicKeyB64 = data.publicKey || null;
+              serverCheckOk = true;
+            }
+          } catch (e) { console.warn('[CryptoContext] my-keys check failed:', e); }
+        }
+
+        // A network failure here must NOT force a re-auth prompt on every
+        // transient blip at app launch — same "couldn't ask, don't
+        // invalidate what's already known" policy dmKeyResolution.js uses
+        // for other users' keys, applied here to this account's own. Only a
+        // POSITIVE mismatch (the server confirms a different — or no —
+        // public key) discards the cached session key; "couldn't check"
+        // keeps using it exactly as before this fix.
+        if (sessionKp && (!serverCheckOk || (serverPublicKeyB64 && encodeBase64(sessionKp.publicKey) === serverPublicKeyB64))) {
+          setKeyPairState(sessionKp);
         } else {
-          // No LOCAL key found — this happens not just for brand-new accounts,
-          // but also for an EXISTING account on any device/tab that lost its
-          // sessionStorage (closing a mobile browser tab wipes it, even though
-          // the JWT in localStorage keeps the user "logged in" with no fresh
-          // password entry). Blindly generating a new keypair here — the old
-          // behavior — silently overwrites the account's ONE registered
-          // public key server-side, permanently breaking decryption of every
-          // message encrypted under the previous key, on every device,
-          // including this account's own past sent messages. Check the
-          // server first: if it already has a key for this account, this
+          if (sessionKp) {
+            console.warn('[CryptoContext] Cached session key no longer matches this account\'s server-registered public key — discarding it and re-establishing.');
+            clearSessionKey();
+          }
+          // No LOCAL key found (or the one found didn't match) — this
+          // happens not just for brand-new accounts, but also for an
+          // EXISTING account on any device/tab that lost its sessionStorage
+          // (closing a mobile browser tab wipes it, even though the JWT in
+          // localStorage keeps the user "logged in" with no fresh password
+          // entry), or whose cached key was just discarded above. Blindly
+          // generating a new keypair here — the old behavior — silently
+          // overwrites the account's ONE registered public key server-side,
+          // permanently breaking decryption of every message encrypted
+          // under the previous key, on every device, including this
+          // account's own past sent messages. serverCheckOk/
+          // serverHasExistingKey/serverPublicKeyB64 were already fetched
+          // above: if the server already has a key for this account, this
           // device needs the password to recover the SAME identity (via
           // reloadPrivateKeyWithPassword) instead of minting a new one.
-          const tkn = localStorage.getItem('watch_token');
-          let serverCheckOk = false;
-          let serverHasExistingKey = false;
-          let serverPublicKeyB64 = null;
-          if (tkn) {
-            try {
-              const res = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${tkn}` } });
-              if (res.ok) {
-                const data = await res.json();
-                serverHasExistingKey = !!(data.publicKey && data.encryptedPrivateKey);
-                serverPublicKeyB64 = data.publicKey || null;
-                serverCheckOk = true;
-              }
-            } catch (e) { console.warn('[CryptoContext] my-keys check failed:', e); }
-          }
 
           // A THROWN fetch (network failure, timeout, CORS, server down, etc.)
           // used to leave serverHasExistingKey at its default `false` and fall

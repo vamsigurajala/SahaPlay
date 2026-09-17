@@ -661,19 +661,63 @@ describe('CryptoContext strict "require fingerprint every open" mode', () => {
   });
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete window.Capacitor; });
 
-  test('OFF (default): a cached session key is used directly — no native call, no network call at all', async () => {
+  test('OFF (default): a cached session key matching the server is used directly — no native call, no passphrase/reauth prompt', async () => {
+    // The mount effect now always confirms a cached session key still
+    // matches the server's current public key (see CryptoContext.jsx's own
+    // comment on this — a stale cached key from before this account's
+    // identity rotated must never be trusted just because it's present),
+    // so a my-keys fetch DOES happen here; what must never happen is a
+    // native device-unlock attempt or a reauth prompt, since the cached key
+    // is confirmed still correct.
     await saveKeyToSession(REAL_KP.secretKey);
     const nativeUnlock = vi.fn();
     installNativePlugin({ unlockDeviceKey: nativeUnlock });
-    const fetchMock = vi.fn(async () => { throw new Error('should never fetch — a cached session key must short-circuit everything'); });
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<CryptoProvider><Probe /></CryptoProvider>);
 
     await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
     expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
     expect(nativeUnlock).not.toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('OFF (default): a cached session key that no longer matches the server is discarded — never silently used to send/receive under the wrong identity', async () => {
+    // Deliberately no installNativePlugin() — this test isolates the
+    // mismatch-discard behavior itself from the (separately covered, see
+    // the strict-mode ON tests below) native device-unlock restore path.
+    const staleKp = nacl.box.keyPair(); // simulates a key cached before this account's identity was rotated
+    await saveKeyToSession(staleKp.secretKey);
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const my = myKeysHandler(url); // returns REAL_PUB_B64 — different from staleKp's public key
+      if (my) return my;
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    }));
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    // Never fell back to the stale key just because one was cached.
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+  });
+
+  test('OFF (default): a network failure verifying a cached session key falls back to trusting it — never forces reauth on a transient blip', async () => {
+    await saveKeyToSession(REAL_KP.secretKey);
+    const nativeUnlock = vi.fn();
+    installNativePlugin({ unlockDeviceKey: nativeUnlock });
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
+    expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
+    expect(nativeUnlock).not.toHaveBeenCalled();
   });
 
   test('ON: a cached session key is discarded — device unlock (native) is used instead, and succeeds', async () => {
@@ -721,18 +765,22 @@ describe('CryptoContext strict "require fingerprint every open" mode', () => {
     expect(screen.getByTestId('keypair-state').textContent).toBe('null'); // never fell back to the discarded cached key
   });
 
-  test('ON but browser (no window.Capacitor): strict mode has no effect — a cached session key is still used directly, same as OFF', async () => {
+  test('ON but browser (no window.Capacitor): strict mode has no effect — a cached session key matching the server is still used directly, same as OFF', async () => {
     localStorage.setItem('watch_strict_device_unlock', 'true');
     await saveKeyToSession(REAL_KP.secretKey);
     // Deliberately no installNativePlugin() — window.Capacitor stays unset.
-    const fetchMock = vi.fn(async () => { throw new Error('should never fetch on browser with a cached session key'); });
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
     vi.stubGlobal('fetch', fetchMock);
 
     render(<CryptoProvider><Probe /></CryptoProvider>);
 
     await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
     expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
   });
 });
 
