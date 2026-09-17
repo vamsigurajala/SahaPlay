@@ -73,8 +73,26 @@ export function useVideoUpload({ socket, roomId, serverUrl }) {
         totalSize: file.size
       });
 
-      // Step 2: Upload chunks with retries per chunk
-      let nextIndex = 0;
+      // Step 2: Upload chunks with priority ordering and retries per chunk
+      // MP4 files may store their moov metadata atom at the very start (faststart)
+      // or at the very end of the file (standard camera/rip recordings).
+      // Prioritize chunk 0 (head) and chunk totalChunks - 1 (tail, plus totalChunks - 2 if large),
+      // so both header and footer metadata land on the server in the first ~3MB.
+      const queue = [];
+      queue.push(0);
+      if (totalChunks > 1) {
+        queue.push(totalChunks - 1);
+      }
+      if (totalChunks > 4) {
+        queue.push(totalChunks - 2);
+      }
+      for (let idx = 1; idx < totalChunks; idx++) {
+        if (!queue.includes(idx)) {
+          queue.push(idx);
+        }
+      }
+
+      let queuePos = 0;
       let completedCount = 0;
       let firstError = null;
       let stopped = false;
@@ -129,8 +147,8 @@ export function useVideoUpload({ socket, roomId, serverUrl }) {
 
       const worker = async () => {
         while (!abortRef.current && !stopped) {
-          const i = nextIndex++;
-          if (i >= totalChunks) return;
+          if (queuePos >= queue.length) return;
+          const i = queue[queuePos++];
           try {
             await uploadOne(i);
           } catch (err) {
@@ -160,17 +178,20 @@ export function useVideoUpload({ socket, roomId, serverUrl }) {
 
   const cancelUpload = useCallback(() => {
     abortRef.current = true;
-    setUploadState({
-      isUploading: false,
-      progress: 0,
-      filename: '',
-      streamKey: null,
-      error: null,
-      canPlay: false
+    setUploadState(prev => {
+      const keyToCancel = prev.streamKey;
+      if (socket && roomId) {
+        socket.emit('stream_cancelled', { roomId, streamKey: keyToCancel });
+      }
+      return {
+        isUploading: false,
+        progress: 0,
+        filename: '',
+        streamKey: null,
+        error: null,
+        canPlay: false
+      };
     });
-    if (socket && roomId) {
-      socket.emit('stream_cancelled', { roomId });
-    }
   }, [socket, roomId]);
 
   return { uploadState, uploadFile, cancelUpload };

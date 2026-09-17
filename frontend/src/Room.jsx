@@ -5723,8 +5723,12 @@ const Room = () => {
       });
     });
 
-    sock.on('stream_cancelled', () => {
-      setStreamPending(null);
+    sock.on('stream_cancelled', (data) => {
+      if (data?.streamKey) {
+        setStreamPending(prev => (prev?.streamKey === data.streamKey ? null : prev));
+      } else {
+        setStreamPending(null);
+      }
     });
 
     sock.on('stream_ready', (data) => {
@@ -8474,11 +8478,10 @@ const Room = () => {
     if (socket) {
       const rid = (roomId || '').toLowerCase();
       socket.emit('pause', { roomId: rid, currentTime: 0 });
-      socket.emit('media_stopped', { roomId: rid });
+      socket.emit('media_stopped', { roomId: rid, streamKey: uploadState.streamKey || undefined });
       socket.emit('change_media', { roomId: rid, mediaUrl: '' });
-      socket.emit('stream_cancelled', { roomId: rid });
     }
-  }, [socket, roomId, hbSessionId, hyperbeamSession, mediaUrl, isCamOn, isMicOnCam, cancelUpload]);
+  }, [socket, roomId, hbSessionId, hyperbeamSession, mediaUrl, isCamOn, isMicOnCam, cancelUpload, uploadState.streamKey]);
 
   const handleCast = () => {
     setShowCastDiscovery(true);
@@ -9034,10 +9037,20 @@ const Room = () => {
     // picks up playback the same way every other viewer already does, via
     // stream_ready once the server has enough of the upload on disk (see
     // the isTauriApp() effect below, which fills the same "Getting the
-    // video ready…" placeholder viewers see in the meantime).
-    // Create a local blob URL so the user who uploaded starts watching immediately
-    // on ALL platforms (.exe desktop, web browser, mobile), while background upload
-    // streams the file to the server and prepares progressive playback for other users.
+    // Clean up any previous upload or playback before starting new one
+    cancelUpload();
+    streamSyncTimersRef.current.forEach(clearTimeout);
+    streamSyncTimersRef.current = [];
+    pendingStreamAutoPlayRef.current = null;
+    setEarlyStreamReadyKey(null);
+    if (localVideoRef.current) {
+      try {
+        localVideoRef.current.pause();
+        localVideoRef.current.removeAttribute('src');
+        localVideoRef.current.load();
+      } catch (_) {}
+    }
+
     const localUrl = URL.createObjectURL(file);
     setMediaUrl(localUrl);
     setIsPlaying(true);
@@ -13458,7 +13471,7 @@ const Room = () => {
                           uploading a video and already playing it locally via
                           blob URL. Renders on top of the playing video so the
                           host knows the upload is still in progress. */}
-                      {uploadState.isUploading && isLocalStream && (
+                      {uploadState.isUploading && isLocalStream && ((uploadState.progress || 0) < 10) && (
                         <StreamUploadProgress uploadState={uploadState} onCancel={cancelUpload} />
                       )}
 

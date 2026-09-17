@@ -2,6 +2,8 @@ export default function StreamUploadProgress({ uploadState, onCancel }) {
   const { isUploading, progress, filename, error, canPlay } = uploadState;
 
   if (!isUploading && !error) return null;
+  // Automatically hide upload overlay once progress reaches 10% so it does not clutter the screen
+  if (progress >= 10 && !error) return null;
 
   return (
     <div style={{

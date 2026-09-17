@@ -7924,22 +7924,17 @@ app.post('/api/stream/:streamKey/chunk/:chunkIndex', authenticateTokenOptional, 
       room.streamPending.progress = progress;
     }
 
-    // Emit stream_ready as soon as a small initial buffer (2-4MB) is on disk,
-    // so viewers can start progressive playback almost immediately without waiting for
-    // large percentage thresholds that take too long on mobile connections.
+    // Emit stream_ready as soon as initial head buffer is ready AND tail chunk (for MP4 moov metadata)
+    // is present on disk, so viewers can initialize decoder and start playback almost immediately.
+    const hasHead = stream.contiguousReceived >= Math.min(2, stream.totalChunks);
+    const hasTail = stream.totalChunks <= 2 || (stream.receivedIndices && stream.receivedIndices.has(stream.totalChunks - 1));
     const readyThreshold = Math.min(stream.totalChunks, Math.max(2, Math.min(4, Math.ceil(stream.totalChunks * 0.02))));
-    // contiguousReceived, not newCount — the GET endpoint below can only
-    // safely serve a contiguous run of chunks from the start of the file,
-    // so "ready" has to mean that run is long enough, not just that this
-    // many chunks have landed somewhere.
-    if (!stream.readyEmitted && stream.contiguousReceived >= readyThreshold) {
+    const canEmitReady = (hasHead && hasTail) || (stream.contiguousReceived >= readyThreshold);
+
+    if (!stream.readyEmitted && canEmitReady) {
       stream.readyEmitted = true;
       if (room) {
         room.streamPending = null;
-        // Persist the playable URL now, not just at stream_finalize (full upload
-        // complete) — otherwise anyone who joins/reconnects between "ready" and
-        // "finalize" got an empty currentMedia in room_state and saw nothing at
-        // all until the entire (possibly multi-minute) upload finished.
         room.currentMedia = `${req.protocol}://${req.get('host')}/api/stream/${streamKey}/video`;
         room.currentTime = 0;
         room.isPlaying = false;
@@ -7984,26 +7979,6 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 
-    // Calculate bytes actually available on disk right now. Bounded by
-    // contiguousReceived (the longest unbroken run from chunk 0), NOT total
-    // chunks landed — chunks can arrive out of order now that the uploader
-    // sends them concurrently, and a still-missing chunk in the middle must
-    // block everything after it rather than being silently skipped over.
-    const computeAvailableBytes = async () => {
-      let bytes = 0;
-      for (let i = 0; i < stream.contiguousReceived; i++) {
-        const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
-        try {
-          const stats = await fs.promises.stat(chunkPath);
-          bytes += stats.size;
-        } catch (e) {
-          // Chunk not yet fully written or missing
-        }
-      }
-      return bytes;
-    };
-    let availableBytes = await computeAvailableBytes();
-
     res.setHeader('Content-Type', stream.mimetype);
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Content-Disposition', `inline; filename="${stream.filename}"`);
@@ -8015,30 +7990,39 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
       const parts = range.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
 
-      // A viewer's playback can legitimately catch up to the still-uploading edge
-      // of the file while the host's upload is in progress. Responding 416 here
-      // tells the browser's media stack "these bytes will never exist," which
-      // permanently kills that byte range instead of it being retried once the
-      // upload catches up — that's what made playback look stuck rather than
-      // just buffering. Hold the response open and poll for new chunks instead,
-      // so a slow/still-uploading host just looks like a slow network to the
-      // video element, which it recovers from natively once data arrives.
-      const waitDeadline = Date.now() + 15000;
-      while (start >= availableBytes && stream.contiguousReceived < stream.totalChunks && Date.now() < waitDeadline) {
-        await new Promise(r => setTimeout(r, 300));
-        availableBytes = await computeAvailableBytes();
-      }
-
-      if (start >= availableBytes) {
-        // Either the upload has genuinely finished (past EOF) or we've waited as
-        // long as we reasonably can — nothing left to do but report it.
+      if (isNaN(start) || start < 0 || start >= totalSize) {
         res.setHeader('Content-Range', `bytes */${totalSize}`);
         return res.status(416).end();
       }
 
-      // Cap end at what's available — don't promise bytes we don't have yet
-      const requestedEnd = parts[1] ? parseInt(parts[1], 10) : availableBytes - 1;
-      const end = Math.min(requestedEnd, availableBytes - 1);
+      const startChunk = Math.floor(start / CHUNK_SIZE);
+
+      // Check if startChunk is on disk. If not yet received and upload is still active,
+      // poll up to 12s so slow networks don't trigger fatal 416 error.
+      const waitDeadline = Date.now() + 12000;
+      while (!stream.receivedIndices?.has(startChunk) && stream.chunksReceived < stream.totalChunks && Date.now() < waitDeadline) {
+        await new Promise(r => setTimeout(r, 250));
+      }
+
+      if (!stream.receivedIndices?.has(startChunk)) {
+        res.setHeader('Content-Range', `bytes */${totalSize}`);
+        return res.status(416).end();
+      }
+
+      // Count consecutive chunks available starting from startChunk
+      let currChunk = startChunk;
+      while (currChunk < stream.totalChunks && stream.receivedIndices.has(currChunk)) {
+        currChunk++;
+      }
+      const maxAvailableByteForRange = Math.min(totalSize - 1, currChunk * CHUNK_SIZE - 1);
+
+      const requestedEnd = parts[1] ? parseInt(parts[1], 10) : maxAvailableByteForRange;
+      const end = Math.min(isNaN(requestedEnd) ? maxAvailableByteForRange : requestedEnd, maxAvailableByteForRange);
+      if (end < start) {
+        res.setHeader('Content-Range', `bytes */${totalSize}`);
+        return res.status(416).end();
+      }
+
       const chunkLen = end - start + 1;
 
       res.writeHead(206, {
@@ -8046,36 +8030,42 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
         'Content-Length': chunkLen,
       });
 
-      const startChunk = Math.floor(start / CHUNK_SIZE);
       const endChunk = Math.floor(end / CHUNK_SIZE);
       let bytesWritten = 0;
-      const totalToWrite = end - start + 1;
 
-      for (let i = startChunk; i <= endChunk && i < stream.contiguousReceived; i++) {
+      for (let i = startChunk; i <= endChunk; i++) {
         const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
+        let data;
         try {
-          await fs.promises.access(chunkPath);
+          data = await fs.promises.readFile(chunkPath);
         } catch {
           break;
         }
-
-        let data = await fs.promises.readFile(chunkPath);
 
         if (i === startChunk) {
           const offset = start - startChunk * CHUNK_SIZE;
           data = data.subarray(offset);
         }
 
-        const remaining = totalToWrite - bytesWritten;
+        const remaining = chunkLen - bytesWritten;
         if (data.length > remaining) data = data.subarray(0, remaining);
 
         res.write(data);
         bytesWritten += data.length;
-        if (bytesWritten >= totalToWrite) break;
+        if (bytesWritten >= chunkLen) break;
       }
       res.end();
     } else {
-      // No Range header — serve what's available so far
+      // No Range header — serve contiguous chunks received from chunk 0
+      let availableBytes = 0;
+      for (let i = 0; i < stream.contiguousReceived; i++) {
+        const chunkPath = path.join(streamDir, `chunk_${String(i).padStart(6, '0')}`);
+        try {
+          const stats = await fs.promises.stat(chunkPath);
+          availableBytes += stats.size;
+        } catch (_) {}
+      }
+
       res.setHeader('Content-Length', availableBytes);
       res.writeHead(200);
       for (let i = 0; i < stream.contiguousReceived; i++) {
@@ -8083,15 +8073,14 @@ app.get('/api/stream/:streamKey/:filename', async (req, res) => {
         try {
           const data = await fs.promises.readFile(chunkPath);
           res.write(data);
-        } catch (e) {
-          // Chunk missing
-        }
+        } catch (_) {}
       }
       res.end();
     }
   } catch (err) {
     console.error('[stream/video] error:', err);
-    res.status(500).end();
+    if (!res.headersSent) res.status(500).end();
+    else res.end();
   }
 });
 
@@ -8325,16 +8314,40 @@ io.on('connection', (socket) => {
 
   socket.on('stream_cancelled', (data) => {
     try {
-    if (!socket.username || !data?.roomId) return;
-    const rid = data.roomId.toLowerCase();
-    const room = rooms.get(rid);
-    if (!room) return;
-    // A8-F4: same privilege check as stream_started
-    const isHost = room.hostUsername && room.hostUsername.toLowerCase() === socket.username.toLowerCase();
-    const allUsersCanPlay = room.settings?.allUsersPlayerSettings;
-    if (!isHost && !allUsersCanPlay) return;
-    room.streamPending = null;
-    socket.to(rid).emit('stream_cancelled');
+      if (!socket.username || !data?.roomId) return;
+      const rid = data.roomId.toLowerCase();
+      const room = rooms.get(rid);
+      if (!room) return;
+      // A8-F4: same privilege check as stream_started
+      const isHost = room.hostUsername && room.hostUsername.toLowerCase() === socket.username.toLowerCase();
+      const allUsersCanPlay = room.settings?.allUsersPlayerSettings;
+      if (!isHost && !allUsersCanPlay) return;
+
+      const targetKey = data?.streamKey;
+      const now = Date.now();
+      if (targetKey) {
+        const stream = activeStreams.get(targetKey);
+        if (stream && stream.roomId === rid) {
+          activeStreams.delete(targetKey);
+          try { fs.rmSync(path.join(__dirname, 'uploads', 'streams', targetKey), { recursive: true, force: true }); } catch (_) {}
+        }
+        if (room.streamPending && room.streamPending.streamKey === targetKey) {
+          room.streamPending = null;
+          socket.to(rid).emit('stream_cancelled', { streamKey: targetKey });
+        }
+      } else {
+        // Untargeted cancellation: only cancel if stream is not brand new (< 1.5s) to avoid race conditions
+        if (room.streamPending) {
+          const stream = activeStreams.get(room.streamPending.streamKey);
+          if (!stream || (now - stream.createdAt >= 1500)) {
+            const key = room.streamPending.streamKey;
+            activeStreams.delete(key);
+            try { fs.rmSync(path.join(__dirname, 'uploads', 'streams', key), { recursive: true, force: true }); } catch (_) {}
+            room.streamPending = null;
+            socket.to(rid).emit('stream_cancelled');
+          }
+        }
+      }
     } catch (err) {
       console.error('[SOCKET] stream_cancelled error:', err.message, 'user:', socket.username);
     }
@@ -10190,19 +10203,29 @@ io.on('connection', (socket) => {
       room.currentMedia = '';
       room.currentTime = 0;
       room.isPlaying = false;
-      room.streamPending = null;
       room.subtitles = null;
       room.timestampUpdatedAt = Date.now();
+      const now = Date.now();
       for (const [key, stream] of activeStreams.entries()) {
         if (stream.roomId === roomId) {
-          activeStreams.delete(key);
-          try { fs.rmSync(path.join(__dirname, 'uploads', 'streams', key), { recursive: true, force: true }); } catch (_) {}
+          if (now - stream.createdAt >= 1500) {
+            activeStreams.delete(key);
+            try { fs.rmSync(path.join(__dirname, 'uploads', 'streams', key), { recursive: true, force: true }); } catch (_) {}
+          }
+        }
+      }
+      if (room.streamPending) {
+        const stream = activeStreams.get(room.streamPending.streamKey);
+        if (!stream || (now - stream.createdAt >= 1500)) {
+          room.streamPending = null;
         }
       }
       io.in(roomId).emit('action_pause', 0);
       io.in(roomId).emit('media_stopped');
       io.in(roomId).emit('media_changed', '');
-      io.in(roomId).emit('stream_cancelled');
+      if (!room.streamPending) {
+        io.in(roomId).emit('stream_cancelled');
+      }
       io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
       return;
     }
@@ -10217,7 +10240,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('media_stopped', ({ roomId: rawRoomId }) => {
+  socket.on('media_stopped', ({ roomId: rawRoomId, streamKey: targetStreamKey }) => {
     try {
       const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
       if (!roomId || !rooms.has(roomId)) return;
@@ -10225,19 +10248,41 @@ io.on('connection', (socket) => {
       room.currentMedia = '';
       room.currentTime = 0;
       room.isPlaying = false;
-      room.streamPending = null;
       room.subtitles = null;
       room.timestampUpdatedAt = Date.now();
+      const now = Date.now();
       for (const [key, stream] of activeStreams.entries()) {
         if (stream.roomId === roomId) {
-          activeStreams.delete(key);
-          try { fs.rmSync(path.join(__dirname, 'uploads', 'streams', key), { recursive: true, force: true }); } catch (_) {}
+          if (targetStreamKey) {
+            if (targetStreamKey === key) {
+              activeStreams.delete(key);
+              try { fs.rmSync(path.join(__dirname, 'uploads', 'streams', key), { recursive: true, force: true }); } catch (_) {}
+            }
+          } else {
+            // Protect brand-new uploads (< 1.5s) from race conditions
+            if (now - stream.createdAt >= 1500) {
+              activeStreams.delete(key);
+              try { fs.rmSync(path.join(__dirname, 'uploads', 'streams', key), { recursive: true, force: true }); } catch (_) {}
+            }
+          }
+        }
+      }
+      if (room.streamPending) {
+        const stream = activeStreams.get(room.streamPending.streamKey);
+        if (targetStreamKey) {
+          if (room.streamPending.streamKey === targetStreamKey) {
+            room.streamPending = null;
+          }
+        } else if (!stream || (now - stream.createdAt >= 1500)) {
+          room.streamPending = null;
         }
       }
       io.in(roomId).emit('action_pause', 0);
       io.in(roomId).emit('media_stopped');
       io.in(roomId).emit('media_changed', '');
-      io.in(roomId).emit('stream_cancelled');
+      if (!room.streamPending) {
+        io.in(roomId).emit('stream_cancelled');
+      }
       io.in(roomId).emit('room_state', getSerializableRoom(room, roomId));
     } catch (err) {
       console.error('[SOCKET] media_stopped error:', err.message);
