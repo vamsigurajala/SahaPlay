@@ -194,14 +194,30 @@ export default function CameraCapture({ onCapture, onClose }) {
   // pickFromGallery's onChange fires, but some WebView/picker combos never
   // fire `change` at all if the user backs out of the picker without
   // choosing anything — without this, that flag could stay stuck true and
-  // permanently swallow every future close gesture on this screen. The app
-  // regaining focus is the reliable "the native picker Activity is gone"
-  // signal either way; a short delay avoids racing pickFromGallery's own
-  // clear when a file WAS actually picked.
+  // permanently swallow every future close gesture on this screen.
+  //
+  // `focus` is NOT a one-shot "the picker is gone" signal — the picker
+  // Activity covering/uncovering the WebView during its own transitions
+  // (opening, switching between its own screens, the multi-select "Done"
+  // step) can fire it more than once DURING a single still-in-progress
+  // pick, not just once at the very end. The previous version armed a
+  // single 600ms timer on the FIRST focus event, which could win the race
+  // and clear the guard while the user was still inside the picker
+  // choosing/confirming — a stray pop landing in that now-unguarded window
+  // then ran backToCamera() and silently threw away the in-progress pick,
+  // confirmed live as "select a photo, tap Done, it reverts to the camera
+  // and asks you to pick again." Debouncing instead — restarting the timer
+  // on every focus event — means the guard only actually clears once focus
+  // has been quiet for a full second, which a genuine "picker is closed for
+  // good" only satisfies once, well after its last internal transition.
   useEffect(() => {
-    const onFocus = () => { setTimeout(() => { awaitingGalleryPickRef.current = false; }, 600); };
+    let timer = null;
+    const onFocus = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { awaitingGalleryPickRef.current = false; }, 1000);
+    };
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    return () => { window.removeEventListener('focus', onFocus); clearTimeout(timer); };
   }, []);
 
   // Discards whatever was captured/picked and returns to the live camera —

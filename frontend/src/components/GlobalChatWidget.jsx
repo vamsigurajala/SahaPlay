@@ -3662,10 +3662,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
     sock.on('blocking_updated', ({ blocker, blocked, isBlocked }) => {
       const myUsername = localStorage.getItem('watch_username');
       if (!myUsername) return;
-      
+
       const blockerLow = blocker.toLowerCase();
       const blockedLow = blocked.toLowerCase();
       const meLow = myUsername.toLowerCase();
+
+      // Blocking deletes the follow relationship both ways server-side (see
+      // /api/block/:username), so any /api/users/:username response cached
+      // by appCache for either party is now describing a stale relationship —
+      // same treatment handleFollowEvent below already gives an accept/
+      // reject, since this changes the exact same follow-based data.
+      appCache.invalidatePrefix(`/api/users/${blockerLow}`);
+      appCache.invalidatePrefix(`/api/users/${blockedLow}`);
 
       if (blockerLow === meLow) {
         // I blocked/unblocked someone
@@ -5937,6 +5945,21 @@ const GlobalChatWidget = React.memo(forwardRef(({
         if (tempId) setMessages(prev => prev.filter(m => m.id !== tempId));
         if (previousConversations) setConversations(previousConversations);
         setInputValue(rawText);
+        // The server's mutual-friendship check is the one truly authoritative
+        // source here — this client's own activeRelation can be stale (e.g.
+        // this chat was already open through a block/unblock cycle and never
+        // re-synced), which is exactly why the input was showing at all when
+        // the server went on to reject the send. Rather than leave the UI
+        // looking like nothing happened (still showing the input, ready for
+        // another doomed attempt), fold the rejection straight into
+        // activeRelation immediately, then confirm it with a real refetch.
+        if (activeChat.type === 'private' && resp.status === 403 && /mutual friends/i.test(err.error || '')) {
+          setActiveRelation({ followStatus: null, isFollowingMe: false });
+          fetch(`${API}/api/users/${activeChat.partner}`, { headers: { 'Authorization': `Bearer ${token}` }, cache: 'no-store' })
+            .then(res => res.json())
+            .then(d => setActiveRelation(d))
+            .catch(() => {});
+        }
       }
     } catch(e) {
       console.error(e);
