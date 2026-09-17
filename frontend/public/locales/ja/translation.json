@@ -1849,6 +1849,7 @@
   "dismiss": "閉じる",
   "expiryBannerOne": "このチャットのファイル1件が24時間以内に期限切れになります。消える前にダウンロードしてください。",
   "expiryBannerMany": "このチャットの{{count}}件のファイルが24時間以内に期限切れになります。消える前にダウンロードしてください。",
+  "keyResetSyncBanner": "暗号化キーをリセットしました。相手のアプリが追いつくまで、他の人からのメッセージが一時的に「Encrypted message」と表示されることがあります。数分待ってから、解消しない場合は再読み込みしてください。",
   "chatThemeDefault": "デフォルト",
   "chatThemeOcean": "オーシャン",
   "chatThemeBerry": "ベリー",

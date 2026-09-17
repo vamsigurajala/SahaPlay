@@ -1849,6 +1849,7 @@
   "dismiss": "Schließen",
   "expiryBannerOne": "Eine Datei in diesem Chat läuft innerhalb von 24 Stunden ab. Lade sie herunter, bevor sie weg ist.",
   "expiryBannerMany": "{{count}} Dateien in diesem Chat laufen innerhalb von 24 Stunden ab. Lade sie herunter, bevor sie weg sind.",
+  "keyResetSyncBanner": "Du hast gerade deinen Verschlüsselungsschlüssel zurückgesetzt. Nachrichten von anderen können kurzzeitig als \"Encrypted message\" angezeigt werden, bis ihre Apps aufgeholt haben — warte ein paar Minuten und lade die Seite neu, falls es nicht von selbst verschwindet.",
   "chatThemeDefault": "Standard",
   "chatThemeOcean": "Ozean",
   "chatThemeBerry": "Beere",

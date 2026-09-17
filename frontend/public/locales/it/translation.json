@@ -1851,6 +1851,7 @@
   "dismiss": "Ignora",
   "expiryBannerOne": "1 file in questa chat scade entro 24 ore. Scaricalo prima che scompaia.",
   "expiryBannerMany": "{{count}} file in questa chat scadono entro 24 ore. Scaricali prima che scompaiano.",
+  "keyResetSyncBanner": "Hai appena reimpostato la tua chiave di crittografia. I messaggi degli altri potrebbero apparire brevemente come \"Encrypted message\" finché le loro app non si aggiornano — attendi qualche minuto e ricarica se il problema persiste.",
   "chatThemeDefault": "Predefinito",
   "chatThemeOcean": "Oceano",
   "chatThemeBerry": "Bacca",

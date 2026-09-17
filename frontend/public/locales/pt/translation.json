@@ -1851,6 +1851,7 @@
   "dismiss": "Dispensar",
   "expiryBannerOne": "1 arquivo neste chat expira em 24 horas. Baixe antes que ele desapareça.",
   "expiryBannerMany": "{{count}} arquivos neste chat expiram em 24 horas. Baixe-os antes que desapareçam.",
+  "keyResetSyncBanner": "Você acabou de redefinir sua chave de criptografia. As mensagens de outras pessoas podem aparecer brevemente como \"Encrypted message\" enquanto os apps delas se atualizam — aguarde alguns minutos e recarregue se não resolver.",
   "chatThemeDefault": "Padrão",
   "chatThemeOcean": "Oceano",
   "chatThemeBerry": "Amora",

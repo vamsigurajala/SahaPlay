@@ -1849,6 +1849,7 @@
   "dismiss": "关闭",
   "expiryBannerOne": "此聊天中有1个文件将在24小时内过期，请在其消失前下载。",
   "expiryBannerMany": "此聊天中有{{count}}个文件将在24小时内过期，请在它们消失前下载。",
+  "keyResetSyncBanner": "您刚刚重置了加密密钥。在对方的应用同步之前，其他人发来的消息可能会短暂显示为\"Encrypted message\"——请稍等几分钟，如果仍未恢复，请重新加载。",
   "chatThemeDefault": "默认",
   "chatThemeOcean": "海洋",
   "chatThemeBerry": "浆果",

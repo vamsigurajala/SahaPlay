@@ -1849,6 +1849,7 @@
   "dismiss": "Descartar",
   "expiryBannerOne": "1 archivo de este chat caduca en 24 horas. Descárgalo antes de que desaparezca.",
   "expiryBannerMany": "{{count}} archivos de este chat caducan en 24 horas. Descárgalos antes de que desaparezcan.",
+  "keyResetSyncBanner": "Acabas de restablecer tu clave de cifrado. Los mensajes de otras personas pueden aparecer brevemente como \"Encrypted message\" mientras sus apps se ponen al día — espera unos minutos y recarga si no se soluciona.",
   "chatThemeDefault": "Predeterminado",
   "chatThemeOcean": "Océano",
   "chatThemeBerry": "Baya",

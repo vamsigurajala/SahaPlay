@@ -33,6 +33,7 @@ export default function KeyResetSyncBanner({ isLight, onGotIt }) {
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button
           onClick={onGotIt}
+          className="stay-white"
           style={{ background: 'var(--brand-1)', border: 'none', color: '#fff', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
         >
           {t('gotIt', 'Got it')}

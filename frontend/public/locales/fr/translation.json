@@ -1849,6 +1849,7 @@
   "dismiss": "Ignorer",
   "expiryBannerOne": "1 fichier de cette discussion expire dans 24 heures. Téléchargez-le avant qu'il ne disparaisse.",
   "expiryBannerMany": "{{count}} fichiers de cette discussion expirent dans 24 heures. Téléchargez-les avant qu'ils ne disparaissent.",
+  "keyResetSyncBanner": "Vous venez de réinitialiser votre clé de chiffrement. Les messages des autres peuvent brièvement s'afficher comme \"Encrypted message\" le temps que leurs applications se mettent à jour — patientez quelques minutes, puis rechargez si le problème persiste.",
   "chatThemeDefault": "Par défaut",
   "chatThemeOcean": "Océan",
   "chatThemeBerry": "Baie",

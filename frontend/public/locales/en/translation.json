@@ -1807,6 +1807,7 @@
   "dismiss": "Dismiss",
   "expiryBannerOne": "1 file in this chat expires within 24 hours. Download it before it's gone.",
   "expiryBannerMany": "{{count}} files in this chat expire within 24 hours. Download them before they're gone.",
+  "keyResetSyncBanner": "You just reset your encryption key. Messages from others may briefly show as \"Encrypted message\" while their apps catch up — give it a few minutes, then reload if it hasn't cleared up.",
   "chatThemeDefault": "Default",
   "chatThemeOcean": "Ocean",
   "chatThemeBerry": "Berry",
