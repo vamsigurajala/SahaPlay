@@ -51,6 +51,13 @@ windows = { version = "0.58", features = [
     "Win32_System_WinRT",
     "Security_Credentials_UI",
     "Foundation",
+    # WinHTTP: synchronous, no-new-dependency way to fetch a sender's avatar
+    # image before building a toast (see show_windows_toast's icon_url
+    # handling) — TLS is handled by the OS's own Schannel, so this avoids
+    # pulling in a full HTTP client crate (reqwest/ureq) and its TLS stack
+    # just for one small image fetch, keeping this crate's compile time
+    # where the [profile.release] comment above says it needs to stay.
+    "Win32_Networking_WinHttp",
 ] }
 # p256/base64: a Rust port of DeviceAssertionVerifier.java's ES256
 # (ECDSA P-256 + SHA-256, DER-encoded signature) verification — the same

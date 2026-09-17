@@ -154,7 +154,7 @@ async function isTauriWindowActuallyOnScreen() {
   }
 }
 
-function showTauriToast(title, body, tag, data) {
+function showTauriToast(title, body, tag, data, avatarUrl) {
   ensureTauriToastBridge();
   import('@tauri-apps/api/core').then(({ invoke }) => {
     invoke('show_windows_toast', {
@@ -162,11 +162,15 @@ function showTauriToast(title, body, tag, data) {
       body,
       tag: tag || 'sahaplay',
       launchData: data ? JSON.stringify(data) : null,
+      // Rust side downloads this (WinRT toasts need a local file, not a
+      // remote URL — see show_windows_toast's own comment) and falls back
+      // to no per-message icon if the fetch fails; never blocks the toast.
+      iconUrl: avatarUrl || null,
     }).catch((e) => console.error('[desktopNotify] show_windows_toast invoke failed', e));
   }).catch((e) => console.error('[desktopNotify] @tauri-apps/api/core failed to load', e));
 }
 
-function buildBrowserNotification(title, body, tag, data) {
+function buildBrowserNotification(title, body, tag, data, avatarUrl) {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     console.error('[desktopNotify] Notification API unavailable in this webview');
     return null;
@@ -176,7 +180,7 @@ function buildBrowserNotification(title, body, tag, data) {
     return null;
   }
   try {
-    const n = new Notification(title, { body, icon: '/logos/trans_appletouch.png', tag });
+    const n = new Notification(title, { body, icon: avatarUrl || '/logos/trans_appletouch.png', tag });
     n.onclick = () => { try { window.focus(); } catch {} n.close(); dispatchChatOpenFromNotification(data); };
     n.onerror = (e) => console.error('[desktopNotify] Notification errored', e);
     return n;
@@ -205,20 +209,20 @@ function buildBrowserNotification(title, body, tag, data) {
 // should produce a real Windows toast. Deliberately NOT applied to the
 // window-focus check right below — that one is "is the app on-screen at
 // all," which stays exactly as it was.
-export function showDesktopNotification(title, body, tag, data, skipIfChatOpen = false) {
+export function showDesktopNotification(title, body, tag, data, skipIfChatOpen = false, avatarUrl = null) {
   if (isCapacitorApp()) return;
   if (typeof document === 'undefined') return;
   if (isTauriApp()) {
     if (skipIfChatOpen) return null;
     isTauriWindowActuallyOnScreen().then((onScreen) => {
-      if (!onScreen) showTauriToast(title, body, tag, data);
+      if (!onScreen) showTauriToast(title, body, tag, data, avatarUrl);
     });
     return null;
   }
   // Window/tab is visible AND focused — an in-page UI already covers this;
   // showing an OS notification too would just be a redundant duplicate.
   if (!document.hidden && document.hasFocus()) return;
-  return buildBrowserNotification(title, body, tag, data);
+  return buildBrowserNotification(title, body, tag, data, avatarUrl);
 }
 
 // Settings screen's "Send a test notification" button — deliberately skips

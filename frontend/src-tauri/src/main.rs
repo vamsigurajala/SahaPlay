@@ -7,10 +7,125 @@ use tauri::{
     tray::TrayIconBuilder,
     AppHandle, Emitter, Manager, WindowEvent,
 };
-use tauri_winrt_notification::Toast;
+use tauri_winrt_notification::{IconCrop, Toast};
+use windows::core::{HSTRING, PCWSTR};
+use windows::Win32::Networking::WinHttp::{
+    WinHttpCloseHandle, WinHttpConnect, WinHttpOpen, WinHttpOpenRequest, WinHttpQueryDataAvailable,
+    WinHttpReadData, WinHttpReceiveResponse, WinHttpSendRequest, WINHTTP_ACCESS_TYPE_NO_PROXY,
+    WINHTTP_FLAG_SECURE,
+};
 
 mod device_assertion;
 mod device_unlock;
+
+// Best-effort synchronous HTTPS GET via WinHTTP (TLS handled by the OS's own
+// Schannel — see the windows-features comment in Cargo.toml for why this is
+// used instead of pulling in a whole HTTP client crate). Only ever called
+// with this app's own avatar CDN URLs (never arbitrary user input), so the
+// naive "https://" + first "/" split below is safe — no need for a real URL
+// parser here.
+unsafe fn download_https(url: &str) -> Option<Vec<u8>> {
+    let rest = url.strip_prefix("https://")?;
+    let (host, path) = match rest.find('/') {
+        Some(i) => (&rest[..i], &rest[i..]),
+        None => (rest, "/"),
+    };
+    if host.is_empty() {
+        return None;
+    }
+
+    let session = WinHttpOpen(&HSTRING::from("SahaPlay-Desktop/1.0"), WINHTTP_ACCESS_TYPE_NO_PROXY, PCWSTR::null(), PCWSTR::null(), 0);
+    if session.is_null() {
+        return None;
+    }
+    let connect = WinHttpConnect(session, &HSTRING::from(host), 443, 0);
+    if connect.is_null() {
+        let _ = WinHttpCloseHandle(session);
+        return None;
+    }
+    let request = WinHttpOpenRequest(
+        connect,
+        &HSTRING::from("GET"),
+        &HSTRING::from(path),
+        PCWSTR::null(),
+        PCWSTR::null(),
+        std::ptr::null(),
+        WINHTTP_FLAG_SECURE,
+    );
+    if request.is_null() {
+        let _ = WinHttpCloseHandle(connect);
+        let _ = WinHttpCloseHandle(session);
+        return None;
+    }
+
+    let result = (|| -> windows::core::Result<Vec<u8>> {
+        WinHttpSendRequest(request, None, None, 0, 0, 0)?;
+        WinHttpReceiveResponse(request, std::ptr::null_mut())?;
+        let mut buf = Vec::new();
+        loop {
+            let mut avail: u32 = 0;
+            WinHttpQueryDataAvailable(request, &mut avail)?;
+            if avail == 0 {
+                break;
+            }
+            let mut chunk = vec![0u8; avail as usize];
+            let mut read: u32 = 0;
+            WinHttpReadData(request, chunk.as_mut_ptr() as *mut core::ffi::c_void, avail, &mut read)?;
+            chunk.truncate(read as usize);
+            if chunk.is_empty() {
+                break;
+            }
+            buf.extend_from_slice(&chunk);
+        }
+        Ok(buf)
+    })();
+
+    let _ = WinHttpCloseHandle(request);
+    let _ = WinHttpCloseHandle(connect);
+    let _ = WinHttpCloseHandle(session);
+
+    match result {
+        Ok(bytes) if !bytes.is_empty() => Some(bytes),
+        _ => None,
+    }
+}
+
+// Sniffs the actual image format from its magic bytes rather than trusting
+// the source URL's extension (this app's avatar CDN URLs aren't guaranteed
+// to carry one) — the toast image file needs a real, matching extension for
+// Windows to decode it.
+fn sniff_image_ext(bytes: &[u8]) -> &'static str {
+    if bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+        "png"
+    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        "jpg"
+    } else if bytes.len() > 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        "webp"
+    } else if bytes.starts_with(b"GIF8") {
+        "gif"
+    } else {
+        "png"
+    }
+}
+
+// Downloads a sender's avatar and caches it locally under a filename keyed
+// by `tag` (the same per-conversation tag show_windows_toast already uses,
+// e.g. the partner/room id) — so a second notification from the same
+// conversation just overwrites the same file instead of accumulating one
+// file per notification forever, and naturally picks up a changed avatar on
+// the next message. WinRT toast images require a local file (see
+// tauri-winrt-notification's `icon()`, which always wraps the path in
+// `file:///`) — a remote URL can't be used directly here.
+fn cache_avatar_icon(app: &AppHandle, tag: &str, url: &str) -> Option<std::path::PathBuf> {
+    let bytes = unsafe { download_https(url) }?;
+    let ext = sniff_image_ext(&bytes);
+    let dir = app.path().app_cache_dir().ok()?;
+    std::fs::create_dir_all(&dir).ok()?;
+    let safe_tag: String = tag.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
+    let path = dir.join(format!("notif_avatar_{safe_tag}.{ext}"));
+    std::fs::write(&path, &bytes).ok()?;
+    Some(path)
+}
 
 // Appends one line to <app log dir>/notify-debug.log — a diagnostic channel
 // that survives even if the JS side never sees the desktop_toast_result
@@ -58,16 +173,27 @@ fn log_toast_attempt(app: &AppHandle, line: &str) {
 // so there's nothing for Windows to hand back on activation; the closure
 // already has what it needs.
 #[tauri::command]
-fn show_windows_toast(app: AppHandle, title: String, body: String, tag: String, launch_data: Option<String>) {
+fn show_windows_toast(app: AppHandle, title: String, body: String, tag: String, launch_data: Option<String>, icon_url: Option<String>) {
     let identifier = app.config().identifier.clone();
     let result_handle = app.clone();
     let log_handle = app.clone();
     let activate_handle = app.clone();
+    let icon_handle = app.clone();
+    let icon_tag = tag.clone();
 
     tauri::async_runtime::spawn(async move {
-        let toast = Toast::new(&identifier)
+        // Best-effort: a failed/slow download just means the toast falls
+        // back to no per-message icon (the app's own default icon is still
+        // shown by Windows) rather than delaying or failing the toast.
+        let icon_path = icon_url.and_then(|u| cache_avatar_icon(&icon_handle, &icon_tag, &u));
+
+        let mut toast = Toast::new(&identifier)
             .title(&title)
-            .text1(&body)
+            .text1(&body);
+        if let Some(path) = icon_path.as_deref() {
+            toast = toast.icon(path, IconCrop::Circular, "avatar");
+        }
+        let toast = toast
             .on_activated(move |_arg| {
                 if let Some(window) = activate_handle.get_webview_window("main") {
                     let _ = window.unminimize();

@@ -4282,7 +4282,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
               // stricter than skipToast) — stay silent instead of also
               // popping a Windows toast for a message the user can already
               // see live in that panel.
-              showDesktopNotification(isGroup ? groupName : msgSender, notifBody, partnerLower, { chatId: partner, type: isGroup ? 'room' : 'dm' }, isTauriApp() && skipDesktopNotif);
+              // Sender's avatar (not the group's — a group has none of its own,
+              // same distinction the conversation-list avatar logic already
+              // makes) shown as the notification icon on browser/.exe.
+              showDesktopNotification(isGroup ? groupName : msgSender, notifBody, partnerLower, { chatId: partner, type: isGroup ? 'room' : 'dm' }, isTauriApp() && skipDesktopNotif, getAvatarUrl(msg.senderAvatar));
             }
           }
         }
@@ -6467,9 +6470,22 @@ const GlobalChatWidget = React.memo(forwardRef(({
       // `fullUrl` points to the AES-GCM encrypted binary on the server — the browser
       // cannot render it as an image/video. Keep the local blob so the sender sees their
       // media immediately. The recipient's side decrypts asynchronously in handleNewMsg.
+      // Also stamp the encrypted payload onto the optimistic entry itself —
+      // without this, editing the caption before the chat is reopened (the
+      // only other place these fields get populated, via a fresh history
+      // fetch) finds target.e2ee/senderMessage/nonce undefined and can't
+      // recover the media key to re-pack, so commitEditedText refuses the
+      // edit with "Couldn't verify this media's encryption key".
       setMessages(prev => prev.map(m =>
         m.id === optimisticMsg.id
-          ? { ...m, mediaType: file.type, _isOptimistic: false }   // keep mediaUrl = objectUrl (blob)
+          ? {
+              ...m, mediaType: file.type, _isOptimistic: false,   // keep mediaUrl = objectUrl (blob)
+              message: isEncrypted ? messagePayload : '',
+              senderMessage: senderMessagePayload,
+              nonce: mediaNonce,
+              ephemeralPublicKey: mediaEphemeral,
+              e2ee: e2eeKeysGroup ? { keys: e2eeKeysGroup, nonce: mediaNonce, senderPublicKey: mediaEphemeral } : undefined,
+            }
           : m
       ));
 

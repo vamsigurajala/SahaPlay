@@ -7738,6 +7738,21 @@ const Room = () => {
         console.log('[CLIENT UPLOAD] Success:', uploadData);
         if (!uploadData.url) throw new Error('Upload returned no URL');
         finalUrl = resolveMediaUrl(uploadData.url, SOCKET_SERVER_URL);
+
+        // Stamp the encrypted payload onto the optimistic entry itself — without
+        // this, editing the caption before the room is reopened (which is the only
+        // other place e2ee/message get populated, via a fresh history fetch) finds
+        // target.e2ee undefined and can't recover the media key to re-pack, so the
+        // edit is refused with "Couldn't verify this media's encryption key".
+        setGroupMessages(prev => {
+          const next = prev.map(m => m.tempId === tempId ? {
+            ...m,
+            message: encryptedPayload.ciphertext,
+            e2ee: { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) }
+          } : m);
+          groupMessagesRef.current = next;
+          return next;
+        });
       } catch (err) {
         console.error('[MEDIA] Error:', err);
         const msg = (err.message || '').toLowerCase();
@@ -8300,6 +8315,19 @@ const Room = () => {
         finalUrl         = enc.ciphertext; // encrypted URL in mediaUrl
         isEncrypted      = true;
       }
+
+      // Stamp the encrypted payload onto the optimistic entry — same fix as the
+      // group path above: without this, editing the caption before the chat is
+      // reopened finds target.senderMessage/nonce/ephemeralPublicKey undefined
+      // and can't recover the media key, so the edit is refused.
+      setDmThreads(prev => {
+        const next = { ...prev };
+        const key = dmTarget.toLowerCase();
+        if (next[key]) {
+          next[key] = next[key].map(m => m.tempId === tempId ? { ...m, message: messagePayload, senderMessage: senderMsgPayload, nonce: nonceVal, ephemeralPublicKey: ephKeyVal } : m);
+        }
+        return next;
+      });
 
       const res = await fetch(`${SOCKET_SERVER_URL}/api/chats/send`, {
         method: 'POST',
