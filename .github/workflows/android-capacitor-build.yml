@@ -189,6 +189,45 @@ jobs:
           cat android/variables.gradle
           cat android/build.gradle
 
+      # Google Play requires a strictly increasing versionCode on every new
+      # upload to the same app. cap add android's generated app/build.gradle
+      # hardcodes `versionCode 1` / `versionName "1.0"` (confirmed by
+      # generating this exact project locally — same "known, stable Capacitor
+      # boilerplate" match-target reasoning already used for the AGP
+      # classpath line above), and nothing here ever overrode it, so every
+      # single CI build produced an identical, unusable-for-a-second-upload
+      # versionCode 1.
+      #
+      # github.run_number is GitHub's own CI-provided counter for this
+      # workflow: a plain positive integer that starts at 1 and only ever
+      # increases across runs (a re-run of the same run keeps that run's own
+      # number rather than reusing a stale one, and a new run is always
+      # higher) — exactly the monotonic guarantee Play Store's versionCode
+      # requires, with no extra state to track ourselves.
+      #
+      # versionName is deliberately left untouched — it stays the
+      # human-readable "1.0" Capacitor already sets. Play Store never
+      # requires versionName to be unique per upload, and bumping it isn't
+      # part of the versionCode problem this step fixes; that's a deliberate
+      # release-naming decision for whoever cuts an actual release, not
+      # something to derive from a build counter.
+      #
+      # The grep checks (before and after) follow this file's own established
+      # "fail loudly, don't silently ship the old versionCode" pattern used
+      # for every other sed-based override here — if Capacitor's generated
+      # app/build.gradle ever stops matching this known shape, this step
+      # errors out instead of quietly leaving versionCode at 1 again.
+      - name: Set release versionCode from the CI run number
+        working-directory: frontend
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          grep -Eo "versionCode [0-9]+" android/app/build.gradle | wc -l | grep -qx 1 || { echo "::error::expected exactly one 'versionCode <int>' line in android/app/build.gradle — check its actual defaultConfig block and fix the sed match"; exit 1; }
+          sed -i -E "s/versionCode [0-9]+/versionCode ${ANDROID_VERSION_CODE}/" android/app/build.gradle
+          grep -qx "        versionCode ${ANDROID_VERSION_CODE}" android/app/build.gradle || { echo "::error::versionCode override did not take effect as expected"; exit 1; }
+          echo "Release versionCode set to ${ANDROID_VERSION_CODE} (versionName left unchanged):"
+          grep -n "versionCode\|versionName" android/app/build.gradle
+
       # Push notifications (Firebase Cloud Messaging): @capacitor/push-
       # notifications needs the Google Services Gradle plugin applied plus
       # google-services.json present to know which Firebase project/app
