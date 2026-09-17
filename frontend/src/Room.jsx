@@ -4248,21 +4248,17 @@ const Room = () => {
         setIsVirtualBrowserMedia(joinedItem?.type === 'placeholder');
         
         const isStream = state.currentMedia.includes('/api/stream/') || state.currentMedia.startsWith('blob:');
-        let seekTarget = state.currentTime || 0;
+        const seekTarget = state.currentTime || 0;
+        
+        lastExternalUpdate.current = Date.now() + 5000;
+        setCurrentTime(seekTarget);
+        prepTargetTimeRef.current = seekTarget;
+        
         if (isStream) {
-          if (state.streamInfo && !state.streamInfo.isComplete && state.streamInfo.totalChunks > 0) {
-            const availFraction = state.streamInfo.contiguousReceived / state.streamInfo.totalChunks;
-            if (availFraction < 0.95 && state.currentTime > 0 && state.streamInfo.contiguousReceived < 5) {
-              seekTarget = 0;
-            }
-          }
           pendingStreamAutoPlayRef.current = {
             time: seekTarget,
             shouldPlay: !!state.isPlaying
           };
-          prepTargetTimeRef.current = seekTarget;
-        } else if (state.currentTime > 0) {
-          prepTargetTimeRef.current = state.currentTime;
         }
       } else {
         setMediaUrl('');
@@ -9194,7 +9190,10 @@ const Room = () => {
       return;
     }
 
-    const currentPos = getPlayerPosition();
+    let currentPos = getPlayerPosition();
+    if (currentPos <= 0.5 && currentTime > 2) {
+      currentPos = currentTime;
+    }
     if (isPlaying) {
       socket.emit('pause', { roomId: (roomId || '').toLowerCase(), currentTime: currentPos });
       setIsPlaying(false);
@@ -13097,14 +13096,18 @@ const Room = () => {
                               }}
                               onPlay={(e) => {
                                 if (!isEffectiveHost) return;
+                                if (Date.now() < (lastExternalUpdate.current || 0)) return;
                                 if (Date.now() - lastExternalUpdate.current < 500) return;
-                                socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: e.target.currentTime });
+                                const t = (e.target.currentTime <= 0.5 && currentTime > 2) ? currentTime : e.target.currentTime;
+                                socket.emit('play', { roomId: (roomId || '').toLowerCase(), currentTime: t });
                                 setIsPlaying(true);
                               }}
                               onPause={(e) => {
                                 if (!isEffectiveHost) return;
+                                if (Date.now() < (lastExternalUpdate.current || 0)) return;
                                 if (Date.now() - lastExternalUpdate.current < 500) return;
-                                socket.emit('pause', { roomId: (roomId || '').toLowerCase(), currentTime: e.target.currentTime });
+                                const t = (e.target.currentTime <= 0.5 && currentTime > 2) ? currentTime : e.target.currentTime;
+                                socket.emit('pause', { roomId: (roomId || '').toLowerCase(), currentTime: t });
                                 setIsPlaying(false);
                               }}
                               onSeeked={(e) => {
@@ -13113,6 +13116,7 @@ const Room = () => {
                                   localVideoRef.current.play().catch(() => {});
                                 }
                                 if (!isEffectiveHost) return;
+                                if (Date.now() < (lastExternalUpdate.current || 0)) return;
                                 if (Date.now() - lastExternalUpdate.current < 500) return;
                                 socket.emit('seek', { roomId: (roomId || '').toLowerCase(), currentTime: e.target.currentTime });
                               }}
@@ -13134,7 +13138,7 @@ const Room = () => {
                                   const pos = typeof target === 'object' ? (target.time || 0) : (target || 0);
                                   const shouldPlay = typeof target === 'object' ? !!target.shouldPlay : true;
 
-                                  if (pos > 1 && Math.abs(el.currentTime - pos) > 1) {
+                                  if (pos > 0 && Math.abs(el.currentTime - pos) > 1) {
                                     try {
                                       el.currentTime = pos;
                                     } catch (err) {
@@ -13171,8 +13175,10 @@ const Room = () => {
                                 if (prepTargetTimeRef.current > 0) {
                                   const target = prepTargetTimeRef.current;
                                   prepTargetTimeRef.current = 0;
-                                  if (!pendingStreamAutoPlayRef.current && target > 1) {
+                                  try {
                                     e.target.currentTime = target;
+                                  } catch (err) {
+                                    console.warn('[VIDEO] onLoadedMetadata seek error:', err);
                                   }
                                 }
                               }}
@@ -13183,19 +13189,6 @@ const Room = () => {
                                   e.target.error?.message
                                 );
                                 setIsStreamBuffering(false);
-                                if (localVideoRef.current && localVideoRef.current.currentTime > 0) {
-                                  console.warn('[VIDEO] Recovering from seek error by resetting to 0');
-                                  try {
-                                    localVideoRef.current.currentTime = 0;
-                                    if (isPlaying) {
-                                      localVideoRef.current.play().catch(() => {
-                                        localVideoRef.current.muted = true;
-                                        setPlayerMuted(true);
-                                        localVideoRef.current.play().catch(() => {});
-                                      });
-                                    }
-                                  } catch (_) {}
-                                }
                               }}
                               onStalled={() => {
                                 if (isPlaying || uploadState.isUploading) {

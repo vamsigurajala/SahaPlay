@@ -7479,7 +7479,13 @@ function getSerializableRoom(room, roomId) {
       : null,
     roomName: room.roomName || 'Room Chat',
     currentMedia: room.currentMedia || null,
-    currentTime: room.currentTime || 0,
+    currentTime: (() => {
+      if (room.isPlaying && room.timestampUpdatedAt) {
+        const elapsed = (Date.now() - room.timestampUpdatedAt) / 1000;
+        return (room.currentTime || 0) + elapsed;
+      }
+      return room.currentTime || 0;
+    })(),
     isPlaying: !!room.isPlaying,
     timestampUpdatedAt: room.timestampUpdatedAt || Date.now(),
     isPublic: !!room.isPublic,
@@ -10427,16 +10433,24 @@ io.on('connection', (socket) => {
 
     // Check if the sender is the host/admin
     const isHost = (room.hostId === socket.id) || (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase());
+    const currentCalculated = room.isPlaying && room.timestampUpdatedAt
+      ? (room.currentTime || 0) + ((Date.now() - room.timestampUpdatedAt) / 1000)
+      : (room.currentTime || 0);
+
     let targetTime = currentTime;
     if (!isHost) {
-      targetTime = room.isPlaying
-        ? room.currentTime + (Date.now() - room.timestampUpdatedAt) / 1000
-        : room.currentTime;
+      targetTime = currentCalculated;
+    } else {
+      // If the host just rejoined or their player was still loading at 0,
+      // do not reset the room to 0 if the room is already playing further ahead
+      if (currentTime <= 1 && currentCalculated > 2) {
+        targetTime = currentCalculated;
+      }
     }
 
     room.isPlaying = true; room.currentTime = targetTime; room.timestampUpdatedAt = Date.now();
     socket.to(roomId).emit('action_play', targetTime);
-    if (!isHost) {
+    if (!isHost || targetTime !== currentTime) {
       socket.emit('action_play', targetTime);
     }
     } catch (err) {
@@ -10460,16 +10474,22 @@ io.on('connection', (socket) => {
 
     // Check if the sender is the host/admin
     const isHost = (room.hostId === socket.id) || (room.hostUsername && socket.username && room.hostUsername.toLowerCase() === socket.username.toLowerCase());
+    const currentCalculated = room.isPlaying && room.timestampUpdatedAt
+      ? (room.currentTime || 0) + ((Date.now() - room.timestampUpdatedAt) / 1000)
+      : (room.currentTime || 0);
+
     let targetTime = currentTime;
     if (!isHost) {
-      targetTime = room.isPlaying
-        ? room.currentTime + (Date.now() - room.timestampUpdatedAt) / 1000
-        : room.currentTime;
+      targetTime = currentCalculated;
+    } else {
+      if (currentTime <= 1 && currentCalculated > 2) {
+        targetTime = currentCalculated;
+      }
     }
 
     room.isPlaying = false; room.currentTime = targetTime; room.timestampUpdatedAt = Date.now();
     socket.to(roomId).emit('action_pause', targetTime);
-    if (!isHost) {
+    if (!isHost || targetTime !== currentTime) {
       socket.emit('action_pause', targetTime);
     }
     } catch (err) {
