@@ -6711,10 +6711,10 @@ const Room = () => {
   // blob preview playing, but we still set streamPending so the upload
   // progress overlay can render on top of the playing video.
   useEffect(() => {
-    if (uploadState.isUploading) {
+    // Only mirror to streamPending if the local client is not already playing their uploaded video
+    if (uploadState.isUploading && !mediaUrlRef.current?.startsWith('blob:')) {
       setStreamPending({ streamKey: uploadState.streamKey, filename: uploadState.filename, progress: uploadState.progress });
-    } else if (isTauriApp() && !uploadState.canPlay) {
-      // If upload finished with error or was cancelled on Tauri, clear streamPending
+    } else if (!uploadState.isUploading && !uploadState.canPlay) {
       setStreamPending(null);
     }
   }, [uploadState.isUploading, uploadState.streamKey, uploadState.filename, uploadState.progress, uploadState.canPlay]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -8968,20 +8968,14 @@ const Room = () => {
     // stream_ready once the server has enough of the upload on disk (see
     // the isTauriApp() effect below, which fills the same "Getting the
     // video ready…" placeholder viewers see in the meantime).
-    if (!isTauriApp()) {
-      // Create a local blob URL so the host starts watching immediately
-      const localUrl = URL.createObjectURL(file);
-      setMediaUrl(localUrl);
-      setIsPlaying(true);
-      prepTargetTimeRef.current = 0;
-    } else {
-      // On Tauri desktop shell (WebView2), blob URLs cannot handle range requests properly.
-      // Clear any previously loaded media so the "Getting the video ready…" loading screen
-      // renders immediately, and prime streamPending synchronously so there is zero delay.
-      setMediaUrl('');
-      setIsPlaying(false);
-      setStreamPending({ streamKey: null, filename: file.name, progress: 0 });
-    }
+    // Create a local blob URL so the user who uploaded starts watching immediately
+    // on ALL platforms (.exe desktop, web browser, mobile), while background upload
+    // streams the file to the server and prepares progressive playback for other users.
+    const localUrl = URL.createObjectURL(file);
+    setMediaUrl(localUrl);
+    setIsPlaying(true);
+    prepTargetTimeRef.current = 0;
+    setStreamPending(null);
 
     console.log('[FILE] Calling uploadFile, roomId:', roomId, 'socket:', !!socket);
     // Kick off chunked upload — progress tracked via uploadState
@@ -12568,7 +12562,7 @@ const Room = () => {
                 </div>
                 {/* Removed local play/pause overlay and LIVE badge for cleaner screenshare */}
               </>
-            ) : hasMounted && mediaUrl && !(isTauriApp() && uploadState.isUploading) ? (
+            ) : hasMounted && mediaUrl ? (
               <>
                 {mediaUrl === 'lobby://crazygames' ? (
                   <div style={{ position: 'absolute', inset: 0, zIndex: 5, borderRadius: isMobile ? 0 : 16, overflow: 'hidden' }}>
@@ -13397,7 +13391,7 @@ const Room = () => {
                           uploading a video and already playing it locally via
                           blob URL. Renders on top of the playing video so the
                           host knows the upload is still in progress. */}
-                      {uploadState.isUploading && isEffectiveHost && isLocalStream && (
+                      {uploadState.isUploading && isLocalStream && (
                         <StreamUploadProgress uploadState={uploadState} onCancel={cancelUpload} />
                       )}
 
@@ -13572,7 +13566,7 @@ const Room = () => {
                   </>
                 )}
               </>
-            ) : (streamPending || (isTauriApp() && uploadState.isUploading)) ? (
+            ) : streamPending ? (
               // Someone else in the room (or the host on Tauri desktop shell where
               // local blob URLs aren't supported) is uploading a video file.
               // Live-updating "Getting the video ready…" placeholder until stream_ready
