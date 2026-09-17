@@ -407,30 +407,29 @@ export function CryptoProvider({ children }) {
             }
             setNeedsReauth(true);
           } else {
-            // Genuinely brand new — no key anywhere yet. Safe to generate one.
-            console.log('[CryptoContext] No stored key found — auto-generating E2EE key pair.');
-            try {
-              const newKP = generateKeyPair();
-              await saveKeyToSession(newKP.secretKey);
-              setKeyPairState(newKP);
-              enrollDeviceUnlockSilently(newKP.secretKey); // fire-and-forget, see its own doc comment
-
-              if (tkn) {
-                const pubB64 = encodeBase64(newKP.publicKey);
-                const myUname = localStorage.getItem('watch_username');
-                if (myUname) {
-                  try { localStorage.setItem(`wt_pk_${myUname.toLowerCase()}`, pubB64); } catch {}
-                  window.dispatchEvent(new CustomEvent('public_key_updated', { detail: { username: myUname, publicKey: pubB64 } }));
-                }
-                fetch(`${API}/api/auth/save-public-key`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tkn}` },
-                  body: JSON.stringify({ publicKey: pubB64 })
-                }).catch(err => console.warn('[CryptoContext] Key upload failed (server not ready):', err));
-              }
-            } catch (e) {
-              console.error('[CryptoContext] Failed to auto-generate key pair:', e);
-            }
+            // No key ANYWHERE — server confirms none, and this device has
+            // none cached either. This used to be treated as "genuinely
+            // brand new, safe to auto-generate" and silently minted a
+            // replacement keypair here, uploaded via a fire-and-forget
+            // save-public-key call that never even writes an
+            // encryptedPrivateKey backup. That state is indistinguishable
+            // from an EXISTING account that just had its E2EE identity
+            // cleared by a password reset performed without a recovery key
+            // (see ResetPassword.jsx) — silently fabricating a new identity
+            // there is exactly the bug this closes. There is no reliable way
+            // to tell "truly brand new" apart from "lost its identity" from
+            // this signal alone, so neither case is auto-generated anymore:
+            // both route through the same explicit passphrase-setup UI
+            // Login.jsx uses (EncryptionUnlockGate, isSetup: true) — the
+            // only place a new keypair for this account gets created from
+            // here on. This mount effect only reaches this branch outside a
+            // fresh login (e.g. a reload after the user skipped that setup
+            // prompt), so it's expected to keep asking until they complete it.
+            console.log('[CryptoContext] No key found locally or server-side — requesting explicit encryption setup.');
+            const myUname = localStorage.getItem('watch_username');
+            window.dispatchEvent(new CustomEvent('encryption_needs_passphrase', {
+              detail: { isSetup: true, token: tkn, username: myUname }
+            }));
           }
         }
       } catch (e) {

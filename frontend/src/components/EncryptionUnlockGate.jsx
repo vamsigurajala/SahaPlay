@@ -56,6 +56,7 @@ import { API } from '../lib/api';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
 import OAuthEncryptionModal from './OAuthEncryptionModal';
+import RecoveryPhraseModal from './RecoveryPhraseModal';
 
 export default function EncryptionUnlockGate() {
   const { setKeyPair, enrollDeviceUnlockSilently } = useCrypto();
@@ -66,14 +67,25 @@ export default function EncryptionUnlockGate() {
   // (plain web tab) unlock always goes straight to the passphrase prompt —
   // see this file's header comment.
   const [checkingDeviceUnlock, setCheckingDeviceUnlock] = useState(false);
+  // Set by handleSetPassphrase right after a BRAND-NEW E2EE identity is
+  // created (isSetup flow only — see its own comment). Holds this tab's only
+  // copy of the just-generated recovery phrase, in memory alone (never
+  // localStorage/sessionStorage/IndexedDB/cookies/URL/backend — the server
+  // only ever receives its hash, computed before this state is even set).
+  // Its presence takes over rendering from the passphrase modal until the
+  // user explicitly confirms RecoveryPhraseModal — ctx is deliberately NOT
+  // cleared until then, so the setup flow is never treated as "done" while
+  // the phrase has been generated but not yet shown/acknowledged.
+  const [pendingRecoveryPhrase, setPendingRecoveryPhrase] = useState(null);
 
   // Auto-dismiss gate ONLY if user explicitly logs out or navigates BACK to login/signup
   useEffect(() => {
-    const handleLogout = () => setCtx(null);
+    const handleLogout = () => { setCtx(null); setPendingRecoveryPhrase(null); };
     const handleCheckRoute = () => {
       const path = (window.location.pathname || '').toLowerCase();
       if (path === '/login' || path === '/signup' || path === '/reset-password') {
         setCtx(null);
+        setPendingRecoveryPhrase(null);
       }
     };
 
@@ -158,8 +170,19 @@ export default function EncryptionUnlockGate() {
       try { localStorage.setItem(`wt_pk_${myUsername.toLowerCase()}`, pubKeyStr); } catch {}
       window.dispatchEvent(new CustomEvent('public_key_updated', { detail: { username: myUsername, publicKey: pubKeyStr } }));
     }
-    setCtx(null);
+    // Show the user the EXACT phrase whose hash was just sent above — never
+    // a second, freshly-generated one. Deliberately NOT setCtx(null) here:
+    // that only happens once RecoveryPhraseModal's required
+    // reveal-and-acknowledge gate is actually confirmed (see its render
+    // below), so a user who closes the tab mid-way is asked again next
+    // time rather than the app silently treating recovery as configured.
+    setPendingRecoveryPhrase(phrase);
   }, [ctx, setKeyPair, enrollDeviceUnlockSilently]);
+
+  const handleRecoveryPhraseConfirmed = useCallback(() => {
+    setPendingRecoveryPhrase(null);
+    setCtx(null);
+  }, []);
 
   const handleRecover = useCallback(async (phrase, newPassphrase) => {
     const secretKey = await mnemonicToSecretKey(phrase);
@@ -206,6 +229,10 @@ export default function EncryptionUnlockGate() {
   const handleCancel = useCallback(() => {
     setCtx(null);
   }, []);
+
+  if (pendingRecoveryPhrase) {
+    return <RecoveryPhraseModal phrase={pendingRecoveryPhrase} onConfirmed={handleRecoveryPhraseConfirmed} />;
+  }
 
   if (!ctx || checkingDeviceUnlock) return null;
 

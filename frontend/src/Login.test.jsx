@@ -104,7 +104,13 @@ describe('Login.jsx — device unlock enrollment wired into every successful key
     expect(setupArg.allowOverwrite).toBe(false);
   });
 
-  test('E. brand-new password account: after the fresh keypair is created and uploaded, enrollDeviceUnlockSilently is called exactly once', async () => {
+  test('E. login with no key on file (legacy account, or an existing account whose E2EE identity was cleared by a password reset without a recovery key): dispatches encryption_needs_passphrase instead of silently generating a keypair', async () => {
+    // Security fix: Login.jsx used to auto-generate a fresh keypair here,
+    // wrapped with the LOGIN PASSWORD, and upload it via setup-keys with no
+    // user awareness at all — indistinguishable from an existing account
+    // that just lost its E2EE identity to a password reset. It must now
+    // always hand off to the explicit passphrase-setup UI (EncryptionUnlockGate)
+    // and touch neither the network nor any key material itself.
     const token = 'header.' + btoa(JSON.stringify({ id: 9, username: 'newperson' })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') + '.sig';
     const nativeSetup = vi.fn(async () => ({}));
     installNativePlugin({ setupDeviceUnlock: nativeSetup });
@@ -114,22 +120,24 @@ describe('Login.jsx — device unlock enrollment wired into every successful key
       if (u.includes('/api/login')) {
         return { ok: true, json: async () => ({ token, username: 'newperson', role: 'user', encryptedPrivateKey: null, publicKey: null }) };
       }
-      if (u.includes('/api/auth/setup-keys')) {
-        return { ok: true, json: async () => ({ success: true }) };
-      }
-      if (u.includes('/api/auth/device-enrollment-assertion')) {
-        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
-      }
       throw new Error(`Unexpected fetch in test: ${u}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
+    const setupEvents = [];
+    const handler = (e) => setupEvents.push(e.detail);
+    window.addEventListener('encryption_needs_passphrase', handler);
+
     renderLogin();
     await submitLoginForm('newperson', 'brand-new-password');
 
-    // encryptPrivateKey (wrapping the brand-new key) is the same real,
-    // deliberately slow PBKDF2 operation — see the timeout note above.
-    await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1), { timeout: 5000 });
+    await waitFor(() => expect(setupEvents.length).toBeGreaterThanOrEqual(1));
+    const setupEvent = setupEvents.find(d => d.isSetup);
+    expect(setupEvent).toMatchObject({ isSetup: true, token, username: 'newperson' });
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('setup-keys'), expect.anything());
+    expect(nativeSetup).not.toHaveBeenCalled(); // enrollment now only happens once the user actually completes passphrase setup, elsewhere
+
+    window.removeEventListener('encryption_needs_passphrase', handler);
   });
 
   test('F. browser (no window.Capacitor): existing-account login never attempts native enrollment', async () => {

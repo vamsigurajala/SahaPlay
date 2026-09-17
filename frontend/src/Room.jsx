@@ -40,6 +40,7 @@ import nacl from 'tweetnacl';
 import { encodeBase64, decodeBase64, encodeUTF8, decodeUTF8 } from 'tweetnacl-util';
 import { useCrypto } from './contexts/CryptoContext';
 import { encryptGroupMessage, decryptGroupMessage, decryptDM, encryptDM, decryptDMSenderCopy, encryptMedia, decryptMedia, robustDecode, packMediaKeyAndCaption, unpackMediaKeyAndCaption, sanitizeReplyToForWire } from './lib/crypto.js';
+import { resolveDmRecipientPublicKey } from './lib/dmKeyResolution.js';
 import { castPollVote } from './lib/pollApi';
 import crownImg from './assets/crown.svg';
 import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
@@ -7863,78 +7864,22 @@ const Room = () => {
 
       console.log(`[E2EE] Attempting to encrypt DM for target: ${dmTarget}`);
 
+      let networkFailure = false;
       try {
-        // 1a: check in-memory cache
-        const cachedKey = dbPublicKeys.current[targetLower];
-        if (cachedKey && cachedKey.length === 32) {
-          console.log('[E2EE] Using in-memory cached key.');
-          const enc = encryptDM(plaintext, encodeBase64(cachedKey), encodeBase64(myKeyPair.current.publicKey));
+        const resolved = await resolveDmRecipientPublicKey({
+          targetUsername: dmTarget,
+          apiBase: SOCKET_SERVER_URL,
+          memoryCache: dbPublicKeys.current,
+          userList,
+        });
+        networkFailure = resolved.networkFailure;
+        if (resolved.publicKey) {
+          const enc = encryptDM(plaintext, resolved.publicKey, encodeBase64(myKeyPair.current.publicKey));
           messagePayload   = enc.ciphertext;
           senderMsgPayload = enc.senderCiphertext;
           nonceVal         = enc.nonce;
           ephKeyVal        = enc.ephemeralPublicKey;
           isEncrypted      = true;
-        }
-
-        // 1b: check userList state
-        if (!isEncrypted) {
-          const targetUser = userList.find(u => u.username?.toLowerCase() === targetLower);
-          if (targetUser?.publicKey) {
-            console.log('[E2EE] Found key in current userList.');
-            const enc = encryptDM(plaintext, targetUser.publicKey, encodeBase64(myKeyPair.current.publicKey));
-            messagePayload   = enc.ciphertext;
-            senderMsgPayload = enc.senderCiphertext;
-            nonceVal         = enc.nonce;
-            ephKeyVal        = enc.ephemeralPublicKey;
-            isEncrypted      = true;
-            try { dbPublicKeys.current[targetLower] = decodeBase64(targetUser.publicKey); } catch {}
-          }
-        }
-
-        // 2: HTTP API lookup for recipient public key (ensures fresh key after recipient password reset/rekey)
-        if (!isEncrypted) {
-          try {
-            const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(dmTarget)}`);
-            let freshPK = null;
-            if (pkRes.ok) {
-              const pkData = await pkRes.json();
-              freshPK = pkData.publicKey || null;
-            } else if (pkRes.status === 404) {
-              const pkRes2 = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(targetLower)}`);
-              if (pkRes2.ok) {
-                const pkData2 = await pkRes2.json();
-                freshPK = pkData2.publicKey || null;
-              }
-            }
-            if (freshPK) {
-              console.log('[E2EE] Found recipient public key via API.');
-              const enc = encryptDM(plaintext, freshPK, encodeBase64(myKeyPair.current.publicKey));
-              messagePayload   = enc.ciphertext;
-              senderMsgPayload = enc.senderCiphertext;
-              nonceVal         = enc.nonce;
-              ephKeyVal        = enc.ephemeralPublicKey;
-              isEncrypted      = true;
-              try { localStorage.setItem(`wt_pk_${targetLower}`, freshPK); } catch {}
-              try { dbPublicKeys.current[targetLower] = decodeBase64(freshPK); } catch {}
-            }
-          } catch (e) {
-            console.warn('[E2EE] API public key lookup failed, falling back to local cache', e);
-          }
-        }
-
-        // 3: Fall back to localStorage cache if network request failed
-        if (!isEncrypted) {
-          const localPK = localStorage.getItem(`wt_pk_${targetLower}`);
-          if (localPK) {
-            console.log('[E2EE] Found key in localStorage cache fallback.');
-            const enc = encryptDM(plaintext, localPK, encodeBase64(myKeyPair.current.publicKey));
-            messagePayload   = enc.ciphertext;
-            senderMsgPayload = enc.senderCiphertext;
-            nonceVal         = enc.nonce;
-            ephKeyVal        = enc.ephemeralPublicKey;
-            isEncrypted      = true;
-            try { dbPublicKeys.current[targetLower] = decodeBase64(localPK); } catch {}
-          }
         }
       } catch (err) {
         console.error('[E2EE] Encryption pipeline error:', err);
@@ -7942,7 +7887,13 @@ const Room = () => {
 
       if (!isEncrypted) {
         console.error(`[E2EE] CRITICAL: Could not find any encryption key for user "${dmTarget}". All lookup methods failed.`);
-        toast.error(`Recipient "${dmTarget}" has not set up encryption keys yet.`);
+        // Distinguishing these two matters: a temporary network failure is
+        // retryable (the recipient's key may well exist — we just couldn't
+        // confirm it), while "no key at all" means they haven't set up
+        // encryption yet. Neither case invents a key or reuses a stale one.
+        toast.error(networkFailure
+          ? "Couldn't verify the recipient's encryption key — check your connection and try again."
+          : `Recipient "${dmTarget}" has not set up encryption keys yet.`);
         // Rollback optimistic message
         setDmThreads(prev => {
           const next = { ...prev };
@@ -8038,52 +7989,20 @@ const Room = () => {
       return next;
     });
 
-    const targetLower = dmTarget.toLowerCase();
     let isEncrypted = false;
     let messagePayload = '', senderMsgPayload = '', nonceVal = '', ephKeyVal = '';
+    let networkFailure = false;
     try {
-      const cachedKey = dbPublicKeys.current[targetLower];
-      if (cachedKey && cachedKey.length === 32) {
-        const enc = encryptDM(pollText, encodeBase64(cachedKey), encodeBase64(myKeyPair.current.publicKey));
+      const resolved = await resolveDmRecipientPublicKey({
+        targetUsername: dmTarget,
+        apiBase: SOCKET_SERVER_URL,
+        memoryCache: dbPublicKeys.current,
+        userList,
+      });
+      networkFailure = resolved.networkFailure;
+      if (resolved.publicKey) {
+        const enc = encryptDM(pollText, resolved.publicKey, encodeBase64(myKeyPair.current.publicKey));
         messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
-      }
-      if (!isEncrypted) {
-        const targetUser = userList.find(u => u.username?.toLowerCase() === targetLower);
-        if (targetUser?.publicKey) {
-          const enc = encryptDM(pollText, targetUser.publicKey, encodeBase64(myKeyPair.current.publicKey));
-          messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
-          try { dbPublicKeys.current[targetLower] = decodeBase64(targetUser.publicKey); } catch {}
-        }
-      }
-      if (!isEncrypted) {
-        const localPK = localStorage.getItem(`wt_pk_${targetLower}`);
-        if (localPK) {
-          const enc = encryptDM(pollText, localPK, encodeBase64(myKeyPair.current.publicKey));
-          messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
-          try { dbPublicKeys.current[targetLower] = decodeBase64(localPK); } catch {}
-        }
-      }
-      if (!isEncrypted) {
-        const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(dmTarget)}`);
-        if (pkRes.ok) {
-          const pkData = await pkRes.json();
-          if (pkData.publicKey) {
-            const enc = encryptDM(pollText, pkData.publicKey, encodeBase64(myKeyPair.current.publicKey));
-            messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
-            try { localStorage.setItem(`wt_pk_${targetLower}`, pkData.publicKey); dbPublicKeys.current[targetLower] = decodeBase64(pkData.publicKey); } catch {}
-          }
-        }
-      }
-      if (!isEncrypted) {
-        const pkRes2 = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(targetLower)}`);
-        if (pkRes2.ok) {
-          const pkData2 = await pkRes2.json();
-          if (pkData2.publicKey) {
-            const enc = encryptDM(pollText, pkData2.publicKey, encodeBase64(myKeyPair.current.publicKey));
-            messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
-            try { localStorage.setItem(`wt_pk_${targetLower}`, pkData2.publicKey); dbPublicKeys.current[targetLower] = decodeBase64(pkData2.publicKey); } catch {}
-          }
-        }
       }
     } catch (err) {
       console.error('[E2EE] DM poll encryption pipeline error:', err);
@@ -8097,7 +8016,9 @@ const Room = () => {
     });
 
     if (!isEncrypted) {
-      toast.error(`Recipient "${dmTarget}" has not set up encryption keys yet.`);
+      toast.error(networkFailure
+        ? "Couldn't verify the recipient's encryption key — check your connection and try again."
+        : `Recipient "${dmTarget}" has not set up encryption keys yet.`);
       rollback();
       return;
     }
@@ -8219,49 +8140,33 @@ const Room = () => {
       textToEncrypt = packMediaKeyAndCaption(existingMediaKeyB64, newText);
     }
 
-    const targetLower = dmTarget.toLowerCase();
     let isEncrypted = false;
     let messagePayload = '';
     let senderMsgPayload = '';
     let nonceVal = '';
     let ephKeyVal = '';
+    let networkFailure = false;
 
     try {
-      const cachedKey = dbPublicKeys.current[targetLower];
-      if (cachedKey && cachedKey.length === 32) {
-        const enc = encryptDM(textToEncrypt, encodeBase64(cachedKey), encodeBase64(myKeyPair.current.publicKey));
+      const resolved = await resolveDmRecipientPublicKey({
+        targetUsername: dmTarget,
+        apiBase: SOCKET_SERVER_URL,
+        memoryCache: dbPublicKeys.current,
+        userList,
+      });
+      networkFailure = resolved.networkFailure;
+      if (resolved.publicKey) {
+        const enc = encryptDM(textToEncrypt, resolved.publicKey, encodeBase64(myKeyPair.current.publicKey));
         messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
-      }
-      if (!isEncrypted) {
-        const targetUser = userList.find(u => u.username?.toLowerCase() === targetLower);
-        if (targetUser?.publicKey) {
-          const enc = encryptDM(textToEncrypt, targetUser.publicKey, encodeBase64(myKeyPair.current.publicKey));
-          messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
-        }
-      }
-      if (!isEncrypted) {
-        const localPK = localStorage.getItem(`wt_pk_${targetLower}`);
-        if (localPK) {
-          const enc = encryptDM(textToEncrypt, localPK, encodeBase64(myKeyPair.current.publicKey));
-          messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
-        }
-      }
-      if (!isEncrypted) {
-        const pkRes = await fetch(`${SOCKET_SERVER_URL}/api/auth/public-key/${encodeURIComponent(dmTarget)}`);
-        if (pkRes.ok) {
-          const pkData = await pkRes.json();
-          if (pkData.publicKey) {
-            const enc = encryptDM(textToEncrypt, pkData.publicKey, encodeBase64(myKeyPair.current.publicKey));
-            messagePayload = enc.ciphertext; senderMsgPayload = enc.senderCiphertext; nonceVal = enc.nonce; ephKeyVal = enc.ephemeralPublicKey; isEncrypted = true;
-          }
-        }
       }
     } catch (err) {
       console.error('[E2EE] editDmMessage encryption error:', err);
     }
 
     if (!isEncrypted) {
-      toast.error(`Recipient "${dmTarget}" has not set up encryption keys yet.`);
+      toast.error(networkFailure
+        ? "Couldn't verify the recipient's encryption key — check your connection and try again."
+        : `Recipient "${dmTarget}" has not set up encryption keys yet.`);
       return;
     }
 

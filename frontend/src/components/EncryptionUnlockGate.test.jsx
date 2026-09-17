@@ -39,6 +39,24 @@ function fireNeedsPassphrase(detail) {
   window.dispatchEvent(new CustomEvent('encryption_needs_passphrase', { detail }));
 }
 
+// CryptoProvider's own mount effect, given a my-keys response of
+// { publicKey: null, encryptedPrivateKey: null } (used throughout this file
+// to keep the mount effect from attempting a real device-unlock restore —
+// see each test's own comment), now ALSO dispatches
+// 'encryption_needs_passphrase' ({ isSetup: true, ... }) itself, instead of
+// silently auto-generating a keypair as it used to. That dispatch and this
+// test file's own explicit fireNeedsPassphrase(...) calls target the exact
+// same event/ctx state, so firing the test's real event too early would race
+// the mount effect's own (irrelevant) one and risk it winning last, clobbering
+// the test's intended ctx. Waiting for the setup modal the mount effect's own
+// dispatch produces to actually render first guarantees that dispatch (and
+// its internal 300ms setTimeout — see EncryptionUnlockGate.jsx) has already
+// fully resolved before the test fires its own event, which is then
+// guaranteed to be the last (and therefore winning) one.
+async function waitForMountEffectSetupDispatch() {
+  await waitFor(() => expect(screen.getByText(/Set an encryption passphrase/i)).toBeInTheDocument());
+}
+
 describe('EncryptionUnlockGate — device-unlock shortcut for the independent-passphrase prompt', () => {
   const REAL_KP = nacl.box.keyPair();
   const REAL_PUB_B64 = encodeBase64(REAL_KP.publicKey);
@@ -92,7 +110,7 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
     }));
 
     render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+    await waitForMountEffectSetupDispatch();
 
     const nativeSetup = vi.fn(async () => ({}));
     window.Capacitor.Plugins.SahaplayE2ee.setupDeviceUnlock = nativeSetup;
@@ -130,12 +148,7 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
     }));
 
     render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-    // CryptoProvider's own mount-effect auto-generation calls saveKeyToSession,
-    // which wraps the key with a real, deliberately slow 600k-iteration
-    // PBKDF2 (crypto.js) — can occasionally exceed waitFor's default 1000ms
-    // under CPU contention (same documented allowance used elsewhere, e.g.
-    // Login.test.jsx / CryptoContext.test.jsx).
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+    await waitForMountEffectSetupDispatch();
 
     fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: REAL_PUB_B64, token });
 
@@ -162,7 +175,7 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
     }));
 
     render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+    await waitForMountEffectSetupDispatch();
 
     fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: REAL_PUB_B64, token });
 
@@ -197,13 +210,20 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       const encryptedPrivateKey = await encryptPrivateKey(REAL_KP.secretKey, 'my-encryption-passphrase');
 
       render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'));
+      await waitForMountEffectSetupDispatch();
 
       const nativeSetup = vi.fn(async () => ({}));
       window.Capacitor.Plugins.SahaplayE2ee.setupDeviceUnlock = nativeSetup;
 
       fireNeedsPassphrase({ encryptedPrivateKey, publicKey: REAL_PUB_B64, token });
-      const passphraseInput = await screen.findByPlaceholderText(/Min 8 characters/i);
+      // The mount effect's OWN (mode='set') modal is still on screen for a
+      // moment until THIS event's ctx replaces it — its passphrase input
+      // shares the exact same placeholder text as the 'unlock' mode input
+      // below, so wait for the unlock-specific title before touching any
+      // input, or fireEvent risks typing into the wrong (about to be
+      // unmounted) form.
+      await waitFor(() => expect(screen.getByText(/Enter your encryption passphrase/i)).toBeInTheDocument());
+      const passphraseInput = screen.getByPlaceholderText(/Min 8 characters/i);
       fireEvent.change(passphraseInput, { target: { value: 'my-encryption-passphrase' } });
       fireEvent.submit(passphraseInput.closest('form'));
 
@@ -237,17 +257,16 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       }));
 
       render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-      // Real, deliberately slow 600k-iteration PBKDF2 (crypto.js) runs as
-      // part of this mount — can occasionally exceed waitFor's default
-      // 1000ms under full-suite CPU contention (same documented allowance
-      // used elsewhere in this file/CryptoContext.test.jsx).
-      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+      await waitForMountEffectSetupDispatch();
 
       const nativeSetup = vi.fn(async () => ({}));
       window.Capacitor.Plugins.SahaplayE2ee.setupDeviceUnlock = nativeSetup;
 
       fireNeedsPassphrase({ encryptedPrivateKey: 'server-blob', publicKey: recoveryPubB64, token });
-      await screen.findByPlaceholderText(/Min 8 characters/i);
+      // See test B's comment — wait for the unlock-mode title specifically
+      // before interacting, since the mount effect's own (mode='set') modal
+      // shares the exact same passphrase-input placeholder text.
+      await waitFor(() => expect(screen.getByText(/Enter your encryption passphrase/i)).toBeInTheDocument());
       fireEvent.click(screen.getByText(/forgot passphrase/i));
 
       const recoveryInput = await screen.findByPlaceholderText(/ABCDEFGH/i);
@@ -280,21 +299,233 @@ describe('EncryptionUnlockGate — device-unlock shortcut for the independent-pa
       const encryptedPrivateKey = await encryptPrivateKey(REAL_KP.secretKey, 'my-encryption-passphrase');
 
       render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
-      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+      await waitForMountEffectSetupDispatch();
 
       const nativeSetup = vi.fn(async () => { throw { code: 'HARDWARE_UNAVAILABLE', message: 'Keystore unavailable' }; });
       window.Capacitor.Plugins.SahaplayE2ee.setupDeviceUnlock = nativeSetup;
 
       fireNeedsPassphrase({ encryptedPrivateKey, publicKey: REAL_PUB_B64, token });
-      const passphraseInput = await screen.findByPlaceholderText(/Min 8 characters/i);
+      // See test B's comment — wait for the unlock-mode title specifically
+      // before interacting, since the mount effect's own (mode='set') modal
+      // shares the exact same passphrase-input placeholder text.
+      await waitFor(() => expect(screen.getByText(/Enter your encryption passphrase/i)).toBeInTheDocument());
+      const passphraseInput = screen.getByPlaceholderText(/Min 8 characters/i);
       fireEvent.change(passphraseInput, { target: { value: 'my-encryption-passphrase' } });
       fireEvent.submit(passphraseInput.closest('form'));
 
       // Unlock still succeeds (keyPair is the real, correct key) even though
-      // enrollment underneath it fails.
-      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64));
-      await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1));
+      // enrollment underneath it fails. decryptPrivateKey above is the same
+      // real, deliberately slow PBKDF2 — see the timeout note earlier in
+      // this file.
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe(REAL_PUB_B64), { timeout: 5000 });
+      await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1), { timeout: 5000 });
       expect(screen.queryByText(/hardware.*unavailable/i)).not.toBeInTheDocument();
+    });
+  });
+
+  // Security fix: password reset WITHOUT a recovery key intentionally leaves
+  // an EXISTING account with no encryptedPrivateKey/publicKey at all (see
+  // server.js's /api/reset-password) — indistinguishable, from the client's
+  // point of view, from a legacy pre-E2EE account. Login.jsx and
+  // CryptoContext's mount effect both now dispatch
+  // 'encryption_needs_passphrase' with { isSetup: true } for this state
+  // instead of silently generating a keypair themselves; this is the ONE
+  // place that new keypair actually gets created — only after the user
+  // explicitly submits a passphrase here.
+  describe('isSetup flow — explicit new-identity setup after a password reset without a recovery key (or a legacy account)', () => {
+    // These use a real watch_token + my-keys mock (like every other test in
+    // this file) and let CryptoProvider's OWN mount effect dispatch
+    // encryption_needs_passphrase naturally, rather than fabricating the
+    // event by hand — exercising the actual production dispatch this fix
+    // introduced, not a re-implementation of it.
+    test('TEST 1: shows the "set an encryption passphrase" setup UI, and does not touch the network or generate any key before the user submits it', async () => {
+      localStorage.setItem('watch_token', fakeToken({ id: 20, username: 'erin' }));
+      localStorage.setItem('watch_username', 'erin');
+      const fetchMock = vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitForMountEffectSetupDispatch();
+
+      expect(screen.getByPlaceholderText(/Min 8 characters/i)).toBeInTheDocument();
+      expect(screen.getByText(/Set passphrase & continue/i)).toBeInTheDocument();
+      // Still a genuinely fresh identity — nothing generated or uploaded yet.
+      expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('setup-keys'), expect.anything());
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('save-public-key'), expect.anything());
+    });
+
+    test('TEST 2: submitting a passphrase generates exactly one new keypair, uploads it via setup-keys, and unlocks E2EE with a matching public/secret key pair', async () => {
+      localStorage.setItem('watch_token', fakeToken({ id: 21, username: 'erin' }));
+      localStorage.setItem('watch_username', 'erin');
+      let setupKeysBody = null;
+      const fetchMock = vi.fn(async (url, opts) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        if (String(url).includes('/api/auth/setup-keys')) {
+          setupKeysBody = JSON.parse(opts.body);
+          return { ok: true, json: async () => ({ success: true }) };
+        }
+        if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+          return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitForMountEffectSetupDispatch();
+
+      const passphraseInput = screen.getByPlaceholderText(/Min 8 characters/i);
+      fireEvent.change(passphraseInput, { target: { value: 'brand-new-encryption-passphrase' } });
+      fireEvent.change(screen.getByPlaceholderText(/Re-enter passphrase/i), { target: { value: 'brand-new-encryption-passphrase' } });
+      fireEvent.submit(passphraseInput.closest('form'));
+
+      // encryptPrivateKey below is real, deliberately slow 600k-iteration
+      // PBKDF2 (crypto.js) — can exceed waitFor's default 1000ms under
+      // full-suite CPU contention (same documented allowance used
+      // elsewhere in this file/CryptoContext.test.jsx/Login.test.jsx).
+      await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+
+      // publicKey and encryptedPrivateKey both exist and were sent to the server.
+      expect(setupKeysBody).toBeTruthy();
+      expect(setupKeysBody.publicKey).toBeTruthy();
+      expect(setupKeysBody.encryptedPrivateKey).toBeTruthy();
+      // The public key the server was given matches the in-memory secret
+      // key CryptoContext now holds — the exact same generated keypair, not
+      // two different ones.
+      expect(screen.getByTestId('keypair-state').textContent).toBe(setupKeysBody.publicKey);
+
+      // The private key unwraps ONLY with the passphrase just submitted —
+      // never the login password (which was never even provided here).
+      const { decryptPrivateKey } = await import('../lib/crypto.js');
+      const recovered = await decryptPrivateKey(setupKeysBody.encryptedPrivateKey, 'brand-new-encryption-passphrase');
+      const recoveredPubB64 = encodeBase64(nacl.box.keyPair.fromSecretKey(recovered).publicKey);
+      expect(recoveredPubB64).toBe(setupKeysBody.publicKey);
+    });
+
+    // Recovery-phrase display gap fix: after this exact isSetup flow
+    // succeeds, the user used to never see the recovery phrase that was
+    // just generated and hashed — handleSetPassphrase computed it, hashed
+    // it, sent the hash to setup-keys, and then simply discarded it.
+    describe('recovery phrase display after a successful isSetup flow', () => {
+      async function completeSetup({ passphrase = 'brand-new-encryption-passphrase', id = 40, username = 'hank' } = {}) {
+        localStorage.setItem('watch_token', fakeToken({ id, username }));
+        localStorage.setItem('watch_username', username);
+        let setupKeysBody = null;
+        const fetchMock = vi.fn(async (url, opts) => {
+          if (String(url).includes('/api/auth/my-keys')) {
+            return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+          }
+          if (String(url).includes('/api/auth/setup-keys')) {
+            setupKeysBody = JSON.parse(opts.body);
+            return { ok: true, json: async () => ({ success: true }) };
+          }
+          throw new Error(`Unexpected fetch in test: ${url}`);
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+        await waitForMountEffectSetupDispatch();
+
+        const passphraseInput = screen.getByPlaceholderText(/Min 8 characters/i);
+        fireEvent.change(passphraseInput, { target: { value: passphrase } });
+        fireEvent.change(screen.getByPlaceholderText(/Re-enter passphrase/i), { target: { value: passphrase } });
+        fireEvent.submit(passphraseInput.closest('form'));
+
+        // encryptPrivateKey below is real, deliberately slow 600k-iteration
+        // PBKDF2 (crypto.js) — can exceed waitFor's default 1000ms under
+        // full-suite CPU contention (same documented allowance used
+        // elsewhere in this file/CryptoContext.test.jsx/Login.test.jsx).
+        await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).not.toBe('null'), { timeout: 5000 });
+        return { getSetupKeysBody: () => setupKeysBody };
+      }
+
+      test('TEST 1: RecoveryPhraseModal appears once the new E2EE identity is established', async () => {
+        await completeSetup();
+        await waitFor(() => expect(screen.getByText(/Your Recovery Phrase/i)).toBeInTheDocument(), { timeout: 5000 });
+        // The passphrase-setup modal is gone — replaced by the recovery
+        // phrase step, not shown alongside it.
+        expect(screen.queryByText(/Set an encryption passphrase/i)).not.toBeInTheDocument();
+      });
+
+      test('TEST 2: the displayed phrase is the EXACT phrase whose hash was submitted to setup-keys — never a second, freshly-generated one', async () => {
+        const { getSetupKeysBody } = await completeSetup();
+        await waitFor(() => expect(screen.getByText(/Your Recovery Phrase/i)).toBeInTheDocument(), { timeout: 5000 });
+
+        // Reveal to read the displayed phrase back out of the DOM. This is
+        // secretKeyToMnemonic's real 24-word BIP39 output (space-separated),
+        // not the 24-letter scheme other flows in this app use — Recovery
+        // PhraseModal renders each word in its own .recovery-phrase-word span.
+        fireEvent.click(screen.getByText(/Click to reveal phrase/i));
+        const displayedWords = Array.from(document.querySelectorAll('.recovery-phrase-word')).map(el => el.textContent);
+        expect(displayedWords).toHaveLength(24);
+        const displayedPhrase = displayedWords.join(' ');
+
+        const { hashRecoveryPhrase } = await import('../lib/crypto.js');
+        const displayedHash = await hashRecoveryPhrase(displayedPhrase);
+        expect(displayedHash).toBe(getSetupKeysBody().recoveryKeyHash);
+      });
+
+      test('TEST 4: not acknowledging the recovery phrase does not silently dismiss it or let the setup-passphrase prompt reappear', async () => {
+        await completeSetup();
+        await waitFor(() => expect(screen.getByText(/Your Recovery Phrase/i)).toBeInTheDocument(), { timeout: 5000 });
+
+        // Give any stray timers/effects a chance to run without ever
+        // clicking reveal/acknowledge/continue.
+        await new Promise(r => setTimeout(r, 350));
+
+        // Still showing the SAME recovery-phrase gate — not dismissed, and
+        // not replaced by the (already-completed) passphrase-setup modal
+        // either, which would look like the flow silently reset/abandoned
+        // the phrase entirely.
+        expect(screen.getByText(/Your Recovery Phrase/i)).toBeInTheDocument();
+        expect(screen.queryByText(/Set an encryption passphrase/i)).not.toBeInTheDocument();
+        // The continue button is disabled until reveal + acknowledge — the
+        // ONLY way past this screen is actually confirming it.
+        expect(screen.getByText(/Reveal phrase first/i)).toBeDisabled();
+      });
+
+      test('confirming the recovery phrase (reveal + acknowledge + continue) dismisses the gate', async () => {
+        await completeSetup();
+        await waitFor(() => expect(screen.getByText(/Your Recovery Phrase/i)).toBeInTheDocument(), { timeout: 5000 });
+
+        fireEvent.click(screen.getByText(/Click to reveal phrase/i));
+        fireEvent.click(screen.getByRole('checkbox'));
+        fireEvent.click(screen.getByText(/I've saved it/i));
+
+        await waitFor(() => expect(screen.queryByText(/Your Recovery Phrase/i)).not.toBeInTheDocument());
+      });
+    });
+
+    test('a mismatched confirm-passphrase is rejected locally and never reaches the network', async () => {
+      localStorage.setItem('watch_token', fakeToken({ id: 22, username: 'frank' }));
+      localStorage.setItem('watch_username', 'frank');
+      const fetchMock = vi.fn(async (url) => {
+        if (String(url).includes('/api/auth/my-keys')) {
+          return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
+        }
+        throw new Error(`Unexpected fetch in test: ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<CryptoProvider><Probe /><EncryptionUnlockGate /></CryptoProvider>);
+      await waitForMountEffectSetupDispatch();
+
+      const passphraseInput = screen.getByPlaceholderText(/Min 8 characters/i);
+      fireEvent.change(passphraseInput, { target: { value: 'one-passphrase' } });
+      fireEvent.change(screen.getByPlaceholderText(/Re-enter passphrase/i), { target: { value: 'a-different-one' } });
+      fireEvent.submit(passphraseInput.closest('form'));
+
+      await waitFor(() => expect(screen.getByText(/do not match/i)).toBeInTheDocument());
+      expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+      expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('setup-keys'), expect.anything());
     });
   });
 });

@@ -156,32 +156,37 @@ describe('CryptoContext mount-time key check — network failure must never mint
     expect(screen.getByTestId('keypair-state').textContent).toBe('null');
   });
 
-  test('my-keys fetch succeeds confirming no key exists at all: a fresh keypair is generated (genuinely new account, unchanged behavior)', async () => {
+  test('my-keys fetch succeeds confirming no key exists at all: dispatches encryption_needs_passphrase(isSetup) instead of silently generating a keypair', async () => {
+    // Security fix: this state (no key anywhere) is NOT provably "genuinely
+    // brand new" — it's identical to an EXISTING account whose E2EE identity
+    // was intentionally cleared by a password reset performed without a
+    // recovery key (see ResetPassword.jsx). Silently minting a replacement
+    // here used to fabricate a new identity with no user awareness. Now it
+    // must always dispatch the same explicit passphrase-setup event
+    // Login.jsx uses, and never touch the network or generate a keypair on
+    // its own.
     const fetchMock = vi.fn(async (url) => {
       if (String(url).includes('/api/auth/my-keys')) {
         return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
-      }
-      if (String(url).includes('save-public-key')) {
-        return { ok: true, json: async () => ({ success: true }) };
       }
       throw new Error(`Unexpected fetch in test: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
+    const setupEvents = [];
+    const handler = (e) => setupEvents.push(e.detail);
+    window.addEventListener('encryption_needs_passphrase', handler);
+
     render(<CryptoProvider><Probe /></CryptoProvider>);
 
-    // This branch really runs saveKeyToSession() -> encryptPrivateKey(), which
-    // derives its wrapping key via real PBKDF2-SHA256 at 600k iterations
-    // (crypto.js, OWASP 2024 guidance — deliberately slow, and must stay
-    // that way). Measured ~480-530ms solo but ~780-835ms under full-suite
-    // CPU contention (other test files' worker threads competing for CPU),
-    // which occasionally exceeded waitFor's default 1000ms and flaked this
-    // exact assertion — not a production bug, just too little timing margin
-    // around a genuinely slow, real crypto operation. Everything else in
-    // this file resolves in well under 100ms and doesn't need the same
-    // allowance.
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
+    await waitFor(() => expect(setupEvents.length).toBe(1));
+    expect(setupEvents[0]).toMatchObject({ isSetup: true, token: 'fake-jwt-for-test', username: 'testuser' });
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
     expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('save-public-key'), expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('setup-keys'), expect.anything());
+
+    window.removeEventListener('encryption_needs_passphrase', handler);
   });
 });
 
@@ -340,30 +345,32 @@ describe('CryptoContext cold-start device unlock (Android) — restore, never re
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('device-enrollment-assertion'), expect.anything());
   });
 
-  test('server genuinely confirms no key exists at all: still generates a fresh keypair (Android device-unlock RESTORE is never attempted — nothing to restore — but Stage 5 first-device ENROLLMENT of the brand-new key is)', async () => {
-    const nativeUnlock = vi.fn(); // the restore path — must never be reached
-    const nativeSetup = vi.fn(async () => ({})); // the enrollment path — this IS a first-device-setup, so this should fire
+  test('server genuinely confirms no key exists at all: dispatches encryption_needs_passphrase instead of auto-generating (device-unlock restore AND first-device enrollment are both skipped here — enrollment now only happens later, when the user actually completes passphrase setup via EncryptionUnlockGate)', async () => {
+    const nativeUnlock = vi.fn(); // the restore path — must never be reached, nothing to restore
+    const nativeSetup = vi.fn(async () => ({})); // the enrollment path — must NOT fire from this mount effect anymore
     installNativePlugin({ unlockDeviceKey: nativeUnlock, setupDeviceUnlock: nativeSetup });
     const fetchMock = vi.fn(async (url) => {
       if (String(url).includes('/api/auth/my-keys')) {
         return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
       }
-      if (String(url).includes('save-public-key')) {
-        return { ok: true, json: async () => ({ success: true }) };
-      }
-      if (String(url).includes('/api/auth/device-enrollment-assertion')) {
-        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
-      }
       throw new Error(`Unexpected fetch in test: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
+    const setupEvents = [];
+    const handler = (e) => setupEvents.push(e.detail);
+    window.addEventListener('encryption_needs_passphrase', handler);
+
     render(<CryptoProvider><Probe /></CryptoProvider>);
 
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
+    await waitFor(() => expect(setupEvents.length).toBe(1));
+    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
     expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
-    expect(nativeUnlock).not.toHaveBeenCalled(); // nothing to restore — this is a genuinely new key, not a recovery
-    await waitFor(() => expect(nativeSetup).toHaveBeenCalledTimes(1)); // Stage 5: first-device enrollment of that new key
+    expect(nativeUnlock).not.toHaveBeenCalled();
+    expect(nativeSetup).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('save-public-key'), expect.anything());
+
+    window.removeEventListener('encryption_needs_passphrase', handler);
   });
 
   // tryRestoreViaDeviceUnlock's retry behavior — a genuinely cold app
@@ -470,18 +477,17 @@ describe('CryptoContext.enrollDeviceUnlock — first-device-setup ordering guard
   });
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete window.Capacitor; });
 
-  test('enrolling before any E2EE key exists throws and never calls native setupDeviceUnlock; enrolling after the key exists succeeds', async () => {
+  test('enrolling before any E2EE key exists throws and never calls native setupDeviceUnlock; enrolling after a key is established succeeds', async () => {
     const nativeSetup = vi.fn();
     installNativePlugin({ setupDeviceUnlock: nativeSetup });
-    // A slow-resolving my-keys response keeps the mount effect's "genuinely
-    // new account -> auto-generate" branch from having set a keyPair yet by
-    // the time the guard is exercised immediately below.
+    // The mount effect no longer auto-generates a keypair for a "no key at
+    // all" account (see the encryption_needs_passphrase dispatch tests
+    // above) — it just dispatches an event nothing in this test tree
+    // listens for, so keyPair simply stays null.
     vi.stubGlobal('fetch', vi.fn(async (url) => {
       if (String(url).includes('/api/auth/my-keys')) {
-        await new Promise(r => setTimeout(r, 50));
         return { ok: true, json: async () => ({ publicKey: null, encryptedPrivateKey: null }) };
       }
-      if (String(url).includes('save-public-key')) return { ok: true, json: async () => ({ success: true }) };
       if (String(url).includes('/api/auth/device-enrollment-assertion')) return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
       throw new Error(`Unexpected fetch: ${url}`);
     }));
@@ -489,21 +495,18 @@ describe('CryptoContext.enrollDeviceUnlock — first-device-setup ordering guard
     render(<CryptoProvider><Enroller /></CryptoProvider>);
 
     // Guard: no in-memory key yet -> enrollDeviceUnlock must reject, never touching native.
-    expect(screen.getByTestId('keypair-state').textContent).toBe('null');
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('null'));
     screen.getByTestId('enroll').click();
     await waitFor(() => expect(screen.getByTestId('enroll-result').textContent).toContain('error'));
     expect(screen.getByTestId('enroll-result').textContent).toContain('No encryption key established');
     expect(nativeSetup).not.toHaveBeenCalled();
 
-    // Once the account's real E2EE key exists (auto-generated here, since
-    // this is a genuinely brand-new account), enrollment is allowed.
-    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
-    // Stage 5 also fires enrollDeviceUnlockSilently automatically the
-    // moment that brand-new key is created (see the mount effect) —
-    // clearing the spy here isolates the assertion below to specifically
-    // the EXPLICIT enrollDeviceUnlock() call this test is about, not that
-    // automatic one (already covered by its own dedicated test elsewhere).
-    nativeSetup.mockClear();
+    // Once the account's real E2EE key exists — established via the
+    // explicit passphrase-setup flow elsewhere (EncryptionUnlockGate),
+    // which calls setKeyPair the same way this test's own "set key" button
+    // does — enrollment is allowed.
+    screen.getByTestId('set-key').click();
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'));
     screen.getByTestId('enroll').click();
     await waitFor(() => expect(screen.getByTestId('enroll-result').textContent).toBe('ok'));
     expect(nativeSetup).toHaveBeenCalledTimes(1);
