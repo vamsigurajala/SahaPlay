@@ -1513,7 +1513,22 @@ const Profile = () => {
             <button 
               className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
               title="Chats"
-              onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); setShowUserMenu(false); }}
+              onClick={() => {
+                // A chat left open behind THIS profile (leaveChatToViewProfile,
+                // from tapping an avatar inside it) renders display:none until
+                // the profile route is left — a plain toggle here had no
+                // visible effect (or, since isOpen was usually already true
+                // from before the nav, silently flipped it closed then open
+                // again on alternating clicks). Bring it forward, on top of
+                // this profile, instead of leaving it invisibly stuck behind it.
+                if (chatWidgetRef.current?.isHiddenBehindProfile) {
+                  chatWidgetRef.current.revealOverProfile();
+                  setShowRecentChats(true);
+                } else {
+                  setShowRecentChats(!showRecentChats);
+                }
+                setShowNotifications(false); setShowSearch(false); setShowUserMenu(false);
+              }}
             >
               <MessageSquare size={18} />
               {totalUnread > 0 && (

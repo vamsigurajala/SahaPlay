@@ -3317,7 +3317,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
   useImperativeHandle(ref, () => ({
     openChatWith: (partnerUsername, displayName, avatarPath) => {
       cameFromOpenChatRef.current = false;
-      try { sessionStorage.removeItem('gcw_hidden_for_profile'); } catch {}
+      try {
+        sessionStorage.removeItem('gcw_hidden_for_profile');
+        sessionStorage.removeItem('gcw_hidden_for_profile_target');
+      } catch {}
       openChat({
         id: partnerUsername,
         partner: partnerUsername,
@@ -3325,6 +3328,27 @@ const GlobalChatWidget = React.memo(forwardRef(({
         partnerAvatar: avatarPath,
         type: 'private'
       });
+    },
+    // As of the render that produced this handle — re-created every render
+    // (no deps array below), so always current by the time a caller reads it.
+    isHiddenBehindProfile: hiddenByProfileRoute,
+    // The nav bar's chat icon exists on every page, including a /profile/*
+    // page reached by leaving an already-open chat — clicking it there used
+    // to just toggle isOpen, which the caller was already doing, with no
+    // effect: hiddenByProfileRoute forces display:none regardless of isOpen,
+    // so the click looked like it did nothing (or, since isOpen usually
+    // started true from before the profile nav, toggled it invisibly closed
+    // then invisibly open again on alternating clicks). This is what actually
+    // brings the chat forward, on top of the profile currently showing,
+    // instead of leaving it stuck behind it until the user navigates away
+    // entirely — the caller still also sets isOpen true so the panel is
+    // showing once this clears the hide.
+    revealOverProfile: () => {
+      cameFromOpenChatRef.current = false;
+      try {
+        sessionStorage.removeItem('gcw_hidden_for_profile');
+        sessionStorage.removeItem('gcw_hidden_for_profile_target');
+      } catch {}
     },
     getActiveChat: () => ({
       partner: activeChatRef.current?.partner,

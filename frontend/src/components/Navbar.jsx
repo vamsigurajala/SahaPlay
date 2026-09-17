@@ -193,6 +193,21 @@ const Navbar = () => {
   const navIconsRef = useRef(null);
   const chatWidgetRef = useRef(null);
 
+  // A chat left open behind a /profile/* page (leaveChatToViewProfile, from
+  // tapping an avatar inside it) renders display:none until that route is
+  // left — this nav icon's plain toggle had no visible effect there (or,
+  // since isOpen was usually already true from before the profile nav,
+  // silently flipped it closed then open again on alternating clicks).
+  // Bring it forward, on top of that profile, instead.
+  const toggleOrRevealChats = () => {
+    if (chatWidgetRef.current?.isHiddenBehindProfile) {
+      chatWidgetRef.current.revealOverProfile();
+      setShowRecentChats(true);
+    } else {
+      setShowRecentChats(prev => !prev);
+    }
+  };
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -652,7 +667,7 @@ const Navbar = () => {
                     <button
                       className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
                       title={t('chats', 'Chats')}
-                      onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); closeSearch(); }}
+                      onClick={() => { toggleOrRevealChats(); setShowNotifications(false); closeSearch(); }}
                     >
                       <MessageSquare size={18} />
                       {totalUnread > 0 && (
@@ -853,7 +868,7 @@ const Navbar = () => {
                       <button 
                         className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
                         title={t('chats', 'Chats')}
-                        onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); closeSearch(); setShowUserMenu(false); }}
+                        onClick={() => { toggleOrRevealChats(); setShowNotifications(false); closeSearch(); setShowUserMenu(false); }}
                       >
                         <MessageSquare size={18} />
                         {totalUnread > 0 && (

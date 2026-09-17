@@ -1637,7 +1637,20 @@ const AppSettings = () => {
           <div style={{ position: 'relative' }}>
             <button 
               title="Chats"
-              onClick={() => { setShowRecentChats(!showRecentChats); setShowNotifications(false); setShowSearch(false); setShowUserMenu(false); }}
+              onClick={() => {
+                // A chat left open behind this /profile/*-adjacent settings
+                // page (leaveChatToViewProfile, from tapping an avatar inside
+                // it) renders display:none until that route is left — bring
+                // it forward instead of silently toggling an invisible state.
+                // See GlobalChatWidget's isHiddenBehindProfile/revealOverProfile.
+                if (chatWidgetRef.current?.isHiddenBehindProfile) {
+                  chatWidgetRef.current.revealOverProfile();
+                  setShowRecentChats(true);
+                } else {
+                  setShowRecentChats(!showRecentChats);
+                }
+                setShowNotifications(false); setShowSearch(false); setShowUserMenu(false);
+              }}
               className={`nav-icon-btn${showRecentChats ? ' active' : ''}`}
             >
               <MessageSquare size={18} />

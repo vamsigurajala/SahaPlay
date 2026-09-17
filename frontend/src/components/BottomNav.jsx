@@ -64,6 +64,11 @@ export default function BottomNav() {
   const [showProfile, setShowProfile] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showDownloadAppModal, setShowDownloadAppModal] = useState(false);
+  // A chat left open behind a /profile/* page (leaveChatToViewProfile, from
+  // tapping an avatar inside it) renders display:none until that route is
+  // left — the 'chat' tab's onClick below (isHiddenBehindProfile/
+  // revealOverProfile) brings it forward instead, same fix as Navbar.jsx.
+  const chatWidgetRef = useRef(null);
 
   // Mirrors Navbar.jsx's own unread tracking (same localStorage keys, same
   // /api/chats/recent poll) rather than sharing state cross-component —
@@ -298,7 +303,13 @@ export default function BottomNav() {
     { key: 'home', label: t('home', 'Home'), icon: HomeIcon, active: location.pathname === '/' && !anyOverlayOpen, onClick: () => navigateFrom('/') },
     { key: 'public', label: t('publicRooms', 'Public Rooms'), icon: Globe, active: location.pathname === '/public' && !anyOverlayOpen, onClick: () => navigateFrom('/public') },
     ...(isLoggedIn ? [
-      { key: 'chat', label: t('chats', 'Chats'), icon: MessageSquare, active: showChat, onClick: () => { const next = !showChat; closeAll(); setShowChat(next); } },
+      { key: 'chat', label: t('chats', 'Chats'), icon: MessageSquare, active: showChat, onClick: () => {
+        const hiddenBehindProfile = chatWidgetRef.current?.isHiddenBehindProfile;
+        const next = hiddenBehindProfile ? true : !showChat;
+        closeAll();
+        if (hiddenBehindProfile) chatWidgetRef.current.revealOverProfile();
+        setShowChat(next);
+      } },
     ] : []),
     { key: 'search', label: t('search', 'Search'), icon: SearchIcon, active: showSearch, onClick: () => { const next = !showSearch; closeAll(); setShowSearch(next); setPersistedSearchOpen(next); } },
     { key: 'profile', label: t('profile', 'Profile'), icon: User, active: showProfile, isAvatar: true, onClick: () => { const next = !showProfile; closeAll(); setShowProfile(next); } },
@@ -415,6 +426,7 @@ export default function BottomNav() {
 
       {isLoggedIn && (
         <GlobalChatWidget
+          ref={chatWidgetRef}
           isOpen={showChat}
           onClose={() => setShowChat(false)}
           unreadCounts={unreadCounts}
