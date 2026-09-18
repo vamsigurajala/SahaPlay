@@ -55,6 +55,13 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
     public void onMessageReceived(@NonNull RemoteMessage remoteMessage) {
         super.onMessageReceived(remoteMessage);
         Map<String, String> data = remoteMessage.getData();
+        // Unconditional, unlike everything below it — if this line is missing
+        // from `adb logcat -s SahaplayFCM` for a push you know the server
+        // sent, the OS never woke this process at all (battery optimization /
+        // OEM autostart restriction), which is a device setting, not
+        // something fixable from inside this method. If it IS present but
+        // nothing rings/notifies, the bug is somewhere below instead.
+        android.util.Log.i("SahaplayFCM", "onMessageReceived type=" + data.get("type") + " data=" + data);
         if ("call".equals(data.get("type"))) {
             String callId = data.get("callId");
             String callerUsername = data.get("callerUsername");

@@ -307,6 +307,13 @@ export function CallProvider({ children }) {
     // still "connects" successfully at the transport level either way.
     const sock = io(API, { auth: (cb) => cb({ token: localStorage.getItem('watch_token') }), transports: ['websocket', 'polling'] });
     socketRef.current = sock;
+    // Calls depend entirely on this socket staying connected and authenticated
+    // — with no visibility into connect/disconnect, "why didn't my call ring"
+    // is undebuggable from the console alone. These are one line per actual
+    // transition (not per render), so they stay cheap to leave in permanently.
+    sock.on('connect', () => console.log('[Call] socket connected', sock.id));
+    sock.on('disconnect', (reason) => console.log('[Call] socket disconnected:', reason));
+    sock.on('connect_error', (err) => console.log('[Call] socket connect_error:', err.message));
     ensureDesktopNotifyPermission();
     // Covers the browser-fully-closed case Notification-API-from-a-live-tab
     // above can't — real Web Push wakes the service worker even with no tab
@@ -325,8 +332,12 @@ export function CallProvider({ children }) {
     });
 
     sock.on('call:incoming', async ({ callId, callerUsername, callType, groupParticipants }) => {
+      console.log(`[Call] incoming from ${callerUsername} (${callType}), callId=${callId}`);
       // Already on a call (shouldn't normally happen — server enforces busy) — ignore silently.
-      if (callStateRef.current) return;
+      if (callStateRef.current) {
+        console.log('[Call] ignored — already in a call locally, phase:', callStateRef.current.phase);
+        return;
+      }
       peerPublicKeysRef.current = new Map();
       peerGoneRef.current = false;
       const brief = await fetchUserBrief(callerUsername);
@@ -1234,6 +1245,7 @@ export function CallProvider({ children }) {
       isGroupJoin: false,
       groupMembers: [],
     });
+    console.log(`[Call] inviting ${peerUsername} (${type}), callId=${callId}, socket connected=${socketRef.current?.connected}`);
     socketRef.current.emit('call:invite', { callId, calleeUsername: peerUsername, callType: type });
   }, []);
 

@@ -409,9 +409,13 @@ async function sendPushToTokens(tokens, { title, body, data = {}, tag, dataOnly 
         data: stringData,
         tokens: batch,
       });
+      console.log(`[FCM] batch of ${batch.length}: ${resp.successCount} succeeded, ${resp.failureCount} failed`);
       resp.responses.forEach((r, idx) => {
-        if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
-          deadTokens.push(batch[idx]);
+        if (!r.success) {
+          console.log(`[FCM] token ...${batch[idx].slice(-12)} failed: ${r.error?.code || r.error?.message}`);
+          if (r.error?.code === 'messaging/registration-token-not-registered') {
+            deadTokens.push(batch[idx]);
+          }
         }
       });
     } catch (e) {
@@ -480,19 +484,29 @@ async function isNotifyEnabled(username, category) {
 // already over).
 async function sendPushToUser(username, payload, category) {
   if (!username) return;
-  if (category && !(await isNotifyEnabled(username, category))) return;
+  const pushType = payload?.data?.type || 'unknown';
+  if (category && !(await isNotifyEnabled(username, category))) {
+    console.log(`[Push] skipped ${pushType} -> ${username}: notify category '${category}' disabled`);
+    return;
+  }
   const tasks = [];
   if (firebaseAdmin) {
     tasks.push(
       pool.query('SELECT token FROM push_tokens WHERE LOWER(username) = LOWER($1)', [username])
-        .then(rows => sendPushToTokens(rows.rows.map(r => r.token), payload))
+        .then(rows => {
+          console.log(`[Push] ${pushType} -> ${username}: ${rows.rows.length} FCM token(s) on file`);
+          return sendPushToTokens(rows.rows.map(r => r.token), payload);
+        })
         .catch(e => console.error('[FCM] sendPushToUser error:', e.message))
     );
   }
   if (webPushConfigured) {
     tasks.push(
       pool.query('SELECT endpoint, keys_p256dh, keys_auth FROM webpush_subscriptions WHERE LOWER(username) = LOWER($1)', [username])
-        .then(rows => sendWebPushToTokens(rows.rows, payload))
+        .then(rows => {
+          console.log(`[Push] ${pushType} -> ${username}: ${rows.rows.length} web-push subscription(s) on file`);
+          return sendWebPushToTokens(rows.rows, payload);
+        })
         .catch(e => console.error('[WebPush] sendPushToUser error:', e.message))
     );
   }
@@ -10758,9 +10772,14 @@ io.on('connection', (socket) => {
     try {
       const caller = socket.username?.toLowerCase();
       const callee = (calleeUsername || '').toLowerCase();
-      if (!callId || !isValidCallInviteRequest({ caller, callee, callType })) return;
+      console.log(`[Call] invite ${caller} -> ${callee} (${callType}) callId=${callId}`);
+      if (!callId || !isValidCallInviteRequest({ caller, callee, callType })) {
+        console.log(`[Call] invite rejected: invalid request shape (caller=${caller}, callee=${callee}, callType=${callType}, callId=${callId})`);
+        return;
+      }
 
       if (isCallInviteBusy({ callerBusy: userActiveCallId.has(caller), calleeBusy: userActiveCallId.has(callee) })) {
+        console.log(`[Call] invite rejected: busy (callerBusy=${userActiveCallId.has(caller)}, calleeBusy=${userActiveCallId.has(callee)})`);
         socket.emit('call:busy', { callId });
         return;
       }
@@ -10783,6 +10802,7 @@ io.on('connection', (socket) => {
       const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [caller, callee, callee, caller]);
       const eligibility = evaluateCallInviteEligibility({ areFriends, isBlocked: !!blockCheck });
       if (eligibility.result !== 'ok') {
+        console.log(`[Call] invite rejected: ineligible (reason=${eligibility.reason}, areFriends=${areFriends}, blocked=${!!blockCheck})`);
         userActiveCallId.delete(caller); userActiveCallId.delete(callee);
         socket.emit('call:invalid', { callId, reason: eligibility.reason }); return;
       }
@@ -10813,8 +10833,13 @@ io.on('connection', (socket) => {
       // awaits.
       activeCalls.set(callId, { caller, callee, type: callType, status: 'ringing', startedAt: Date.now(), answeredAt: null, timeoutHandle, members: new Map(), calleeMutedCaller, activeSocketId: new Map([[caller, socket.id]]) });
 
-      if (calleeMutedCaller) return;
+      if (calleeMutedCaller) {
+        console.log(`[Call] ${callee} has muted calls from ${caller} — ringing suppressed, callId=${callId}`);
+        return;
+      }
 
+      const calleeLiveSockets = connectedSockets.get(callee)?.size || 0;
+      console.log(`[Call] delivering call:incoming to ${callee} — ${calleeLiveSockets} live socket(s) connected`);
       emitToUser(callee, 'call:incoming', { callId, callerUsername: caller, callType });
 
       // Best-effort — wakes a backgrounded/killed callee. Foreground callees

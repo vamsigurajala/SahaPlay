@@ -9294,21 +9294,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
                            } catch (err) { console.error('[GCW] block-check failed, treating as not blocked', err); }
                            const sName = isBlocked ? 'User' : sNameOriginal;
                            const aSrc = isBlocked ? null : getAvatarUrl(msg.senderAvatar);
-                           // TEMPORARY DIAGNOSTIC — remove once the intermittent
-                           // wrong/missing group-chat avatar issue is confirmed
-                           // fixed. Logs exactly what this message's own row
-                           // received/computed — compare senderName/senderAvatar
-                           // across consecutive log lines to see whether the
-                           // SERVER ever sends one sender's name with another's
-                           // avatar (a backend bug) vs. the values being correct
-                           // here but a wrong avatar still painting on screen (a
-                           // React rendering/key-recycling bug instead).
-                           console.log('[DEBUG-AVATAR]', {
-                             renderIndex: i, msgId: msg.id, tempId: msg.tempId,
-                             reactKey: msg.tempId || msg.id || i,
-                             senderName: sNameOriginal, rawSenderAvatar: msg.senderAvatar,
-                             computedAvatarSrc: aSrc, chatType: activeChat?.type,
-                           });
                            return (
                              <div
                                onClick={(e) => {
