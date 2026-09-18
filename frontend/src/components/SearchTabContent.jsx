@@ -31,6 +31,24 @@ export default function SearchTabContent({ t, onNavigate }) {
     fetch(`${API}/api/rooms/public`).then(r => r.json()).then(d => setAllRooms(Array.isArray(d) ? d : [])).catch(() => setAllRooms([]));
   }, []);
 
+  // Profile and Room are both lazy-loaded route chunks (App.jsx's
+  // lazy(() => import(...))) — tapping a search result for the very first
+  // time in a session had to fetch that chunk on the spot, and the
+  // Suspense fallback for it only appears after a 200ms delay (see
+  // App.jsx's RouteLoadingFallback), so a load landing in that window
+  // showed nothing new yet: whatever was on screen before the tap (this
+  // search overlay closing down to reveal Home underneath) stayed visible
+  // for that beat before the destination page finally appeared — read as
+  // "shows Home for a split second, then the profile." Kicking off both
+  // imports the moment this screen opens means that, by the time anyone
+  // has typed a query and tapped a result, the chunk is already cached and
+  // navigate() resolves to it immediately, same fetch-ahead pattern
+  // GlobalChatWidget already uses for Room.
+  useEffect(() => {
+    import('../Profile').catch(() => {});
+    import('../Room').catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!debouncedQuery) { setUserResults([]); return; }
     const token = localStorage.getItem('watch_token');
