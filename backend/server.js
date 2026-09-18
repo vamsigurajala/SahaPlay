@@ -5097,6 +5097,11 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
     if (officialEntry) {
       officialEntry.isHost = SAHAPLAY_BROADCAST_ROLES.includes(userRow?.role);
       officialEntry.partnerAvatar = SAHAPLAY_OFFICIAL_AVATAR_URL;
+      // Narrower than isHost (which also covers 'admin', to let both roles
+      // post) — who-reacted visibility on this one channel is restricted to
+      // 'super_admin' only, per explicit product decision, so the client
+      // needs to tell these two roles apart here.
+      officialEntry.isSuperAdmin = userRow?.role === 'super_admin';
     }
 
     const groupRoomIds = new Set(finalGroup.map(g => g.id));

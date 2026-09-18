@@ -7395,8 +7395,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 const isBlocked = !isSelf && (blockingMe.some(u => String(u||'').toLowerCase() === uLower) || blockedChats.some(u => String(u||'').toLowerCase() === uLower));
                 const fromMsg = messages.find(m => (isSelf ? m.isMe : ((m.senderName||m.username||'').toLowerCase() === uLower)) && m.senderAvatar);
                 let displayName = isSelf ? 'You' : (isBlocked ? 'User' : (fromMsg?.senderName || fromMsg?.username || (activeChat?.type === 'private' && (activeChat.partner||'').toLowerCase() === uLower ? activeChat.partner : uid)));
+                // Our OWN messages never carry a senderAvatar (see myAvatarUrl's
+                // own comment — same gap this sheet had for poll-vote avatars),
+                // so fromMsg?.senderAvatar is always empty for isSelf and this
+                // row fell through to plain initials even when the viewer has a
+                // real avatar set. myAvatarUrl (fetched once at mount) is the
+                // fix, same source resolveAvatar already uses for poll votes.
                 let avatarPath = isBlocked ? null : (fromMsg?.senderAvatar || (activeChat?.type === 'private' && (activeChat.partner||'').toLowerCase() === uLower ? activeChat.partnerAvatar : null));
-                const avatarSrc = getAvatarUrl(avatarPath);
+                const avatarSrc = isBlocked ? null : (isSelf ? (myAvatarUrl || getAvatarUrl(avatarPath)) : getAvatarUrl(avatarPath));
                 return (
                   <div
                     key={uid}
@@ -7593,7 +7599,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 fontWeight: 600, fontSize: '1.1rem',
                 color: 'var(--header-text)',
                 textDecoration: 'none',
-                cursor: view === 'chat' && (activeChat?.type === 'private' || activeChat?.type === 'room') ? 'pointer' : 'default',
+                cursor: view === 'chat' && (activeChat?.type === 'private' || (activeChat?.type === 'room' && !isSahaplayOfficialGroup(activeChat))) ? 'pointer' : 'default',
                 display: 'block',
                 minWidth: 0,
                 overflow: 'hidden',
@@ -7607,7 +7613,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   if (!isBlocked) {
                     leaveChatToViewProfile(activeChat.partner);
                   }
-                } else if (view === 'chat' && activeChat?.type === 'room') {
+                } else if (view === 'chat' && activeChat?.type === 'room' && !isSahaplayOfficialGroup(activeChat)) {
+                  // The mandatory SahaPlay announcements group (see
+                  // isSahaplayOfficialGroup) is a reserved chat-only bulletin,
+                  // not a real joinable video room — it has no actual Room.jsx
+                  // page behind it. Reaching this navigate() for it opened
+                  // Room.jsx anyway (it happily renders an empty room shell
+                  // for any roomId), which read as "tapping the channel name
+                  // dumps me into a broken video-call room." Excluding it here
+                  // makes the title inert for this one chat instead.
                   // Room.jsx's own mount-time logic (membership/approval/
                   // password/ban checks, same as every other "open a room"
                   // entry point — Dashboard's join-by-code, PublicRooms,
@@ -8665,6 +8679,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   const eitherBlocked = isBlockedByThem || iBlockedThem;
                   const displayAvatar = eitherBlocked ? null : chat.partnerAvatar;
                   const displayName = eitherBlocked ? 'User' : chat.displayName;
+                  // The mandatory SahaPlay announcements group's avatar is the
+                  // app's own transparent-background logo mark (see
+                  // SAHAPLAY_OFFICIAL_AVATAR_URL) — rendered on the same 'none'
+                  // background as any other room thumbnail, the transparent
+                  // PNG just showed whatever dark background sat behind it,
+                  // reading as a plain black circle with the logo barely
+                  // visible. A fixed white backing plate is this channel's own
+                  // brand treatment (like a badge), independent of dark/light
+                  // theme, so it isn't wired to isLight here.
+                  const isOfficial = chat.type === 'room' && isSahaplayOfficialGroup(chat);
                   return (
                     <>
                       {/* Outer wrapper carries no overflow:hidden of its own —
@@ -8674,11 +8698,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
                           fully outside the avatar's own clip region instead of
                           being cut off by it. */}
                       <div style={{ width: 40, height: 40, minWidth: 40, position: 'relative' }}>
-                      <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: isOfficial ? '#fff' : '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {chat.type === 'room' ? (
-                          <div style={{ width: '100%', height: '100%', background: displayAvatar ? 'none' : 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', overflow: 'hidden' }}>
+                          <div style={{ width: '100%', height: '100%', background: isOfficial ? '#fff' : (displayAvatar ? 'none' : 'linear-gradient(135deg, var(--brand-1), var(--brand-2))'), display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', overflow: 'hidden' }}>
                             {displayAvatar ? (
-                              <img src={getAvatarUrl(displayAvatar)} alt="Room" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              <img src={getAvatarUrl(displayAvatar)} alt="Room" loading="lazy" style={{ width: isOfficial ? '68%' : '100%', height: isOfficial ? '68%' : '100%', objectFit: isOfficial ? 'contain' : 'cover' }} />
                             ) : (
                               <Users size={20} color="#fff" />
                             )}
@@ -9311,7 +9335,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                            // admin account actually posted it (matches the "SahaPlay" sender
                            // label below, which already avoids leaking the poster's identity;
                            // this closes the same gap for the avatar itself).
-                           <div style={{ flexShrink:0, width:32, height:32, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', background:'#000', marginTop:2 }}>
+                           <div style={{ flexShrink:0, width:32, height:32, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', background:'#fff', marginTop:2 }}>
                              <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width:'62%', height:'62%', objectFit:'contain' }} />
                            </div>
                          ) : !isMe && (() => {
@@ -9743,7 +9767,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
                           {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                             <div style={{display:'flex',gap:4,marginTop:2,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start'}}>
                               {Object.entries(msg.reactions).map(([em, users]) => users.length > 0 && (
-                                <span key={em} onClick={(e)=>{e.stopPropagation(); setReactorsSheet({ msgId: msg.id, emoji: em, users });}} style={{background: metaIsLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)', border:`1px solid ${users.includes(myUsername)?'var(--brand-1)' : (metaIsLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`, borderRadius:12, padding:'2px 8px', fontSize:11, cursor:'pointer', userSelect:'none', color: metaIsLight ? '#1e293b' : '#ddd'}}>
+                                <span key={em} onClick={(e)=>{
+                                  e.stopPropagation();
+                                  // Who-reacted is a privacy-sensitive detail on the mandatory
+                                  // SahaPlay announcements group specifically (every signed-in
+                                  // user is a forced member, unlike a room/DM someone chose to
+                                  // join) — restricted to the 'super_admin' role only, so
+                                  // anyone else tapping a pill there just sees the emoji+count
+                                  // that's already visible, no sheet.
+                                  if (isSahaplayOfficialGroup(activeChat) && !activeChat?.isSuperAdmin) return;
+                                  setReactorsSheet({ msgId: msg.id, emoji: em, users });
+                                }} style={{background: metaIsLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)', border:`1px solid ${users.includes(myUsername)?'var(--brand-1)' : (metaIsLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`, borderRadius:12, padding:'2px 8px', fontSize:11, cursor: (isSahaplayOfficialGroup(activeChat) && !activeChat?.isSuperAdmin) ? 'default' : 'pointer', userSelect:'none', color: metaIsLight ? '#1e293b' : '#ddd'}}>
                                   {em} {users.length>1?users.length:''}
                                 </span>
                               ))}
