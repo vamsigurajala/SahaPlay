@@ -4281,7 +4281,7 @@ async function ensureOfficialGroupExists() {
   if (officialGroupEnsured) return;
   try {
     await pool.query(
-      `INSERT INTO room_names ("roomId", "roomName", "isPublic") VALUES ($1, $2, false) ON CONFLICT("roomId") DO NOTHING`,
+      `INSERT INTO room_names ("roomId", "roomName", "isPublic") VALUES ($1, $2, 0) ON CONFLICT("roomId") DO NOTHING`,
       [SAHAPLAY_OFFICIAL_ROOM_ID, SAHAPLAY_OFFICIAL_DISPLAY_NAME]
     );
     officialGroupEnsured = true;
