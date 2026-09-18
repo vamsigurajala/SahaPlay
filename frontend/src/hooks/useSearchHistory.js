@@ -42,13 +42,30 @@ function entryKey(e) {
 // import would fail to resolve when THIS repo's own web bundle builds.
 const preferencesPlugin = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.Preferences : null);
 
+// Temporary diagnostic logging (kept loud — console.warn/error, not .log —
+// so it survives logcat's default filtering) added after a real on-device
+// test of the Preferences-based rewrite below STILL showed history not
+// surviving an app relaunch on Android. Silently swallowing every failure
+// here (the plain `catch {}` this used to be) meant there was no way to
+// tell "the plugin isn't there at all" apart from "it's there but every
+// call throws" apart from "it works but something else is wrong" — all
+// three look identical from the UI. Remove once the real cause is found.
+function logSearchHistoryIssue(where, detail) {
+  try { console.warn('[search-history-debug]', where, detail); } catch {}
+}
+
 async function readHistory() {
   try {
     const prefs = preferencesPlugin();
+    if (isCapacitorApp() && !prefs) {
+      logSearchHistoryIssue('read', 'Capacitor app but window.Capacitor.Plugins.Preferences is missing — plugin not linked into this build');
+    }
     const raw = prefs ? (await prefs.get({ key: KEY })).value : localStorage.getItem(KEY);
+    logSearchHistoryIssue('read-raw', { usedPreferences: !!prefs, rawLength: raw ? raw.length : 0 });
     const arr = raw ? JSON.parse(raw) : [];
     return Array.isArray(arr) ? arr.filter(e => e && (e.username || (e.type === 'room' && e.roomId))) : [];
-  } catch {
+  } catch (e) {
+    logSearchHistoryIssue('read-error', e && (e.message || String(e)));
     return [];
   }
 }
@@ -57,12 +74,19 @@ async function writeHistory(list) {
   try {
     const json = JSON.stringify(list);
     const prefs = preferencesPlugin();
+    if (isCapacitorApp() && !prefs) {
+      logSearchHistoryIssue('write', 'Capacitor app but window.Capacitor.Plugins.Preferences is missing — plugin not linked into this build');
+    }
     if (prefs) {
       await prefs.set({ key: KEY, value: json });
+      logSearchHistoryIssue('write-ok', { usedPreferences: true, entries: list.length });
     } else {
       localStorage.setItem(KEY, json);
+      logSearchHistoryIssue('write-ok', { usedPreferences: false, entries: list.length });
     }
-  } catch {}
+  } catch (e) {
+    logSearchHistoryIssue('write-error', e && (e.message || String(e)));
+  }
 }
 
 export function useSearchHistory() {
