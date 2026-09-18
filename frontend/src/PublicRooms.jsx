@@ -90,6 +90,20 @@ const PublicRooms = () => {
       .finally(() => setIsLoading(false));
   }, []);
 
+  // The 4s poll below already self-heals a stale thumbnail eventually, but
+  // patching in place the moment GlobalChatWidget rebroadcasts the server's
+  // room_thumbnail_updated event avoids up to a 4s-stale card in the
+  // meantime, matching every other room list's behavior.
+  useEffect(() => {
+    const onThumbnailUpdated = (e) => {
+      const { roomId, thumbnailPath } = e.detail || {};
+      if (!roomId) return;
+      setPublicRooms(prev => prev.map(r => (r.id || '').toLowerCase() === roomId.toLowerCase() ? { ...r, thumbnailPath } : r));
+    };
+    window.addEventListener('room_thumbnail_updated', onThumbnailUpdated);
+    return () => window.removeEventListener('room_thumbnail_updated', onThumbnailUpdated);
+  }, []);
+
   useEffect(() => {
     fetchRooms();
     const interval = setInterval(fetchRooms, 4000);

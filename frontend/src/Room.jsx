@@ -4392,7 +4392,10 @@ const Room = () => {
       });
     });
 
-    sock.on('room_thumbnail_updated', ({ thumbnailPath }) => {
+    sock.on('room_thumbnail_updated', ({ roomId: updatedRoomId, thumbnailPath }) => {
+      // This now broadcasts to every connected client (see server.js), not
+      // just sockets in this room — ignore updates for any other room.
+      if (updatedRoomId && (updatedRoomId || '').toLowerCase() !== (roomId || '').toLowerCase()) return;
       setRoom(prev => prev ? { ...prev, thumbnailPath } : null);
       syncRecentChat({ thumbnailPath });
       if (notifSettingsRef.current.app) {

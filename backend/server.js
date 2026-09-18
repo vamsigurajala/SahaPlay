@@ -4422,8 +4422,15 @@ app.post('/api/rooms/thumbnail', authenticateToken, roomThumbnailUpload.single('
           room.thumbnailPath = thumbnailPath;
         }
 
-        // Broadcast to all users in the room so the UI updates immediately
-        io.in(roomId).emit('room_thumbnail_updated', { thumbnailPath });
+        // Broadcast to EVERY connected client, not just sockets currently
+        // joined to this room — Home/Pinned Rooms/Room History/Search all
+        // cache their own room lists (state or localStorage) independent of
+        // whichever room, if any, a client happens to be sitting in, and
+        // previously had no way to learn a thumbnail changed except a
+        // `window focus` refetch (i.e. only after backgrounding/reopening
+        // the app). roomId is included so every listener can tell which
+        // cached entry to patch.
+        io.emit('room_thumbnail_updated', { roomId, thumbnailPath });
 
         res.json({ thumbnailPath });
       });

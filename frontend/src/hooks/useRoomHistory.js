@@ -53,5 +53,19 @@ export function useRoomHistory() {
     return () => window.removeEventListener('room_deleted', onRoomDeleted);
   }, []);
 
+  // Same reasoning as the room_deleted listener just above — see
+  // usePinnedRooms.js's identical handler for the full explanation of why
+  // this hook needs it at all (no socket of its own, only refetches on
+  // mount/focus).
+  useEffect(() => {
+    const onThumbnailUpdated = (e) => {
+      const { roomId, thumbnailPath } = e.detail || {};
+      if (!roomId) return;
+      setRoomHistory(prev => prev.map(r => (r.id || '').toLowerCase() === roomId.toLowerCase() ? { ...r, thumbnailPath } : r));
+    };
+    window.addEventListener('room_thumbnail_updated', onThumbnailUpdated);
+    return () => window.removeEventListener('room_thumbnail_updated', onThumbnailUpdated);
+  }, []);
+
   return { roomHistory, isLoading, fetchHistory };
 }

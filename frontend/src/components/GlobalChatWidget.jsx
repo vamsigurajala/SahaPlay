@@ -4678,6 +4678,34 @@ const GlobalChatWidget = React.memo(forwardRef(({
       delete paginationStateRef.current[roomLower];
     });
 
+    // ── A room's thumbnail changed ───────────────────────────────────────────
+    // Same "this widget is the one thing guaranteed to be listening
+    // regardless of which page is open" reasoning as admin_room_deleted just
+    // above: the server now broadcasts this to every connected client (not
+    // just sockets inside that room — see server.js), so any page's cached
+    // room list can catch it. Room.jsx already patches its own live `room`
+    // state directly (it has the socket event too, filtered to its own
+    // roomId); this handler instead covers everything Room.jsx can't reach:
+    // this widget's own conversations list, and — via the rebroadcast —
+    // Home/Pinned Rooms/Room History/Search history's cached lists.
+    sock.on('room_thumbnail_updated', ({ roomId, thumbnailPath }) => {
+      const roomLower = (roomId || '').toLowerCase();
+      setConversations(prev => {
+        let changed = false;
+        const next = prev.map(c => {
+          if (c.type === 'room' && (c.partner || c.id || '').toLowerCase() === roomLower && c.partnerAvatar !== thumbnailPath) {
+            changed = true;
+            return { ...c, partnerAvatar: thumbnailPath };
+          }
+          return c;
+        });
+        if (changed) { try { localStorage.setItem('watch_recent_chats', JSON.stringify(next)); } catch {} }
+        return changed ? next : prev;
+      });
+
+      window.dispatchEvent(new CustomEvent('room_thumbnail_updated', { detail: { roomId, thumbnailPath } }));
+    });
+
     // ── Host permanently deleted a room ──────────────────────────────────────
     // Same cleanup as admin_room_deleted but triggered by the room host via socket
     sock.on('room_permanently_deleted', ({ roomId }) => {

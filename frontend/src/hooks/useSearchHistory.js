@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 // Backs "recently searched" on every search surface in the app — Navbar's
 // search dropdown (desktop and its own mobile-width block), Profile.jsx's
@@ -74,6 +74,33 @@ export function useSearchHistory() {
   const clearHistory = useCallback(() => {
     writeHistory([]);
     setHistory([]);
+  }, []);
+
+  // A room's thumbnail here is a snapshot taken the moment it was added to
+  // history (see addToHistory above) and otherwise never refreshed — it sat
+  // stale in localStorage indefinitely, not just until the next app open,
+  // since nothing ever re-adds an existing entry outside of visiting it
+  // again. GlobalChatWidget rebroadcasts the server's room_thumbnail_updated
+  // socket event as this window event; patch any matching entry in place.
+  useEffect(() => {
+    const onThumbnailUpdated = (e) => {
+      const { roomId, thumbnailPath } = e.detail || {};
+      if (!roomId) return;
+      setHistory(prev => {
+        let changed = false;
+        const next = prev.map(entry => {
+          if (entry.type === 'room' && (entry.roomId || '').toLowerCase() === roomId.toLowerCase() && entry.thumbnailPath !== thumbnailPath) {
+            changed = true;
+            return { ...entry, thumbnailPath };
+          }
+          return entry;
+        });
+        if (changed) writeHistory(next);
+        return changed ? next : prev;
+      });
+    };
+    window.addEventListener('room_thumbnail_updated', onThumbnailUpdated);
+    return () => window.removeEventListener('room_thumbnail_updated', onThumbnailUpdated);
   }, []);
 
   return { history, addToHistory, removeFromHistory, clearHistory };

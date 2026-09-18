@@ -81,6 +81,21 @@ export function usePinnedRooms({ limit } = {}) {
     return () => window.removeEventListener('room_deleted', onRoomDeleted);
   }, []);
 
+  // GlobalChatWidget rebroadcasts the server's (now global, not room-scoped)
+  // room_thumbnail_updated socket event as this plain window event — this
+  // hook has no socket of its own and previously only ever refetched on
+  // mount/focus, so a thumbnail changed while this grid was already on
+  // screen stayed stale until the app was backgrounded and reopened.
+  useEffect(() => {
+    const onThumbnailUpdated = (e) => {
+      const { roomId, thumbnailPath } = e.detail || {};
+      if (!roomId) return;
+      setPinnedRooms(prev => prev.map(r => (r.id || '').toLowerCase() === roomId.toLowerCase() ? { ...r, thumbnailPath } : r));
+    };
+    window.addEventListener('room_thumbnail_updated', onThumbnailUpdated);
+    return () => window.removeEventListener('room_thumbnail_updated', onThumbnailUpdated);
+  }, []);
+
   useEffect(() => {
     if (isGuest || !token || token === 'null' || token === 'undefined') return;
     fetch(`${API}/api/profile`, { headers: { Authorization: `Bearer ${token}` } })
