@@ -2256,6 +2256,11 @@ function LegalRequestsPage() {
   const [confirmModal, setConfirmModal] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
+  // Same fix as ReportsPage's identical detail view — see that copy's
+  // comment for why a swipe-back with no history entry of its own exited
+  // the whole admin dashboard instead of just closing this modal.
+  useBackIntercept(modalMode ? 1 : 0, (newLevel) => { if (newLevel === 0) setModalMode(null); });
+
   const STATUS_C = legalStatusColors(isLight);
   const T = isLight
     ? { text: '#111827', muted: '#6b7280', cardBorder: '#e5e7eb', th: '#6b7280', inputBg: '#ffffff', inputBorder: '#d1d5db' }
@@ -2439,6 +2444,14 @@ function ReportsPage({ refreshBadges }) {
   const [resolveMessage, setResolveMessage] = useState('');
 
   const assignDropdownRef = useRef(null);
+
+  // Opening a report's detail view had no history entry of its own — a
+  // mobile swipe-back while it was open fell straight through Admin's own
+  // shared back-intercept (see the top-level Admin() component) to whatever
+  // real browser history entry came before the admin dashboard was ever
+  // opened, exiting the whole dashboard back to Home instead of just closing
+  // this one detail view.
+  useBackIntercept(selected ? 1 : 0, (newLevel) => { if (newLevel === 0) { setSelected(null); setDetailData(null); } });
 
   const currentAdminId = (() => {
     try {
@@ -2978,6 +2991,11 @@ function SupportInboxPage({ refreshBadges, initialTicketId, onInitialTicketConsu
   const assignDropdownRef = useRef(null);
   const filterDropdownRef = useRef(null);
   const searchTimer = useRef(null);
+
+  // Same fix as ReportsPage's identical detail view — see that copy's
+  // comment for why a swipe-back with no history entry of its own exited
+  // the whole admin dashboard instead of just closing this ticket.
+  useBackIntercept(selected ? 1 : 0, (newLevel) => { if (newLevel === 0) { setSelected(null); setDetailData(null); } });
 
   const currentAdminId = (() => {
     try { const t = localStorage.getItem('watch_token'); return String(JSON.parse(atob(t.split('.')[1])).id); } catch { return null; }
@@ -3623,6 +3641,11 @@ function AdminTeamPage({ onOpenTicket }) {
   const [confirmModal, setConfirmModal] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [permsOpen, setPermsOpen] = useState(false);
+
+  // Same fix as ReportsPage's identical detail view — see that copy's
+  // comment for why a swipe-back with no history entry of its own exited
+  // the whole admin dashboard instead of just closing this member's detail.
+  useBackIntercept(selectedMember ? 1 : 0, (newLevel) => { if (newLevel === 0) setSelectedMember(null); });
 
   const T = isLight ? {
     text: '#111827', muted: '#6b7280', faint: '#9ca3af',

@@ -145,6 +145,17 @@ export function getMessagePreview(chat, myUsername) {
 
   const rowStyle = { display: 'inline-flex', alignItems: 'center', gap: 2 }
 
+  // The mandatory SahaPlay announcements group has no real two-party sender
+  // to attribute a preview to — it's a one-way bulletin every user is forced
+  // into, not a conversation the viewer is part of authoring. Any prefix
+  // here (the admin's own "You:" on their own posts, or a name at all) leaks
+  // an identity that shouldn't be shown; every viewer, admin included, should
+  // just see the bare message text, matching the in-bubble "SahaPlay" sender
+  // label's own intent of never surfacing who's actually behind the account.
+  if (isSahaplayOfficialGroup(chat)) {
+    return <span style={rowStyle}>{content}</span>
+  }
+
   if (isMe) {
     return <span style={rowStyle}>You:&nbsp;{content}</span>
   }
@@ -153,10 +164,7 @@ export function getMessagePreview(chat, myUsername) {
   // don't, since the row is already labeled with who it's from, so
   // repeating that name in front of every preview is pure noise.
   if (chat.type === 'room' && chat.lastSenderName) {
-    // Recipients should see "SahaPlay" as the sender here too, not whichever
-    // admin account actually posted — same reasoning as the message bubbles.
-    const name = isSahaplayOfficialGroup(chat) ? 'SahaPlay' : chat.lastSenderName
-    const short = name.length > 12 ? name.substring(0, 12) + '…' : name
+    const short = chat.lastSenderName.length > 12 ? chat.lastSenderName.substring(0, 12) + '…' : chat.lastSenderName
     return <span style={rowStyle}>{short}:&nbsp;{content}</span>
   }
 

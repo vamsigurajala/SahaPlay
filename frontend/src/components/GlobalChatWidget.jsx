@@ -9603,79 +9603,87 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               )}
                               </div>
                               {isMediaOnly && mediaNode}
-                              
-                              {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
-                                <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
-                                  <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) {
-                                    // Measured from the ROW's own bottom edge, not the click
-                                    // point — this chevron sits pinned near the row's TOP
-                                    // corner regardless of the row's actual height, so for a
-                                    // tall row (a poll, an image) e.clientY here reads roughly
-                                    // as the row's TOP position even when its bottom — where a
-                                    // "down"-opening menu actually renders — is right up
-                                    // against the composer. See the identical long-press fix.
-                                    const rowEl = e.currentTarget.closest('.msg-row');
-                                    const floorRef = rowEl ? rowEl.getBoundingClientRect().bottom : e.clientY;
-                                    setDropdownPlacement((getMenuFloorY(e.currentTarget, wrapperRef.current) - floorRef) < 240 ? 'up' : 'down');
-                                  } setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (!isMe && isLight) ? 'rgba(0,0,0,0.4)' : ((isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)')),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
-                                    <ChevronDown size={14}/>
-                                  </button>
-                                  {activeMessageMenu === msg.id && (
-                                    <div className="menu-dropdown" style={{
-                                      position:'absolute',
-                                      [dropdownPlacement === 'up' ? 'bottom' : 'top']: '100%',
-                                      [dropdownPlacement === 'up' ? 'marginBottom' : 'marginTop']: 4,
-                                      // The trigger button always sits at the bubble's own top-right
-                                      // corner (regardless of sender). For wide media bubbles that
-                                      // corner is near the panel's right edge, so expanding the menu
-                                      // further right (as narrow received text bubbles safely do)
-                                      // pushes it outside the chat box — anchor it to the right (grow
-                                      // leftward, into the bubble) for media the same as for isMe.
-                                      [(isMe || isMediaOnly) ? 'right' : 'left']:0,
-                                      background:'var(--dropdown-bg)', border:'1px solid var(--dropdown-border)',
-                                      borderRadius:12, padding:6, zIndex:100,
-                                      boxShadow:'var(--dropdown-shadow)', minWidth: 145,
-                                      WebkitTextFillColor: 'currentColor', color: 'var(--menu-item-text)'
-                                    }} onClick={e => e.stopPropagation()}>
-                                      {!!getMessageCopyText(msg) && (
-                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); copyMessageText(msg); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
-                                          <Copy size={12}/> {t('copy', 'Copy')}
-                                        </button>
-                                      )}
-                                      {isMe ? (
-                                        <>
-                                          {isMessageEditable(msg) && (
-                                            <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); if (msg.isPoll) { setEditingPollMsg(msg); setShowPollComposer(true); } else { setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); } setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
-                                              <Edit2 size={12}/> {t('edit', 'Edit')}
-                                            </button>
-                                          )}
-                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-danger" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
-                                            <Trash2 size={12}/> {t('unsend', 'Unsend')}
-                                          </button>
-                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-del-me" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
-                                            <Trash2 size={12}/> {t('deleteForMe', 'Delete for me')}
-                                          </button>
-                                        </>
-                                      ) : (
-                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-danger" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
-                                          <Trash2 size={12} color="#ef4444" style={{ color: '#ef4444' }}/> {t('delete', 'Delete')}
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-
                             </div>
-                            {/* Moved OUT of .msg-bubble (was nested inside it, right before
-                                the closing tag above) — a captioned media bubble sets
-                                overflow:'hidden' on itself (to clip the flush image to its
-                                own rounded corners), which was silently clipping this whole
-                                picker away for any message with BOTH media and a caption,
-                                even though the trigger button below (already a sibling out
-                                here) opened it correctly. Siblings of .msg-bubble, like
-                                long-press-menu/react-btn-container just below, aren't
-                                inside that overflow:hidden box, so it's now visible again. */}
+                            {/* msg-hover-menu (chevron + its dropdown) and the
+                                emoji-picker/long-press/react-btn siblings below are all
+                                deliberately OUTSIDE .msg-bubble, not nested inside it — a
+                                captioned media bubble sets overflow:'hidden' on itself (to
+                                clip the flush image to its own rounded corners), which was
+                                silently clipping the hover-menu's dropdown away for any
+                                message with BOTH media and a caption. It also fixed a second,
+                                separate bug: nested inside the bubble (itself position:relative
+                                with its own z-index:2, its own stacking context), the dropdown's
+                                z-index:100 only ever won against other things INSIDE that same
+                                context — against react-btn-container (a real sibling, z-index:10,
+                                outside the bubble), the whole bubble's z-index:2 lost regardless,
+                                so the quick-react emoji button rendered on top of an open menu.
+                                Living out here as a real sibling lets z-index compare normally. */}
+                            {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
+                              <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
+                                <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) {
+                                  // Measured from the ROW's own bottom edge, not the click
+                                  // point — this chevron sits pinned near the row's TOP
+                                  // corner regardless of the row's actual height, so for a
+                                  // tall row (a poll, an image) e.clientY here reads roughly
+                                  // as the row's TOP position even when its bottom — where a
+                                  // "down"-opening menu actually renders — is right up
+                                  // against the composer. See the identical long-press fix.
+                                  const rowEl = e.currentTarget.closest('.msg-row');
+                                  const floorRef = rowEl ? rowEl.getBoundingClientRect().bottom : e.clientY;
+                                  setDropdownPlacement((getMenuFloorY(e.currentTarget, wrapperRef.current) - floorRef) < 240 ? 'up' : 'down');
+                                } setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id); setShowChatMenu(false); setShowAllEmojis(false); setActiveReactionMsg(null); }} style={{background: (!isMe && isLight) ? 'rgba(0,0,0,0.4)' : ((isLight && msg.mediaType) ? 'rgba(0,0,0,0.5)' : (isMediaOnly ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.1)')),backdropFilter:'blur(4px)',border:'none',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color: '#fff',WebkitTextFillColor: '#fff',padding:2, opacity: 0.8}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0.8}>
+                                  <ChevronDown size={14}/>
+                                </button>
+                                {activeMessageMenu === msg.id && (
+                                  <div className="menu-dropdown" style={{
+                                    position:'absolute',
+                                    [dropdownPlacement === 'up' ? 'bottom' : 'top']: '100%',
+                                    [dropdownPlacement === 'up' ? 'marginBottom' : 'marginTop']: 4,
+                                    // Always anchored to the bubble's own right edge, growing
+                                    // LEFTWARD into the bubble — never grows rightward off of
+                                    // the bubble's left edge anymore (that used to be the
+                                    // behavior for a received, non-media bubble specifically),
+                                    // since a received bubble can sit close enough to the
+                                    // panel's own right edge that growing further right pushed
+                                    // the menu past the panel — even past the whole app window
+                                    // — instead of staying "on top of" the message it belongs
+                                    // to. Anchoring to the bubble's own right edge keeps the
+                                    // menu's growth bounded by the bubble's own width, which is
+                                    // always within the panel, regardless of sender.
+                                    right:0,
+                                    background:'var(--dropdown-bg)', border:'1px solid var(--dropdown-border)',
+                                    borderRadius:12, padding:6, zIndex:100,
+                                    boxShadow:'var(--dropdown-shadow)', minWidth: 145,
+                                    WebkitTextFillColor: 'currentColor', color: 'var(--menu-item-text)'
+                                  }} onClick={e => e.stopPropagation()}>
+                                    {!!getMessageCopyText(msg) && (
+                                      <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); copyMessageText(msg); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                        <Copy size={12}/> {t('copy', 'Copy')}
+                                      </button>
+                                    )}
+                                    {isMe ? (
+                                      <>
+                                        {isMessageEditable(msg) && (
+                                          <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); if (msg.isPoll) { setEditingPollMsg(msg); setShowPollComposer(true); } else { setReplyToMsg(null); setEditingMsg(msg); setInputValue(getMessageCopyText(msg)); } setActiveMessageMenu(null); }} className="chat-menu-item menu-btn" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                            <Edit2 size={12}/> {t('edit', 'Edit')}
+                                          </button>
+                                        )}
+                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'global'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-danger" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                          <Trash2 size={12}/> {t('unsend', 'Unsend')}
+                                        </button>
+                                        <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-del-me" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color: 'var(--menu-item-text)', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                          <Trash2 size={12}/> {t('deleteForMe', 'Delete for me')}
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteMessage(msg.id || msg.timestamp, 'local'); setActiveMessageMenu(null); }} className="chat-menu-item menu-btn menu-btn-danger" style={{display:'flex', alignItems:'center', gap:10, width:'100%', background:'transparent', border:'none', color:'#ef4444', cursor:'pointer', padding:'8px 10px', fontSize:12, borderRadius:6, whiteSpace:'nowrap'}}>
+                                        <Trash2 size={12} color="#ef4444" style={{ color: '#ef4444' }}/> {t('delete', 'Delete')}
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {activeReactionMsg === msg.id && !showAllEmojis && (
                               <div className="emoji-picker-container" style={{position:'absolute', bottom:'100%', [isMe?'right':'left']:0, marginBottom:8, zIndex:100}}>
                                 <div style={{
@@ -9702,7 +9710,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 position:'absolute',
                                 [longPressPlacement === 'up' ? 'bottom' : 'top']: '100%',
                                 [longPressPlacement === 'up' ? 'marginBottom' : 'marginTop']: 8,
-                                [isMe?'right':'left']:0,
+                                // Always right:0 (grows leftward into the bubble) — same fix
+                                // as menu-dropdown above, for the same reason: anchored to the
+                                // bubble's own edge instead of the panel's, so it can never
+                                // grow past the panel regardless of sender.
+                                right:0,
                                 background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)',
                                 borderRadius:14, padding:10, zIndex:100, display:'flex',
                                 flexDirection:'column', gap:8, minWidth:180, boxShadow: 'var(--dropdown-shadow)', fontSize:13
