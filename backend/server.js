@@ -539,7 +539,7 @@ function sendCallCancelPush(username, callId) {
 async function sendMissedCallPush(calleeUsername, callId, callerUsername) {
   if (!calleeUsername || !callId) return;
   try {
-    const callerRow = await queryGet('SELECT displayName FROM users WHERE LOWER(username) = LOWER(?)', [callerUsername]);
+    const callerRow = await queryGet('SELECT "displayName" FROM users WHERE LOWER(username) = LOWER(?)', [callerUsername]);
     const callerDisplayName = callerRow?.displayName || callerUsername;
     await sendPushToUser(calleeUsername, {
       title: 'Missed call',
@@ -1430,7 +1430,7 @@ function invalidateCacheForUser(username) {
 
 // Fetch avatar and emit message utility
 function broadcastMessage(roomId, msg, senderSocketId, senderUsername) {
-  db.get('SELECT avatarPath FROM users WHERE username = ?', [senderUsername], (err, row) => {
+  db.get('SELECT "avatarPath" FROM users WHERE username = ?', [senderUsername], (err, row) => {
     const avatar = row ? row.avatarPath : null;
     db.get('SELECT roomName, permissions, settings FROM room_names WHERE roomId = ?', [roomId], (err, roomRow) => {
       let roomPerms = null;
@@ -4757,12 +4757,12 @@ app.get('/api/friends/mutual', authenticateToken, async (req, res) => {
   const username = req.user.username;
   try {
     const users = await queryAll(
-      `SELECT u.username, u.displayName, u.avatarPath
+      `SELECT u.username, u."displayName", u."avatarPath"
        FROM follows f1
-       JOIN follows f2 ON LOWER(f1.followingId) = LOWER(f2.followerId) AND LOWER(f1.followerId) = LOWER(f2.followingId)
-       JOIN users u ON LOWER(u.username) = LOWER(f1.followingId)
-       WHERE LOWER(f1.followerId) = LOWER(?) AND f1.status = 'accepted' AND f2.status = 'accepted'
-       ORDER BY u.displayName`,
+       JOIN follows f2 ON LOWER(f1."followingId") = LOWER(f2."followerId") AND LOWER(f1."followerId") = LOWER(f2."followingId")
+       JOIN users u ON LOWER(u.username) = LOWER(f1."followingId")
+       WHERE LOWER(f1."followerId") = LOWER(?) AND f1.status = 'accepted' AND f2.status = 'accepted'
+       ORDER BY u."displayName"`,
       [username]
     );
     res.json({ friends: users.map(u => ({ username: u.username, displayName: u.displayName || u.username, avatarUrl: u.avatarPath || null })) });
@@ -6603,7 +6603,7 @@ app.delete('/api/follow/:username', authenticateTokenOptional, (req, res) => {
   }
   const follower = req.user.username;
   const following = req.params.username;
-  db.run('DELETE FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(?)', [follower, following], function(err) {
+  db.run('DELETE FROM follows WHERE LOWER("followerId") = LOWER(?) AND LOWER("followingId") = LOWER(?)', [follower, following], function(err) {
     if (err) return res.status(500).json({ error: 'Database error' });
     invalidateCacheForUser(follower);
     invalidateCacheForUser(following);
@@ -6621,13 +6621,13 @@ app.get('/api/follow/requests', authenticateToken, (req, res) => {
   const username = req.user.username;
   // Fetch pending and accepted follows from the last 10 days (or just all for simplicity, limit 50)
   db.all(`
-    SELECT 
-      f.followerId as "username", u.displayName as "displayName", u.avatarPath as "avatarPath", f.status,
-      (SELECT status FROM follows WHERE LOWER(followerId) = LOWER(?) AND LOWER(followingId) = LOWER(f.followerId)) as "myFollowStatus"
-    FROM follows f 
-    JOIN users u ON LOWER(u.username) = LOWER(f.followerId) 
-    WHERE LOWER(f.followingId) = LOWER(?) 
-    ORDER BY f.createdAt DESC LIMIT 50
+    SELECT
+      f."followerId" as "username", u."displayName" as "displayName", u."avatarPath" as "avatarPath", f.status,
+      (SELECT status FROM follows WHERE LOWER("followerId") = LOWER(?) AND LOWER("followingId") = LOWER(f."followerId")) as "myFollowStatus"
+    FROM follows f
+    JOIN users u ON LOWER(u.username) = LOWER(f."followerId")
+    WHERE LOWER(f."followingId") = LOWER(?)
+    ORDER BY f."createdAt" DESC LIMIT 50
   `, [username, username], (err, rows) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     res.json(rows || []);
@@ -6882,7 +6882,7 @@ app.delete('/api/profile', authenticateToken, (req, res) => {
       // still counts but the followers LIST can never render (it inner-
       // joins users), silently drifting the two out of sync for everyone
       // who was connected to this account.
-      db.run('DELETE FROM follows WHERE LOWER(followerId) = LOWER(?) OR LOWER(followingId) = LOWER(?)', [user.username, user.username], function(err) {
+      db.run('DELETE FROM follows WHERE LOWER("followerId") = LOWER(?) OR LOWER("followingId") = LOWER(?)', [user.username, user.username], function(err) {
         if (err) console.error('DELETE ACCOUNT ERROR (follows):', err);
       });
       db.run('DELETE FROM blocks WHERE LOWER(blocker) = LOWER(?) OR LOWER(blocked) = LOWER(?)', [user.username, user.username], function(err) {
@@ -10069,8 +10069,8 @@ io.on('connection', (socket) => {
     const recipient = targetName.toLowerCase();
 
     // 1. Check for mutual friendship
-    const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [sender, recipient]);
-    const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [recipient, sender]);
+    const rel1 = await queryGet('SELECT status FROM follows WHERE "followerId" = ? AND "followingId" = ?', [sender, recipient]);
+    const rel2 = await queryGet('SELECT status FROM follows WHERE "followerId" = ? AND "followingId" = ?', [recipient, sender]);
     const areFriends = (rel1?.status === 'accepted') && (rel2?.status === 'accepted');
 
     if (!areFriends) {
@@ -10796,8 +10796,8 @@ io.on('connection', (socket) => {
       userActiveCallId.set(caller, callId);
       userActiveCallId.set(callee, callId);
 
-      const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [caller, callee]);
-      const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [callee, caller]);
+      const rel1 = await queryGet('SELECT status FROM follows WHERE "followerId" = ? AND "followingId" = ?', [caller, callee]);
+      const rel2 = await queryGet('SELECT status FROM follows WHERE "followerId" = ? AND "followingId" = ?', [callee, caller]);
       const areFriends = (rel1?.status === 'accepted') && (rel2?.status === 'accepted');
       const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [caller, callee, callee, caller]);
       const eligibility = evaluateCallInviteEligibility({ areFriends, isBlocked: !!blockCheck });
@@ -10852,7 +10852,7 @@ io.on('connection', (socket) => {
       // finished in time for the full-screen ring screen (the user takes a
       // moment to look at it) but not for the heads-up notification banner,
       // which is often answered within a second of appearing.
-      const callerRow = await queryGet('SELECT displayName, avatarPath FROM users WHERE LOWER(username) = LOWER(?)', [caller]);
+      const callerRow = await queryGet('SELECT "displayName", "avatarPath" FROM users WHERE LOWER(username) = LOWER(?)', [caller]);
       sendPushToUser(callee, {
         title: callType === 'video' ? 'Incoming video call' : 'Incoming voice call',
         body: `${caller} is calling…`,
@@ -11035,8 +11035,8 @@ io.on('connection', (socket) => {
       // Rolled back below if the invite turns out invalid.
       userActiveCallId.set(target, callId);
 
-      const rel1 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [me, target]);
-      const rel2 = await queryGet('SELECT status FROM follows WHERE followerId = ? AND followingId = ?', [target, me]);
+      const rel1 = await queryGet('SELECT status FROM follows WHERE "followerId" = ? AND "followingId" = ?', [me, target]);
+      const rel2 = await queryGet('SELECT status FROM follows WHERE "followerId" = ? AND "followingId" = ?', [target, me]);
       const blockCheck = await queryGet('SELECT blocker FROM blocks WHERE (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?)) OR (LOWER(blocker) = LOWER(?) AND LOWER(blocked) = LOWER(?))', [me, target, target, me]);
       const eligibility = evaluateCallInviteEligibility({
         areFriends: (rel1?.status === 'accepted') && (rel2?.status === 'accepted'),
