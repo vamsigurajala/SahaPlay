@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Play, Pin, History } from 'lucide-react';
 import PinnedRoomsGrid from './PinnedRoomsGrid';
 import RoomCardSkeleton from './RoomCardSkeleton';
@@ -25,6 +25,97 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
   const showTabs = showPinnedTab && showHistoryTab;
   const [roomsTab, setRoomsTab] = useState('pinned');
   const activeTab = showTabs ? roomsTab : (showPinnedTab ? 'pinned' : 'history');
+  const activeIndex = activeTab === 'pinned' ? 0 : 1;
+
+  // Swipe left/right between Pinned Rooms and Room History, alongside the
+  // existing tap-the-tab-label way of switching — mirrors the direction-
+  // detection/rubber-band approach useSwipeToReply.js already uses for the
+  // per-message swipe gesture (let a mostly-vertical touch fall through to
+  // the page's own scroll untouched, only commit to horizontal once the
+  // gesture is clearly one or the other), rather than calling
+  // preventDefault() on touchmove, which React's synthetic event system
+  // attaches as a passive listener by default — that call would silently
+  // no-op instead of actually blocking the page scroll.
+  const [dragX, setDragX] = useState(0);
+  const [isSwipeDragging, setIsSwipeDragging] = useState(false);
+  const swipeRef = useRef({ startX: 0, startY: 0, dragging: false, committed: null, lastDx: 0 });
+  const swipeRafRef = useRef(null);
+  const swipePendingXRef = useRef(0);
+  const SWIPE_THRESHOLD = 60;
+
+  const flushSwipeDrag = () => { swipeRafRef.current = null; setDragX(swipePendingXRef.current); };
+
+  const onTabsTouchStart = (e) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    swipeRef.current = { startX: touch.clientX, startY: touch.clientY, dragging: true, committed: null, lastDx: 0 };
+    setIsSwipeDragging(true);
+  };
+  const onTabsTouchMove = (e) => {
+    const s = swipeRef.current;
+    if (!s.dragging) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const dx = touch.clientX - s.startX;
+    const dy = touch.clientY - s.startY;
+    if (s.committed === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      s.committed = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+      if (s.committed === 'vertical') { s.dragging = false; setIsSwipeDragging(false); return; }
+    }
+    if (s.committed !== 'horizontal') return;
+    s.lastDx = dx;
+    // Rubber-band (a third of the raw distance) when dragging past whichever
+    // end has no further panel — Pinned is the leftmost panel, History the
+    // rightmost, so dragging right from Pinned or left from History has
+    // nowhere real to go.
+    let clamped = dx;
+    if (activeIndex === 0 && dx > 0) clamped = dx / 3;
+    if (activeIndex === 1 && dx < 0) clamped = dx / 3;
+    swipePendingXRef.current = clamped;
+    if (!swipeRafRef.current) swipeRafRef.current = requestAnimationFrame(flushSwipeDrag);
+  };
+  const onTabsTouchEnd = () => {
+    const s = swipeRef.current;
+    if (!s.dragging) return;
+    s.dragging = false;
+    setIsSwipeDragging(false);
+    if (swipeRafRef.current) { cancelAnimationFrame(swipeRafRef.current); swipeRafRef.current = null; }
+    if (s.committed === 'horizontal') {
+      if (s.lastDx <= -SWIPE_THRESHOLD && activeIndex === 0) setRoomsTab('history');
+      else if (s.lastDx >= SWIPE_THRESHOLD && activeIndex === 1) setRoomsTab('pinned');
+    }
+    swipePendingXRef.current = 0;
+    setDragX(0);
+  };
+
+  const pinnedPanel = isPinnedLoading ? (
+    <div className="home-tab-pinned-grid"><RoomCardSkeleton count={2} /></div>
+  ) : hasPinned ? (
+    <PinnedRoomsGrid rooms={pinnedRooms} onUnpin={onUnpin} gridClassName="home-tab-pinned-grid" />
+  ) : (
+    <div style={{ textAlign: 'center', padding: '32px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
+      <Pin size={22} style={{ opacity: 0.4, marginBottom: 8 }} />
+      <p style={{ margin: 0, fontSize: 13, color: '#888' }}>{t('noPinnedRooms', 'No pinned rooms yet')}</p>
+    </div>
+  );
+
+  const historyPanel = isHistoryLoading ? (
+    <div className="home-tab-pinned-grid"><RoomCardSkeleton count={2} /></div>
+  ) : hasHistory ? (
+    <PinnedRoomsGrid
+      rooms={roomHistory}
+      pinnedIds={pinnedRoomIds}
+      onTogglePin={onTogglePin}
+      gridClassName="home-tab-pinned-grid"
+    />
+  ) : (
+    <div style={{ textAlign: 'center', padding: '32px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
+      <History size={22} style={{ opacity: 0.4, marginBottom: 8 }} />
+      <p style={{ margin: 0, fontSize: 13, color: '#888' }}>{t('noRoomHistory', 'No rooms created yet')}</p>
+    </div>
+  );
+
   return (
     <div style={{
       padding: '20px 16px 100px', maxWidth: 640, margin: '0 auto',
@@ -160,33 +251,25 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
             </div>
           )}
 
-          {activeTab === 'pinned' ? (
-            isPinnedLoading ? (
-              <div className="home-tab-pinned-grid"><RoomCardSkeleton count={2} /></div>
-            ) : hasPinned ? (
-              <PinnedRoomsGrid rooms={pinnedRooms} onUnpin={onUnpin} gridClassName="home-tab-pinned-grid" />
-            ) : (
-              <div style={{ textAlign: 'center', padding: '32px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
-                <Pin size={22} style={{ opacity: 0.4, marginBottom: 8 }} />
-                <p style={{ margin: 0, fontSize: 13, color: '#888' }}>{t('noPinnedRooms', 'No pinned rooms yet')}</p>
+          {showTabs ? (
+            <div
+              style={{ overflow: 'hidden', touchAction: 'pan-y' }}
+              onTouchStart={onTabsTouchStart}
+              onTouchMove={onTabsTouchMove}
+              onTouchEnd={onTabsTouchEnd}
+            >
+              <div style={{
+                display: 'flex',
+                width: '200%',
+                transform: `translateX(calc(${activeIndex === 0 ? '0%' : '-50%'} + ${dragX}px))`,
+                transition: isSwipeDragging ? 'none' : 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
+              }}>
+                <div style={{ width: '50%', minWidth: 0, flexShrink: 0 }}>{pinnedPanel}</div>
+                <div style={{ width: '50%', minWidth: 0, flexShrink: 0 }}>{historyPanel}</div>
               </div>
-            )
+            </div>
           ) : (
-            isHistoryLoading ? (
-              <div className="home-tab-pinned-grid"><RoomCardSkeleton count={2} /></div>
-            ) : hasHistory ? (
-              <PinnedRoomsGrid
-                rooms={roomHistory}
-                pinnedIds={pinnedRoomIds}
-                onTogglePin={onTogglePin}
-                gridClassName="home-tab-pinned-grid"
-              />
-            ) : (
-              <div style={{ textAlign: 'center', padding: '32px 16px', background: 'rgba(255,255,255,0.04)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
-                <History size={22} style={{ opacity: 0.4, marginBottom: 8 }} />
-                <p style={{ margin: 0, fontSize: 13, color: '#888' }}>{t('noRoomHistory', 'No rooms created yet')}</p>
-              </div>
-            )
+            activeTab === 'pinned' ? pinnedPanel : historyPanel
           )}
         </div>
       )}

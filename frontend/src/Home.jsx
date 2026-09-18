@@ -105,6 +105,63 @@ const Home = () => {
   const showRoomsSection = showPinnedTabData || showHistoryTabData;
   const showRoomsTabs = showPinnedTabData && showHistoryTabData;
   const activeRoomsTab = showRoomsTabs ? roomsTab : (showPinnedTabData ? 'pinned' : 'history');
+  const activeRoomsIndex = activeRoomsTab === 'pinned' ? 0 : 1;
+
+  // Swipe left/right between Pinned Rooms and Room History on mobile/tablet,
+  // alongside the existing tap-the-tab-label way of switching — same
+  // approach as HomeTab.jsx's identical swipe (the installed-app version of
+  // this same section): direction-detection + rubber-band at the ends,
+  // never preventDefault() on touchmove (React attaches that listener as
+  // passive by default, so the call would silently no-op instead of
+  // actually blocking page scroll).
+  const [roomsDragX, setRoomsDragX] = useState(0);
+  const [isRoomsSwipeDragging, setIsRoomsSwipeDragging] = useState(false);
+  const roomsSwipeRef = useRef({ startX: 0, startY: 0, dragging: false, committed: null, lastDx: 0 });
+  const roomsSwipeRafRef = useRef(null);
+  const roomsSwipePendingXRef = useRef(0);
+  const ROOMS_SWIPE_THRESHOLD = 60;
+
+  const flushRoomsSwipeDrag = () => { roomsSwipeRafRef.current = null; setRoomsDragX(roomsSwipePendingXRef.current); };
+
+  const onRoomsTabsTouchStart = (e) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    roomsSwipeRef.current = { startX: touch.clientX, startY: touch.clientY, dragging: true, committed: null, lastDx: 0 };
+    setIsRoomsSwipeDragging(true);
+  };
+  const onRoomsTabsTouchMove = (e) => {
+    const s = roomsSwipeRef.current;
+    if (!s.dragging) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const dx = touch.clientX - s.startX;
+    const dy = touch.clientY - s.startY;
+    if (s.committed === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      s.committed = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+      if (s.committed === 'vertical') { s.dragging = false; setIsRoomsSwipeDragging(false); return; }
+    }
+    if (s.committed !== 'horizontal') return;
+    s.lastDx = dx;
+    let clamped = dx;
+    if (activeRoomsIndex === 0 && dx > 0) clamped = dx / 3;
+    if (activeRoomsIndex === 1 && dx < 0) clamped = dx / 3;
+    roomsSwipePendingXRef.current = clamped;
+    if (!roomsSwipeRafRef.current) roomsSwipeRafRef.current = requestAnimationFrame(flushRoomsSwipeDrag);
+  };
+  const onRoomsTabsTouchEnd = () => {
+    const s = roomsSwipeRef.current;
+    if (!s.dragging) return;
+    s.dragging = false;
+    setIsRoomsSwipeDragging(false);
+    if (roomsSwipeRafRef.current) { cancelAnimationFrame(roomsSwipeRafRef.current); roomsSwipeRafRef.current = null; }
+    if (s.committed === 'horizontal') {
+      if (s.lastDx <= -ROOMS_SWIPE_THRESHOLD && activeRoomsIndex === 0) setRoomsTab('history');
+      else if (s.lastDx >= ROOMS_SWIPE_THRESHOLD && activeRoomsIndex === 1) setRoomsTab('pinned');
+    }
+    roomsSwipePendingXRef.current = 0;
+    setRoomsDragX(0);
+  };
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   useEffect(() => {
@@ -782,14 +839,8 @@ const Home = () => {
             )}
 
             <div style={{ marginTop: showRoomsTabs ? 24 : 0 }}>
-              {activeRoomsTab === 'history' && (
-                <p className="section-desc" style={{ fontSize: 14, margin: '0 0 24px', maxWidth: 560 }}>
-                  {t('roomHistoryDesc', "Rooms you've created. Pin one to keep it in Pinned Rooms permanently.")}
-                </p>
-              )}
-
-              {activeRoomsTab === 'pinned' ? (
-                isPinnedLoading ? (
+              {(() => {
+                const pinnedRoomsPanel = isPinnedLoading ? (
                   <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
                     <RoomCardSkeleton count={3} />
                   </div>
@@ -806,28 +857,56 @@ const Home = () => {
                     gridClassName="pinned-grid"
                     gridStyle={{ display: 'grid', gap: 20 }}
                   />
-                )
-              ) : (
-                isHistoryLoading ? (
-                  <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
-                    <RoomCardSkeleton count={3} />
+                );
+
+                const roomHistoryPanel = (
+                  <>
+                    <p className="section-desc" style={{ fontSize: 14, margin: '0 0 24px', maxWidth: 560 }}>
+                      {t('roomHistoryDesc', "Rooms you've created. Pin one to keep it in Pinned Rooms permanently.")}
+                    </p>
+                    {isHistoryLoading ? (
+                      <div className="pinned-grid" style={{ display: 'grid', gap: 20 }}>
+                        <RoomCardSkeleton count={3} />
+                      </div>
+                    ) : roomHistory.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '48px 24px', background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
+                        <History size={26} style={{ opacity: 0.4, marginBottom: 10 }} />
+                        <h3 style={{ margin: '0 0 8px', color: '#fff', fontSize: 17 }}>{t('noRoomHistory', 'No rooms created yet')}</h3>
+                        <p style={{ color: '#888', margin: 0, fontSize: 14 }}>{t('noRoomHistoryDesc', 'Rooms you create will show up here, even if you never pin or chat in them.')}</p>
+                      </div>
+                    ) : (
+                      <PinnedRoomsGrid
+                        rooms={roomHistory}
+                        pinnedIds={pinnedRoomIds}
+                        onTogglePin={toggleHistoryPin}
+                        gridClassName="pinned-grid"
+                        gridStyle={{ display: 'grid', gap: 20 }}
+                      />
+                    )}
+                  </>
+                );
+
+                if (!showRoomsTabs) return activeRoomsTab === 'pinned' ? pinnedRoomsPanel : roomHistoryPanel;
+
+                return (
+                  <div
+                    style={{ overflow: 'hidden', touchAction: 'pan-y' }}
+                    onTouchStart={onRoomsTabsTouchStart}
+                    onTouchMove={onRoomsTabsTouchMove}
+                    onTouchEnd={onRoomsTabsTouchEnd}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      width: '200%',
+                      transform: `translateX(calc(${activeRoomsIndex === 0 ? '0%' : '-50%'} + ${roomsDragX}px))`,
+                      transition: isRoomsSwipeDragging ? 'none' : 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
+                    }}>
+                      <div style={{ width: '50%', minWidth: 0, flexShrink: 0 }}>{pinnedRoomsPanel}</div>
+                      <div style={{ width: '50%', minWidth: 0, flexShrink: 0 }}>{roomHistoryPanel}</div>
+                    </div>
                   </div>
-                ) : roomHistory.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '48px 24px', background: 'rgba(255,255,255,0.02)', borderRadius: 16, border: '1px dashed rgba(255,255,255,0.1)' }}>
-                    <History size={26} style={{ opacity: 0.4, marginBottom: 10 }} />
-                    <h3 style={{ margin: '0 0 8px', color: '#fff', fontSize: 17 }}>{t('noRoomHistory', 'No rooms created yet')}</h3>
-                    <p style={{ color: '#888', margin: 0, fontSize: 14 }}>{t('noRoomHistoryDesc', 'Rooms you create will show up here, even if you never pin or chat in them.')}</p>
-                  </div>
-                ) : (
-                  <PinnedRoomsGrid
-                    rooms={roomHistory}
-                    pinnedIds={pinnedRoomIds}
-                    onTogglePin={toggleHistoryPin}
-                    gridClassName="pinned-grid"
-                    gridStyle={{ display: 'grid', gap: 20 }}
-                  />
-                )
-              )}
+                );
+              })()}
             </div>
           </div>
         </section>
