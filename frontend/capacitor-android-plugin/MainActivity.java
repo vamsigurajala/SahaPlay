@@ -147,14 +147,18 @@ public class MainActivity extends BridgeActivity {
         return isForeground;
     }
 
+    // public, not protected — BridgeActivity (Capacitor's own base class)
+    // already declares both of these as public, and Java doesn't allow an
+    // override to narrow visibility. This is what actually failed the
+    // build ("attempting to assign weaker access privileges").
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         isForeground = true;
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         super.onPause();
         isForeground = false;
     }
