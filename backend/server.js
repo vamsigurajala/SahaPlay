@@ -469,7 +469,7 @@ async function isNotifyEnabled(username, category) {
   const column = NOTIFY_COLUMN_BY_CATEGORY[category];
   if (!column) return true;
   try {
-    const row = await queryGet(`SELECT notifyApp, ${column} FROM users WHERE LOWER(username) = LOWER(?)`, [username]);
+    const row = await queryGet(`SELECT "notifyApp", "${column}" FROM users WHERE LOWER(username) = LOWER(?)`, [username]);
     return isNotifyEnabledFromRow(row, category);
   } catch (e) {
     console.error('[Notify] isNotifyEnabled error:', e.message);
@@ -603,7 +603,7 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
       // there's no client-side toast to suppress since nothing is running).
       // The message itself is unaffected — only sent from here, storage and
       // in-app unread counts happen elsewhere regardless of mute state.
-      const muteRow = await queryGet('SELECT mutedChats FROM users WHERE LOWER(username) = LOWER(?)', [recipient]);
+      const muteRow = await queryGet('SELECT "mutedChats" FROM users WHERE LOWER(username) = LOWER(?)', [recipient]);
       let muted = [];
       try { muted = JSON.parse(muteRow?.mutedChats || '[]'); } catch { muted = []; }
       if (muted.some(m => String(m).toLowerCase() === String(chatId).toLowerCase())) continue;
@@ -4852,7 +4852,7 @@ app.get('/api/chats/recent', authenticateToken, async (req, res) => {
   // already recorded it as read. Take whichever timestamp (server or
   // client) is more recent per chat, case-insensitively.
   try {
-    const userRow = await queryGet('SELECT lastSeen FROM users WHERE username = ?', [username]);
+    const userRow = await queryGet('SELECT "lastSeen" FROM users WHERE username = ?', [username]);
     const serverLastSeen = JSON.parse(userRow?.lastSeen || '{}');
     for (const k in serverLastSeen) {
       const kLower = k.toLowerCase();
@@ -7028,7 +7028,7 @@ app.post('/api/settings/ringtone', authenticateToken, (req, res) => {
     }
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     try {
-      const row = await queryGet('SELECT ringtonePath FROM users WHERE id = ?', [req.user.id]);
+      const row = await queryGet('SELECT "ringtonePath" FROM users WHERE id = ?', [req.user.id]);
       const oldPath = row?.ringtonePath;
 
       const ext = (path.extname(req.file.originalname) || '.mp3').toLowerCase();
@@ -7068,7 +7068,7 @@ app.post('/api/settings/ringtone', authenticateToken, (req, res) => {
 // Reverts to the default synthesized ring chime.
 app.post('/api/settings/ringtone/remove', authenticateToken, async (req, res) => {
   try {
-    const row = await queryGet('SELECT ringtonePath FROM users WHERE id = ?', [req.user.id]);
+    const row = await queryGet('SELECT "ringtonePath" FROM users WHERE id = ?', [req.user.id]);
     const oldPath = row?.ringtonePath;
     if (oldPath) {
       const oldFilePath = oldPath.split('/encrypted-media/').pop();
@@ -10815,7 +10815,7 @@ io.on('connection', (socket) => {
       // and no "missed call" notification afterward either, on any device.
       // Checked once, upfront, and remembered on the call entry so the
       // ring-timeout/cancel handlers below don't need their own query.
-      const calleeMuteRow = await queryGet('SELECT mutedCallChats FROM users WHERE LOWER(username) = LOWER(?)', [callee]);
+      const calleeMuteRow = await queryGet('SELECT "mutedCallChats" FROM users WHERE LOWER(username) = LOWER(?)', [callee]);
       let calleeMutedCallers = [];
       try { calleeMutedCallers = JSON.parse(calleeMuteRow?.mutedCallChats || '[]'); } catch { calleeMutedCallers = []; }
       const calleeMutedCaller = calleeMutedCallers.some(m => String(m).toLowerCase() === caller);
