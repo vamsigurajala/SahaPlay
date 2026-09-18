@@ -595,6 +595,18 @@ function formatSenderList(senders) {
 async function notifyChatMessage({ recipients, senderUsername, chatId, chatType, chatLabel }) {
   if (!firebaseAdmin || !recipients || recipients.length === 0) return;
   const targets = recipients.filter(u => u && u.toLowerCase() !== (senderUsername || '').toLowerCase());
+  // Fetched once per call (not per-recipient) — every recipient gets a push
+  // about the same sender, so the avatar is identical for all of them. Lets
+  // the Android side render the sender's real photo instead of just the app
+  // icon (see SahaplayFirebaseMessagingService.java's "dm"/"room" branch),
+  // matching what desktop/browser already shows via the live socket path.
+  let senderAvatarPath = null;
+  try {
+    const senderRow = await queryGet('SELECT "avatarPath" FROM users WHERE LOWER(username) = LOWER(?)', [senderUsername]);
+    senderAvatarPath = senderRow?.avatarPath || null;
+  } catch (e) {
+    console.error('[FCM] notifyChatMessage avatar lookup error:', e.message);
+  }
   for (const recipient of targets) {
     try {
       // Respect this recipient's mute list before doing anything else — a
@@ -660,7 +672,7 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
       // or killed, so SahaplayFirebaseMessagingService.java (and therefore
       // the user's own chosen message tone) never even ran in exactly that
       // case. See sendPushToTokens' own comment on this distinction.
-      await sendPushToTokens(tokens, { title, body, data: { type: chatType, chatId }, tag: chatId, dataOnly: true });
+      await sendPushToTokens(tokens, { title, body, data: { type: chatType, chatId, senderAvatarPath: senderAvatarPath || '' }, tag: chatId, dataOnly: true });
     } catch (e) {
       console.error('[FCM] notifyChatMessage error for', recipient, ':', e.message);
     }

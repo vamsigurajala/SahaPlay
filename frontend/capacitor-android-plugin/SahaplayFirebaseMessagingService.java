@@ -6,12 +6,15 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.AudioAttributes;
 import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.telecom.TelecomManager;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
@@ -19,6 +22,9 @@ import androidx.core.app.NotificationCompat;
 import com.capacitorjs.plugins.pushnotifications.MessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Map;
 
 // Subclasses (rather than replaces) Capacitor's own FCM service — calling
@@ -244,6 +250,21 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
 
             if (nm != null) nm.notify(notificationId, builder.build());
             playMessageTone();
+
+            // Shows immediately with just the app icon above (no network
+            // wait on the notification itself) — the sender's real avatar
+            // (see notifyChatMessage in backend/server.js) is fetched here on
+            // a background thread and patched in via setLargeIcon() moments
+            // later, re-using the exact same fetch-then-re-notify() approach
+            // IncomingCallActivity already uses for the caller's photo on the
+            // ring screen. Without this, message notifications only ever
+            // showed the generic SahaPlay icon, unlike desktop/browser (which
+            // gets the real avatar for free over the still-open live socket,
+            // not through this native push path at all).
+            String senderAvatarPath = data.get("senderAvatarPath");
+            if (senderAvatarPath != null && !senderAvatarPath.isEmpty()) {
+                fetchAndSetMessageAvatar(senderAvatarPath, notificationId, builder, nm);
+            }
         } else if ("test".equals(data.get("type"))) {
             // AppSettings.jsx's "Send a test notification" button (see
             // POST /api/push/test in backend/server.js) — routed through a
@@ -280,6 +301,34 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             if (contentPendingIntent != null) testBuilder.setContentIntent(contentPendingIntent);
             if (nm != null) nm.notify(("sahaplay_test_" + System.currentTimeMillis()).hashCode(), testBuilder.build());
         }
+    }
+
+    private static final String API_BASE = "https://sahaplay.com";
+
+    // Same fetch-then-re-notify() shape as IncomingCallActivity's own avatar
+    // loader — the notification is already showing (built with just the app
+    // icon) by the time this runs, so a slow/failed network fetch never
+    // delays or blocks the notification itself from appearing.
+    private void fetchAndSetMessageAvatar(String avatarPath, int notificationId, NotificationCompat.Builder builder, NotificationManager nm) {
+        new Thread(() -> {
+            try {
+                String avatarUrl = avatarPath.startsWith("http") ? avatarPath : (API_BASE + avatarPath);
+                HttpURLConnection conn = (HttpURLConnection) new URL(avatarUrl).openConnection();
+                conn.setRequestProperty("User-Agent", "SahaPlay-Android");
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                if (conn.getResponseCode() != 200) return;
+                Bitmap photo;
+                try (InputStream is = conn.getInputStream()) {
+                    photo = BitmapFactory.decodeStream(is);
+                }
+                if (photo == null || nm == null) return;
+                builder.setLargeIcon(photo);
+                nm.notify(notificationId, builder.build());
+            } catch (Throwable t) {
+                Log.w("SahaplayFCM", "fetchAndSetMessageAvatar failed", t);
+            }
+        }).start();
     }
 
     private MediaPlayer messageTonePlayer;
