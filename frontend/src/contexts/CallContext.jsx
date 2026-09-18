@@ -259,6 +259,21 @@ export function CallProvider({ children }) {
   const [myAvatarUrl, setMyAvatarUrl] = useState(null);
 
   const myUsername = (localStorage.getItem('watch_username') || '').replace(/^guest_/i, '');
+  // Every call site below that reads `myUsername` from inside a
+  // useCallback(..., []) (cancelOutgoingCall/endCall/declineCall and friends)
+  // closes over whatever value it had at THIS component instance's very
+  // first render — a plain `const` recomputed per-render doesn't help those,
+  // since each render is its own function call with its own binding. On the
+  // Tauri desktop app in particular, this component can mount once and stay
+  // mounted for the app's entire lifetime (see the socket-effect comment
+  // below on "hides-not-destroys its window"), so if CallProvider ever
+  // mounted before login finished restoring watch_username to localStorage,
+  // every one of those closures would be permanently stuck sending an empty
+  // username — exactly the `POST .../end 400 (Bad Request)` ("callId and
+  // username required") seen in real testing. myUsernameRef stays current
+  // for those closures to read via .current instead.
+  const myUsernameRef = useRef(myUsername);
+  useEffect(() => { myUsernameRef.current = myUsername; }, [myUsername]);
 
   // Own avatar for the call screen's "your avatar is shown to them" PiP/main
   // tile — fetched once (rarely changes) rather than re-fetched per call.
@@ -1333,7 +1348,7 @@ export function CallProvider({ children }) {
     // Same REST endpoint handles both shapes — a core callee declining
     // (call.callee match) and a group invitee declining before joining
     // (call.members match, see the route's own two branches).
-    postCallActionRest(`/api/calls/${cs.callId}/decline`, { calleeUsername: myUsername });
+    postCallActionRest(`/api/calls/${cs.callId}/decline`, { calleeUsername: myUsernameRef.current });
     teardownCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1342,7 +1357,7 @@ export function CallProvider({ children }) {
     const cs = callStateRef.current;
     if (!cs || cs.phase !== 'outgoing') return;
     socketRef.current?.emit('call:cancel', { callId: cs.callId });
-    postCallActionRest(`/api/calls/${cs.callId}/end`, { username: myUsername });
+    postCallActionRest(`/api/calls/${cs.callId}/end`, { username: myUsernameRef.current });
     writeCallLog(cs, 'missed');
     teardownCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1368,7 +1383,7 @@ export function CallProvider({ children }) {
     const cs = callStateRef.current;
     if (!cs) return;
     socketRef.current?.emit('call:end', { callId: cs.callId });
-    postCallActionRest(`/api/calls/${cs.callId}/end`, { username: myUsername });
+    postCallActionRest(`/api/calls/${cs.callId}/end`, { username: myUsernameRef.current });
     // peerUsername means "the original other party" for a core caller/
     // callee, or "whoever invited me" for an added member — either way,
     // this is always the one relationship this call's own state directly
@@ -1377,7 +1392,7 @@ export function CallProvider({ children }) {
     // double up with an inflated duration.
     if (!peerGoneRef.current) writeCallLog(cs, 'ended');
     for (const [username, invitee] of myInviteesRef.current) {
-      writeCallLogTo(username, cs.type, 'ended', Math.max(0, Math.round((Date.now() - invitee.joinedAt) / 1000)), myUsername);
+      writeCallLogTo(username, cs.type, 'ended', Math.max(0, Math.round((Date.now() - invitee.joinedAt) / 1000)), myUsernameRef.current);
     }
     teardownCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
