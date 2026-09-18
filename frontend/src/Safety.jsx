@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Shield, Lock, EyeOff, Trash2, Mail, Bug, UserX, BookOpen, Zap, User,
-  X, FolderOpen, MessageSquare, Clock, LockOpen, HelpCircle, Key, AlertTriangle, ChevronUp,
+  X, FolderOpen, MessageSquare, Clock, LockOpen, HelpCircle, Key, AlertTriangle, ChevronUp, Scale,
 } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/Navbar';
@@ -459,6 +459,73 @@ export default function Safety() {
             }}>
               <p className="stay-white" style={{ color: '#fff', fontWeight: 600, fontSize: 15, margin: 0, lineHeight: 1.5 }}>
                 {t('sfReportBanner')}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════
+            SECTION 4B — CHILD SAFETY STANDARDS (CSAE)
+            Externally published, publicly accessible, non-editable — this
+            exact section is what Google Play's Child Safety Standards
+            declaration (App content > Child safety standards) points its
+            "Safety standards URL" at: https://sahaplay.com/safety#child-safety
+        ══════════════════════════════════════════ */}
+        <section id="child-safety" className="hiw-section" style={{ background: sec3Bg }}>
+          <div className="hiw-container">
+            <div style={{ textAlign: 'center', marginBottom: 40 }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: isLight ? 'rgba(220,38,38,0.08)' : 'rgba(252,165,165,0.1)',
+                color: isLight ? '#b91c1c' : '#fca5a5',
+                padding: '6px 16px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+                marginBottom: 20,
+              }}>
+                <Shield size={14} /> {t('sfChildSafetyBadge')}
+              </div>
+              <h2 style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: 800, marginBottom: 16, color: textPrimary, maxWidth: 720, marginLeft: 'auto', marginRight: 'auto' }}>
+                {t('sfChildSafetyTitle')}
+              </h2>
+              <p style={{ color: textMuted, fontSize: 15, lineHeight: 1.7, maxWidth: 640, margin: '0 auto' }}>
+                {t('sfChildSafetyIntro')}
+              </p>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+              gap: 24,
+              maxWidth: 960,
+              margin: '0 auto 24px',
+            }}>
+              {[
+                { Icon: UserX, title: t('sfChildSafetyCard1Title'), body: t('sfChildSafetyCard1Desc') },
+                { Icon: Mail, title: t('sfChildSafetyCard2Title'), body: t('sfChildSafetyCard2Desc') },
+                { Icon: Scale, title: t('sfChildSafetyCard3Title'), body: t('sfChildSafetyCard3Desc') },
+              ].map((card, i) => (
+                <div key={i} style={{ ...cardStyle, textAlign: 'left' }}>
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 12,
+                    background: 'rgba(var(--brand-1-rgb),0.12)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    marginBottom: 14,
+                  }}>
+                    <card.Icon size={20} color="var(--brand-1-light)" />
+                  </div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: textPrimary }}>{card.title}</h3>
+                  <p style={{ color: textMuted, fontSize: 14, lineHeight: 1.6, margin: 0 }}>{card.body}</p>
+                </div>
+              ))}
+            </div>
+
+            <div style={{
+              maxWidth: 800, margin: '0 auto',
+              background: isLight ? 'rgba(99,102,241,0.06)' : 'rgba(99,102,241,0.1)',
+              border: `1px solid ${isLight ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.25)'}`,
+              borderRadius: 12, padding: '16px 20px',
+            }}>
+              <p style={{ color: textMuted, fontSize: 13, lineHeight: 1.65, margin: 0 }}>
+                {t('sfChildSafetyEncryptionNote')}
               </p>
             </div>
           </div>
