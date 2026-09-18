@@ -5556,7 +5556,21 @@ const GlobalChatWidget = React.memo(forwardRef(({
       // Refresh the instant-open cache with this thread's real tail so the
       // NEXT open/reopen of this exact chat flashes accurate, current
       // messages instead of whatever was cached before.
-      setRecentMessagesCache(type === 'room' ? 'room' : 'private', cleanPartner, resolved);
+      //
+      // Guarded on keyPairRef.current: decryptGlobalChatMessages bails out
+      // per-message to { decryptedText: null } for every E2EE message
+      // whenever the key isn't loaded yet (see its own `if (!kp) return`
+      // branch) — this genuinely happens on a chat opened in the first
+      // instant after app start, before CryptoContext finishes restoring
+      // the key. Caching that batch would have overwritten a perfectly
+      // good previous snapshot with an all-blank one, so the NEXT reopen's
+      // "instant flash" would show nothing (or get skipped as empty by
+      // getRecentMessagesCache) even though a real successful load had
+      // already happened earlier — exactly the "sometimes it flashes,
+      // usually it doesn't" pattern this was reported as.
+      if (keyPairRef.current) {
+        setRecentMessagesCache(type === 'room' ? 'room' : 'private', cleanPartner, resolved);
+      }
 
       // Sync the sidebar preview with the latest message from history — the
       // just-loaded thread is unambiguously correct, so use it to override
@@ -5769,14 +5783,29 @@ const GlobalChatWidget = React.memo(forwardRef(({
     setShowEmojiPicker(false);
     setShowPollComposer(false);
     setEditingPollMsg(null);
+    // If this chat's messages are already sitting in memory from the
+    // previous time it was open (this widget instance never unmounted —
+    // going "back to list" only changes `view`, it doesn't clear
+    // `messages`), that in-memory copy is always at least as complete as
+    // anything in the localStorage flash-cache below (which only ever keeps
+    // the last 50, and can lag behind live socket messages received while
+    // browsing other chats). Overwriting it with the cache on every reopen
+    // was actively making things WORSE for the single most common case —
+    // close a chat, reopen the same one seconds later — regressing however
+    // much you'd scrolled/paginated back down to just the cached tail, and
+    // relying on localStorage read reliability for a case that never needed
+    // to leave memory at all. Only fall back to the cache when there's
+    // nothing already loaded for this exact chat.
+    const prevKey = (activeChatRef.current?.id || activeChatRef.current?.partner || '').toLowerCase();
+    const alreadyLoaded = prevKey === chatKey && messages.length > 0;
     // Instead of blanking the panel on every open (including reopening the
     // SAME chat seconds later — e.g. tap a sender's avatar to view their
     // profile, then go back), flash the last few already-decrypted messages
     // from this chat's last successful load. It's replaced the moment the
     // real fetch below resolves, so a reopen now reads as instant instead
     // of "blank, then a beat of loading, then everything at once".
-    const cachedTail = getRecentMessagesCache(chat.type === 'room' ? 'room' : 'private', chatKey);
-    setMessages(cachedTail || []);
+    const cachedTail = alreadyLoaded ? messages : getRecentMessagesCache(chat.type === 'room' ? 'room' : 'private', chatKey);
+    if (!alreadyLoaded) setMessages(cachedTail || []);
     // Set loading synchronously in the same batch as the clear above, so there is never
     // a render where messages is empty AND loading is false (that gap is what briefly
     // flashed "No messages yet" before the real history arrived) — fetchHistory's own
