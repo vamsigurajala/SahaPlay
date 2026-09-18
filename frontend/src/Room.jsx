@@ -1952,6 +1952,22 @@ const Room = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isAppFullscreen, setIsAppFullscreen] = useState(false);
   const [isMobileFsMode, setIsMobileFsMode] = useState(false);
+  // On mobile, plain (non-fullscreen) playback always shows the room's chat
+  // panel docked below the video — but fullscreen/mobile-fullscreen video
+  // takes over the whole screen and hides that panel entirely behind the
+  // video, only reappearing if the floating chat toggle (showRecentChats) is
+  // on. Every unread/active-chat gate below used to check just `isMobile`,
+  // which ignored this: once chatTab had ever been set to 'group'/'dm' (it's
+  // restored from sessionStorage across remounts), a message arriving while
+  // the user was simply watching fullscreen video with chat closed was
+  // silently treated as "already seen" — no badge, no toast, ever. This is
+  // the actually-visible check those gates should use instead of bare
+  // `isMobile`.
+  const isMobileChatVisible = isMobile && ((isFullscreen || isMobileFsMode) ? showRecentChats : true);
+  const isMobileChatVisibleRef = useRef(isMobileChatVisible);
+  useEffect(() => {
+    isMobileChatVisibleRef.current = isMobileChatVisible;
+  }, [isMobileChatVisible]);
   // Virtual browser fullscreen defaults to upright/portrait (so Hyperbeam's tap
   // coordinates stay correct while browsing/logging in). Once the user manually
   // re-taps the Fullscreen button, that's them saying "I'm just watching now" —
@@ -2963,8 +2979,8 @@ const Room = () => {
   // the other person's username.
   useEffect(() => {
     if (!socket) return;
-    const isViewingGroup = (isMobile || rightPanelTab === 'chat') && chatTab === 'group';
-    const isViewingDm = (isMobile || rightPanelTab === 'chat') && chatTab === 'dm' && !!dmTarget;
+    const isViewingGroup = (isMobileChatVisible || (!isMobile && rightPanelTab === 'chat')) && chatTab === 'group';
+    const isViewingDm = (isMobileChatVisible || (!isMobile && rightPanelTab === 'chat')) && chatTab === 'dm' && !!dmTarget;
     const chatId = isViewingGroup ? roomId : (isViewingDm ? dmTarget : null);
     // Nothing to mark active — no emit needed here: if a PREVIOUS run of this
     // effect had a real chatId, its own cleanup below (still holding that
@@ -2977,7 +2993,7 @@ const Room = () => {
     if (!chatId) return;
     socket.emit('chat_active', { chatId });
     return () => socket.emit('chat_inactive', { chatId });
-  }, [socket, isMobile, rightPanelTab, chatTab, dmTarget, roomId]);
+  }, [socket, isMobile, isMobileChatVisible, rightPanelTab, chatTab, dmTarget, roomId]);
 
   const handleTypingStatus = (data, isStarting) => {
     const { partner, username, type, roomId: payloadRoomId, isTyping } = data;
@@ -4869,7 +4885,7 @@ const Room = () => {
         if (m.some(u => u.toLowerCase() === roomId.toLowerCase())) isMutedRoom = true;
       } catch {}
 
-      const isViewingGroupChat = (isMobile || rightPanelTabRef.current === 'chat') && chatTabRef.current === 'group';
+      const isViewingGroupChat = (isMobileChatVisibleRef.current || (!isMobile && rightPanelTabRef.current === 'chat')) && chatTabRef.current === 'group';
       if (!isViewingGroupChat && !isMine && !isMutedRoom) {
         setGroupUnread(p => {
           const newVal = p + 1;
@@ -5574,7 +5590,7 @@ const Room = () => {
       });
 
       const otherNameLower = otherName.toLowerCase();
-      const isViewingThisDm = (isMobile || rightPanelTabRef.current === 'chat') && chatTabRef.current === 'dm' && dmTargetRef.current && dmTargetRef.current.toLowerCase() === otherNameLower;
+      const isViewingThisDm = (isMobileChatVisibleRef.current || (!isMobile && rightPanelTabRef.current === 'chat')) && chatTabRef.current === 'dm' && dmTargetRef.current && dmTargetRef.current.toLowerCase() === otherNameLower;
       if (!isViewingThisDm) {
         if (!isMine) {
           const storedCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
@@ -14881,8 +14897,8 @@ const Room = () => {
                 onNewMessage={handleNewMessage}
                 pendingOpenChat={pendingOpenChat}
                 onPendingOpenChatHandled={() => setPendingOpenChat(null)}
-                activeRoomTab={(isMobile || rightPanelTab === 'chat') ? chatTab : null}
-                activeRoomPartner={(isMobile || rightPanelTab === 'chat') ? (chatTab === 'dm' ? dmTarget : roomId) : null}
+                activeRoomTab={(isMobileChatVisible || (!isMobile && rightPanelTab === 'chat')) ? chatTab : null}
+                activeRoomPartner={(isMobileChatVisible || (!isMobile && rightPanelTab === 'chat')) ? (chatTab === 'dm' ? dmTarget : roomId) : null}
                 // Always set (not gated on tab focus) — this room's own chat
                 // panel exclusively owns the toast for its own group chat, no
                 // matter which tab is on screen. See GlobalChatWidget's own

@@ -9665,9 +9665,28 @@ io.on('connection', (socket) => {
       );
       let ls = {};
       try { ls = JSON.parse(row?.lastSeen || '{}'); } catch {}
+      const userLowerForKey = socket.username.toLowerCase();
       targetChats.forEach(chatId => {
-        if (chatId) {
-          ls[chatId.toLowerCase()] = now;
+        if (!chatId) return;
+        const cidLower = chatId.toLowerCase();
+        // Chats inferred above come back as real roomIds (e.g. "dm-alice-bob"),
+        // but /api/chats/recent's private-chat unread lookup keys lastSeen by
+        // the PARTNER'S USERNAME, not the dm-* roomId — storing the raw roomId
+        // here (as this used to) silently never advanced lastSeen for DMs at
+        // all, so "Mark all as read" looked like it worked (client zeroed its
+        // own badges immediately) but the server-persisted cutoff never
+        // actually moved, and the full historical count came right back on
+        // the next fetch that didn't also carry the client's own lastSeen
+        // (e.g. after a reinstall, or a background poll) — this is the "badge
+        // reappears" / "99+ after reinstall" behavior. Explicit chatIds passed
+        // in from the client (the array branch above) don't have this problem
+        // since those already use the partner-username convention.
+        if (cidLower.startsWith('dm-')) {
+          const parts = cidLower.slice(3).split('-').filter(Boolean);
+          const partner = parts.find(p => p !== userLowerForKey) || parts[0];
+          if (partner) ls[partner] = now;
+        } else {
+          ls[cidLower] = now;
         }
       });
       
