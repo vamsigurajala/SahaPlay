@@ -10781,9 +10781,13 @@ io.on('connection', (socket) => {
   // with the same NaCl DM keypair used for chat text before sending, so this
   // server only ever relays ciphertext it cannot read.
   socket.on('call:invite', async ({ callId, calleeUsername, callType }) => {
+    // Declared outside the try block (not `const` inside it) so the catch
+    // block's busy-flag rollback below can still reach them regardless of
+    // how early the error happened.
+    let caller, callee;
     try {
-      const caller = socket.username?.toLowerCase();
-      const callee = (calleeUsername || '').toLowerCase();
+      caller = socket.username?.toLowerCase();
+      callee = (calleeUsername || '').toLowerCase();
       console.log(`[Call] invite ${caller} -> ${callee} (${callType}) callId=${callId}`);
       if (!callId || !isValidCallInviteRequest({ caller, callee, callType })) {
         console.log(`[Call] invite rejected: invalid request shape (caller=${caller}, callee=${callee}, callType=${callType}, callId=${callId})`);
@@ -10878,6 +10882,20 @@ io.on('connection', (socket) => {
       }, 'calls').catch(() => {});
     } catch (err) {
       console.error('[SOCKET] call:invite error:', err.message, 'user:', socket.username);
+      // Without this, any unexpected error here (a DB hiccup, or any of the
+      // several real SQL bugs already found and fixed this session) leaves
+      // both parties permanently stuck "busy" in server memory — no timeout
+      // is scheduled yet at this point in the handler, so nothing would EVER
+      // clear it short of a server restart. The caller is left staring at
+      // "Calling..." forever and the callee never even rings, but every
+      // call either of them tries afterward silently fails as "busy" too.
+      const existing = activeCalls.get(callId);
+      if (existing) {
+        clearTimeout(existing.timeoutHandle);
+        activeCalls.delete(callId);
+      }
+      if (typeof caller === 'string') userActiveCallId.delete(caller);
+      if (typeof callee === 'string') userActiveCallId.delete(callee);
     }
   });
 
