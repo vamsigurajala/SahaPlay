@@ -3709,6 +3709,18 @@ export default function RoomChatPanel({ p }) {
                           </div>
                       )}
                       <div style={{position:'relative', display:'flex', alignItems:'center'}}
+                        // hoveredMsgId is set here now, not on .msg-bubble itself — the
+                        // hover-menu chevron+dropdown live as a SIBLING of the bubble
+                        // (see that block's own comment on why), so moving the cursor
+                        // from the bubble onto the menu button used to cross out of the
+                        // bubble's own mouseenter/mouseleave region, firing mouseleave
+                        // and immediately unmounting the very menu the cursor was moving
+                        // toward — read as "the dropdown disappears the moment I try to
+                        // reach it." This row wrapper's box contains both the bubble and
+                        // the menu (it's absolutely positioned within it), so hovering
+                        // either one now keeps the same mouseenter/mouseleave pair happy.
+                        onMouseEnter={() => setHoveredMsgId(msg.id||i)}
+                        onMouseLeave={() => setHoveredMsgId(null)}
                         onTouchStart={gestureHandlers.onTouchStart}
                         onTouchMove={gestureHandlers.onTouchMove}
                         onTouchEnd={gestureHandlers.onTouchEnd}>
@@ -3832,8 +3844,6 @@ export default function RoomChatPanel({ p }) {
                           alignItems: (msg.mediaType && !isMediaOnly) ? 'stretch' : 'flex-end',
                           columnGap: (msg.mediaType && !isMediaOnly) ? 0 : 6
                         }}
-                        onMouseEnter={() => setHoveredMsgId(msg.id||i)}
-                        onMouseLeave={() => setHoveredMsgId(null)}
                         onDoubleClick={(e) => { e.stopPropagation(); p.handleGroupReact(msg.id || msg.timestamp, '❤️'); triggerReactionBurst(msg.id || msg.timestamp); }}>
                           {burstMsgId === (msg.id || msg.timestamp) && <DoubleTapBurst emoji={burstEmoji} />}
                           {/* Captioned media renders its image/video first (flush, full
@@ -4834,6 +4844,11 @@ export default function RoomChatPanel({ p }) {
                           })()}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}
+                              // hoveredMsgId set here, not on .msg-bubble — see the
+                              // identical comment on the group tab's own copy of this
+                              // row wrapper for why.
+                              onMouseEnter={() => setHoveredMsgId(msg.id||i)}
+                              onMouseLeave={() => setHoveredMsgId(null)}
                               onTouchStart={gestureHandlers.onTouchStart}
                               onTouchMove={gestureHandlers.onTouchMove}
                               onTouchEnd={gestureHandlers.onTouchEnd}>
@@ -4900,8 +4915,6 @@ export default function RoomChatPanel({ p }) {
                                 alignItems: (msg.mediaType && !isMediaOnly) ? 'stretch' : 'flex-end',
                                 columnGap: (msg.mediaType && !isMediaOnly) ? 0 : 6
                               }}
-                              onMouseEnter={() => setHoveredMsgId(msg.id||i)}
-                              onMouseLeave={() => setHoveredMsgId(null)}
                               onDoubleClick={(e) => { e.stopPropagation(); p.handleDmReact(msg.id || msg.timestamp, '❤️'); triggerReactionBurst(msg.id || msg.timestamp); }}>
                                 {burstMsgId === (msg.id || msg.timestamp) && <DoubleTapBurst emoji={burstEmoji} />}
                                 {/* Captioned media renders its image/video first (flush, full

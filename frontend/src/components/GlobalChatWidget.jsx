@@ -2391,7 +2391,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const [selectedForwardChats, setSelectedForwardChats] = useState([]);
   const [forwarding, setForwarding] = useState(false);
   const MAX_FORWARD_CHATS = 5;
-  const [hoveredMsgId, setHoveredMsgId] = useState(null);
   const [hoveredRowId, setHoveredRowId] = useState(null);
   // Instagram-style double-tap-to-like burst — see DoubleTapBurst.jsx. Only
   // one message ever bursts at a time; the timeout mirrors the component's
@@ -9417,8 +9416,6 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               className={`msg-bubble${activeWallpaper ? ' on-wallpaper' : ''}${activeWallpaperIsZen ? ' wp-sent-black' : ''} ${(isMe && !paintSentAsReceived)
                                 ? `msg-sent${(!activeWallpaper || wallpaperIsDark) ? ' stay-white' : ''}`
                                 : (activeWallpaper && wallpaperIsDark ? 'msg-received stay-white' : 'msg-received')}`}
-                              onMouseEnter={() => setHoveredMsgId(msg.id || i)}
-                              onMouseLeave={() => setHoveredMsgId(null)}
                               onDoubleClick={(e) => { e.stopPropagation(); handleReact(msg.id, '❤️'); triggerReactionBurst(msg.id || i); }}
                               style={{
                                 position: 'relative',
@@ -9618,7 +9615,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 outside the bubble), the whole bubble's z-index:2 lost regardless,
                                 so the quick-react emoji button rendered on top of an open menu.
                                 Living out here as a real sibling lets z-index compare normally. */}
-                            {(hoveredMsgId === (msg.id||i) || activeMessageMenu === msg.id) && (
+                            {/* hoveredRowId (set on the row wrapper above, covering both
+                                the bubble and this sibling menu) rather than a
+                                bubble-only hover state — the menu used to vanish the
+                                instant the cursor moved from the bubble onto the
+                                button/dropdown itself, since that crossed out of a
+                                bubble-only mouseenter/mouseleave region into empty
+                                space between two separate elements. */}
+                            {(hoveredRowId === (msg.id||i) || activeMessageMenu === msg.id) && (
                               <div className="msg-hover-menu" style={{position: 'absolute', top: isMediaOnly ? 4 : 2, right: isMediaOnly ? 4 : 2, zIndex: 20}}>
                                 <button className={(!isMe && isLight) ? 'stay-white' : ''} onClick={(e)=>{ e.stopPropagation(); if (activeMessageMenu !== msg.id) {
                                   // Measured from the ROW's own bottom edge, not the click
