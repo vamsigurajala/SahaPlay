@@ -21,7 +21,15 @@
 // authUtils.js's clearUserSession (its prefixesToRemove list), the same
 // way this app already purges locked_chats_/pinned_chats_/etc. — so it
 // never bleeds into a different account signing in on the same device.
-const MAX_CACHED = 4;
+//
+// Was 4 — enough to avoid a totally blank panel, but nowhere near a full
+// screen of messages, so every open/reopen still read as "flash a handful,
+// then everything pops in a beat later" instead of feeling instant. Bumped
+// to match the server's own first-page size (GET /api/chats/history's
+// default `limit` when no `before` cursor is given — see server.js) so a
+// reopen can flash the exact same amount of content the real fetch would
+// have shown anyway.
+const MAX_CACHED = 50;
 const PREFIX = 'sp_recent_msgs_';
 // A data:/blob: URL is either huge (data:) or dead after a reload (blob:,
 // scoped to the page that created it) — worth caching neither. Dropping it
