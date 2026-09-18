@@ -85,7 +85,23 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             // for why this is no longer gated behind Telecom's outcome.
             // This is the exact call/path that reliably worked before
             // Phase 3 ever touched this file.
-            IncomingCallActivity.showIncomingCall(this, callId, callerUsername, callType, calleeUsername, callerDisplayName, callerAvatarPath);
+            //
+            // Skipped ONLY when MainActivity.isForeground() confirms the app
+            // is genuinely on screen right now — see that flag's own comment
+            // for the exact bug this closes. The live 'call:incoming' socket
+            // event (fired by the same call:invite handler that sent this
+            // push, arriving over the JS layer's already-open connection)
+            // already shows CallContext.jsx's own ring screen in that case;
+            // this used to ALSO launch on top of it every single time,
+            // making a real accept take two taps (one that only dismissed
+            // this redundant native screen, one that actually answered).
+            // MainActivity.isForeground() defaults to false whenever
+            // uncertain (never resumed yet, or genuinely backgrounded/killed),
+            // so this still rings exactly as before — unconditionally — in
+            // every case except a confirmed-open foreground app.
+            if (!MainActivity.isForeground()) {
+                IncomingCallActivity.showIncomingCall(this, callId, callerUsername, callType, calleeUsername, callerDisplayName, callerAvatarPath);
+            }
 
             // Fire-and-forget on its own thread, deliberately decoupled
             // from the ring above. ensureSelfInitialized() stands up the
@@ -175,7 +191,7 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
                 : null;
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, missedChannelId)
-                .setSmallIcon(getApplicationContext().getApplicationInfo().icon)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle("Missed call")
                 .setContentText(who != null ? (who + " called") : "You have a missed call")
                 .setAutoCancel(true)
@@ -241,7 +257,7 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
             PendingIntent contentPendingIntent = PendingIntent.getActivity(this, notificationId, openIntent, piFlags);
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, messageChannelId)
-                .setSmallIcon(getApplicationContext().getApplicationInfo().icon)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setAutoCancel(true)
@@ -293,7 +309,7 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
                 : null;
 
             NotificationCompat.Builder testBuilder = new NotificationCompat.Builder(this, testChannelId)
-                .setSmallIcon(getApplicationContext().getApplicationInfo().icon)
+                .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setAutoCancel(true)

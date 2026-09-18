@@ -168,6 +168,29 @@ export function setNativeMessageTonePreference(toneId) {
 // and this whole class of bug doesn't apply.
 export async function ensureNativeMediaPermissions() {
   if (!isCapacitorApp()) return true;
+  // Real Android runtime-permission check via SahaplayMediaPlugin's own
+  // ensureCameraPermissions (ContextCompat.checkSelfPermission — the SAME
+  // reliable, already-proven mechanism ensureNativeCameraPermissions below
+  // uses, and the plugin already ships in every installed build). Tried
+  // FIRST because navigator.permissions.query({name:'camera'|'microphone'})
+  // is unreliable on Android's WebView specifically — it very often never
+  // reports 'granted' even long after the real OS permission was granted,
+  // which used to force EVERY single call accept/start through the
+  // getUserMedia() fallback below: a real (if brief) camera+mic hardware
+  // open, on top of the identical one WebRTC itself performs moments later
+  // in connectToPeer. That doubled acquisition cost is exactly what made
+  // tapping Answer feel unresponsive enough that people tapped it 2-3 times
+  // before anything visibly happened. A native result is trusted outright
+  // (skips the query/getUserMedia probing entirely) since it's a direct,
+  // unambiguous OS-level answer — no reason to second-guess it the way
+  // navigator.permissions.query has to be.
+  try {
+    const result = await plugin()?.ensureCameraPermissions();
+    if (result && typeof result.granted === 'boolean') return result.granted;
+  } catch {
+    // Falls through to the browser-API path below — an older installed
+    // build without this plugin method, or the native call itself failing.
+  }
   try {
     if (navigator.permissions?.query) {
       const [cam, mic] = await Promise.all([

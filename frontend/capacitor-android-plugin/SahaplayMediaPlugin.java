@@ -94,9 +94,18 @@ public class SahaplayMediaPlugin extends Plugin {
         if (activeInstance == null || activeInstance.pendingCameraPermissionCall == null) return;
         PluginCall call = activeInstance.pendingCameraPermissionCall;
         activeInstance.pendingCameraPermissionCall = null;
+        // Both perms are requested together below (ensureCameraPermissions'
+        // own launch() call) — this used to check only CAMERA, so a call
+        // that got the camera prompt approved but the mic prompt denied (the
+        // system shows both in one flow, but a user can still answer them
+        // differently) would resolve granted:true anyway. ensureCameraPermissions'
+        // own "already granted" fast path checks both; this callback path
+        // (freshly requested, not yet granted before this call) needs to
+        // agree with it.
         boolean cameraGranted = result != null && Boolean.TRUE.equals(result.get(Manifest.permission.CAMERA));
+        boolean micGranted = result != null && Boolean.TRUE.equals(result.get(Manifest.permission.RECORD_AUDIO));
         JSObject ret = new JSObject();
-        ret.put("granted", cameraGranted);
+        ret.put("granted", cameraGranted && micGranted);
         call.resolve(ret);
     }
 
@@ -473,8 +482,18 @@ public class SahaplayMediaPlugin extends Plugin {
     // answers it.
     @PluginMethod
     public void ensureCameraPermissions(PluginCall call) {
+        // Checks BOTH — the "not yet granted" branch below already requests
+        // CAMERA + RECORD_AUDIO together (nativeMedia.js's
+        // ensureNativeMediaPermissions calls this same method as the calling
+        // flow's own camera+mic check), so the fast "already granted" path
+        // has to agree: checking only CAMERA here used to let a call proceed
+        // past this check with the mic still denied, which getUserMedia()
+        // itself would then fail on moments later inside connectToPeer —
+        // surfacing as a confusing failure well after the user had already
+        // been told they could go ahead.
         boolean hasCamera = ContextCompat.checkSelfPermission(getContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
-        if (hasCamera) {
+        boolean hasMic = ContextCompat.checkSelfPermission(getContext(), Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        if (hasCamera && hasMic) {
             JSObject ret = new JSObject();
             ret.put("granted", true);
             call.resolve(ret);

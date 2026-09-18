@@ -111,4 +111,51 @@ public class MainActivity extends BridgeActivity {
         // PhoneAccount on reboot or after a force-stop).
         PhoneAccountRegistrar.register(this);
     }
+
+    // Lets SahaplayFirebaseMessagingService tell whether the app is actually
+    // on screen right now, before deciding to launch IncomingCallActivity's
+    // full-screen native ring UI for an incoming call push (see that
+    // decision at the call site). Without this, that native screen used to
+    // launch UNCONDITIONALLY for every single incoming call — including
+    // while the app was already open and its own JS layer (CallContext.jsx,
+    // via the live 'call:incoming' socket event that arrives in parallel
+    // with this same push) was ALREADY showing its own ring screen. The
+    // native Activity would land on top of it (FLAG_ACTIVITY_SINGLE_TOP
+    // brings it to the very front of the task), so tapping what looked like
+    // "the app's own Answer button" actually hit this native screen's
+    // button first — which only calls setActive()/deep-links back into the
+    // already-open app (see SahaplayConnection.answerFromUi() and
+    // nativeCallBridge.js's own comment on why that deep link deliberately
+    // does NOT auto-accept anymore) rather than actually answering anything.
+    // The real accept only happened on the SECOND tap, once the redundant
+    // native screen had dismissed and the underlying JS Answer button was
+    // finally reachable — this is what made answering read as "tap twice,
+    // sometimes three times, before it connects."
+    //
+    // onResume/onPause (not onStart/onStop) deliberately errs toward "assume
+    // backgrounded" the instant this Activity loses full focus (e.g. a
+    // system permission dialog briefly covering it) — the failure direction
+    // that matters here is asymmetric: wrongly treating the app as
+    // backgrounded just means one redundant ring screen still shows (the
+    // existing, already-working behavior), while wrongly treating it as
+    // foregrounded could mean a call never visibly rings at all. Defaulting
+    // false (see the field below) means the same fail-safe applies before
+    // this Activity has ever resumed even once (a cold app start).
+    private static volatile boolean isForeground = false;
+
+    public static boolean isForeground() {
+        return isForeground;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        isForeground = true;
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        isForeground = false;
+    }
 }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notification status-bar/small icon — Android requires this to be a
+     plain flat white silhouette on transparent (its own design guideline,
+     enforced by the OS auto-converting anything else to a plain white
+     square in the status bar anyway). SahaplayFirebaseMessagingService.java
+     used to pass the real full-color launcher icon here instead, which is
+     both against that guideline and the reason the notification's OWN
+     per-message picture (setLargeIcon — the sender's real avatar, fetched
+     in fetchAndSetMessageAvatar) never read as the prominent image the way
+     it does in every other messaging app: some Android versions/OEM shades
+     render a non-monochrome smallIcon large and prominent when a largeIcon
+     is also present instead of demoting it to a tiny corner badge, which is
+     what made the generic SahaPlay mark dominate over the actual sender's
+     photo. A plain chat-bubble glyph (Google's Material Icons "chat" glyph
+     — Apache-2.0, safe to vendor) is deliberately generic/on-brand-neutral
+     here since this app has no separate monochrome-only brand mark asset;
+     its only job is being the tiny recognizable badge, not a full logo. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,2H4C2.9,2 2,2.9 2,4v18l4,-4h14c1.1,0 2,-0.9 2,-2V4C22,2.9 21.1,2 20,2z" />
+</vector>

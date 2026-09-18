@@ -63,6 +63,16 @@ public class SahaplayConnection extends Connection {
     // SahaplayFirebaseMessagingService.
     @Override
     public void onShowIncomingCallUi() {
+        // Same foreground check, and the same reasoning, as the other
+        // showIncomingCall() call site in SahaplayFirebaseMessagingService —
+        // Telecom's addNewIncomingCall() (which leads here) is kept
+        // unconditional there specifically for its audio-focus/Bluetooth
+        // routing benefits even when the app is already open, but this UI
+        // launch itself must NOT be — without this, a device where Telecom
+        // cooperates would still show the redundant native ring screen on
+        // top of the JS layer's own already-showing one via this second
+        // path, even after the FCM-push call site was fixed to skip it.
+        if (MainActivity.isForeground()) return;
         String myUsername = CallEngineService.get(appContext).getMyUsername();
         IncomingCallActivity.showIncomingCall(appContext, callId, callerUsername, callType, myUsername);
     }
