@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { isCapacitorApp } from '../lib/platform';
 
 // Backs "recently searched" on every search surface in the app — Navbar's
 // search dropdown (desktop and its own mobile-width block), Profile.jsx's
@@ -23,9 +24,28 @@ function entryKey(e) {
   return 'user:' + String(e.username || '').toLowerCase();
 }
 
-function readHistory() {
+// Plain localStorage on web/desktop, where it's already proven reliable.
+// On the Android app specifically, real-device testing turned up entries
+// silently failing to persist across app relaunches — the WebView's own
+// localStorage isn't guaranteed to be flushed to disk before this device's
+// aggressive OEM background-kill behavior tears the process down (the same
+// class of real-device restriction already documented for calls/push
+// elsewhere in this app). Capacitor's Preferences plugin writes straight to
+// Android's SharedPreferences instead, synced to disk independent of the
+// WebView's own storage lifecycle.
+//
+// Accessed off the raw window.Capacitor.Plugins proxy, never a static/
+// dynamic `import` of an `@capacitor/*` package — same reason every native
+// bridge in nativeDownload.js/nativePush.js does this: those packages are
+// only ever installed transiently inside the CI Android build job (see
+// android-capacitor-build.yml), never a real frontend dependency, so a real
+// import would fail to resolve when THIS repo's own web bundle builds.
+const preferencesPlugin = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.Preferences : null);
+
+async function readHistory() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const prefs = preferencesPlugin();
+    const raw = prefs ? (await prefs.get({ key: KEY })).value : localStorage.getItem(KEY);
     const arr = raw ? JSON.parse(raw) : [];
     return Array.isArray(arr) ? arr.filter(e => e && (e.username || (e.type === 'room' && e.roomId))) : [];
   } catch {
@@ -33,12 +53,25 @@ function readHistory() {
   }
 }
 
-function writeHistory(list) {
-  try { localStorage.setItem(KEY, JSON.stringify(list)); } catch {}
+async function writeHistory(list) {
+  try {
+    const json = JSON.stringify(list);
+    const prefs = preferencesPlugin();
+    if (prefs) {
+      await prefs.set({ key: KEY, value: json });
+    } else {
+      localStorage.setItem(KEY, json);
+    }
+  } catch {}
 }
 
 export function useSearchHistory() {
-  const [history, setHistory] = useState(readHistory);
+  const [history, setHistory] = useState([]);
+
+  // Loaded async now (Preferences.get is a Promise even on native) — starts
+  // empty and fills in a tick later on every platform, including web/desktop,
+  // rather than keeping a separate sync path just for localStorage.
+  useEffect(() => { readHistory().then(setHistory); }, []);
 
   // Call when the user actually opens a result from search (not on every
   // keystroke) — same "recently visited" semantics as a browser's own

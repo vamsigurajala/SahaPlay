@@ -86,9 +86,14 @@ jobs:
       # only ever calls it off window.Capacitor.Plugins.Filesystem (see
       # nativeDownload.js's own comment on why no direct import), so this
       # line is the ONLY place that plugin needs to be named at all.
+      # @capacitor/preferences added so search history (useSearchHistory.js)
+      # survives this device class's aggressive background-kill behavior —
+      # real-device testing found entries silently failing to persist when
+      # backed by the WebView's own localStorage alone; SharedPreferences via
+      # this plugin doesn't share that failure mode.
       - name: Install Capacitor packages
         working-directory: frontend
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app @capacitor/browser @capacitor/push-notifications @capacitor/filesystem fs-extra
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app @capacitor/browser @capacitor/push-notifications @capacitor/filesystem @capacitor/preferences fs-extra
 
       # Hand-authored, same "write the config the CLI would otherwise ask for
       # interactively" approach already used for the old TWA build's
