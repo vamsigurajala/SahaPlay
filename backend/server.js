@@ -13938,12 +13938,20 @@ app.get('/api/admin/reports', authenticateToken, requireAdmin, requireAdminRole(
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const offset = (page - 1) * limit;
     const filter = req.query.filter || 'all';
+    const search = (req.query.search || '').trim();
 
-    let where = '';
-    if (filter === 'unresolved') where = `WHERE (status IS NULL OR status = 'open' OR status = 'in_review') AND resolved IS NOT TRUE`;
-    else if (filter === 'in_review') where = `WHERE status = 'in_review'`;
-    else if (filter === 'resolved') where = `WHERE status = 'resolved' OR resolved = TRUE`;
-    else if (filter === 'dismissed') where = `WHERE status = 'dismissed'`;
+    const conditions = [];
+    const vals = [];
+    let idx = 1;
+    if (filter === 'unresolved') conditions.push(`(status IS NULL OR status = 'open' OR status = 'in_review') AND resolved IS NOT TRUE`);
+    else if (filter === 'in_review') conditions.push(`status = 'in_review'`);
+    else if (filter === 'resolved') conditions.push(`(status = 'resolved' OR resolved = TRUE)`);
+    else if (filter === 'dismissed') conditions.push(`status = 'dismissed'`);
+    if (search) {
+      conditions.push(`("reporterUsername" ILIKE $${idx} OR "reportedUsername" ILIKE $${idx} OR reason ILIKE $${idx} OR description ILIKE $${idx})`);
+      vals.push(`%${search}%`); idx++;
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const [reportsR, countR] = await Promise.all([
       pool.query(
@@ -13951,10 +13959,10 @@ app.get('/api/admin/reports', authenticateToken, requireAdmin, requireAdminRole(
                 status, admin_notes, resolved_by_admin_id, resolved_at, priority, reason, description, attachments
          FROM reports ${where}
          ORDER BY "createdAt" DESC
-         LIMIT $1 OFFSET $2`,
-        [limit, offset]
+         LIMIT $${idx++} OFFSET $${idx++}`,
+        [...vals, limit, offset]
       ),
-      pool.query(`SELECT COUNT(*) FROM reports ${where}`),
+      pool.query(`SELECT COUNT(*) FROM reports ${where}`, vals),
     ]);
 
     res.json({

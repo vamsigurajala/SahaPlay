@@ -227,6 +227,27 @@
   }
 }
 
+/* Reports page's own mobile toolbar (search + a single filter dropdown +
+   a plain refresh icon, one row) — replaces the 5-button filter grid above
+   at phone width, matching Support Inbox's layout there. Scoped under
+   .admin-reports-page (only the Reports page carries that extra class) so
+   it can't affect any other page that reuses the shared .admin-reports-*
+   classes above for its own filter row. */
+.admin-reports-mobile-toolbar {
+  display: none;
+}
+@media (max-width: 768px) {
+  .admin-reports-page .admin-reports-filters {
+    display: none !important;
+  }
+  .admin-reports-page .admin-reports-mobile-toolbar {
+    display: flex !important;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+  }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

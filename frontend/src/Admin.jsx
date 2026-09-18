@@ -1110,6 +1110,7 @@ const JOIN_FILTERS = [
 ];
 
 const SUPPORT_FILTERS = [['all', 'All'], ['open', 'Open'], ['in_progress', 'In Progress'], ['resolved', 'Resolved'], ['dismissed', 'Dismissed']];
+const REPORT_FILTERS = [['all', 'All'], ['unresolved', 'Unresolved'], ['in_review', 'In Review'], ['resolved', 'Resolved'], ['dismissed', 'Dismissed']];
 
 function UsersPage({ initialJoinFilter = 'all', onJoinFilterChange }) {
   const isLight = React.useContext(AdminThemeCtx);
@@ -2300,7 +2301,7 @@ function LegalRequestsPage() {
         <div className="admin-reports-header-left">
           <div className="admin-reports-title-row">
             <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: T.text }}>Legal Requests</h1>
-            <button onClick={() => setModalMode('create')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--brand-1)', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+            <button onClick={() => setModalMode('create')} className="stay-white" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--brand-1)', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
               <Plus size={14} /> New Request
             </button>
           </div>
@@ -2426,6 +2427,10 @@ function ReportsPage({ refreshBadges }) {
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const filterDropdownRef = useRef(null);
+  const searchTimer = useRef(null);
   const [resolveLoading, setResolveLoading] = useState(null);
   const [selected, setSelected] = useState(null); // currently open report row
   const [lightbox, setLightbox] = useState(null); // { src, filename }
@@ -2462,9 +2467,9 @@ function ReportsPage({ refreshBadges }) {
     } catch { return ''; }
   })();
 
-  function load(p = 1, f = filter) {
+  function load(p = 1, f = filter, s = search) {
     setLoading(true);
-    apiFetch(`/api/admin/reports?page=${p}&limit=20&filter=${f}`)
+    apiFetch(`/api/admin/reports?page=${p}&limit=20&filter=${f}&search=${encodeURIComponent(s)}`)
       .then(d => { setData(d); setTotal(d.total); setPage(d.page); setPages(d.pages || 1); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
   }
@@ -2479,12 +2484,20 @@ function ReportsPage({ refreshBadges }) {
       if (assignDropdownRef.current && !assignDropdownRef.current.contains(e.target)) {
         setShowAssignDropdown(false);
       }
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target)) {
+        setShowFilterDropdown(false);
+      }
     }
     window.addEventListener('mousedown', handler);
     return () => window.removeEventListener('mousedown', handler);
   }, []);
 
-  function handleFilter(f) { setFilter(f); setPage(1); load(1, f); }
+  function handleFilter(f) { setFilter(f); setPage(1); load(1, f, search); }
+  function handleSearch(s) {
+    setSearch(s);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => { setPage(1); load(1, filter, s); }, 400);
+  }
 
   async function selectReport(rep) {
     setSelected(rep);
@@ -2585,19 +2598,16 @@ function ReportsPage({ refreshBadges }) {
   }
 
   return (
-    <div className="admin-page-container" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
+    <div className="admin-page-container admin-reports-page" style={{ overflowY: 'auto', flex: 1, minHeight: 0 }}>
         <div className="admin-reports-header">
           <div className="admin-reports-header-left">
             <div className="admin-reports-title-row">
               <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>Reports</h1>
-              <button className="mobile-refresh-btn" onClick={() => load(page, filter)} style={{ display: 'none', alignItems: 'center', gap: 6, padding: '7px 13px', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                <RefreshCw size={13} /> Refresh
-              </button>
             </div>
             <p className="admin-reports-count" style={{ margin: '4px 0 0', color: isLight ? '#4b5563' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{total.toLocaleString()} report{total !== 1 ? 's' : ''}</p>
           </div>
           <div className="admin-reports-filters">
-            {[['all','All'], ['unresolved','Unresolved'], ['in_review','In Review'], ['resolved','Resolved'], ['dismissed','Dismissed']].map(([f, label]) => {
+            {REPORT_FILTERS.map(([f, label]) => {
               const active = filter === f;
               return (
                 <button key={f} onClick={() => handleFilter(f)} style={{ padding: '7px 13px', borderRadius: 9, border: active ? '1px solid var(--brand-1)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'), background: active ? 'rgba(var(--brand-1-rgb),0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.04)'), color: active ? 'var(--brand-1-light)' : (isLight ? '#111827' : 'rgba(255,255,255,0.5)'), fontWeight: 700, fontSize: 12, cursor: 'pointer', transition: 'all 0.15s' }}>
@@ -2605,8 +2615,77 @@ function ReportsPage({ refreshBadges }) {
                 </button>
               );
             })}
-            <button className="desktop-refresh-btn" onClick={() => load(page, filter)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            <button className="desktop-refresh-btn" onClick={() => load(page, filter, search)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)', border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)', borderRadius: 9, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
               <RefreshCw size={13} /> Refresh
+            </button>
+          </div>
+
+          {/* Mobile-only — matches Support Inbox's layout (title, count, then
+              search + a single filter dropdown + a plain refresh icon in one
+              row) instead of the 5-button filter grid the desktop layout
+              above uses, which read as visually cluttered/"separated" at
+              phone width. Toggled purely via CSS (admin-reports-mobile-
+              toolbar, scoped under .admin-reports-page so it can't leak into
+              any other page reusing the shared admin-reports-* classes) —
+              desktop is completely unchanged. */}
+          <div className="admin-reports-mobile-toolbar">
+            <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: isLight ? '#111827' : 'rgba(255,255,255,0.35)', pointerEvents: 'none' }} />
+              <input value={search} onChange={e => handleSearch(e.target.value)} placeholder="Search…"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '7px 12px 7px 30px', borderRadius: 9,
+                  border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
+                  background: isLight ? '#ffffff' : 'rgba(255,255,255,0.05)',
+                  color: isLight ? '#111827' : '#fff', fontSize: 13, outline: 'none'
+                }} />
+            </div>
+            <div ref={filterDropdownRef} style={{ position: 'relative', flexShrink: 0 }}>
+              <button onClick={() => setShowFilterDropdown(v => !v)} style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', whiteSpace: 'nowrap',
+                background: filter !== 'all' ? 'rgba(var(--brand-1-rgb),0.15)' : (isLight ? '#ffffff' : 'rgba(255,255,255,0.06)'),
+                border: filter !== 'all' ? '1px solid var(--brand-1)' : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'),
+                borderRadius: 9, color: filter !== 'all' ? 'var(--brand-1-light)' : (isLight ? '#374151' : '#fff'), cursor: 'pointer', fontSize: 12, fontWeight: 700
+              }}>
+                {REPORT_FILTERS.find(([f]) => f === filter)?.[1] || 'All'}
+                <ChevronDown size={12} style={{ transform: showFilterDropdown ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.15s' }} />
+              </button>
+              {showFilterDropdown && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 2000,
+                  background: isLight ? '#f3f4f6' : '#161b27',
+                  border: isLight ? '1px solid #d1d5db' : '1px solid rgba(var(--brand-1-rgb),0.25)',
+                  borderRadius: 10, padding: 4, minWidth: 160,
+                  boxShadow: isLight ? '0 8px 28px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)' : '0 12px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04)',
+                }}>
+                  {REPORT_FILTERS.map(([f, label]) => {
+                    const active = filter === f;
+                    return (
+                      <button
+                        key={f}
+                        onClick={() => { handleFilter(f); setShowFilterDropdown(false); }}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', margin: '1px 0',
+                          background: active ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(var(--brand-1-rgb),0.18)') : 'transparent',
+                          border: 'none', borderRadius: 7, cursor: 'pointer',
+                          color: active ? 'var(--brand-1)' : (isLight ? '#111827' : 'rgba(255,255,255,0.82)'),
+                          fontSize: 13, fontWeight: active ? 700 : 500,
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <button onClick={() => load(page, filter, search)} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', flexShrink: 0,
+              background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
+              border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 9, color: isLight ? '#374151' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600
+            }}>
+              <RefreshCw size={13} />
             </button>
           </div>
         </div>
@@ -4143,46 +4222,48 @@ const BASE_NAV = [
 
 // ─── Admin Dashboard ──────────────────────────────────────────────────────────
 export default function Admin() {
-  const [tab, setTabState] = useState(() => localStorage.getItem('admin_active_tab') || 'overview');
+  // In-session navigation stack of every tab actually switched to — empty
+  // means "resting" on restingTab (the menu/list screen on narrow mobile;
+  // on a wide/tablet layout where the sidebar and content sit side by side
+  // and this toggle has no visible effect, just showing restingTab as-is).
+  // A sidebar tap, an Overview stat-card drill-down, and "open this ticket"
+  // from Admin Team all push onto this ONE stack now (previously only the
+  // Overview-drill-down case pushed a second level at all, and a plain
+  // sidebar-to-sidebar switch — e.g. Overview then Users — pushed nothing,
+  // so a swipe-back after that fell straight through to whatever real
+  // browser page preceded Admin, exiting the whole dashboard to Home
+  // instead of returning to Overview). Popping just truncates the stack
+  // back to that depth, one tab at a time, however many were visited.
+  const [tabHistory, setTabHistory] = useState([]);
+  const [restingTab, setRestingTab] = useState(() => localStorage.getItem('admin_active_tab') || 'overview');
+  const tab = tabHistory.length > 0 ? tabHistory[tabHistory.length - 1] : restingTab;
   const [userJoinFilter, setUserJoinFilter] = useState('all');
-  // True only when the current tab was reached by drilling down from a stat
-  // card on Overview (not by tapping the sidebar directly) — lets swipe-back
-  // return specifically to Overview instead of just toggling the mobile
-  // content/menu view, which would leave `tab` pointed at whatever page was
-  // drilled into.
-  const [drilledFromOverview, setDrilledFromOverview] = useState(false);
-  const setTab = (val, filter = null) => {
-    setTabState(val);
+
+  // Re-selecting whatever tab is already showing is a no-op (no duplicate
+  // history entry) rather than pushing again.
+  const selectTab = (val, filter = null) => {
+    setTabHistory(prev => (prev.length > 0 && prev[prev.length - 1] === val) ? prev : [...prev, val]);
+    setRestingTab(val);
     localStorage.setItem('admin_active_tab', val);
     if (filter !== null) setUserJoinFilter(filter);
   };
-  // Sidebar taps are always a fresh, top-level tab selection — never a drill-down.
-  const selectTab = (val) => { setDrilledFromOverview(false); setTab(val); };
-  // OverviewPage's stat cards call this instead of setTab directly, so the
-  // extra back-intercept level below knows to unwind to Overview specifically.
-  const navigateFromOverview = (val, filter = null) => { setDrilledFromOverview(true); setTab(val, filter); };
+  // OverviewPage's stat cards go through the exact same push now — no
+  // longer a separately-tracked "drilled from Overview" special case.
+  const navigateFromOverview = selectTab;
   const [badges, setBadges] = useState({ openSupportRequests: 0, unresolvedReports: 0, pendingInvites: 0 });
   const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
-  const [showMobileContent, setShowMobileContent] = useState(false);
+  const showMobileContent = tabHistory.length > 0;
   const [pendingTicketId, setPendingTicketId] = useState(null);
   const navigate = useNavigate();
 
   // On mobile, swiping back while viewing a section's content (Reports, Audit
-  // Logs, etc.) should return to the admin nav list, not exit the whole panel
-  // back to the main app — there was previously no history entry for this
-  // in-panel transition at all, so a swipe just fell through to the browser's
-  // real back navigation. A tab reached by drilling down from Overview gets
-  // one level deeper still, so a swipe unwinds to Overview first before it
-  // ever reaches the menu-list level.
-  const backLevel = drilledFromOverview ? 2 : (showMobileContent ? 1 : 0);
+  // Logs, etc.) returns to whichever tab was showing immediately before —
+  // the admin nav list once the stack is fully unwound — instead of exiting
+  // the whole panel back to the main app.
+  const backLevel = tabHistory.length;
   useBackIntercept(backLevel, (newLevel) => {
-    if (newLevel === 1 && drilledFromOverview) {
-      setDrilledFromOverview(false);
-      setTab('overview');
-    } else if (newLevel === 0) {
-      setShowMobileContent(false);
-    }
+    setTabHistory(prev => prev.slice(0, newLevel));
   });
 
   useEffect(() => {
@@ -4287,7 +4368,7 @@ export default function Admin() {
             return (
               <button
                 key={id}
-                onClick={() => { selectTab(id); setShowMobileContent(true); }}
+                onClick={() => selectTab(id)}
                 style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                   borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 2,
@@ -4357,13 +4438,9 @@ export default function Admin() {
           <button
             onClick={() => {
               // Mirrors the useBackIntercept onPop logic above, so a manual
-              // tap on this back button behaves identically to a swipe-back.
-              if (drilledFromOverview) {
-                setDrilledFromOverview(false);
-                setTab('overview');
-              } else {
-                setShowMobileContent(false);
-              }
+              // tap on this back button behaves identically to a swipe-back —
+              // pop exactly one tab off the stack.
+              setTabHistory(prev => prev.slice(0, -1));
             }}
             style={{
               background: 'none',
@@ -4394,7 +4471,7 @@ export default function Admin() {
             {tab === 'security' && <SecurityPage />}
             {tab === 'legal' && <LegalRequestsPage />}
             {tab === 'support' && <SupportInboxPage refreshBadges={refreshBadges} initialTicketId={pendingTicketId} onInitialTicketConsumed={() => setPendingTicketId(null)} />}
-            {tab === 'team' && <AdminTeamPage refreshBadges={refreshBadges} onOpenTicket={(id) => { setPendingTicketId(id); setTab('support'); }} />}
+            {tab === 'team' && <AdminTeamPage refreshBadges={refreshBadges} onOpenTicket={(id) => { setPendingTicketId(id); selectTab('support'); }} />}
           </>
         )}
       </main>
