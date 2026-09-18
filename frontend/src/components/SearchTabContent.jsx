@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, User, Hash, Users, X } from 'lucide-react';
 import { useDebounce } from '../hooks/useDebounce';
@@ -45,9 +45,18 @@ export default function SearchTabContent({ t, onNavigate }) {
   }, [debouncedQuery]);
 
   const q = debouncedQuery.trim().toLowerCase();
-  const roomResults = q && allRooms
-    ? allRooms.filter(r => (r.name || '').toLowerCase().includes(q) || (r.id || '').toLowerCase().includes(q))
-    : [];
+  // Was recomputed on every render (including one triggered by literally
+  // every keystroke, via `query`'s own state update) rather than only when
+  // `q`/`allRooms` actually change — re-filtering the entire public-rooms
+  // catalog on every single keypress is exactly the kind of per-keystroke
+  // main-thread work that reads as "typing feels sluggish" on a slower
+  // Android device, even though `q` itself only updates once per 300ms
+  // debounce. useMemo ties the real cost to the debounce interval instead.
+  const roomResults = useMemo(() => (
+    q && allRooms
+      ? allRooms.filter(r => (r.name || '').toLowerCase().includes(q) || (r.id || '').toLowerCase().includes(q))
+      : []
+  ), [q, allRooms]);
 
   const hasQuery = !!debouncedQuery;
   const hasResults = roomResults.length > 0 || userResults.length > 0;
@@ -60,7 +69,17 @@ export default function SearchTabContent({ t, onNavigate }) {
         .search-tab-input { flex:1;background:transparent;border:none;outline:none;font-size:15px;color:#fff;min-width:0; }
         html[data-theme='light'] .search-tab-input { color:#111 !important; }
         .search-tab-section-title { font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:#666;padding:0 2px 10px; }
-        .search-tab-row { display:flex;align-items:center;gap:12px;padding:10px 8px;border-radius:12px;cursor:pointer; }
+        /* A long-press/tap-and-hold on a row (the common gesture on a touch
+           device, not a deliberate "select this text" action) was triggering
+           the browser's native text-selection + copy/share callout on the
+           username/room name inside — never intended, since every row here
+           is a single tap target that navigates, not selectable text.
+           user-select covers the selection itself; -webkit-touch-callout
+           additionally suppresses iOS/WebView's own long-press context menu
+           that can still appear even with selection disabled; tap-highlight
+           removes the grey flash Android/WebView paints on tap, which read
+           as a stuck/laggy hover state on some devices. */
+        .search-tab-row { display:flex;align-items:center;gap:12px;padding:10px 8px;border-radius:12px;cursor:pointer; user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent; }
         .search-tab-row:hover { background:rgba(255,255,255,0.05); }
         html[data-theme='light'] .search-tab-row:hover { background:rgba(0,0,0,0.04); }
         .search-tab-thumb { width:44px;height:44px;border-radius:10px;overflow:hidden;flex-shrink:0;background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center; }

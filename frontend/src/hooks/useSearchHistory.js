@@ -101,35 +101,49 @@ export function useSearchHistory() {
   // keystroke) — same "recently visited" semantics as a browser's own
   // address-bar history. Re-opening something already in the list bumps it
   // back to the top instead of creating a second entry.
-  const addToHistory = useCallback((entry) => {
+  //
+  // Reads the CURRENT persisted list fresh instead of merging against this
+  // component instance's own `history` state (previously via setHistory's
+  // updater form) — this hook is called independently from four different
+  // places (Navbar, Profile, AppSettings, SearchTabContent), each with its
+  // OWN local `history` copy seeded by its OWN mount-time readHistory()
+  // call. Two real races came from trusting that local copy: (1) tapping a
+  // result fast enough that THIS instance's own initial readHistory()
+  // promise hadn't resolved yet left its `history` still `[]`, so the write
+  // below replaced the entire real list with just the one new entry; (2) an
+  // instance that mounted earlier and never re-synced could write back its
+  // own stale snapshot over entries a DIFFERENT, more-recently-active
+  // instance had already saved. Both showed as "sometimes it saves,
+  // sometimes it doesn't" depending purely on timing. Reading fresh here
+  // makes every mutation atomic against the actual backing store.
+  const addToHistory = useCallback(async (entry) => {
     if (!entry) return;
     const isRoom = entry.type === 'room';
     if (isRoom ? !entry.roomId : !entry.username) return;
     const key = entryKey(entry);
-    setHistory(prev => {
-      const filtered = prev.filter(e => entryKey(e) !== key);
-      const normalized = isRoom
-        ? { type: 'room', roomId: entry.roomId, roomName: entry.roomName || entry.roomId, thumbnailPath: entry.thumbnailPath || null }
-        : { username: entry.username, displayName: entry.displayName || null, avatarPath: entry.avatarPath || null };
-      const next = [normalized, ...filtered].slice(0, MAX_ENTRIES);
-      writeHistory(next);
-      return next;
-    });
+    const current = await readHistory();
+    const filtered = current.filter(e => entryKey(e) !== key);
+    const normalized = isRoom
+      ? { type: 'room', roomId: entry.roomId, roomName: entry.roomName || entry.roomId, thumbnailPath: entry.thumbnailPath || null }
+      : { username: entry.username, displayName: entry.displayName || null, avatarPath: entry.avatarPath || null };
+    const next = [normalized, ...filtered].slice(0, MAX_ENTRIES);
+    await writeHistory(next);
+    setHistory(next);
   }, []);
 
   // Accepts either a full entry (preferred — needed to tell a room and a
   // user with the same id apart) or a bare username string (older callers).
-  const removeFromHistory = useCallback((entryOrUsername) => {
+  // Same fresh-read-before-write reasoning as addToHistory above.
+  const removeFromHistory = useCallback(async (entryOrUsername) => {
     const key = entryKey(entryOrUsername);
-    setHistory(prev => {
-      const next = prev.filter(e => entryKey(e) !== key);
-      writeHistory(next);
-      return next;
-    });
+    const current = await readHistory();
+    const next = current.filter(e => entryKey(e) !== key);
+    await writeHistory(next);
+    setHistory(next);
   }, []);
 
-  const clearHistory = useCallback(() => {
-    writeHistory([]);
+  const clearHistory = useCallback(async () => {
+    await writeHistory([]);
     setHistory([]);
   }, []);
 
