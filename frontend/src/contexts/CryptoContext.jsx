@@ -88,7 +88,14 @@ async function enrollDeviceUnlockSilently(secretKeyBytes) {
 // it only ever means "could not use device unlock this time," and every
 // caller below treats it as exactly that: fall back to the existing
 // passphrase/recovery UI, unchanged.
+// Code of the most recent tryRestoreViaDeviceUnlock failure (null on success).
+// Lets callers tell "user cancelled Windows Hello / biometric" apart from
+// every other failure, so a cancel can go straight to the passphrase prompt.
+let lastDeviceUnlockFailureCode = null;
+const isUserCancelCode = (c) => isTauriApp() && (c === 'AUTH_FAILED' || c === 'TIMEOUT'); // Windows .exe only
+
 async function tryRestoreViaDeviceUnlock(serverPublicKeyB64, isCancelled = () => false) {
+  lastDeviceUnlockFailureCode = null;
   if (!serverPublicKeyB64) return null; // nothing to verify against — never attempt
   if (!isDeviceUnlockAvailable()) return null;
 
@@ -138,6 +145,7 @@ async function tryRestoreViaDeviceUnlock(serverPublicKeyB64, isCancelled = () =>
         // my-keys network-failure fix already established below; device
         // unlock only ever ADDS a shortcut into an already-confirmed-
         // present key, it never substitutes for that check.
+        lastDeviceUnlockFailureCode = e?.code || null;
         console.warn('[CryptoContext] Device unlock not used, falling back to passphrase/recovery:', e?.code || e?.message || e);
         return null;
       }
@@ -429,6 +437,10 @@ export function CryptoProvider({ children }) {
             // actual enrollment calls live (every password/passphrase/
             // recovery success path, none of which run when this branch does).
             console.log('[CryptoContext] Key restored via device unlock ✅');
+          } else if (serverHasExistingKey && isUserCancelCode(lastDeviceUnlockFailureCode)) {
+            // Cancelled Windows Hello / biometric: go straight to the
+            // passphrase prompt instead of the account-password modal.
+            switchToPassphraseUnlock().catch(() => setNeedsReauth(true));
           } else if (serverHasExistingKey || !serverCheckOk) {
             if (!serverCheckOk) {
               console.warn('[CryptoContext] Could not verify key status with server (network failure) — treating as needing recovery rather than risking an incorrect new keypair.');
@@ -509,7 +521,11 @@ export function CryptoProvider({ children }) {
           await saveKeyToSession(kp.secretKey);
           setKeyPairState(kp);
         } else {
-          setNeedsReauth(true); // same passphrase/password fallback as a cold start
+          if (isUserCancelCode(lastDeviceUnlockFailureCode)) {
+            switchToPassphraseUnlock().catch(() => setNeedsReauth(true)); // cancelled Hello -> passphrase directly
+          } else {
+            setNeedsReauth(true); // same passphrase/password fallback as a cold start
+          }
         }
       } finally {
         state.inFlight = false;
@@ -603,7 +619,9 @@ export function CryptoProvider({ children }) {
     if (!data.encryptedPrivateKey) throw new Error('No encrypted private key found on server. Please log out and back in.');
     setNeedsReauth(false);
     window.dispatchEvent(new CustomEvent('encryption_needs_passphrase', {
-      detail: { encryptedPrivateKey: data.encryptedPrivateKey, publicKey: data.publicKey, token }
+      // skipDeviceUnlock: the user (or a cancelled Hello prompt) already
+      // decided against native unlock — the gate must not silently retry it.
+      detail: { encryptedPrivateKey: data.encryptedPrivateKey, publicKey: data.publicKey, token, skipDeviceUnlock: true }
     }));
   }, []);
 

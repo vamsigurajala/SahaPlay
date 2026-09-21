@@ -56,6 +56,7 @@ import { markKeyResetForBanner } from '../lib/keyResetBanner.js';
 import { API } from '../lib/api';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isDeviceUnlockAvailable, unlockDeviceKey } from '../lib/deviceUnlock.js';
+import { isStrictDeviceUnlockEnabled } from '../lib/deviceUnlockSettings.js';
 import OAuthEncryptionModal from './OAuthEncryptionModal';
 import RecoveryPhraseModal from './RecoveryPhraseModal';
 
@@ -108,7 +109,7 @@ export default function EncryptionUnlockGate() {
           const path = (window.location.pathname || '').toLowerCase();
           if (path !== '/login' && path !== '/signup' && path !== '/reset-password') {
             setCtx(detail);
-            setCheckingDeviceUnlock(!detail.isSetup && (isCapacitorApp() || isTauriApp()) && isDeviceUnlockAvailable());
+            setCheckingDeviceUnlock(!detail.isSetup && !detail.skipDeviceUnlock && (isCapacitorApp() || isTauriApp()) && isDeviceUnlockAvailable());
           }
         }, 300);
       }
@@ -124,7 +125,7 @@ export default function EncryptionUnlockGate() {
       // Step 1: native (Android/Windows) — tried first, unchanged from before.
       if ((isCapacitorApp() || isTauriApp()) && isDeviceUnlockAvailable()) {
         try {
-          const secretKey = await unlockDeviceKey();
+          const secretKey = await unlockDeviceKey({ strict: isStrictDeviceUnlockEnabled() });
           const kp = nacl.box.keyPair.fromSecretKey(secretKey);
           if (ctx.publicKey && encodeBase64(kp.publicKey) === ctx.publicKey) {
             if (!cancelled) {
