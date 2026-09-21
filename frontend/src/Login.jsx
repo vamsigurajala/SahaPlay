@@ -15,6 +15,8 @@ import { API } from './lib/api';
 import { isCapacitorApp, isTauriApp } from './lib/platform';
 import { openNativeGoogleSignIn } from './lib/nativeGoogleAuth';
 import { resyncPushTokenAfterLogin } from './lib/nativePush';
+import { unlockDeviceKey } from './lib/deviceUnlock.js';
+import { isStrictDeviceUnlockEnabled } from './lib/deviceUnlockSettings.js';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
@@ -165,6 +167,18 @@ const Login = () => {
           try {
             const secretKey = await decryptPrivateKey(data.encryptedPrivateKey, password);
             const kp = nacl.box.keyPair.fromSecretKey(secretKey);
+            // "Require Windows Hello every open": a password login on Windows
+            // used to skip Hello entirely (the password alone unlocked the
+            // key). Enrollment below only prompts on FIRST enrollment, so an
+            // already-enrolled device never asked. NO_KEY_FOR_ACCOUNT just
+            // means nothing is enrolled yet — enrollment (strict) prompts.
+            if (isTauriApp() && isStrictDeviceUnlockEnabled()) {
+              try {
+                await unlockDeviceKey({ strict: true });
+              } catch (gateErr) {
+                if (gateErr?.code !== 'NO_KEY_FOR_ACCOUNT') throw gateErr;
+              }
+            }
             await setKeyPair(kp);
             enrollDeviceUnlockSilently(kp.secretKey); // fire-and-forget; see CryptoContext.jsx's own doc comment
           } catch (cryptoErr) {

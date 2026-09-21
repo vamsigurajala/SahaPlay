@@ -473,18 +473,66 @@ export function CryptoProvider({ children }) {
 
   // Windows: main.rs hides the window instead of terminating the process on
   // the X button (so calls/notifications keep working in the background,
-  // same as Discord/Slack) and still emits "desktop_window_hidden"/
-  // "desktop_window_shown" around that hide/reopen — but this file
-  // deliberately does NOT listen for them anymore. An earlier version of
-  // strict mode forced a fresh Windows Hello check on every one of these
-  // transitions, including just clicking a notification while the app was
-  // still running in the background — explicitly reversed per product
-  // decision: "Require Windows Hello every time I open the app" should mean
-  // a genuinely new app launch (Quit from tray + relaunch, a crash, an OS
-  // restart/logoff — all handled by the mount effect above), never merely
-  // bringing an already-running, never-quit window back on screen. The
-  // main.rs emits are left in place (harmless with no listener) rather than
-  // removed there too, in case this is revisited later.
+  // same as Discord/Slack), then emits "desktop_window_shown" when it comes
+  // back (tray "Open", relaunching the .exe, or a notification click). The
+  // mount effect above only runs on a real process start, so without this
+  // listener a strict-mode account closed with X and reopened was never
+  // asked for Windows Hello again — reported as "closed and reopened, no
+  // Hello prompt". Notification clicks were deliberately excluded by an
+  // earlier product decision: Rust emits desktop_toast_clicked right after
+  // its own desktop_window_shown for those, so the re-lock is delayed a
+  // beat and cancelled if that toast event arrives.
+  const windowReopenLockRef = useRef({ timer: null, inFlight: false });
+  useEffect(() => {
+    if (!isTauriApp()) return;
+    let disposed = false;
+    const unlisteners = [];
+    const state = windowReopenLockRef.current;
+
+    const relock = async () => {
+      if (state.inFlight) return;
+      if (!isStrictDeviceUnlockEnabled()) return;
+      const tkn = localStorage.getItem('watch_token');
+      if (!tkn || localStorage.getItem('watch_is_guest') === 'true') return;
+      state.inFlight = true;
+      try {
+        clearSessionKey();
+        setKeyPairState(null); // DeviceUnlockOverlay blurs the app while this runs
+        let serverPublicKeyB64 = null;
+        try {
+          const res = await fetch(`${API}/api/auth/my-keys`, { headers: { 'Authorization': `Bearer ${tkn}` }, cache: 'no-store' });
+          if (res.ok) serverPublicKeyB64 = (await res.json()).publicKey || null;
+        } catch (e) { console.warn('[CryptoContext] my-keys check failed on reopen:', e); }
+        const kp = await tryRestoreViaDeviceUnlock(serverPublicKeyB64, () => disposed);
+        if (disposed) return;
+        if (kp) {
+          await saveKeyToSession(kp.secretKey);
+          setKeyPairState(kp);
+        } else {
+          setNeedsReauth(true); // same passphrase/password fallback as a cold start
+        }
+      } finally {
+        state.inFlight = false;
+      }
+    };
+
+    import('@tauri-apps/api/event').then(({ listen }) => {
+      const add = (name, cb) => listen(name, cb).then((un) => {
+        if (disposed) un(); else unlisteners.push(un);
+      });
+      add('desktop_window_shown', () => {
+        clearTimeout(state.timer);
+        state.timer = setTimeout(relock, 300);
+      });
+      add('desktop_toast_clicked', () => { clearTimeout(state.timer); });
+    }).catch((e) => console.warn('[CryptoContext] could not listen for window reopen:', e));
+
+    return () => {
+      disposed = true;
+      clearTimeout(state.timer);
+      unlisteners.forEach((un) => { try { un(); } catch { /* ignore */ } });
+    };
+  }, []);
 
   /** Store key pair in memory + encrypted sessionStorage. */
   const setKeyPair = useCallback(async (kp) => {
