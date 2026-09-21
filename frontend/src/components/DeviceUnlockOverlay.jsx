@@ -41,11 +41,11 @@ import { useCrypto } from '../contexts/CryptoContext';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 
 export default function DeviceUnlockOverlay() {
-  const { keyPair } = useCrypto();
+  const { keyPair, unlockDeferred } = useCrypto();
   const { t } = useTranslation();
 
   if (!isCapacitorApp() && !isTauriApp()) return null;
-  if (keyPair) return null;
+  if (keyPair || unlockDeferred) return null;
 
   const token = localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';

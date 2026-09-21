@@ -61,7 +61,7 @@ import OAuthEncryptionModal from './OAuthEncryptionModal';
 import RecoveryPhraseModal from './RecoveryPhraseModal';
 
 export default function EncryptionUnlockGate() {
-  const { setKeyPair, enrollDeviceUnlockSilently } = useCrypto();
+  const { setKeyPair, enrollDeviceUnlockSilently, deferUnlock } = useCrypto();
   const [ctx, setCtx] = useState(null); // { encryptedPrivateKey, publicKey, token }
   // While true, the passphrase modal stays hidden — set whenever a native
   // (Android/Windows) device-unlock attempt is genuinely worth trying, so
@@ -258,7 +258,8 @@ export default function EncryptionUnlockGate() {
 
   const handleCancel = useCallback(() => {
     setCtx(null);
-  }, []);
+    deferUnlock?.(); // open the app locked (chats stay encrypted) rather than stuck on the Unlocking overlay
+  }, [deferUnlock]);
 
   if (pendingRecoveryPhrase) {
     return <RecoveryPhraseModal phrase={pendingRecoveryPhrase} onConfirmed={handleRecoveryPhraseConfirmed} />;

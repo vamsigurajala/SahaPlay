@@ -92,7 +92,7 @@ async function enrollDeviceUnlockSilently(secretKeyBytes) {
 // Lets callers tell "user cancelled Windows Hello / biometric" apart from
 // every other failure, so a cancel can go straight to the passphrase prompt.
 let lastDeviceUnlockFailureCode = null;
-const isUserCancelCode = (c) => isTauriApp() && (c === 'AUTH_FAILED' || c === 'TIMEOUT'); // Windows .exe only
+const isUserCancelCode = (c) => (isTauriApp() || isCapacitorApp()) && (c === 'AUTH_FAILED' || c === 'TIMEOUT'); // native only
 
 async function tryRestoreViaDeviceUnlock(serverPublicKeyB64, isCancelled = () => false) {
   lastDeviceUnlockFailureCode = null;
@@ -225,6 +225,10 @@ export function CryptoProvider({ children }) {
   const [keyPair, setKeyPairState] = useState(null);
   const [isReady, setIsReady]      = useState(false);
   const [needsReauth, setNeedsReauth] = useState(false);
+  // True once the user dismissed the passphrase prompt ("Not now"): the app opens
+  // with the key still absent (chats stay encrypted) instead of sitting behind
+  // DeviceUnlockOverlay forever. Cleared whenever a lock/unlock cycle restarts.
+  const [unlockDeferred, setUnlockDeferred] = useState(false);
   // Guards retryGuestKeySetup below against overlapping calls (Room.jsx can
   // call it as a one-shot kick while a wait is in flight) — not exposed,
   // purely an internal re-entrancy guard.
@@ -509,6 +513,7 @@ export function CryptoProvider({ children }) {
       state.inFlight = true;
       try {
         clearSessionKey();
+        setUnlockDeferred(false);
         setKeyPairState(null); // DeviceUnlockOverlay blurs the app while this runs
         let serverPublicKeyB64 = null;
         try {
@@ -738,7 +743,7 @@ export function CryptoProvider({ children }) {
 
   return (
     <CryptoContext.Provider value={{
-      keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock,
+      keyPair, setKeyPair, clearKeys, isReady, needsReauth, reloadPrivateKeyWithPassword, switchToPassphraseUnlock, unlockDeferred, deferUnlock: () => setUnlockDeferred(true),
       enrollDeviceUnlock, enrollDeviceUnlockSilently, forgetDeviceUnlock, checkDeviceUnlockEnrolled,
       setDeviceUnlockRequireEveryOpen, isDeviceUnlockRequireEveryOpenEnabled: isStrictDeviceUnlockEnabled,
       retryGuestKeySetup,

@@ -416,9 +416,14 @@ describe('CryptoContext cold-start device unlock (Android) — restore, never re
     });
     vi.stubGlobal('fetch', fetchMock);
 
+    const passphraseEvt = vi.fn();
+    window.addEventListener('encryption_needs_passphrase', passphraseEvt);
     render(<CryptoProvider><Probe /></CryptoProvider>);
 
-    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    // Cancelled biometric goes straight to the passphrase prompt (not the password modal).
+    await waitFor(() => expect(passphraseEvt).toHaveBeenCalled());
+    window.removeEventListener('encryption_needs_passphrase', passphraseEvt);
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
     expect(screen.getByTestId('keypair-state').textContent).toBe('null');
     // A cancelled/failed biometric prompt already showed real UI to the
     // user — retrying would just re-trigger the same prompt again, which
@@ -759,9 +764,12 @@ describe('CryptoContext strict "require fingerprint every open" mode', () => {
       throw new Error(`Unexpected fetch in test: ${url}`);
     }));
 
+    const passphraseEvt = vi.fn();
+    window.addEventListener('encryption_needs_passphrase', passphraseEvt);
     render(<CryptoProvider><Probe /></CryptoProvider>);
 
-    await waitFor(() => expect(screen.getByTestId('needs-reauth').textContent).toBe('true'));
+    await waitFor(() => expect(passphraseEvt).toHaveBeenCalled());
+    window.removeEventListener('encryption_needs_passphrase', passphraseEvt);
     expect(screen.getByTestId('keypair-state').textContent).toBe('null'); // never fell back to the discarded cached key
   });
 
