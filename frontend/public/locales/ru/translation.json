@@ -1974,5 +1974,6 @@
   "downloadAppSmartScreenStep1": "Если вы видите только кнопку «Don't run», сначала нажмите «More info» — тогда появится кнопка «Run anyway», показанная выше.",
   "downloadAppSmartScreenStep2": "Нажмите «Run anyway», чтобы продолжить установку.",
   "unlockingMessages": "Разблокировка…",
-  "settingUpSecureChat": "Настройка защищённого чата…"
+  "settingUpSecureChat": "Настройка защищённого чата…",
+  "homeTabTagline": "Создайте комнату или присоединитесь к ней с друзьями"
 }

@@ -1972,5 +1972,6 @@
   "downloadAppSmartScreenStep1": "「Don't run」ボタンしか表示されない場合は、先に「More info」をクリックしてください — 上記の「Run anyway」ボタンが表示されます。",
   "downloadAppSmartScreenStep2": "「Run anyway」をクリックしてインストールを続けます。",
   "unlockingMessages": "ロック解除中…",
-  "settingUpSecureChat": "安全なチャットを設定しています…"
+  "settingUpSecureChat": "安全なチャットを設定しています…",
+  "homeTabTagline": "ルームを作成するか、友だちと一緒に参加しよう"
 }

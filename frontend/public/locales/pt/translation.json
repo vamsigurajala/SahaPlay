@@ -1974,5 +1974,6 @@
   "downloadAppSmartScreenStep1": "Se você só vir o botão \"Don't run\", clique primeiro em \"More info\" — isso revela o botão \"Run anyway\" mostrado acima.",
   "downloadAppSmartScreenStep2": "Clique em \"Run anyway\" para continuar a instalação.",
   "unlockingMessages": "Desbloqueando…",
-  "settingUpSecureChat": "Configurando chat seguro…"
+  "settingUpSecureChat": "Configurando chat seguro…",
+  "homeTabTagline": "Crie uma sala ou entre em uma com amigos"
 }

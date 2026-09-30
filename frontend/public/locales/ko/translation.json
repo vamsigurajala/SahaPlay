@@ -1972,5 +1972,6 @@
   "downloadAppSmartScreenStep1": "\"Don't run\" 버튼만 보인다면 먼저 \"More info\"를 클릭하세요 — 그러면 위에 표시된 \"Run anyway\" 버튼이 나타납니다.",
   "downloadAppSmartScreenStep2": "설치를 계속하려면 \"Run anyway\"를 클릭하세요.",
   "unlockingMessages": "잠금 해제 중…",
-  "settingUpSecureChat": "보안 채팅을 설정하는 중…"
+  "settingUpSecureChat": "보안 채팅을 설정하는 중…",
+  "homeTabTagline": "룸을 만들거나 친구들과 함께 참여하세요"
 }

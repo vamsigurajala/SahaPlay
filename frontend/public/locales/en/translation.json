@@ -1929,5 +1929,6 @@
   "downloadAppSmartScreenStep1": "If you only see a \"Don't run\" button, click \"More info\" first — that reveals the \"Run anyway\" button shown above.",
   "downloadAppSmartScreenStep2": "Click \"Run anyway\" to continue installing.",
   "unlockingMessages": "Unlocking…",
-  "settingUpSecureChat": "Setting up secure chat…"
+  "settingUpSecureChat": "Setting up secure chat…",
+  "homeTabTagline": "Create a room or join one with friends"
 }

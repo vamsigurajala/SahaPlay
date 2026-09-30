@@ -1974,5 +1974,6 @@
   "downloadAppSmartScreenStep1": "إذا رأيت زر \"Don't run\" فقط، فانقر أولاً على \"More info\" — سيظهر بعدها زر \"Run anyway\" الموضح أعلاه.",
   "downloadAppSmartScreenStep2": "انقر على \"Run anyway\" لمتابعة التثبيت.",
   "unlockingMessages": "جارٍ إلغاء القفل…",
-  "settingUpSecureChat": "جارٍ إعداد الدردشة الآمنة…"
+  "settingUpSecureChat": "جارٍ إعداد الدردشة الآمنة…",
+  "homeTabTagline": "أنشئ غرفة أو انضم إلى غرفة مع الأصدقاء"
 }

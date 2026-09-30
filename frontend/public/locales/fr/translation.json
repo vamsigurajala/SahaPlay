@@ -1972,5 +1972,6 @@
   "downloadAppSmartScreenStep1": "Si vous ne voyez qu'un bouton « Don't run », cliquez d'abord sur « More info » — cela fait apparaître le bouton « Run anyway » montré ci-dessus.",
   "downloadAppSmartScreenStep2": "Cliquez sur « Run anyway » pour poursuivre l'installation.",
   "unlockingMessages": "Déverrouillage…",
-  "settingUpSecureChat": "Configuration du chat sécurisé…"
+  "settingUpSecureChat": "Configuration du chat sécurisé…",
+  "homeTabTagline": "Créez une salle ou rejoignez-en une avec des amis"
 }

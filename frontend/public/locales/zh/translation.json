@@ -1972,5 +1972,6 @@
   "downloadAppSmartScreenStep1": "如果只看到\"Don't run\"按钮,请先点击\"More info\"——这样就会显示上方的\"Run anyway\"按钮。",
   "downloadAppSmartScreenStep2": "点击\"Run anyway\"以继续安装。",
   "unlockingMessages": "解锁中…",
-  "settingUpSecureChat": "正在设置安全聊天…"
+  "settingUpSecureChat": "正在设置安全聊天…",
+  "homeTabTagline": "创建房间，或与好友一起加入房间"
 }
