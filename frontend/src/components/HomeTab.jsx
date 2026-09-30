@@ -49,7 +49,6 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
     const touch = e.touches[0];
     if (!touch) return;
     swipeRef.current = { startX: touch.clientX, startY: touch.clientY, dragging: true, committed: null, lastDx: 0 };
-    setIsSwipeDragging(true);
   };
   const onTabsTouchMove = (e) => {
     const s = swipeRef.current;
@@ -61,7 +60,11 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
     if (s.committed === null) {
       if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
       s.committed = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
-      if (s.committed === 'vertical') { s.dragging = false; setIsSwipeDragging(false); return; }
+      if (s.committed === 'vertical') { s.dragging = false; return; }
+      // Only a clear sideways swipe un-collapses the neighbouring panel.
+      // Doing it on touchstart grew the page to the taller list's height on
+      // every touch, shifting the rooms during a normal vertical scroll.
+      setIsSwipeDragging(true);
     }
     if (s.committed !== 'horizontal') return;
     s.lastDx = dx;
