@@ -260,12 +260,32 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
             >
               <div style={{
                 display: 'flex',
+                alignItems: 'flex-start',
                 width: '200%',
                 transform: `translateX(calc(${activeIndex === 0 ? '0%' : '-50%'} + ${dragX}px))`,
                 transition: isSwipeDragging ? 'none' : 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
               }}>
-                <div style={{ width: '50%', minWidth: 0, flexShrink: 0 }}>{pinnedPanel}</div>
-                <div style={{ width: '50%', minWidth: 0, flexShrink: 0 }}>{historyPanel}</div>
+                {/* Each panel sizes to its own content: the off-screen one is
+                    collapsed (after the slide finishes, and never mid-drag) so
+                    the page scroll height follows only the visible list. */}
+                {[pinnedPanel, historyPanel].map((panel, i) => {
+                  const collapsed = i !== activeIndex && !isSwipeDragging;
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        width: '50%',
+                        minWidth: 0,
+                        flexShrink: 0,
+                        maxHeight: collapsed ? 0 : 'none',
+                        overflow: collapsed ? 'hidden' : 'visible',
+                        transition: collapsed ? 'max-height 0s linear 0.3s' : 'none',
+                      }}
+                    >
+                      {panel}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (

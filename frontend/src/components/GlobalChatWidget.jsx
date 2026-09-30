@@ -1972,6 +1972,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
       return Array.isArray(parsed) ? parsed : [];
     } catch { return []; }
   });
+  // Warm the browser image cache for every chat-list avatar as soon as the
+  // list is known (even while the widget is closed / app locked), so the
+  // avatars are already loaded when the chat icon is tapped.
+  const preloadedAvatarsRef = useRef(new Set());
+  useEffect(() => {
+    for (const c of conversations) {
+      const url = getAvatarUrl(c.partnerAvatar);
+      if (!url || preloadedAvatarsRef.current.has(url)) continue;
+      preloadedAvatarsRef.current.add(url);
+      const img = new Image();
+      img.src = url;
+    }
+  }, [conversations]);
   const [pinnedChats, setPinnedChats] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(`pinned_chats_${myUsername}`) || '[]');
@@ -8701,14 +8714,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
                         {chat.type === 'room' ? (
                           <div style={{ width: '100%', height: '100%', background: isOfficial ? '#fff' : (displayAvatar ? 'none' : 'linear-gradient(135deg, var(--brand-1), var(--brand-2))'), display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', overflow: 'hidden' }}>
                             {displayAvatar ? (
-                              <img src={getAvatarUrl(displayAvatar)} alt="Room" loading="lazy" style={{ width: isOfficial ? '68%' : '100%', height: isOfficial ? '68%' : '100%', objectFit: isOfficial ? 'contain' : 'cover' }} />
+                              <img src={getAvatarUrl(displayAvatar)} alt="Room" loading="eager" decoding="sync"style={{ width: isOfficial ? '68%' : '100%', height: isOfficial ? '68%' : '100%', objectFit: isOfficial ? 'contain' : 'cover' }} />
                             ) : (
                               <Users size={20} color="#fff" />
                             )}
                           </div>
                         ) : (
                           displayAvatar ? (
-                            <img src={getAvatarUrl(displayAvatar)} alt="Avatar" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={getAvatarUrl(displayAvatar)} alt="Avatar" loading="eager" decoding="sync"style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <div style={{ width: '100%', height: '100%', background: getAvatarColor(displayName || chat.partner), display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' }}>
                               <span className="stay-white" style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{getInitials(displayName || chat.partner)}</span>
