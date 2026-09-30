@@ -1930,5 +1930,6 @@
   "downloadAppSmartScreenStep2": "Click \"Run anyway\" to continue installing.",
   "unlockingMessages": "Unlocking…",
   "settingUpSecureChat": "Setting up secure chat…",
-  "homeTabTagline": "Create a room or join one with friends"
+  "homeTabTagline": "Create a room or join one with friends",
+  "or": "or"
 }

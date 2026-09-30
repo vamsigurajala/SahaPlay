@@ -1975,5 +1975,6 @@
   "downloadAppSmartScreenStep2": "Нажмите «Run anyway», чтобы продолжить установку.",
   "unlockingMessages": "Разблокировка…",
   "settingUpSecureChat": "Настройка защищённого чата…",
-  "homeTabTagline": "Создайте комнату или присоединитесь к ней с друзьями"
+  "homeTabTagline": "Создайте комнату или присоединитесь к ней с друзьями",
+  "or": "или"
 }

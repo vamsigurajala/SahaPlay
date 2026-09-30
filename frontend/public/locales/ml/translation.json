@@ -475,7 +475,7 @@
   "enterMasterKey": "Enter your Master Key",
   "enterNewName": "Enter new name...",
   "enterPin6Digit": "Please enter your 6-digit PIN",
-  "enterRoomId": "Enter Room ID...",
+  "enterRoomId": "റൂം ID നൽകുക...",
   "enterRoomName": "മുറിയുടെ പേര് നൽകുക...",
   "enterTvCodeInstruction": "Enter the code shown on your TV",
   "enterYourNameStep": "നിങ്ങളുടെ പേര് നൽകുക",
@@ -1974,5 +1974,6 @@
   "downloadAppSmartScreenStep2": "ഇൻസ്റ്റാൾ തുടരാൻ \"Run anyway\" ക്ലിക്ക് ചെയ്യൂ.",
   "unlockingMessages": "അൺലോക്ക് ചെയ്യുന്നു…",
   "settingUpSecureChat": "സുരക്ഷിത ചാറ്റ് സജ്ജമാക്കുന്നു…",
-  "homeTabTagline": "ഒരു റൂം സൃഷ്ടിക്കുക അല്ലെങ്കിൽ സുഹൃത്തുക്കളോടൊപ്പം ചേരുക"
+  "homeTabTagline": "ഒരു റൂം സൃഷ്ടിക്കുക അല്ലെങ്കിൽ സുഹൃത്തുക്കളോടൊപ്പം ചേരുക",
+  "or": "അല്ലെങ്കിൽ"
 }

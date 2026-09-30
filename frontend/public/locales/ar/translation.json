@@ -475,7 +475,7 @@
   "enterMasterKey": "Enter your Master Key",
   "enterNewName": "Enter new name...",
   "enterPin6Digit": "Please enter your 6-digit PIN",
-  "enterRoomId": "Enter Room ID...",
+  "enterRoomId": "أدخل معرّف الغرفة...",
   "enterRoomName": "أدخل اسم الغرفة...",
   "enterTvCodeInstruction": "Enter the code shown on your TV",
   "enterYourNameStep": "أدخل اسمك",
@@ -1975,5 +1975,6 @@
   "downloadAppSmartScreenStep2": "انقر على \"Run anyway\" لمتابعة التثبيت.",
   "unlockingMessages": "جارٍ إلغاء القفل…",
   "settingUpSecureChat": "جارٍ إعداد الدردشة الآمنة…",
-  "homeTabTagline": "أنشئ غرفة أو انضم إلى غرفة مع الأصدقاء"
+  "homeTabTagline": "أنشئ غرفة أو انضم إلى غرفة مع الأصدقاء",
+  "or": "أو"
 }

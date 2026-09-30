@@ -475,7 +475,7 @@
   "enterMasterKey": "Enter your Master Key",
   "enterNewName": "Enter new name...",
   "enterPin6Digit": "Please enter your 6-digit PIN",
-  "enterRoomId": "Enter Room ID...",
+  "enterRoomId": "রুম আইডি লিখুন...",
   "enterRoomName": "রুমের নাম লিখুন...",
   "enterTvCodeInstruction": "Enter the code shown on your TV",
   "enterYourNameStep": "আপনার নাম লিখুন",
@@ -1974,5 +1974,6 @@
   "downloadAppSmartScreenStep2": "ইনস্টল চালিয়ে যেতে \"Run anyway\"-তে ক্লিক করুন।",
   "unlockingMessages": "আনলক হচ্ছে…",
   "settingUpSecureChat": "নিরাপদ চ্যাট সেট আপ করা হচ্ছে…",
-  "homeTabTagline": "একটি রুম তৈরি করুন বা বন্ধুদের সাথে যোগ দিন"
+  "homeTabTagline": "একটি রুম তৈরি করুন বা বন্ধুদের সাথে যোগ দিন",
+  "or": "অথবা"
 }

@@ -475,7 +475,7 @@
   "enterMasterKey": "Enter your Master Key",
   "enterNewName": "Enter new name...",
   "enterPin6Digit": "Please enter your 6-digit PIN",
-  "enterRoomId": "Enter Room ID...",
+  "enterRoomId": "输入房间 ID...",
   "enterRoomName": "输入房间名称...",
   "enterTvCodeInstruction": "Enter the code shown on your TV",
   "enterYourNameStep": "输入您的名字",
@@ -1973,5 +1973,6 @@
   "downloadAppSmartScreenStep2": "点击\"Run anyway\"以继续安装。",
   "unlockingMessages": "解锁中…",
   "settingUpSecureChat": "正在设置安全聊天…",
-  "homeTabTagline": "创建房间，或与好友一起加入房间"
+  "homeTabTagline": "创建房间，或与好友一起加入房间",
+  "or": "或"
 }

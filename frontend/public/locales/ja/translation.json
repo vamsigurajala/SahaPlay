@@ -475,7 +475,7 @@
   "enterMasterKey": "Enter your Master Key",
   "enterNewName": "Enter new name...",
   "enterPin6Digit": "Please enter your 6-digit PIN",
-  "enterRoomId": "Enter Room ID...",
+  "enterRoomId": "ルームIDを入力...",
   "enterRoomName": "ルーム名を入力...",
   "enterTvCodeInstruction": "Enter the code shown on your TV",
   "enterYourNameStep": "あなたの名前を入力してください",
@@ -1973,5 +1973,6 @@
   "downloadAppSmartScreenStep2": "「Run anyway」をクリックしてインストールを続けます。",
   "unlockingMessages": "ロック解除中…",
   "settingUpSecureChat": "安全なチャットを設定しています…",
-  "homeTabTagline": "ルームを作成するか、友だちと一緒に参加しよう"
+  "homeTabTagline": "ルームを作成するか、友だちと一緒に参加しよう",
+  "or": "または"
 }

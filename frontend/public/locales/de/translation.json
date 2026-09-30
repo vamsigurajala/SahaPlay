@@ -475,7 +475,7 @@
   "enterMasterKey": "Enter your Master Key",
   "enterNewName": "Enter new name...",
   "enterPin6Digit": "Please enter your 6-digit PIN",
-  "enterRoomId": "Enter Room ID...",
+  "enterRoomId": "Raum-ID eingeben...",
   "enterRoomName": "Raumnamen eingeben...",
   "enterTvCodeInstruction": "Enter the code shown on your TV",
   "enterYourNameStep": "Geben Sie Ihren Namen ein",
@@ -1973,5 +1973,6 @@
   "downloadAppSmartScreenStep2": "Klicke auf „Run anyway\", um die Installation fortzusetzen.",
   "unlockingMessages": "Wird entsperrt…",
   "settingUpSecureChat": "Sicherer Chat wird eingerichtet…",
-  "homeTabTagline": "Erstelle einen Raum oder tritt mit Freunden einem bei"
+  "homeTabTagline": "Erstelle einen Raum oder tritt mit Freunden einem bei",
+  "or": "oder"
 }

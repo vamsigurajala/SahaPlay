@@ -465,7 +465,7 @@
   "enterMasterKey": "Enter your Master Key",
   "enterNewName": "Enter new name...",
   "enterPin6Digit": "Please enter your 6-digit PIN",
-  "enterRoomId": "Enter Room ID...",
+  "enterRoomId": "அறை ID ஐ உள்ளிடவும்...",
   "enterRoomName": "அறை பெயரை உள்ளிடவும்...",
   "enterTvCodeInstruction": "Enter the code shown on your TV",
   "enterYourNameStep": "உங்கள் பெயரை உள்ளிடவும்",
@@ -1961,5 +1961,6 @@
   "downloadAppSmartScreenStep2": "நிறுவலைத் தொடர \"Run anyway\" ஐ கிளிக் செய்யவும்.",
   "unlockingMessages": "திறக்கப்படுகிறது…",
   "settingUpSecureChat": "பாதுகாப்பான அரட்டையை அமைக்கிறது…",
-  "homeTabTagline": "ஒரு அறையை உருவாக்குங்கள் அல்லது நண்பர்களுடன் சேருங்கள்"
+  "homeTabTagline": "ஒரு அறையை உருவாக்குங்கள் அல்லது நண்பர்களுடன் சேருங்கள்",
+  "or": "அல்லது"
 }
