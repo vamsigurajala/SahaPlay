@@ -187,14 +187,6 @@ html {
   height: 100%;
 }
 
-html, body {
-  /* No native rubber-band bounce when the page is scrolled past its end —
-     on a short page (e.g. a couple of Pinned Rooms) the whole content
-     visibly jumped up and settled back. Pull-to-refresh is a custom
-     JS gesture (PullToRefresh.jsx) and doesn't rely on native overscroll. */
-  overscroll-behavior-y: none;
-}
-
 body {
   background-color: var(--bg-color);
   color: var(--text-primary);
