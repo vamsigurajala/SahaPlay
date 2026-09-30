@@ -260,7 +260,7 @@ const Home = () => {
 
   return (
     <PullToRefresh>
-    <div className="page-enter" style={{ minHeight: '100vh' }}>
+    <div className="page-enter" style={{ minHeight: '100dvh' }}>
       <SeoHead path="/" />
       <Toaster position="top-center" />
       <style>{`
