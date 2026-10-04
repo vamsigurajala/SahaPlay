@@ -1314,11 +1314,18 @@ const Profile = () => {
         html[data-theme='light'] .delete-btn:hover { background: #fecaca !important; }
         html[data-theme='light'] .danger-desc { color: #475569 !important; }
         
-        /* Delete Account Modal — same in dark and light: blurred see-through backdrop, dark card, white text */
+        /* Delete Account Modal — themed: dark glass + white text in dark mode, light glass + dark text in light mode. Backdrop is see-through and blurred in both. */
         .delete-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45) !important; backdrop-filter: blur(14px) !important; -webkit-backdrop-filter: blur(14px) !important; z-index: 99999; display: flex; align-items: center; justify-content: center; }
         .delete-modal-card { background: rgba(26,26,46,0.92) !important; border-radius: 24px; padding: 32px; border: 1px solid rgba(255,255,255,0.12) !important; max-width: 400px; width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
         .delete-modal-text { color: #cfcfd6 !important; -webkit-text-fill-color: #cfcfd6 !important; }
+        .delete-modal-label { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+        .delete-modal-cancel { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; border: 1px solid rgba(255,255,255,0.2) !important; }
         .delete-modal-confirm { background: #ef4444 !important; }
+        html[data-theme='light'] .delete-modal-overlay { background: rgba(255,255,255,0.35) !important; }
+        html[data-theme='light'] .delete-modal-card { background: rgba(255,255,255,0.85) !important; backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; border: 1px solid rgba(0,0,0,0.1) !important; box-shadow: 0 16px 40px rgba(0,0,0,0.12) !important; }
+        html[data-theme='light'] .delete-modal-text { color: #475569 !important; -webkit-text-fill-color: #475569 !important; }
+        html[data-theme='light'] .delete-modal-label { color: #111111 !important; -webkit-text-fill-color: #111111 !important; }
+        html[data-theme='light'] .delete-modal-cancel { color: #334155 !important; -webkit-text-fill-color: #334155 !important; border-color: #cbd5e1 !important; }
         /* Crop Modal */
         .crop-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 99999; display: flex; align-items: center; justify-content: center; }
         .crop-modal-content { background: #1a1a2e; border-radius: 24px; padding: 32px; border: 1px solid rgba(255,255,255,0.08); max-width: 360px; width: 90vw; text-align: center; }
@@ -2470,14 +2477,14 @@ const Profile = () => {
             <p className="delete-modal-text" style={{ fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>{t('deleteAccountConfirmDesc', 'Are you absolutely sure? Everything will be permanently deleted.')}</p>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8, cursor: 'pointer' }}>
               <input type="checkbox" checked={deleteChecked} onChange={e => { setDeleteChecked(e.target.checked); if (e.target.checked) setShowDeleteError(false); }} style={{ marginTop: 2 }} />
-              <span className="stay-white" style={{ fontSize: 14 }}>{t('deleteAccountCheckboxLabel', 'I understand that my account and all associated data will be permanently deleted.')}</span>
+              <span className="delete-modal-label" style={{ fontSize: 14 }}>{t('deleteAccountCheckboxLabel', 'I understand that my account and all associated data will be permanently deleted.')}</span>
             </label>
             {showDeleteError && !deleteChecked && (
               <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 16, paddingLeft: 28 }}>⚠️ {t('deleteAccountError', 'Please select this checkbox to proceed')}</div>
             )}
             {!showDeleteError && <div style={{ height: 16 }} />}
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button className="stay-white" onClick={() => setShowDeleteModal(false)} style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', cursor: 'pointer' }}>{t('cancelBtn', 'Cancel')}</button>
+              <button className="delete-modal-cancel" onClick={() => setShowDeleteModal(false)} style={{ padding: '10px 16px', borderRadius: 10, background: 'transparent', cursor: 'pointer' }}>{t('cancelBtn', 'Cancel')}</button>
               <button className="stay-white delete-modal-confirm" onClick={handleDeleteAccount} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 600 }}>{t('deletePermanentlyBtn', 'Delete Permanently')}</button>
             </div>
           </div>
