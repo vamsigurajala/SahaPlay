@@ -850,7 +850,7 @@
   "notificationsDesc": "ಒಳಬರುವ ಸ್ನೇಹಿತರ ವಿನಂತಿಗಳು ಮತ್ತು ಕೊಠಡಿ ಆಹ್ವಾನಗಳ ಕುರಿತು ತಕ್ಷಣವೇ ಸೂಚನೆ ಪಡೆಯಿರಿ.",
   "nowPlayingWatchers": "● ಈಗ 4 ವೀಕ್ಷಕರಿಗೆ ಪ್ಲೇ ಮಾಡಲಾಗುತ್ತಿದೆ",
   "of": "/",
-  "offlineMessage": "ಆಫ್‌ಲೈನ್ ಸಂದೇಶ...",
+  "offlineMessage": "ನಿಮ್ಮ Wi-Fi ಅಥವಾ ಮೊಬೈಲ್ ಡೇಟಾ ಪರಿಶೀಲಿಸಿ. ಇಂಟರ್ನೆಟ್ ಬಂದ ತಕ್ಷಣ SahaPlay ತಾನಾಗಿ ಸಂಪರ್ಕಗೊಳ್ಳುತ್ತದೆ.",
   "onlyHostCanMessage": "ಹೋಸ್ಟ್ ಮಾತ್ರ ಸಂದೇಶ ಕಳುಹಿಸಬಹುದು...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1975,5 +1975,9 @@
   "unlockingMessages": "ಅನ್‌ಲಾಕ್ ಆಗುತ್ತಿದೆ…",
   "settingUpSecureChat": "ಸುರಕ್ಷಿತ ಚಾಟ್ ಅನ್ನು ಹೊಂದಿಸಲಾಗುತ್ತಿದೆ…",
   "homeTabTagline": "ರೂಮ್ ರಚಿಸಿ ಅಥವಾ ಸ್ನೇಹಿತರೊಂದಿಗೆ ಸೇರಿಕೊಳ್ಳಿ",
-  "or": "ಅಥವಾ"
+  "or": "ಅಥವಾ",
+  "offlineTitle": "ಇಂಟರ್ನೆಟ್ ಸಂಪರ್ಕವಿಲ್ಲ",
+  "offlineRetry": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
+  "offlineChecking": "ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ…",
+  "offlineStillOffline": "ಇನ್ನೂ ಆಫ್‌ಲೈನ್"
 }

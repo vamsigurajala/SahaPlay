@@ -850,7 +850,7 @@
   "notificationsDesc": "友達リクエストやルームへの招待の受信について即座に通知を受け取ります。",
   "nowPlayingWatchers": "● 4 人のウォッチャー向けにプレイ中",
   "of": "/",
-  "offlineMessage": "オフラインメッセージ...",
+  "offlineMessage": "Wi-Fiまたはモバイルデータをご確認ください。接続が戻ると SahaPlay が自動的に再接続します。",
   "onlyHostCanMessage": "ホストのみがメッセージを送信できます...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1974,5 +1974,9 @@
   "unlockingMessages": "ロック解除中…",
   "settingUpSecureChat": "安全なチャットを設定しています…",
   "homeTabTagline": "ルームを作成するか、友だちと一緒に参加しよう",
-  "or": "または"
+  "or": "または",
+  "offlineTitle": "インターネットに接続されていません",
+  "offlineRetry": "再試行",
+  "offlineChecking": "確認中…",
+  "offlineStillOffline": "まだオフラインです"
 }

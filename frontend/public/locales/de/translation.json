@@ -850,7 +850,7 @@
   "notificationsDesc": "Lassen Sie sich sofort über eingehende Freundschaftsanfragen und Raumeinladungen benachrichtigen.",
   "nowPlayingWatchers": "● Jetzt für 4 Zuschauer spielen",
   "of": "von",
-  "offlineMessage": "Offline-Nachricht...",
+  "offlineMessage": "Prüfe dein WLAN oder deine mobilen Daten. SahaPlay verbindet sich automatisch wieder, sobald du online bist.",
   "onlyHostCanMessage": "Nur der Host kann Nachrichten senden...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1974,5 +1974,9 @@
   "unlockingMessages": "Wird entsperrt…",
   "settingUpSecureChat": "Sicherer Chat wird eingerichtet…",
   "homeTabTagline": "Erstelle einen Raum oder tritt mit Freunden einem bei",
-  "or": "oder"
+  "or": "oder",
+  "offlineTitle": "Keine Internetverbindung",
+  "offlineRetry": "Erneut versuchen",
+  "offlineChecking": "Prüfe…",
+  "offlineStillOffline": "Weiterhin offline"
 }

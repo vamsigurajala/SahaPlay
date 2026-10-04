@@ -850,7 +850,7 @@
   "notificationsDesc": "ഇൻകമിംഗ് ചങ്ങാതി അഭ്യർത്ഥനകളെയും റൂം ക്ഷണങ്ങളെയും കുറിച്ച് തൽക്ഷണം അറിയിപ്പ് നേടുക.",
   "nowPlayingWatchers": "● ഇപ്പോൾ 4 വാച്ചർമാർക്കായി കളിക്കുന്നു",
   "of": "/",
-  "offlineMessage": "ഓഫ്‌ലൈൻ സന്ദേശം...",
+  "offlineMessage": "നിങ്ങളുടെ Wi-Fi അല്ലെങ്കിൽ മൊബൈൽ ഡാറ്റ പരിശോധിക്കുക. ഇന്റർനെറ്റ് വന്നാലുടൻ SahaPlay സ്വയം കണക്റ്റ് ചെയ്യും.",
   "onlyHostCanMessage": "ഹോസ്റ്റിന് മാത്രമേ സന്ദേശം അയക്കാൻ കഴിയൂ...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1975,5 +1975,9 @@
   "unlockingMessages": "അൺലോക്ക് ചെയ്യുന്നു…",
   "settingUpSecureChat": "സുരക്ഷിത ചാറ്റ് സജ്ജമാക്കുന്നു…",
   "homeTabTagline": "ഒരു റൂം സൃഷ്ടിക്കുക അല്ലെങ്കിൽ സുഹൃത്തുക്കളോടൊപ്പം ചേരുക",
-  "or": "അല്ലെങ്കിൽ"
+  "or": "അല്ലെങ്കിൽ",
+  "offlineTitle": "ഇന്റർനെറ്റ് കണക്ഷൻ ഇല്ല",
+  "offlineRetry": "വീണ്ടും ശ്രമിക്കുക",
+  "offlineChecking": "പരിശോധിക്കുന്നു…",
+  "offlineStillOffline": "ഇപ്പോഴും ഓഫ്‌ലൈൻ"
 }

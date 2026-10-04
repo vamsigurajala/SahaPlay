@@ -838,7 +838,7 @@
   "notificationsDesc": "உள்வரும் நண்பர் கோரிக்கைகள் மற்றும் அறை அழைப்புகள் பற்றி உடனடியாக அறிவிப்பைப் பெறுங்கள்.",
   "nowPlayingWatchers": "● இப்போது 4 பார்வையாளர்களுக்காக விளையாடுகிறது",
   "of": "/",
-  "offlineMessage": "ஆஃப்லைன் செய்தி...",
+  "offlineMessage": "உங்கள் Wi-Fi அல்லது மொபைல் டேட்டாவை சரிபார்க்கவும். இணையம் வந்ததும் SahaPlay தானாக இணையும்.",
   "onlyHostCanMessage": "தொகுப்பாளர் மட்டுமே செய்தி அனுப்ப முடியும்...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1962,5 +1962,9 @@
   "unlockingMessages": "திறக்கப்படுகிறது…",
   "settingUpSecureChat": "பாதுகாப்பான அரட்டையை அமைக்கிறது…",
   "homeTabTagline": "ஒரு அறையை உருவாக்குங்கள் அல்லது நண்பர்களுடன் சேருங்கள்",
-  "or": "அல்லது"
+  "or": "அல்லது",
+  "offlineTitle": "இணைய இணைப்பு இல்லை",
+  "offlineRetry": "மீண்டும் முயற்சிக்கவும்",
+  "offlineChecking": "சரிபார்க்கிறது…",
+  "offlineStillOffline": "இன்னும் ஆஃப்லைனில்"
 }

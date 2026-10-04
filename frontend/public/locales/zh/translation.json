@@ -850,7 +850,7 @@
   "notificationsDesc": "立即收到有关传入好友请求和房间邀请的通知。",
   "nowPlayingWatchers": "● 正在为 4 位观看者播放",
   "of": "/",
-  "offlineMessage": "离线消息...",
+  "offlineMessage": "请检查 Wi-Fi 或移动数据。网络恢复后，SahaPlay 会自动重新连接。",
   "onlyHostCanMessage": "只有主持人可以发送消息...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1974,5 +1974,9 @@
   "unlockingMessages": "解锁中…",
   "settingUpSecureChat": "正在设置安全聊天…",
   "homeTabTagline": "创建房间，或与好友一起加入房间",
-  "or": "或"
+  "or": "或",
+  "offlineTitle": "无网络连接",
+  "offlineRetry": "重试",
+  "offlineChecking": "检查中…",
+  "offlineStillOffline": "仍处于离线状态"
 }

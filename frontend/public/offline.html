@@ -73,37 +73,28 @@
     var btn = document.getElementById('retry');
     var status = document.getElementById('status');
     var busy = false;
-    var strings = {
-      en: ['No internet connection', "Check your Wi-Fi or mobile data. SahaPlay will reconnect automatically as soon as you're back online.", 'Try again', 'Checking…', 'Still offline'],
-      hi: ['इंटरनेट कनेक्शन नहीं है', 'अपना Wi-Fi या मोबाइल डेटा जाँचें। इंटरनेट आते ही SahaPlay अपने आप जुड़ जाएगा।', 'फिर कोशिश करें', 'जाँच रहे हैं…', 'अभी भी ऑफ़लाइन'],
-      te: ['ఇంటర్నెట్ కనెక్షన్ లేదు', 'మీ Wi-Fi లేదా మొబైల్ డేటాను తనిఖీ చేయండి. ఇంటర్నెట్ రాగానే SahaPlay ఆటోమేటిక్‌గా కనెక్ట్ అవుతుంది.', 'మళ్లీ ప్రయత్నించండి', 'తనిఖీ చేస్తోంది…', 'ఇంకా ఆఫ్‌లైన్‌లో ఉంది'],
-      ta: ['இணைய இணைப்பு இல்லை', 'உங்கள் Wi-Fi அல்லது மொபைல் டேட்டாவை சரிபார்க்கவும். இணையம் வந்ததும் SahaPlay தானாக இணையும்.', 'மீண்டும் முயற்சிக்கவும்', 'சரிபார்க்கிறது…', 'இன்னும் ஆஃப்லைனில்'],
-      kn: ['ಇಂಟರ್ನೆಟ್ ಸಂಪರ್ಕವಿಲ್ಲ', 'ನಿಮ್ಮ Wi-Fi ಅಥವಾ ಮೊಬೈಲ್ ಡೇಟಾ ಪರಿಶೀಲಿಸಿ. ಇಂಟರ್ನೆಟ್ ಬಂದ ತಕ್ಷಣ SahaPlay ತಾನಾಗಿ ಸಂಪರ್ಕಗೊಳ್ಳುತ್ತದೆ.', 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ', 'ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ…', 'ಇನ್ನೂ ಆಫ್‌ಲೈನ್'],
-      ml: ['ഇന്റർനെറ്റ് കണക്ഷൻ ഇല്ല', 'നിങ്ങളുടെ Wi-Fi അല്ലെങ്കിൽ മൊബൈൽ ഡാറ്റ പരിശോധിക്കുക. ഇന്റർനെറ്റ് വന്നാലുടൻ SahaPlay സ്വയം കണക്റ്റ് ചെയ്യും.', 'വീണ്ടും ശ്രമിക്കുക', 'പരിശോധിക്കുന്നു…', 'ഇപ്പോഴും ഓഫ്‌ലൈൻ'],
-      es: ['Sin conexión a internet', 'Revisa tu Wi-Fi o datos móviles. SahaPlay se reconectará automáticamente cuando vuelvas a tener conexión.', 'Reintentar', 'Comprobando…', 'Sigues sin conexión'],
-      fr: ['Pas de connexion internet', 'Vérifiez votre Wi-Fi ou vos données mobiles. SahaPlay se reconnectera automatiquement dès le retour du réseau.', 'Réessayer', 'Vérification…', 'Toujours hors ligne'],
-      de: ['Keine Internetverbindung', 'Prüfe dein WLAN oder deine mobilen Daten. SahaPlay verbindet sich automatisch wieder, sobald du online bist.', 'Erneut versuchen', 'Prüfe…', 'Weiterhin offline'],
-      pt: ['Sem conexão com a internet', 'Verifique seu Wi-Fi ou dados móveis. O SahaPlay reconecta automaticamente assim que você voltar a ficar online.', 'Tentar novamente', 'Verificando…', 'Ainda offline'],
-      it: ['Nessuna connessione a internet', 'Controlla il Wi-Fi o i dati mobili. SahaPlay si riconnetterà automaticamente appena torni online.', 'Riprova', 'Controllo…', 'Ancora offline'],
-      ru: ['Нет подключения к интернету', 'Проверьте Wi-Fi или мобильный интернет. SahaPlay подключится автоматически, как только сеть появится.', 'Повторить', 'Проверка…', 'Всё ещё нет сети'],
-      ar: ['لا يوجد اتصال بالإنترنت', 'تحقق من الواي فاي أو بيانات الجوال. سيعيد SahaPlay الاتصال تلقائيًا بمجرد عودة الإنترنت.', 'حاول مرة أخرى', 'جارٍ التحقق…', 'ما زلت غير متصل'],
-      ja: ['インターネットに接続されていません', 'Wi-Fiまたはモバイルデータをご確認ください。接続が戻ると SahaPlay が自動的に再接続します。', '再試行', '確認中…', 'まだオフラインです'],
-      ko: ['인터넷에 연결되어 있지 않습니다', 'Wi-Fi 또는 모바일 데이터를 확인해 주세요. 연결되면 SahaPlay가 자동으로 다시 연결됩니다.', '다시 시도', '확인 중…', '아직 오프라인입니다'],
-      zh: ['无网络连接', '请检查 Wi-Fi 或移动数据。网络恢复后，SahaPlay 会自动重新连接。', '重试', '检查中…', '仍处于离线状态'],
-      bn: ['ইন্টারনেট সংযোগ নেই', 'আপনার Wi-Fi বা মোবাইল ডেটা পরীক্ষা করুন। ইন্টারনেট ফিরলেই SahaPlay নিজে থেকে সংযুক্ত হবে।', 'আবার চেষ্টা করুন', 'পরীক্ষা করা হচ্ছে…', 'এখনও অফলাইন'],
-      gu: ['ઇન્ટરનેટ કનેક્શન નથી', 'તમારું Wi-Fi અથવા મોબાઇલ ડેટા તપાસો. ઇન્ટરનેટ આવતાં જ SahaPlay આપમેળે જોડાઈ જશે.', 'ફરી પ્રયાસ કરો', 'તપાસી રહ્યા છીએ…', 'હજી ઑફલાઇન'],
-      mr: ['इंटरनेट कनेक्शन नाही', 'तुमचे Wi-Fi किंवा मोबाइल डेटा तपासा. इंटरनेट येताच SahaPlay आपोआप कनेक्ट होईल.', 'पुन्हा प्रयत्न करा', 'तपासत आहे…', 'अजूनही ऑफलाइन'],
-      pa: ['ਇੰਟਰਨੈੱਟ ਕਨੈਕਸ਼ਨ ਨਹੀਂ ਹੈ', 'ਆਪਣਾ Wi-Fi ਜਾਂ ਮੋਬਾਈਲ ਡਾਟਾ ਚੈੱਕ ਕਰੋ। ਇੰਟਰਨੈੱਟ ਆਉਂਦੇ ਹੀ SahaPlay ਆਪਣੇ-ਆਪ ਜੁੜ ਜਾਵੇਗਾ।', 'ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ', 'ਚੈੱਕ ਕਰ ਰਹੇ ਹਾਂ…', 'ਅਜੇ ਵੀ ਔਫਲਾਈਨ']
-    };
-    // Same language the app itself uses (i18next stores the choice here), else the device's.
+    // English fallback only — the real text lives in the app's translation
+    // files (/locales/<lang>/translation.json: offlineTitle, offlineMessage,
+    // offlineRetry, offlineChecking, offlineStillOffline), which the service
+    // worker keeps cached from the last time the app was online.
+    var s = [
+      'No internet connection',
+      "Check your Wi-Fi or mobile data. SahaPlay will reconnect automatically as soon as you're back online.",
+      'Try again', 'Checking…', 'Still offline'
+    ];
+    var KEYS = ['offlineTitle', 'offlineMessage', 'offlineRetry', 'offlineChecking', 'offlineStillOffline'];
     var stored = ''; try { stored = localStorage.getItem('watch_language') || ''; } catch (e) {}
     var code = (stored || navigator.language || 'en').toLowerCase().split('-')[0];
-    var s = strings[code] || strings.en;
+    function apply(dict) {
+      KEYS.forEach(function (k, i) { if (dict && typeof dict[k] === 'string' && dict[k]) s[i] = dict[k]; });
+      document.getElementById('t').textContent = s[0];
+      document.getElementById('d').textContent = s[1];
+      btn.textContent = s[2];
+    }
+    apply(null);
+    document.documentElement.lang = code;
     if (code === 'ar') document.documentElement.dir = 'rtl';
-    document.documentElement.lang = strings[code] ? code : 'en';
-    document.getElementById('t').textContent = s[0];
-    document.getElementById('d').textContent = s[1];
-    btn.textContent = s[2];
+    fetch('/locales/' + code + '/translation.json').then(function (r) { return r.json(); }).then(apply).catch(function () {});
 
     function goBack() { location.reload(); }
 

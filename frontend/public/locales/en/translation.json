@@ -847,7 +847,7 @@
   "notificationsDesc": "Get notified instantly about incoming friend requests and room invites.",
   "nowPlayingWatchers": "● Now playing for 4 watchers",
   "of": "of",
-  "offlineMessage": "Offline message...",
+  "offlineMessage": "Check your Wi-Fi or mobile data. SahaPlay will reconnect automatically as soon as you're back online.",
   "onlyHostCanMessage": "Only the host can message...",
   "onlyHostRename": "Only host can rename room",
   "onlyWay": "only way",
@@ -1931,5 +1931,9 @@
   "unlockingMessages": "Unlocking…",
   "settingUpSecureChat": "Setting up secure chat…",
   "homeTabTagline": "Create a room or join one with friends",
-  "or": "or"
+  "or": "or",
+  "offlineTitle": "No internet connection",
+  "offlineRetry": "Try again",
+  "offlineChecking": "Checking…",
+  "offlineStillOffline": "Still offline"
 }

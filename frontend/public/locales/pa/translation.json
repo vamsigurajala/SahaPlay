@@ -850,7 +850,7 @@
   "notificationsDesc": "ਆਉਣ ਵਾਲੀਆਂ ਦੋਸਤ ਬੇਨਤੀਆਂ ਅਤੇ ਕਮਰੇ ਦੇ ਸੱਦਿਆਂ ਬਾਰੇ ਤੁਰੰਤ ਸੂਚਨਾ ਪ੍ਰਾਪਤ ਕਰੋ।",
   "nowPlayingWatchers": "● ਹੁਣ 4 ਦੇਖਣ ਵਾਲਿਆਂ ਲਈ ਖੇਡ ਰਿਹਾ ਹੈ",
   "of": "/",
-  "offlineMessage": "ਔਫਲਾਈਨ ਸੁਨੇਹਾ...",
+  "offlineMessage": "ਆਪਣਾ Wi-Fi ਜਾਂ ਮੋਬਾਈਲ ਡਾਟਾ ਚੈੱਕ ਕਰੋ। ਇੰਟਰਨੈੱਟ ਆਉਂਦੇ ਹੀ SahaPlay ਆਪਣੇ-ਆਪ ਜੁੜ ਜਾਵੇਗਾ।",
   "onlyHostCanMessage": "ਸਿਰਫ਼ ਹੋਸਟ ਹੀ ਸੁਨੇਹਾ ਭੇਜ ਸਕਦਾ ਹੈ...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1975,5 +1975,9 @@
   "unlockingMessages": "ਅਨਲੌਕ ਹੋ ਰਿਹਾ ਹੈ…",
   "settingUpSecureChat": "ਸੁਰੱਖਿਅਤ ਚੈਟ ਸੈੱਟ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ…",
   "homeTabTagline": "ਰੂਮ ਬਣਾਓ ਜਾਂ ਦੋਸਤਾਂ ਨਾਲ ਕਿਸੇ ਰੂਮ ਵਿੱਚ ਸ਼ਾਮਲ ਹੋਵੋ",
-  "or": "ਜਾਂ"
+  "or": "ਜਾਂ",
+  "offlineTitle": "ਇੰਟਰਨੈੱਟ ਕਨੈਕਸ਼ਨ ਨਹੀਂ ਹੈ",
+  "offlineRetry": "ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
+  "offlineChecking": "ਚੈੱਕ ਕਰ ਰਹੇ ਹਾਂ…",
+  "offlineStillOffline": "ਅਜੇ ਵੀ ਔਫਲਾਈਨ"
 }

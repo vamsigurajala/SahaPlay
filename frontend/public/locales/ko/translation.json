@@ -850,7 +850,7 @@
   "notificationsDesc": "들어오는 친구 요청 및 방 초대에 대해 즉시 알림을 받으세요.",
   "nowPlayingWatchers": "● 현재 4명의 관찰자가 플레이하고 있습니다.",
   "of": "/",
-  "offlineMessage": "오프라인 메시지...",
+  "offlineMessage": "Wi-Fi 또는 모바일 데이터를 확인해 주세요. 연결되면 SahaPlay가 자동으로 다시 연결됩니다.",
   "onlyHostCanMessage": "호스트만 메시지를 보낼 수 있습니다...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1974,5 +1974,9 @@
   "unlockingMessages": "잠금 해제 중…",
   "settingUpSecureChat": "보안 채팅을 설정하는 중…",
   "homeTabTagline": "룸을 만들거나 친구들과 함께 참여하세요",
-  "or": "또는"
+  "or": "또는",
+  "offlineTitle": "인터넷에 연결되어 있지 않습니다",
+  "offlineRetry": "다시 시도",
+  "offlineChecking": "확인 중…",
+  "offlineStillOffline": "아직 오프라인입니다"
 }

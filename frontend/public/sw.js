@@ -50,6 +50,20 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
+  // The app's translation files: network first (always the latest text), but
+  // keep the last good copy so the offline page can show the user's language.
+  if (/^\/locales\/[a-z]+\/translation\.json$/.test(new URL(event.request.url).pathname)) {
+    event.respondWith(
+      fetch(event.request).then(res => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(OFFLINE_CACHE).then(c => c.put(event.request, copy)).catch(() => {});
+        }
+        return res;
+      }).catch(() => caches.match(event.request).then(res => res || Response.error()))
+    );
+    return;
+  }
   event.respondWith(fetch(event.request));
 });
 

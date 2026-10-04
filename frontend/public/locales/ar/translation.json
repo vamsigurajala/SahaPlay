@@ -850,7 +850,7 @@
   "notificationsDesc": "احصل على إشعارات فورية بشأن طلبات الصداقة الواردة ودعوات الغرف.",
   "nowPlayingWatchers": "● اللعب الآن لـ 4 مشاهدين",
   "of": "من",
-  "offlineMessage": "رسالة غير متصل...",
+  "offlineMessage": "تحقق من الواي فاي أو بيانات الجوال. سيعيد SahaPlay الاتصال تلقائيًا بمجرد عودة الإنترنت.",
   "onlyHostCanMessage": "يمكن للمضيف فقط إرسال الرسائل...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1976,5 +1976,9 @@
   "unlockingMessages": "جارٍ إلغاء القفل…",
   "settingUpSecureChat": "جارٍ إعداد الدردشة الآمنة…",
   "homeTabTagline": "أنشئ غرفة أو انضم إلى غرفة مع الأصدقاء",
-  "or": "أو"
+  "or": "أو",
+  "offlineTitle": "لا يوجد اتصال بالإنترنت",
+  "offlineRetry": "حاول مرة أخرى",
+  "offlineChecking": "جارٍ التحقق…",
+  "offlineStillOffline": "ما زلت غير متصل"
 }

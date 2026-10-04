@@ -850,7 +850,7 @@
   "notificationsDesc": "Seja notificado instantaneamente sobre solicitações de amizade e convites para salas recebidas.",
   "nowPlayingWatchers": "● Agora jogando para 4 espectadores",
   "of": "de",
-  "offlineMessage": "Mensagem offline...",
+  "offlineMessage": "Verifique seu Wi-Fi ou dados móveis. O SahaPlay reconecta automaticamente assim que você voltar a ficar online.",
   "onlyHostCanMessage": "Apenas o anfitrião pode enviar mensagens...",
   "onlyHostRename": "Only host can edit this room name",
   "onlyWay": "only way",
@@ -1976,5 +1976,9 @@
   "unlockingMessages": "Desbloqueando…",
   "settingUpSecureChat": "Configurando chat seguro…",
   "homeTabTagline": "Crie uma sala ou entre em uma com amigos",
-  "or": "ou"
+  "or": "ou",
+  "offlineTitle": "Sem conexão com a internet",
+  "offlineRetry": "Tentar novamente",
+  "offlineChecking": "Verificando…",
+  "offlineStillOffline": "Ainda offline"
 }
