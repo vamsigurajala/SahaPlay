@@ -209,6 +209,7 @@ const Profile = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteChecked, setDeleteChecked] = useState(false);
   const [showDeleteError, setShowDeleteError] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Navbar state
   const [watchRole, setWatchRole] = useState(localStorage.getItem('watch_role') || 'user');
@@ -920,16 +921,18 @@ const Profile = () => {
 
   const handleDeleteAccount = () => {
     if (!deleteChecked) { setShowDeleteError(true); return; }
+    if (isDeletingAccount) return;
+    setIsDeletingAccount(true);
     fetch(`${API}/api/profile`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } })
       .then(r => r.json())
       .then(res => {
-        if (res.error) toast.error(res.error);
+        if (res.error) { toast.error(res.error); setIsDeletingAccount(false); }
         else {
           clearUserSession();
           toast.success('Account permanently deleted');
           setTimeout(() => navigate('/login'), 1000);
         }
-      }).catch(() => toast.error('Failed to delete account'));
+      }).catch(() => { toast.error('Failed to delete account'); setIsDeletingAccount(false); });
   };
 
   const handleFollow = async () => {
@@ -1322,6 +1325,15 @@ const Profile = () => {
         .delete-modal-cancel { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; border: 1px solid rgba(255,255,255,0.2) !important; }
         .delete-modal-confirm { background: #ef4444 !important; }
         .delete-modal-card { position: relative; }
+        .delete-modal-btn { padding: 10px 18px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; background: transparent; transition: background 0.15s, transform 0.12s, box-shadow 0.15s, filter 0.15s, opacity 0.15s; -webkit-tap-highlight-color: transparent; }
+        .delete-modal-btn:active:not(:disabled) { transform: scale(0.96); }
+        .delete-modal-btn:focus-visible { outline: 2px solid #ef4444; outline-offset: 2px; }
+        .delete-modal-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .delete-modal-cancel:hover:not(:disabled) { background: rgba(255,255,255,0.1) !important; }
+        .delete-modal-confirm { border: none; }
+        .delete-modal-confirm:hover:not(:disabled) { filter: brightness(1.1); box-shadow: 0 6px 18px rgba(239,68,68,0.45); }
+        .delete-modal-confirm:active:not(:disabled) { filter: brightness(0.92); box-shadow: none; }
+        html[data-theme='light'] .delete-modal-cancel:hover:not(:disabled) { background: rgba(0,0,0,0.06) !important; }
         h3.delete-modal-title { color: #ef4444 !important; -webkit-text-fill-color: #ef4444 !important; padding-right: 36px; }
         .delete-modal-close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(255,255,255,0.1); color: #ffffff !important; -webkit-text-fill-color: #ffffff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: background 0.15s; }
         .delete-modal-close:hover { background: rgba(255,255,255,0.2); }
@@ -2493,8 +2505,8 @@ const Profile = () => {
             )}
             {!showDeleteError && <div style={{ height: 16 }} />}
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button className="delete-modal-cancel" onClick={() => setShowDeleteModal(false)} style={{ padding: '10px 16px', borderRadius: 10, background: 'transparent', cursor: 'pointer' }}>{t('cancelBtn', 'Cancel')}</button>
-              <button className="stay-white delete-modal-confirm" onClick={handleDeleteAccount} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 600 }}>{t('deletePermanentlyBtn', 'Delete Permanently')}</button>
+              <button className="delete-modal-btn delete-modal-cancel" disabled={isDeletingAccount} onClick={() => setShowDeleteModal(false)}>{t('cancelBtn', 'Cancel')}</button>
+              <button className="stay-white delete-modal-btn delete-modal-confirm" disabled={isDeletingAccount} onClick={handleDeleteAccount}>{t('deletePermanentlyBtn', 'Delete Permanently')}</button>
             </div>
           </div>
         </div>
