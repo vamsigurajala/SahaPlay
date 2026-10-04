@@ -29,6 +29,7 @@ import { io } from 'socket.io-client';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { mergeHistoryBatch } from '../utils/chatHelper.js';
 import { getMessagePreview } from '../utils/messagePreview';
+import { keepMenuInView } from '../utils/keepMenuInView';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { clearUserSession } from '../lib/authUtils.js';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
@@ -9723,7 +9724,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                               </div>
                             )}
                             {showLongPressMenu && (
-                              <div className="long-press-menu" style={{
+                              <div className="long-press-menu" ref={keepMenuInView} style={{
                                 position:'absolute',
                                 [longPressPlacement === 'up' ? 'bottom' : 'top']: '100%',
                                 [longPressPlacement === 'up' ? 'marginBottom' : 'marginTop']: 8,

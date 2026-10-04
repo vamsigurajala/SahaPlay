@@ -39,6 +39,7 @@ import MediaLightbox from './MediaLightbox';
 import DownloadAppModal from './DownloadAppModal';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { getMessagePreview } from '../utils/messagePreview';
+import { keepMenuInView } from '../utils/keepMenuInView';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
 
@@ -4017,7 +4018,7 @@ export default function RoomChatPanel({ p }) {
                           </div>
                         )}
                         {showLongPressMenu && (
-                          <div className="long-press-menu" style={{
+                          <div className="long-press-menu" ref={keepMenuInView} style={{
                             position:'absolute',
                             [longPressPlacement === 'up' ? 'bottom' : 'top']: '100%',
                             [longPressPlacement === 'up' ? 'marginBottom' : 'marginTop']: 8,
@@ -5100,7 +5101,7 @@ export default function RoomChatPanel({ p }) {
                                   </div>
                                 )}
                                 {showLongPressMenu && (
-                                  <div className="long-press-menu" style={{
+                                  <div className="long-press-menu" ref={keepMenuInView} style={{
                                     position:'absolute',
                                     [longPressPlacement === 'up' ? 'bottom' : 'top']: '100%',
                                     [longPressPlacement === 'up' ? 'marginBottom' : 'marginTop']: 8,
