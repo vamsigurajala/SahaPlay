@@ -31,7 +31,7 @@ import { mergeHistoryBatch } from '../utils/chatHelper.js';
 import { getMessagePreview } from '../utils/messagePreview';
 import { keepMenuInView } from '../utils/keepMenuInView';
 import { bindActiveChat } from '../utils/bindActiveChat';
-import { setInstanceOpenChat, isChatOpenAnywhere, claimMessageAlert } from '../utils/chatAlertRegistry';
+import { setInstanceOpenChat, isChatOpenAnywhere, isChatToastHandledAnywhere, claimMessageAlert } from '../utils/chatAlertRegistry';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { clearUserSession } from '../lib/authUtils.js';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
@@ -2970,9 +2970,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
   useEffect(() => {
     const id = gcwInstanceIdRef.current;
     const open = isOpen && view === 'chat' && activeChat;
-    setInstanceOpenChat(id, open ? [activeChat.partner, activeChat.id] : null);
-    return () => setInstanceOpenChat(id, null);
-  }, [isOpen, view, activeChat]);
+    // A room page's widget also reports the chat open inside the room itself
+    // (activeRoomTab/Partner come from Room.jsx) and the room's own group chat
+    // (hostRoomId, whose toast RoomChatPanel always handles) — the widgets
+    // mounted elsewhere on the page need to know about those too.
+    const roomThread = (activeRoomTab === 'group' || activeRoomTab === 'dm') && activeRoomPartner ? [activeRoomPartner] : [];
+    setInstanceOpenChat(
+      id,
+      [...(open ? [activeChat.partner, activeChat.id] : []), ...roomThread],
+      hostRoomId ? [hostRoomId] : null
+    );
+    return () => setInstanceOpenChat(id, null, null);
+  }, [isOpen, view, activeChat, activeRoomTab, activeRoomPartner, hostRoomId]);
   const activeRoomTabRef = useRef(activeRoomTab);
   const activeRoomPartnerRef = useRef(activeRoomPartner);
   const hostRoomIdRef = useRef(hostRoomId);
@@ -4254,6 +4263,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
           // 1b. Another mounted widget instance (e.g. the bottom-bar one on
           // mobile) is the one showing this chat — it is open, just not here.
           if (isChatOpenAnywhere(partnerLower)) { skipToast = true; skipDesktopNotif = true; }
+          // 1c. A room's own chat panel handles the toast for that room's group chat.
+          if (isGroup && isChatToastHandledAnywhere(partnerLower)) skipToast = true;
 
           // 2. Check if user is looking at this chat in the specialized Room panel
           const lowerPartner = partner.toLowerCase();

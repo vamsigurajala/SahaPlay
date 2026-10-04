@@ -9,17 +9,32 @@
 // (2) which one alerts for a given message, so there is never a duplicate or
 // a mistaken alert.
 const openChats = new Map(); // instance id -> lowercase chat keys currently open on screen
+const toastOnlyChats = new Map(); // instance id -> chats whose in-app toast/tone is handled elsewhere (e.g. a room's own chat panel)
 
-export function setInstanceOpenChat(instanceId, keys) {
-  const cleaned = (keys || []).filter(Boolean).map(k => String(k).toLowerCase());
-  if (cleaned.length) openChats.set(instanceId, cleaned);
-  else openChats.delete(instanceId);
+const clean = (keys) => (keys || []).filter(Boolean).map(k => String(k).toLowerCase());
+
+export function setInstanceOpenChat(instanceId, keys, toastOnlyKeys) {
+  const open = clean(keys);
+  if (open.length) openChats.set(instanceId, open); else openChats.delete(instanceId);
+  const quiet = clean(toastOnlyKeys);
+  if (quiet.length) toastOnlyChats.set(instanceId, quiet); else toastOnlyChats.delete(instanceId);
 }
 
 export function isChatOpenAnywhere(chatKey) {
   const key = String(chatKey || '').toLowerCase();
   if (!key) return false;
   for (const keys of openChats.values()) {
+    if (keys.includes(key)) return true;
+  }
+  return false;
+}
+
+// Open anywhere, OR a room whose own chat panel already toasts for it.
+export function isChatToastHandledAnywhere(chatKey) {
+  if (isChatOpenAnywhere(chatKey)) return true;
+  const key = String(chatKey || '').toLowerCase();
+  if (!key) return false;
+  for (const keys of toastOnlyChats.values()) {
     if (keys.includes(key)) return true;
   }
   return false;

@@ -2412,6 +2412,18 @@ const Room = () => {
     }
   }, [showControls, isMobileFsMode, isFullscreen, isTouchPlayer, isMobile]);
 
+  // The effect above zeroes --sp-status-bar-inset while the player controls
+  // are showing in landscape fullscreen (video draws under the status bar).
+  // Nothing restored it when fullscreen ended in that state — exit by back
+  // gesture, rotation, leaving the room — so the status bar came back but
+  // every page stayed padded as if it weren't there, and the app slid under
+  // the clock/signal icons until the next reload. Restore on leaving.
+  useEffect(() => {
+    const inLandscapeFs = (isFullscreen || isMobileFsMode) && (isTouchPlayer || isMobile);
+    if (!inLandscapeFs) return undefined;
+    return () => { setStatusBarHidden(false); };
+  }, [isMobileFsMode, isFullscreen, isTouchPlayer, isMobile]);
+
   useEffect(() => {
     return () => {
       clearTimeout(controlsTimerRef.current);
