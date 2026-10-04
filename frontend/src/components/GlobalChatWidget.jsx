@@ -30,6 +30,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { mergeHistoryBatch } from '../utils/chatHelper.js';
 import { getMessagePreview } from '../utils/messagePreview';
 import { keepMenuInView } from '../utils/keepMenuInView';
+import { bindActiveChat } from '../utils/bindActiveChat';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { clearUserSession } from '../lib/authUtils.js';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
@@ -2958,8 +2959,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
     // own in-room chat panel (a separate socket) may have marked active —
     // exactly what the server's Set-based tracking exists to prevent.
     if (!chatId) return;
-    sock.emit('chat_active', { chatId });
-    return () => sock.emit('chat_inactive', { chatId });
+    return bindActiveChat(sock, chatId);
   }, [isOpen, view, activeChat]);
   const activeRoomTabRef = useRef(activeRoomTab);
   const activeRoomPartnerRef = useRef(activeRoomPartner);

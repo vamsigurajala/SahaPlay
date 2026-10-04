@@ -33,6 +33,7 @@ import { useVideoUpload } from './hooks/useVideoUpload';
 import { useVoiceActivityDetection } from './hooks/useVoiceActivityDetection';
 import { useBackIntercept } from './hooks/useBackIntercept';
 import { getPersistedGcwOpen } from './utils/gcwPersist';
+import { bindActiveChat } from './utils/bindActiveChat';
 import { getPersistedReactionPreviews, setPersistedReactionPreview, clearPersistedReactionPreview } from './utils/reactionPreviewsPersist';
 import ReactPlayerRaw from 'react-player/lazy';
 const ReactPlayer = ReactPlayerRaw.default || ReactPlayerRaw;
@@ -2991,8 +2992,7 @@ const Room = () => {
     // active), which is exactly the cross-surface clobbering this Set-based
     // tracking exists to avoid.
     if (!chatId) return;
-    socket.emit('chat_active', { chatId });
-    return () => socket.emit('chat_inactive', { chatId });
+    return bindActiveChat(socket, chatId);
   }, [socket, isMobile, isMobileChatVisible, rightPanelTab, chatTab, dmTarget, roomId]);
 
   const handleTypingStatus = (data, isStarting) => {
