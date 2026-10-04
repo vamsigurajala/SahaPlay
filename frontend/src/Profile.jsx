@@ -1314,6 +1314,11 @@ const Profile = () => {
         html[data-theme='light'] .delete-btn:hover { background: #fecaca !important; }
         html[data-theme='light'] .danger-desc { color: #475569 !important; }
         
+        /* Delete Account Modal — same in dark and light: blurred see-through backdrop, dark card, white text */
+        .delete-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45) !important; backdrop-filter: blur(14px) !important; -webkit-backdrop-filter: blur(14px) !important; z-index: 99999; display: flex; align-items: center; justify-content: center; }
+        .delete-modal-card { background: rgba(26,26,46,0.92) !important; border-radius: 24px; padding: 32px; border: 1px solid rgba(255,255,255,0.12) !important; max-width: 400px; width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .delete-modal-text { color: #cfcfd6 !important; -webkit-text-fill-color: #cfcfd6 !important; }
+        .delete-modal-confirm { background: #ef4444 !important; }
         /* Crop Modal */
         .crop-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 99999; display: flex; align-items: center; justify-content: center; }
         .crop-modal-content { background: #1a1a2e; border-radius: 24px; padding: 32px; border: 1px solid rgba(255,255,255,0.08); max-width: 360px; width: 90vw; text-align: center; }
@@ -2459,21 +2464,21 @@ const Profile = () => {
 
       {/* Delete Account Modal */}
       {showDeleteModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#1a1a2e', borderRadius: 24, padding: 32, border: '1px solid rgba(255,255,255,0.08)', maxWidth: 400, width: '90vw' }}>
-            <h3 style={{ color: '#ef4444', fontSize: 20, fontWeight: 700, margin: '0 0 12px' }}>{t('deleteAccountConfirmTitle', 'Delete Account')}</h3>
-            <p style={{ color: '#bbb', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>{t('deleteAccountConfirmDesc', 'Are you absolutely sure? Everything will be permanently deleted.')}</p>
+        <div className="delete-modal-overlay">
+          <div className="delete-modal-card">
+            <h3 className="stay-red" style={{ fontSize: 20, fontWeight: 700, margin: '0 0 12px' }}>{t('deleteAccountConfirmTitle', 'Delete Account')}</h3>
+            <p className="delete-modal-text" style={{ fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>{t('deleteAccountConfirmDesc', 'Are you absolutely sure? Everything will be permanently deleted.')}</p>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8, cursor: 'pointer' }}>
               <input type="checkbox" checked={deleteChecked} onChange={e => { setDeleteChecked(e.target.checked); if (e.target.checked) setShowDeleteError(false); }} style={{ marginTop: 2 }} />
-              <span style={{ color: '#fff', fontSize: 14 }}>{t('deleteAccountCheckboxLabel', 'I understand that my account and all associated data will be permanently deleted.')}</span>
+              <span className="stay-white" style={{ fontSize: 14 }}>{t('deleteAccountCheckboxLabel', 'I understand that my account and all associated data will be permanently deleted.')}</span>
             </label>
             {showDeleteError && !deleteChecked && (
               <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 16, paddingLeft: 28 }}>⚠️ {t('deleteAccountError', 'Please select this checkbox to proceed')}</div>
             )}
             {!showDeleteError && <div style={{ height: 16 }} />}
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowDeleteModal(false)} style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#fff', cursor: 'pointer' }}>{t('cancelBtn', 'Cancel')}</button>
-              <button onClick={handleDeleteAccount} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>{t('deletePermanentlyBtn', 'Delete Permanently')}</button>
+              <button className="stay-white" onClick={() => setShowDeleteModal(false)} style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', cursor: 'pointer' }}>{t('cancelBtn', 'Cancel')}</button>
+              <button className="stay-white delete-modal-confirm" onClick={handleDeleteAccount} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 600 }}>{t('deletePermanentlyBtn', 'Delete Permanently')}</button>
             </div>
           </div>
         </div>
