@@ -31,6 +31,7 @@ import { mergeHistoryBatch } from '../utils/chatHelper.js';
 import { getMessagePreview } from '../utils/messagePreview';
 import { keepMenuInView } from '../utils/keepMenuInView';
 import { bindActiveChat } from '../utils/bindActiveChat';
+import { setInstanceOpenChat, isChatOpenAnywhere, claimMessageAlert } from '../utils/chatAlertRegistry';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { clearUserSession } from '../lib/authUtils.js';
 import { useSwipeToReply } from '../hooks/useSwipeToReply';
@@ -2961,6 +2962,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
     if (!chatId) return;
     return bindActiveChat(sock, chatId);
   }, [isOpen, view, activeChat]);
+
+  // Tell the other mounted widget instances (top bar + bottom bar both mount
+  // one on mobile) which chat this one has open, so they stay silent for it.
+  const gcwInstanceIdRef = useRef(null);
+  if (gcwInstanceIdRef.current === null) gcwInstanceIdRef.current = `gcw-${Math.random().toString(36).slice(2)}`;
+  useEffect(() => {
+    const id = gcwInstanceIdRef.current;
+    const open = isOpen && view === 'chat' && activeChat;
+    setInstanceOpenChat(id, open ? [activeChat.partner, activeChat.id] : null);
+    return () => setInstanceOpenChat(id, null);
+  }, [isOpen, view, activeChat]);
   const activeRoomTabRef = useRef(activeRoomTab);
   const activeRoomPartnerRef = useRef(activeRoomPartner);
   const hostRoomIdRef = useRef(hostRoomId);
@@ -4239,6 +4251,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
           if (isCallLog) { skipToast = true; skipDesktopNotif = true; }
           // 1. Check if user is looking at this chat in the Global Widget itself
           if (isViewingThis) { skipToast = true; skipDesktopNotif = true; }
+          // 1b. Another mounted widget instance (e.g. the bottom-bar one on
+          // mobile) is the one showing this chat — it is open, just not here.
+          if (isChatOpenAnywhere(partnerLower)) { skipToast = true; skipDesktopNotif = true; }
 
           // 2. Check if user is looking at this chat in the specialized Room panel
           const lowerPartner = partner.toLowerCase();
@@ -4292,7 +4307,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
             const unreadCount = (cachedConv?.unread || 0) + 1;
             const msgStr = unreadCount === 1 ? '1 new message' : `${unreadCount} new messages`;
 
-            if (!skipToast) {
+            // Only one widget instance alerts per message (two are mounted on mobile).
+            if (!skipToast && claimMessageAlert(msgKey)) {
               // User's chosen message tone (see AppSettings.jsx's Sound
               // section) — mirrored into localStorage the same way
               // notifyCalls already is, since this widget has no settings-
