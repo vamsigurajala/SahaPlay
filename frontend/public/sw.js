@@ -3,12 +3,27 @@
 // with a fetch handler) for the Android TWA wrapper. Intentionally does not
 // cache anything: this app's JS bundles and API responses change too often
 // for a naive cache to stay correct, so every request just passes through.
-self.addEventListener('install', () => {
+// The only thing cached is the offline fallback page, shown when a page
+// navigation fails because the device has no connection.
+const OFFLINE_CACHE = 'sahaplay-offline-v1';
+const OFFLINE_URL = '/offline.html';
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(OFFLINE_CACHE)
+      .then(cache => cache.add(new Request(OFFLINE_URL, { cache: 'reload' })))
+      .catch(() => {})
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k.startsWith('sahaplay-offline-') && k !== OFFLINE_CACHE).map(k => caches.delete(k))))
+      .catch(() => {})
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
@@ -25,6 +40,16 @@ self.addEventListener('fetch', (event) => {
   // normal way; this handler's only job is to exist (Chrome's PWA
   // installability check), not to proxy anything.
   if (new URL(event.request.url).origin !== self.location.origin) return;
+  if (event.request.mode === 'navigate') {
+    // Page load with no connection: show the friendly offline page instead
+    // of the browser's "web page not available" error.
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        caches.match(OFFLINE_URL).then(res => res || Response.error())
+      )
+    );
+    return;
+  }
   event.respondWith(fetch(event.request));
 });
 

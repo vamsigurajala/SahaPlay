@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark light" />
+<title>No connection · SahaPlay</title>
+<style>
+  :root {
+    --bg: #0b0b14; --card: rgba(255,255,255,0.06); --border: rgba(255,255,255,0.1);
+    --text: #ffffff; --muted: #a3a3b5; --brand1: #7c3aed; --brand2: #ec4899;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f7f8fc; --card: rgba(255,255,255,0.9); --border: rgba(0,0,0,0.08); --text: #111827; --muted: #5b6475; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+    background-image: radial-gradient(60% 50% at 50% 0%, rgba(124,58,237,0.22), transparent 70%);
+  }
+  .card {
+    width: 100%; max-width: 380px; text-align: center; padding: 36px 28px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 24px;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    animation: rise .45s cubic-bezier(.22,1,.36,1) both;
+  }
+  .icon {
+    width: 76px; height: 76px; margin: 0 auto 20px; border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, var(--brand1), var(--brand2));
+    box-shadow: 0 10px 30px rgba(124,58,237,0.35);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  h1 { margin: 0 0 8px; font-size: 22px; font-weight: 800; letter-spacing: -0.3px; }
+  p { margin: 0 0 24px; font-size: 14.5px; line-height: 1.55; color: var(--muted); }
+  button {
+    width: 100%; border: 0; border-radius: 14px; padding: 13px 18px; cursor: pointer;
+    font: inherit; font-size: 15px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, var(--brand1), var(--brand2));
+    transition: transform .12s, filter .15s, box-shadow .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:hover { filter: brightness(1.08); box-shadow: 0 8px 22px rgba(124,58,237,0.4); }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .7; cursor: default; }
+  .status { margin-top: 14px; font-size: 12.5px; color: var(--muted); min-height: 18px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+  @media (prefers-reduced-motion: reduce) { .card, .icon { animation: none; } }
+</style>
+</head>
+<body>
+  <main class="card" role="alert" aria-live="polite">
+    <div class="icon" aria-hidden="true">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 8.8a15 15 0 0 1 4.2-2.6"/><path d="M22 8.8a15 15 0 0 0-9.4-4.7"/>
+        <path d="M5 12.9a10 10 0 0 1 3.2-2"/><path d="M19 12.9a10 10 0 0 0-4.9-2.7"/>
+        <path d="M8.5 16.4a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r="0.6" fill="#fff"/>
+        <path d="M2 2l20 20"/>
+      </svg>
+    </div>
+    <h1 id="t">No internet connection</h1>
+    <p id="d">Check your Wi-Fi or mobile data. SahaPlay will reconnect automatically as soon as you're back online.</p>
+    <button id="retry" type="button">Try again</button>
+    <div class="status" id="status"></div>
+  </main>
+<script>
+  (function () {
+    var btn = document.getElementById('retry');
+    var status = document.getElementById('status');
+    var busy = false;
+    var strings = {
+      en: ['No internet connection', "Check your Wi-Fi or mobile data. SahaPlay will reconnect automatically as soon as you're back online.", 'Try again', 'Checking…', 'Still offline'],
+      hi: ['इंटरनेट कनेक्शन नहीं है', 'अपना Wi-Fi या मोबाइल डेटा जाँचें। इंटरनेट आते ही SahaPlay अपने आप जुड़ जाएगा।', 'फिर कोशिश करें', 'जाँच रहे हैं…', 'अभी भी ऑफ़लाइन'],
+      te: ['ఇంటర్నెట్ కనెక్షన్ లేదు', 'మీ Wi-Fi లేదా మొబైల్ డేటాను తనిఖీ చేయండి. ఇంటర్నెట్ రాగానే SahaPlay ఆటోమేటిక్‌గా కనెక్ట్ అవుతుంది.', 'మళ్లీ ప్రయత్నించండి', 'తనిఖీ చేస్తోంది…', 'ఇంకా ఆఫ్‌లైన్‌లో ఉంది'],
+      ta: ['இணைய இணைப்பு இல்லை', 'உங்கள் Wi-Fi அல்லது மொபைல் டேட்டாவை சரிபார்க்கவும். இணையம் வந்ததும் SahaPlay தானாக இணையும்.', 'மீண்டும் முயற்சிக்கவும்', 'சரிபார்க்கிறது…', 'இன்னும் ஆஃப்லைனில்'],
+      kn: ['ಇಂಟರ್ನೆಟ್ ಸಂಪರ್ಕವಿಲ್ಲ', 'ನಿಮ್ಮ Wi-Fi ಅಥವಾ ಮೊಬೈಲ್ ಡೇಟಾ ಪರಿಶೀಲಿಸಿ. ಇಂಟರ್ನೆಟ್ ಬಂದ ತಕ್ಷಣ SahaPlay ತಾನಾಗಿ ಸಂಪರ್ಕಗೊಳ್ಳುತ್ತದೆ.', 'ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ', 'ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ…', 'ಇನ್ನೂ ಆಫ್‌ಲೈನ್'],
+      ml: ['ഇന്റർനെറ്റ് കണക്ഷൻ ഇല്ല', 'നിങ്ങളുടെ Wi-Fi അല്ലെങ്കിൽ മൊബൈൽ ഡാറ്റ പരിശോധിക്കുക. ഇന്റർനെറ്റ് വന്നാലുടൻ SahaPlay സ്വയം കണക്റ്റ് ചെയ്യും.', 'വീണ്ടും ശ്രമിക്കുക', 'പരിശോധിക്കുന്നു…', 'ഇപ്പോഴും ഓഫ്‌ലൈൻ'],
+      es: ['Sin conexión a internet', 'Revisa tu Wi-Fi o datos móviles. SahaPlay se reconectará automáticamente cuando vuelvas a tener conexión.', 'Reintentar', 'Comprobando…', 'Sigues sin conexión'],
+      fr: ['Pas de connexion internet', 'Vérifiez votre Wi-Fi ou vos données mobiles. SahaPlay se reconnectera automatiquement dès le retour du réseau.', 'Réessayer', 'Vérification…', 'Toujours hors ligne'],
+      de: ['Keine Internetverbindung', 'Prüfe dein WLAN oder deine mobilen Daten. SahaPlay verbindet sich automatisch wieder, sobald du online bist.', 'Erneut versuchen', 'Prüfe…', 'Weiterhin offline'],
+      pt: ['Sem conexão com a internet', 'Verifique seu Wi-Fi ou dados móveis. O SahaPlay reconecta automaticamente assim que você voltar a ficar online.', 'Tentar novamente', 'Verificando…', 'Ainda offline'],
+      it: ['Nessuna connessione a internet', 'Controlla il Wi-Fi o i dati mobili. SahaPlay si riconnetterà automaticamente appena torni online.', 'Riprova', 'Controllo…', 'Ancora offline'],
+      ru: ['Нет подключения к интернету', 'Проверьте Wi-Fi или мобильный интернет. SahaPlay подключится автоматически, как только сеть появится.', 'Повторить', 'Проверка…', 'Всё ещё нет сети'],
+      ar: ['لا يوجد اتصال بالإنترنت', 'تحقق من الواي فاي أو بيانات الجوال. سيعيد SahaPlay الاتصال تلقائيًا بمجرد عودة الإنترنت.', 'حاول مرة أخرى', 'جارٍ التحقق…', 'ما زلت غير متصل'],
+      ja: ['インターネットに接続されていません', 'Wi-Fiまたはモバイルデータをご確認ください。接続が戻ると SahaPlay が自動的に再接続します。', '再試行', '確認中…', 'まだオフラインです'],
+      ko: ['인터넷에 연결되어 있지 않습니다', 'Wi-Fi 또는 모바일 데이터를 확인해 주세요. 연결되면 SahaPlay가 자동으로 다시 연결됩니다.', '다시 시도', '확인 중…', '아직 오프라인입니다'],
+      zh: ['无网络连接', '请检查 Wi-Fi 或移动数据。网络恢复后，SahaPlay 会自动重新连接。', '重试', '检查中…', '仍处于离线状态'],
+      bn: ['ইন্টারনেট সংযোগ নেই', 'আপনার Wi-Fi বা মোবাইল ডেটা পরীক্ষা করুন। ইন্টারনেট ফিরলেই SahaPlay নিজে থেকে সংযুক্ত হবে।', 'আবার চেষ্টা করুন', 'পরীক্ষা করা হচ্ছে…', 'এখনও অফলাইন'],
+      gu: ['ઇન્ટરનેટ કનેક્શન નથી', 'તમારું Wi-Fi અથવા મોબાઇલ ડેટા તપાસો. ઇન્ટરનેટ આવતાં જ SahaPlay આપમેળે જોડાઈ જશે.', 'ફરી પ્રયાસ કરો', 'તપાસી રહ્યા છીએ…', 'હજી ઑફલાઇન'],
+      mr: ['इंटरनेट कनेक्शन नाही', 'तुमचे Wi-Fi किंवा मोबाइल डेटा तपासा. इंटरनेट येताच SahaPlay आपोआप कनेक्ट होईल.', 'पुन्हा प्रयत्न करा', 'तपासत आहे…', 'अजूनही ऑफलाइन'],
+      pa: ['ਇੰਟਰਨੈੱਟ ਕਨੈਕਸ਼ਨ ਨਹੀਂ ਹੈ', 'ਆਪਣਾ Wi-Fi ਜਾਂ ਮੋਬਾਈਲ ਡਾਟਾ ਚੈੱਕ ਕਰੋ। ਇੰਟਰਨੈੱਟ ਆਉਂਦੇ ਹੀ SahaPlay ਆਪਣੇ-ਆਪ ਜੁੜ ਜਾਵੇਗਾ।', 'ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ', 'ਚੈੱਕ ਕਰ ਰਹੇ ਹਾਂ…', 'ਅਜੇ ਵੀ ਔਫਲਾਈਨ']
+    };
+    // Same language the app itself uses (i18next stores the choice here), else the device's.
+    var stored = ''; try { stored = localStorage.getItem('watch_language') || ''; } catch (e) {}
+    var code = (stored || navigator.language || 'en').toLowerCase().split('-')[0];
+    var s = strings[code] || strings.en;
+    if (code === 'ar') document.documentElement.dir = 'rtl';
+    document.documentElement.lang = strings[code] ? code : 'en';
+    document.getElementById('t').textContent = s[0];
+    document.getElementById('d').textContent = s[1];
+    btn.textContent = s[2];
+
+    function goBack() { location.reload(); }
+
+    function check() {
+      if (busy) return;
+      busy = true; btn.disabled = true; status.textContent = s[3];
+      // A real request, not just navigator.onLine (which can say "online" behind a dead network).
+      fetch('/manifest.json?ts=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { if (r.ok) goBack(); else throw new Error('x'); })
+        .catch(function () { status.textContent = s[4]; setTimeout(function () { status.textContent = ''; }, 2500); })
+        .then(function () { busy = false; btn.disabled = false; });
+    }
+
+    btn.addEventListener('click', check);
+    window.addEventListener('online', check);
+    setInterval(function () { if (navigator.onLine) check(); }, 5000);
+  })();
+</script>
+</body>
+</html>
