@@ -203,6 +203,17 @@ public class SahaplayFirebaseMessagingService extends MessagingService {
                 nm.notify(notificationId, builder.build());
             }
         } else if ("dm".equals(data.get("type")) || "room".equals(data.get("type"))) {
+            // App is open and on screen: the live socket already delivers this
+            // message, and the web layer shows its own in-app toast + tone for
+            // chats you are NOT viewing and stays completely silent for the
+            // chat you ARE viewing. Posting this system notification (and
+            // playing the tone) on top of that made an open chat beep and pop
+            // a banner for its own messages. Still shown whenever the app is
+            // in the background or closed (isForeground() defaults to false
+            // whenever uncertain).
+            if (MainActivity.isForeground()) {
+                return;
+            }
             // A chat message push. This USED TO be sent as a plain
             // `notification`-block FCM message (not data-only like every
             // branch above) — Android auto-displays that itself, using its
