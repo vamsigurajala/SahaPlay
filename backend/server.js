@@ -6875,75 +6875,175 @@ app.put('/api/profile/username', authenticateToken, async (req, res) => {
 });
 
 // ── DELETE User Account ──
-app.delete('/api/profile', authenticateToken, (req, res) => {
-  // First get the username and role to delete rooms and enforce guards
-  db.get('SELECT username, role FROM users WHERE id = ?', [req.user.id], (err, user) => {
-    if (err || !user) return res.status(500).json({ error: 'Failed to find user' });
+// Removes everything that belongs to the deleting user, while leaving other
+// people's conversations with them intact:
+//   • Their own data is deleted: profile row, avatar + ringtone files,
+//     passkey/biometric credentials, follows/blocks, push tokens, seen
+//     records, and every room they host (room row, the room's chat, bans,
+//     thumbnail file; live members are kicked).
+//   • Messages they sent to OTHER people (DMs, and groups/rooms they don't
+//     host) are NOT deleted — those rows are the other person's history.
+//     Only the deleting user's own readable copy ("senderMessage") is wiped.
+//     Media in those messages is left alone and expires on its normal
+//     media_expires_at schedule.
+// A confirmation email is sent to the address on file once deletion is done.
+function buildAccountDeletedEmail(username) {
+  const safeName = String(username || '').replace(/[<>&"']/g, '');
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',Arial,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 16px"><tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb">
+  <tr><td style="background:linear-gradient(135deg,#7c3aed,#ec4899);padding:28px 40px">
+    <div style="color:#ffffff;font-size:22px;font-weight:800">SahaPlay</div>
+    <div style="color:rgba(255,255,255,0.85);font-size:13px;margin-top:2px">Account deleted</div>
+  </td></tr>
+  <tr><td style="padding:36px 40px;color:#111827">
+    <p style="margin:0 0 16px;font-size:16px">Hi ${safeName},</p>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151">Your SahaPlay account has been deleted. Your profile, avatar, followers and following, rooms you hosted and your saved devices have been permanently removed.</p>
+    <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151">Messages you sent to other people stay in their chat history until they expire, and media in them is removed when it expires.</p>
+    <p style="margin:0;font-size:14px;line-height:1.6;color:#6b7280">If you didn't request this, please contact us right away at <a href="mailto:${EMAILS.contact}" style="color:#7c3aed">${EMAILS.contact}</a>.</p>
+  </td></tr>
+  <tr><td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:20px 40px">
+    <p style="margin:0;color:#9ca3af;font-size:12px">&copy; ${new Date().getFullYear()} SahaPlay</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>`;
+  const text = `Hi ${safeName},\n\nYour SahaPlay account has been deleted. Your profile, avatar, followers and following, rooms you hosted and your saved devices have been permanently removed.\n\nMessages you sent to other people stay in their chat history until they expire, and media in them is removed when it expires.\n\nIf you didn't request this, contact us at ${EMAILS.contact}.\n\nThe SahaPlay Team`;
+  return { html, text };
+}
+
+// Extracts the object path inside a Supabase storage bucket from a public URL.
+function storagePathFromPublicUrl(url, bucket) {
+  if (!url || typeof url !== 'string') return null;
+  const marker = `/storage/v1/object/public/${bucket}/`;
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  const p = decodeURIComponent(url.slice(idx + marker.length).split('?')[0]);
+  return p || null;
+}
+
+app.delete('/api/profile', authenticateToken, async (req, res) => {
+  try {
+    const user = await queryGet('SELECT username, role, email, "avatarPath", "ringtonePath" FROM users WHERE id = ?', [req.user.id]);
+    if (!user) return res.status(500).json({ error: 'Failed to find user' });
 
     // [VERIFIED D-4] super_admin self-delete blocked
     if (user.role === 'super_admin') {
       return res.status(403).json({ error: 'Super admin accounts cannot be self-deleted. Use the Supabase dashboard to manage this account.' });
     }
 
-    // Delete from users table
-    db.run('DELETE FROM users WHERE id = ?', [req.user.id], function(err) {
-      if (err) {
-        console.error('DELETE ACCOUNT ERROR (users):', err);
-        return res.status(500).json({ error: 'Failed to delete account (main table)' });
-      }
-
-      // follows/blocks rows referencing this username aren't cleaned up by
-      // a FK cascade (follows/blocks store usernames, not a users.id FK) —
-      // without this, every one of this account's old followers/following
-      // relationships lingers forever as a row the followers-count query
-      // still counts but the followers LIST can never render (it inner-
-      // joins users), silently drifting the two out of sync for everyone
-      // who was connected to this account.
-      db.run('DELETE FROM follows WHERE LOWER("followerId") = LOWER(?) OR LOWER("followingId") = LOWER(?)', [user.username, user.username], function(err) {
-        if (err) console.error('DELETE ACCOUNT ERROR (follows):', err);
-      });
-      db.run('DELETE FROM blocks WHERE LOWER(blocker) = LOWER(?) OR LOWER(blocked) = LOWER(?)', [user.username, user.username], function(err) {
-        if (err) console.error('DELETE ACCOUNT ERROR (blocks):', err);
-      });
-
-      // These four were previously left uncleaned — the exact gap that let
-      // a properly-deleted (through this very endpoint) account still leave
-      // orphaned rows behind, later causing PUT /api/profile/username to
-      // fail with a generic 500 for whoever tried to reclaim the name (see
-      // the "sam" production incident this closes). message_seen and
-      // pending_notifications in particular carry real UNIQUE/PRIMARY KEY
-      // constraints on username, so leaving them behind isn't just clutter
-      // — it actively blocks the next person from claiming this name.
-      db.run('DELETE FROM message_seen WHERE LOWER(username) = LOWER(?)', [user.username], function(err) {
-        if (err) console.error('DELETE ACCOUNT ERROR (message_seen):', err);
-      });
-      db.run('DELETE FROM push_tokens WHERE LOWER(username) = LOWER(?)', [user.username], function(err) {
-        if (err) console.error('DELETE ACCOUNT ERROR (push_tokens):', err);
-      });
-      db.run('DELETE FROM webpush_subscriptions WHERE LOWER(username) = LOWER(?)', [user.username], function(err) {
-        if (err) console.error('DELETE ACCOUNT ERROR (webpush_subscriptions):', err);
-      });
-      db.run('DELETE FROM pending_notifications WHERE LOWER(username) = LOWER(?)', [user.username], function(err) {
-        if (err) console.error('DELETE ACCOUNT ERROR (pending_notifications):', err);
-      });
-
-      // Sender-only: removes everything this account authored (DMs + group
-      // messages) without touching messages OTHER people sent them — a DM row
-      // is shared storage (recipient ciphertext + sender's-own-copy ciphertext
-      // on the same row), so deleting rows where they were merely the
-      // recipient would also erase the counterparty's own sent message from
-      // the counterparty's history, which they never asked to lose.
-      db.run('DELETE FROM messages WHERE LOWER("senderName") = LOWER(?)', [user.username], function(err) {
-        if (err) console.error('DELETE ACCOUNT ERROR (messages):', err);
-      });
-
-      // Also delete any rooms they were hosting
-      db.run('DELETE FROM room_names WHERE hostUsername = ?', [user.username], function(err) {
-        if (err) console.error('DELETE ACCOUNT ERROR (room_names):', err);
-        res.json({ message: 'Account permanently deleted' });
+    const username = user.username;
+    const run = (sql, params, label) => new Promise(resolve => {
+      db.run(sql, params, function(err) {
+        if (err) console.error(`DELETE ACCOUNT ERROR (${label}):`, err);
+        resolve();
       });
     });
-  });
+
+    // Rooms this account hosts — captured BEFORE anything is deleted.
+    let hostedRooms = [];
+    try {
+      hostedRooms = await queryAll('SELECT "roomId", "thumbnailPath" FROM room_names WHERE LOWER("hostUsername") = LOWER(?)', [username]);
+    } catch (e) {
+      console.error('DELETE ACCOUNT ERROR (hosted rooms lookup):', e);
+    }
+
+    // Delete from users table (the one step that must succeed)
+    try {
+      await new Promise((resolve, reject) => db.run('DELETE FROM users WHERE id = ?', [req.user.id], err => err ? reject(err) : resolve()));
+    } catch (err) {
+      console.error('DELETE ACCOUNT ERROR (users):', err);
+      return res.status(500).json({ error: 'Failed to delete account (main table)' });
+    }
+
+    // follows/blocks store usernames (no FK cascade) — clean both directions.
+    await run('DELETE FROM follows WHERE LOWER("followerId") = LOWER(?) OR LOWER("followingId") = LOWER(?)', [username, username], 'follows');
+    await run('DELETE FROM blocks WHERE LOWER(blocker) = LOWER(?) OR LOWER(blocked) = LOWER(?)', [username, username], 'blocks');
+
+    // message_seen and pending_notifications carry UNIQUE/PRIMARY KEY
+    // constraints on username, so leftovers would block the next person
+    // from claiming this name.
+    await run('DELETE FROM message_seen WHERE LOWER(username) = LOWER(?)', [username], 'message_seen');
+    await run('DELETE FROM push_tokens WHERE LOWER(username) = LOWER(?)', [username], 'push_tokens');
+    await run('DELETE FROM webpush_subscriptions WHERE LOWER(username) = LOWER(?)', [username], 'webpush_subscriptions');
+    await run('DELETE FROM pending_notifications WHERE LOWER(username) = LOWER(?)', [username], 'pending_notifications');
+
+    // Passkey / biometric credentials (keyed by account id, no FK).
+    await run('DELETE FROM device_credentials WHERE account_id = ?', [req.user.id], 'device_credentials');
+
+    // Room-level bans that name this user.
+    await run('DELETE FROM room_bans WHERE LOWER(username) = LOWER(?)', [username], 'room_bans');
+
+    // Their own readable copy of messages they sent. The row itself stays:
+    // it is the other participant's history (and the recipient's copy of the
+    // message and any media on it are untouched).
+    await run('UPDATE messages SET "senderMessage" = NULL WHERE LOWER("senderName") = LOWER(?)', [username], 'messages senderMessage');
+
+    // Rooms they host are deleted outright, exactly like a host deleting
+    // their own room: live members are kicked, the room's chat is removed.
+    const thumbnailFiles = [];
+    for (const room of hostedRooms) {
+      const roomId = room.roomId;
+      try {
+        deletingRooms.add(roomId);
+        io.in(roomId).emit('kicked_out', { reason: 'room_deleted' });
+        io.emit('room_permanently_deleted', { roomId });
+        rooms.delete(roomId);
+      } catch (e) {
+        console.error('DELETE ACCOUNT ERROR (room kick):', e.message);
+      }
+      await run(`DELETE FROM messages WHERE "roomId" = ? AND type IN ('room', 'group')`, [roomId], `room messages ${roomId}`);
+      await run('DELETE FROM room_names WHERE "roomId" = ?', [roomId], `room_names ${roomId}`);
+      await run('DELETE FROM pinned_rooms WHERE roomId = ?', [roomId], `pinned_rooms ${roomId}`);
+      await run('DELETE FROM room_bans WHERE roomId = ?', [roomId], `room_bans ${roomId}`);
+      const thumb = storagePathFromPublicUrl(room.thumbnailPath, 'room-thumbnails');
+      if (thumb) thumbnailFiles.push(thumb);
+    }
+
+    // Stored files: avatar, ringtone, and the hosted rooms' thumbnails.
+    const avatarFile = storagePathFromPublicUrl(user.avatarPath, 'avatars');
+    const ringtoneFile = storagePathFromPublicUrl(user.ringtonePath, 'encrypted-media');
+    const removeFiles = async (bucket, paths) => {
+      if (!paths.length) return;
+      try {
+        const { error } = await supabase.storage.from(bucket).remove(paths);
+        if (error) console.error(`DELETE ACCOUNT ERROR (storage ${bucket}):`, error.message);
+      } catch (e) {
+        console.error(`DELETE ACCOUNT ERROR (storage ${bucket}):`, e.message);
+      }
+    };
+    await removeFiles('avatars', avatarFile ? [avatarFile] : []);
+    await removeFiles('encrypted-media', ringtoneFile ? [ringtoneFile] : []);
+    await removeFiles('room-thumbnails', thumbnailFiles);
+
+    // Drop any live sockets / cached data for this account.
+    try {
+      const sockets = connectedSockets.get(username.toLowerCase());
+      if (sockets) sockets.forEach(sid => io.sockets.sockets.get(sid)?.disconnect(true));
+      publicKeyCache.delete(username.toLowerCase());
+      invalidateCacheForUser(username);
+    } catch (e) {
+      console.error('DELETE ACCOUNT ERROR (live session cleanup):', e.message);
+    }
+
+    // Confirmation email — fire and forget; sendEmail never throws.
+    if (user.email) {
+      const { html, text } = buildAccountDeletedEmail(username);
+      sendEmail({
+        to: user.email,
+        subject: 'Your SahaPlay account has been deleted',
+        text,
+        html,
+        replyTo: EMAILS.contact,
+      });
+    }
+
+    res.json({ message: 'Account permanently deleted' });
+  } catch (err) {
+    console.error('DELETE ACCOUNT ERROR:', err);
+    if (!res.headersSent) res.status(500).json({ error: 'Failed to delete account' });
+  }
 });
 
 // â"€â"€ Upload Avatar â"€â"€
