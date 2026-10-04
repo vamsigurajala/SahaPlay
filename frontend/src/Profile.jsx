@@ -1321,6 +1321,12 @@ const Profile = () => {
         .delete-modal-label { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
         .delete-modal-cancel { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; border: 1px solid rgba(255,255,255,0.2) !important; }
         .delete-modal-confirm { background: #ef4444 !important; }
+        .delete-modal-card { position: relative; }
+        h3.delete-modal-title { color: #ef4444 !important; -webkit-text-fill-color: #ef4444 !important; padding-right: 36px; }
+        .delete-modal-close { position: absolute; top: 14px; right: 14px; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(255,255,255,0.1); color: #ffffff !important; -webkit-text-fill-color: #ffffff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; transition: background 0.15s; }
+        .delete-modal-close:hover { background: rgba(255,255,255,0.2); }
+        html[data-theme='light'] .delete-modal-close { background: rgba(0,0,0,0.06); color: #334155 !important; -webkit-text-fill-color: #334155; }
+        html[data-theme='light'] .delete-modal-close:hover { background: rgba(0,0,0,0.12); }
         html[data-theme='light'] .delete-modal-overlay { background: rgba(255,255,255,0.35) !important; }
         html[data-theme='light'] .delete-modal-card { background: rgba(255,255,255,0.85) !important; backdrop-filter: blur(24px) !important; -webkit-backdrop-filter: blur(24px) !important; border: 1px solid rgba(0,0,0,0.1) !important; box-shadow: 0 16px 40px rgba(0,0,0,0.12) !important; }
         html[data-theme='light'] .delete-modal-text { color: #475569 !important; -webkit-text-fill-color: #475569 !important; }
@@ -2471,9 +2477,12 @@ const Profile = () => {
 
       {/* Delete Account Modal */}
       {showDeleteModal && (
-        <div className="delete-modal-overlay">
+        <div className="delete-modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowDeleteModal(false); }}>
           <div className="delete-modal-card">
-            <h3 className="stay-red" style={{ fontSize: 20, fontWeight: 700, margin: '0 0 12px' }}>{t('deleteAccountConfirmTitle', 'Delete Account')}</h3>
+            <button type="button" className="delete-modal-close" aria-label={t('close', 'Close')} onClick={() => setShowDeleteModal(false)}>
+              <X size={18} />
+            </button>
+            <h3 className="stay-red delete-modal-title" style={{ fontSize: 20, fontWeight: 700, margin: '0 0 12px' }}>{t('deleteAccountConfirmTitle', 'Delete Account')}</h3>
             <p className="delete-modal-text" style={{ fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>{t('deleteAccountConfirmDesc', 'Are you absolutely sure? Everything will be permanently deleted.')}</p>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 8, cursor: 'pointer' }}>
               <input type="checkbox" checked={deleteChecked} onChange={e => { setDeleteChecked(e.target.checked); if (e.target.checked) setShowDeleteError(false); }} style={{ marginTop: 2 }} />
