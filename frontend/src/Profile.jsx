@@ -5,6 +5,7 @@ import { resetPrefetchCooldown } from './cache/prefetch.js';
 import { useSearchHistory } from './hooks/useSearchHistory';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { blockPullToRefresh, unblockPullToRefresh } from './lib/pullToRefreshGate';
 import { Play, ArrowLeft, Camera, Check, X, Eye, EyeOff, Shield, User as UserIcon, Mail, Lock, Edit2, ChevronDown, Trash2, Settings, LogOut, HelpCircle, Search, MessageSquare, AlertCircle, UserPlus, UserCheck, UserX, Users, Bell, MoreVertical, Flag, Share2, Ban, Sparkles, AtSign, Upload, Download, Fingerprint } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { FaLinkedin, FaTelegramPlane, FaWhatsapp, FaInstagram, FaSnapchatGhost, FaRedditAlien, FaDiscord, FaFacebookF, FaPinterestP, FaTwitch } from 'react-icons/fa';
@@ -221,6 +222,12 @@ const Profile = () => {
   const { history: searchHistory, addToHistory: addToSearchHistory, removeFromHistory: removeFromSearchHistory, clearHistory: clearSearchHistory } = useSearchHistory();
   const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
   const [showNotifications, setShowNotifications] = useState(false);
+  // Scrolling inside the open notifications panel must never trigger the page's pull-to-refresh.
+  useEffect(() => {
+    if (!showNotifications) return undefined;
+    blockPullToRefresh();
+    return () => unblockPullToRefresh();
+  }, [showNotifications]);
   const [unreadCounts, setUnreadCounts] = useState(() => {
     try { return JSON.parse(localStorage.getItem('chat_unread_counts') || '{}'); } catch { return {}; }
   });

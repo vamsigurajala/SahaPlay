@@ -12,6 +12,7 @@ import GlobalChatWidget from './GlobalChatWidget';
 import SupportModal from './SupportModal';
 import DownloadAppModal from './DownloadAppModal';
 import NotificationsPanelContent from './NotificationsPanelContent';
+import { blockPullToRefresh, unblockPullToRefresh } from '../lib/pullToRefreshGate';
 import ProfileActionMenu from './ProfileActionMenu';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
@@ -77,6 +78,12 @@ const Navbar = () => {
   const { history: searchHistory, addToHistory: addToSearchHistory, removeFromHistory: removeFromSearchHistory, clearHistory: clearSearchHistory } = useSearchHistory();
   const [showRecentChats, setShowRecentChats] = useState(getPersistedGcwOpen);
   const [showNotifications, setShowNotifications] = useState(false);
+  // Scrolling inside the open notifications panel must never trigger the page's pull-to-refresh.
+  useEffect(() => {
+    if (!showNotifications) return undefined;
+    blockPullToRefresh();
+    return () => unblockPullToRefresh();
+  }, [showNotifications]);
   const { followRequests, allowRequest, followBack } = useFollowRequests();
   const [isAppFullscreen, setIsAppFullscreen] = useState(false);
   const [profile, setProfile] = useState(() => {
