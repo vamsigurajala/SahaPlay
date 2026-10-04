@@ -2301,22 +2301,26 @@ export default function RoomChatPanel({ p }) {
   // Any transient overlay (forward picker, bulk-delete confirm, clear-chat
   // confirm) open on top of the chat gets its own back-intercept level, so a
   // swipe-back/hardware-back closes just that overlay instead of falling
-  // through and closing the whole chat. Message multi-select itself is NOT
-  // part of this stack — it should stay selected while the overlay above it
-  // closes, and only clears via its own Cancel/X or when the chat is left.
+  // through and closing the whole chat. Message multi-select is its own level
+  // below those overlays: a swipe-back with the overlay open closes just the
+  // overlay (selection stays); a swipe-back with only messages selected
+  // clears the selection and stays in the chat; only a swipe-back with
+  // nothing selected leaves the chat.
   const anyChatOverlayOpen = !!(forwardPickerOpen || bulkDeleteConfirm || clearGroupChatModalOpen);
 
   // Mobile/iPad swipe-back (and hardware back) should return to the chat
   // list instead of leaving the room. Without this, swiping back while a
   // group/DM chat is open falls through to the browser's real back
   // navigation and exits to the home page.
-  useBackIntercept(p.chatTab === 'list' ? 0 : (anyChatOverlayOpen ? 2 : 1), (newLevel) => {
-    if (newLevel === 0) handleBackToList();
-    else if (newLevel === 1) {
+  useBackIntercept(p.chatTab === 'list' ? 0 : 1 + (anyChatOverlayOpen ? 1 : 0) + (msgSelectMode ? 1 : 0), (newLevel) => {
+    if (newLevel === 0) { handleBackToList(); return; }
+    if (anyChatOverlayOpen) {
       setForwardPickerOpen(false);
       setBulkDeleteConfirm(false);
       setClearGroupChatModalOpen(false);
+      return;
     }
+    if (msgSelectMode) exitMsgSelectMode();
   });
 
   useAutoResizeTextarea(p.groupInputRef, p.groupChatInput);

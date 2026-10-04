@@ -2612,10 +2612,33 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // the chat is already the thing on screen, so those entries only affect
   // how many further swipes it takes to close the widget from there, not
   // how many it took to get back to it.
-  const gcwLevel = hiddenByProfileRoute ? 0 : (showThemeSheet ? gcwBaseLevel + 1 : gcwBaseLevel);
+  // Selected messages are one more level on top (below any overlay/theme
+  // sheet opened over them): swipe-back first clears the selection and stays
+  // in the chat, and only leaves the chat when nothing is selected.
+  const selectingMessages = view === 'chat' && msgSelectMode;
+  const gcwLevel = hiddenByProfileRoute ? 0 : gcwBaseLevel + (showThemeSheet ? 1 : 0) + (selectingMessages ? 1 : 0);
   const gcwBack = useBackIntercept(gcwLevel, (newLevel) => {
-    if (showThemeSheet && newLevel === gcwBaseLevel) {
+    if (showThemeSheet) {
       setShowThemeSheet(false);
+      return;
+    }
+    if (view === 'chat' && msgSelectMode) {
+      if (anyChatOverlayOpen) {
+        // Overlay (forward picker, delete confirm...) open over the selection:
+        // close just the overlay and keep the selection.
+        setForwardPickerOpen(false);
+        setBulkDeleteConfirm(false);
+        setClearChatModalOpen(false);
+        setClearGroupChatModalOpen(false);
+        setRenameModalOpen(false);
+        setShowMasterKeyModal(false);
+        setShowChangePinModal(false);
+        setShowPollComposer(false);
+        setEditingPollMsg(null);
+        setPollVotesTargetKey(null);
+      } else {
+        exitMsgSelectMode();
+      }
       return;
     }
     if (newLevel === 0) {
