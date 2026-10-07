@@ -182,6 +182,9 @@ jobs:
       # which isn't pinned against), so the match target itself is safe.
       # Gradle 8.11.1 (already in use per the CI log) satisfies AGP 8.9.1's
       # minimum Gradle requirement, so the wrapper itself needs no change.
+      #
+      # minSdkVersion 24: Play Console's automatic protection (Play Integrity)
+      # rejects bundles with minSdk below 24; Capacitor's default is 23.
       - name: Bump compileSdk/targetSdk and AGP for androidx.browser
         working-directory: frontend
         run: |
@@ -189,6 +192,7 @@ jobs:
 
           ext.compileSdkVersion = 36
           ext.targetSdkVersion = 36
+          ext.minSdkVersion = 24
           EOF
           sed -i "s/classpath 'com.android.tools.build:gradle:[^']*'/classpath 'com.android.tools.build:gradle:8.9.1'/" android/build.gradle
           cat android/variables.gradle
