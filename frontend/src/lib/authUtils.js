@@ -13,6 +13,7 @@ export const clearUserSession = () => {
         'chat_group_unread',
         'chat_cleared_partners',
         'pinned_rooms',
+        'pinned_rooms_cache',
         'wt_kp_pw',
         'wt_sk',
         'wt_spw',
@@ -33,7 +34,8 @@ export const clearUserSession = () => {
         'pinned_room_chats_',
         'wt_pk_',
         'e2e_keypair_',
-        'sp_recent_msgs_'
+        'sp_recent_msgs_',
+        'room_history_cache_'
     ];
 
     keysToRemove.forEach(k => localStorage.removeItem(k));

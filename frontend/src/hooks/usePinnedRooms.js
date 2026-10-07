@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { API } from '../lib/api';
 
@@ -7,10 +7,28 @@ import { API } from '../lib/api';
 // page. `limit` caps how many stored IDs are actually fetched from the
 // server (Home.jsx's preview only ever needs 6; the full page needs all of
 // them), matching each call site's original behavior exactly.
+// Last successfully fetched room details, kept so the list paints instantly on
+// the next visit (then refreshes quietly) instead of starting empty behind a
+// skeleton every time. Only entries whose id is still in the current
+// 'pinned_rooms' id list are ever used, so an unpinned room can't reappear.
+const PINNED_CACHE_KEY = 'pinned_rooms_cache';
+function readPinnedCache(limit) {
+  try {
+    const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
+    const cached = JSON.parse(localStorage.getItem(PINNED_CACHE_KEY) || '[]');
+    if (!Array.isArray(stored) || !Array.isArray(cached)) return [];
+    const ids = new Set(limit ? stored.slice(0, limit) : stored);
+    return cached.filter(r => r && ids.has(r.id));
+  } catch { return []; }
+}
+
 export function usePinnedRooms({ limit } = {}) {
   const token = localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
-  const [pinnedRooms, setPinnedRooms] = useState([]);
+  const [pinnedRooms, setPinnedRooms] = useState(() => readPinnedCache(limit));
+  // Latest list, readable inside fetchRooms without making it re-create.
+  const pinnedRoomsRef = useRef(pinnedRooms);
+  useEffect(() => { pinnedRoomsRef.current = pinnedRooms; }, [pinnedRooms]);
   // True only while an actual fetch for previously-pinned room IDs is in
   // flight — stays false when there's nothing stored to fetch, so callers
   // can tell "still loading" apart from "genuinely no pinned rooms" instead
@@ -27,7 +45,10 @@ export function usePinnedRooms({ limit } = {}) {
     try {
       const stored = JSON.parse(localStorage.getItem('pinned_rooms') || '[]');
       if (stored.length > 0) {
-        if (!isRetry) setIsLoading(true);
+        // Only show the loading skeleton when there is nothing to show yet — a
+        // background refresh (app resume, tab focus) must not blank a list the
+        // user is already looking at.
+        if (!isRetry && pinnedRoomsRef.current.length === 0) setIsLoading(true);
         const ids = limit ? stored.slice(0, limit) : stored;
         // Bounded wait — without this, a request that never settles at all
         // (a genuine network hang, as opposed to a fast failure) left the
@@ -40,7 +61,10 @@ export function usePinnedRooms({ limit } = {}) {
         fetch(`${API}/api/rooms/info?ids=${ids.join(',')}`, { signal: controller.signal })
           .then(r => { if (!r.ok) throw new Error('bad response'); return r.json(); })
           .then(data => {
-            if (Array.isArray(data)) setPinnedRooms(data); else setPinnedRooms([]);
+            if (Array.isArray(data)) {
+              setPinnedRooms(data);
+              try { localStorage.setItem(PINNED_CACHE_KEY, JSON.stringify(data)); } catch { /* storage full/blocked: cache is optional */ }
+            } else setPinnedRooms([]);
             setIsLoading(false);
           })
           .catch(() => {
@@ -50,6 +74,7 @@ export function usePinnedRooms({ limit } = {}) {
           .finally(() => clearTimeout(timeoutId));
       } else {
         setPinnedRooms([]);
+        try { localStorage.removeItem(PINNED_CACHE_KEY); } catch { /* ignore */ }
         setIsLoading(false);
       }
     } catch (e) { setIsLoading(false); }
@@ -104,8 +129,11 @@ export function usePinnedRooms({ limit } = {}) {
         if (data.pinnedRooms) {
           try {
             const arr = JSON.parse(data.pinnedRooms);
-            localStorage.setItem('pinned_rooms', JSON.stringify(arr));
-            fetchRooms();
+            const before = localStorage.getItem('pinned_rooms');
+            const after = JSON.stringify(arr);
+            localStorage.setItem('pinned_rooms', after);
+            // Skip the second request when the saved list already matched.
+            if (before !== after) fetchRooms();
           } catch (e) { }
         }
       })

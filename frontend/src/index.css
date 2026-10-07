@@ -246,6 +246,18 @@ body {
   }
 }
 
+/* Phones and tablets (touch): the pan animation above can't be composited, so
+   every frame repaints the whole scrolled page — the cause of sluggish
+   scrolling on Home / Pinned Rooms / Room History in the Android app and
+   mobile browsers. Freeze it at its own first frame (0% 50%, identical to the
+   keyframe's start) so the background looks the same, just still. */
+@media (pointer: coarse), (max-width: 767px) {
+  body {
+    animation: none;
+    background-position: 0% 50%;
+  }
+}
+
 /* ── Desktop app (.exe / Tauri WebView2) scroll fixes ─────────────────────
    1. The body's animated gradient background forces WebView2 to repaint the
       whole page on every scroll frame (it can't composite a scroll whose

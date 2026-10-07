@@ -267,6 +267,7 @@ export default function HomeTab({ roomId, setRoomId, handleJoin, createRoom, pin
                 width: '200%',
                 transform: `translateX(calc(${activeIndex === 0 ? '0%' : '-50%'} + ${dragX}px))`,
                 transition: isSwipeDragging ? 'none' : 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
+                willChange: isSwipeDragging ? 'transform' : undefined,
               }}>
                 {/* Each panel sizes to its own content: the off-screen one is
                     collapsed (after the slide finishes, and never mid-drag) so
