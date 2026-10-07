@@ -5984,6 +5984,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
     isSendingGlobalRef.current = true;
     let tempId = null;
     let previousConversations = null;
+    // Declared outside the try so the catch below can put the text back in the
+    // input when a send fails (a block-scoped const wasn't visible there).
+    let rawText = '';
     try {
       // ── Client-side room permission checks ──
       if (activeChat.type === 'room' && activeChat.permissions && !activeChat.isHost) {
@@ -6002,7 +6005,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
         }
       }
 
-      const rawText = inputValue.trim();
+      rawText = inputValue.trim();
       const ts = Date.now();
       tempId = `opt-${ts}`;
       const optimisticMsg = {

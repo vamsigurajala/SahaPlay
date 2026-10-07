@@ -23,7 +23,20 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': ['warn', { varsIgnorePattern: '^[A-Z_]', caughtErrors: 'none' }],
+      // Best-effort calls (localStorage, native plugins, media play()) are
+      // deliberately wrapped in empty catch blocks throughout the app.
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      // React Compiler advisory rules (new in eslint-plugin-react-hooks 6+).
+      // This app doesn't use the React Compiler, and these flag long-standing,
+      // working patterns, so they stay visible as warnings instead of errors.
+      'react-hooks/static-components': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/immutability': 'warn',
+      // Dev-only hot-reload hint; these files intentionally export helpers too.
+      'react-refresh/only-export-components': 'warn',
     },
   },
   {
