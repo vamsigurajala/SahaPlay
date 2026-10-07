@@ -16,6 +16,8 @@ import android.media.ImageReader;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
 import android.util.Base64;
 import android.util.Log;
@@ -57,11 +59,21 @@ public class SahaplayScreenCaptureService extends Service {
     private static final int NOTIFICATION_ID = 4471;
     // ~12fps — smooth enough for screen share while keeping the JPEG-encode
     // cost and the JSON/Base64 payload size over the WebView bridge sane.
-    private static final long MIN_FRAME_INTERVAL_MS = 80;
+    private static final long MIN_FRAME_INTERVAL_MS = 100;
+    // Long edge of the captured frame. A full-resolution phone screen (e.g.
+    // 1080x2400) is far more than the call needs — the web side caps it at
+    // 1280 anyway — so capturing smaller cuts the per-frame copy, JPEG and
+    // Base64 work (and the data crossing the WebView bridge) by about half.
+    private static final int MAX_CAPTURE_LONG_EDGE = 1280;
 
     private MediaProjection mediaProjection;
     private VirtualDisplay virtualDisplay;
     private ImageReader imageReader;
+    // Frame processing (pixel copy + JPEG + Base64) runs on this thread. With a
+    // null handler ImageReader delivers on the calling thread — the app's MAIN
+    // thread — so every frame stalled the UI while sharing.
+    private HandlerThread captureThread;
+    private Handler captureHandler;
     private long lastFrameAt = 0;
 
     private final MediaProjection.Callback projectionCallback = new MediaProjection.Callback() {
@@ -100,6 +112,15 @@ public class SahaplayScreenCaptureService extends Service {
         int height = intent.getIntExtra(EXTRA_HEIGHT, 1920);
         int density = intent.getIntExtra(EXTRA_DENSITY, 320);
 
+        // Scale down (keeping aspect ratio, even dimensions) when the screen is larger
+        // than needed.
+        int longEdge = Math.max(width, height);
+        if (longEdge > MAX_CAPTURE_LONG_EDGE) {
+            float scale = (float) MAX_CAPTURE_LONG_EDGE / longEdge;
+            width = Math.max(2, Math.round(width * scale / 2f) * 2);
+            height = Math.max(2, Math.round(height * scale / 2f) * 2);
+        }
+
         if (resultData == null) {
             stopSelf();
             return START_NOT_STICKY;
@@ -110,7 +131,10 @@ public class SahaplayScreenCaptureService extends Service {
         mediaProjection.registerCallback(projectionCallback, null);
 
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2);
-        imageReader.setOnImageAvailableListener(reader -> onImageAvailable(reader), null);
+        captureThread = new HandlerThread("SahaplayScreenCaptureFrames");
+        captureThread.start();
+        captureHandler = new Handler(captureThread.getLooper());
+        imageReader.setOnImageAvailableListener(reader -> onImageAvailable(reader), captureHandler);
 
         virtualDisplay = mediaProjection.createVirtualDisplay(
             "SahaplayScreenCapture",
@@ -138,16 +162,21 @@ public class SahaplayScreenCaptureService extends Service {
             int rowStride = plane.getRowStride();
             int rowPadding = rowStride - pixelStride * image.getWidth();
 
-            Bitmap bitmap = Bitmap.createBitmap(
+            Bitmap padded = Bitmap.createBitmap(
                 image.getWidth() + rowPadding / pixelStride, image.getHeight(), Bitmap.Config.ARGB_8888
             );
-            bitmap.copyPixelsFromBuffer(buffer);
+            padded.copyPixelsFromBuffer(buffer);
+            Bitmap bitmap = padded;
             if (rowPadding != 0) {
-                bitmap = Bitmap.createBitmap(bitmap, 0, 0, image.getWidth(), image.getHeight());
+                bitmap = Bitmap.createBitmap(padded, 0, 0, image.getWidth(), image.getHeight());
             }
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.JPEG, 55, out);
+            // Free the large pixel buffers right away instead of leaving ~12 a second
+            // for the garbage collector (GC pauses were part of the stutter).
+            if (bitmap != padded) padded.recycle();
+            bitmap.recycle();
             String base64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP);
             SahaplayMediaPlugin.emitScreenFrame(base64, image.getWidth(), image.getHeight());
         } catch (Exception e) {
@@ -177,6 +206,11 @@ public class SahaplayScreenCaptureService extends Service {
     public void onDestroy() {
         if (virtualDisplay != null) virtualDisplay.release();
         if (imageReader != null) imageReader.close();
+        if (captureThread != null) {
+            captureThread.quitSafely();
+            captureThread = null;
+            captureHandler = null;
+        }
         if (mediaProjection != null) {
             mediaProjection.unregisterCallback(projectionCallback);
             mediaProjection.stop();
