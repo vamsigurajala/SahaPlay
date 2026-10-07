@@ -79,6 +79,31 @@ function useRingSound(active, isIncoming) {
   }, [active, isIncoming]);
 }
 
+// While the call is minimized ("Send message") the full call screen — and the
+// <audio> elements it owns — is unmounted, so nothing was playing the peer's
+// voice any more. Beyond the silence, an audio-less WebView gets throttled by
+// Android as soon as the app is closed/backgrounded, its socket drops, and the
+// server ends the call. Keeping the remote audio playing here is what lets the
+// call (and its notification) survive exactly like it does from the full screen.
+function MinimizedAudioSink({ remoteStreams }) {
+  const streams = Object.entries(remoteStreams || {}).filter(([, s]) => !!s);
+  return (
+    <>
+      {streams.map(([key, stream]) => <SinkAudio key={key} stream={stream} />)}
+    </>
+  );
+}
+
+function SinkAudio({ stream }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !stream) return;
+    ref.current.srcObject = stream;
+    ref.current.play().catch(() => {});
+  }, [stream]);
+  return <audio ref={ref} autoPlay playsInline style={{ display: 'none' }} />;
+}
+
 function Avatar({ url, name, size = 96, pulsing }) {
   return (
     <div
@@ -548,12 +573,15 @@ export default function GlobalCallOverlay() {
   if (minimized) {
     const Minimized = isCoarsePointer ? MinimizedCallBar : DraggableCallBubble;
     return (
-      <Minimized
-        callState={callState}
-        networkStatus={call.networkStatus}
-        onRestore={() => setMinimized(false)}
-        onEndCall={call.endCall}
-      />
+      <>
+        <MinimizedAudioSink remoteStreams={call.remoteStreams} />
+        <Minimized
+          callState={callState}
+          networkStatus={call.networkStatus}
+          onRestore={() => setMinimized(false)}
+          onEndCall={call.endCall}
+        />
+      </>
     );
   }
 
