@@ -17,8 +17,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- allowBackup is off: with Android Auto Backup on, uninstalling and reinstalling
+         restored the WebView's saved data (the login session) from Google's cloud backup,
+         so the app skipped the login screen and only asked for the encryption key. Nothing
+         the app needs lives only on the device — accounts, chats and keys are server-side
+         or re-derived from the passphrase. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
