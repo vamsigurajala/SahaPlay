@@ -1645,6 +1645,21 @@ export function CallProvider({ children }) {
     }
   }, []);
 
+  // Android native screen share feeds a canvas track that WebRTC re-encodes in
+  // software on the same phone that is running the UI. Cap bitrate/framerate so
+  // that encoder can't starve the app (the cause of the app turning sluggish
+  // while sharing). Best-effort: any failure leaves the browser defaults.
+  const capNativeShareEncoding = async (sender) => {
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+      params.encodings[0].maxBitrate = 1500000;
+      params.encodings[0].maxFramerate = 15;
+      params.degradationPreference = 'maintain-resolution';
+      await sender.setParameters(params);
+    } catch { /* unsupported: keep defaults */ }
+  };
+
   // stopScreenShare is referenced inside startScreenShare below (native-
   // capture-stopped / track-ended callbacks) before it's actually defined —
   // a plain ref sidesteps needing to restructure both into one another's
@@ -1688,6 +1703,7 @@ export function CallProvider({ children }) {
         const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
         if (sender) {
           await sender.replaceTrack(screenTrack);
+          if (isCapacitorApp()) await capNativeShareEncoding(sender);
         } else {
           pc.addTrack(screenTrack, rawStream);
           const offer = await pc.createOffer();
@@ -1703,6 +1719,9 @@ export function CallProvider({ children }) {
         socketRef.current?.emit('call:mark-video', { callId: cs.callId });
       }
 
+      // Tell the encoder this is on-screen text/UI (favour sharpness, drop frames
+      // before shrinking) — only for the Android native-capture canvas track.
+      if (isCapacitorApp()) { try { screenTrack.contentHint = 'detail'; } catch { /* unsupported: ignore */ } }
       screenShareTrackRef.current = screenTrack;
       screenShareCleanupRef.current = cleanup;
       setScreenShareStream(rawStream);

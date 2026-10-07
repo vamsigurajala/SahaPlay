@@ -66,7 +66,10 @@ export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
   // odd-sized canvas.captureStream() track while Chrome tolerates it. That
   // was exactly the one broken path (mobile share -> desktop .exe viewer).
   // Cap the long edge and force both sides even so every viewer can decode.
-  const MAX_LONG_EDGE = 1600;
+  // 1280 (was 1600): the canvas is re-encoded by WebRTC in software, so every
+  // extra pixel costs CPU on the same phone that is also running the UI —
+  // 1280 on the long edge is still sharp for a phone screen.
+  const MAX_LONG_EDGE = 1280;
   const fitDims = (w, h) => {
     if (!w || !h) return [1280, 720];
     const scale = Math.min(1, MAX_LONG_EDGE / Math.max(w, h));
@@ -82,23 +85,44 @@ export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
   // inside img.onload left the WebRTC track mostly black on the viewer side.
   // A steady rAF loop re-blits the latest decoded frame every tick so the
   // captured stream always has fresh pixels regardless of bridge jitter.
-  const pump = () => {
-    if (haveFrame) {
+  // Throttled to ~15fps: the old loop re-drew the whole canvas on EVERY
+  // display refresh (60-120x/s) although frames only arrive ~12x/s, which kept
+  // the main thread busy and made the whole app sluggish while sharing.
+  const PUMP_INTERVAL_MS = 66;
+  let lastPumpAt = 0;
+  const pump = (ts) => {
+    if (haveFrame && (ts - lastPumpAt) >= PUMP_INTERVAL_MS) {
+      lastPumpAt = ts;
       try { ctx.drawImage(img, 0, 0, canvas.width, canvas.height); } catch {}
     }
     rafId = requestAnimationFrame(pump);
+  };
+
+  // Decode one frame at a time. Assigning img.src while the previous frame is
+  // still decoding restarts the decode, so a burst of frames both wasted CPU
+  // and could starve the display; extra frames that arrive meanwhile are
+  // dropped instead (the next one is only ~80ms away anyway). A watchdog
+  // frees the slot if a frame never finishes or errors out.
+  let decoding = false;
+  let decodeWatchdog = 0;
+  const releaseDecodeSlot = () => {
+    decoding = false;
+    if (decodeWatchdog) { clearTimeout(decodeWatchdog); decodeWatchdog = 0; }
   };
 
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;
+      releaseDecodeSlot();
       removeListenerSafe(frameListenerHandle);
       removeListenerSafe(stopListenerHandle);
       stopNativeScreenCapture();
     };
 
+    img.onerror = () => { releaseDecodeSlot(); };
     img.onload = () => {
+      releaseDecodeSlot();
       const [tw, th] = fitDims(img.naturalWidth, img.naturalHeight);
       if (canvas.width !== tw || canvas.height !== th) {
         canvas.width = tw;
@@ -110,13 +134,16 @@ export async function getNativeScreenCaptureStream({ onUnexpectedStop } = {}) {
         started = true;
         settled = true;
         rafId = requestAnimationFrame(pump);
-        const stream = canvas.captureStream(24);
+        const stream = canvas.captureStream(15);
         resolve({ stream, cleanup });
       }
     };
 
     const frameListenerHandle = p.addListener('screenFrame', (frame) => {
-      if (frame?.data) img.src = `data:image/jpeg;base64,${frame.data}`;
+      if (!frame?.data || decoding) return;
+      decoding = true;
+      decodeWatchdog = setTimeout(releaseDecodeSlot, 1000);
+      img.src = `data:image/jpeg;base64,${frame.data}`;
     });
 
     const stopListenerHandle = p.addListener('screenCaptureStopped', () => {

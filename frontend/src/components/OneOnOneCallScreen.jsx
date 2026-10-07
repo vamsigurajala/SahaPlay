@@ -15,7 +15,7 @@
 // mesh model (CallContext.jsx) means every tile here really is a direct,
 // independently end-to-end-encrypted connection to that person.
 import React, { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle, WifiOff, Maximize2, X } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, Bluetooth, Ear, SwitchCamera, UserPlus, MoreVertical, ScreenShare, MessageCircle, WifiOff, Maximize2, Minimize2, X } from 'lucide-react';
 import { getInitials } from '../utils/avatarUtils';
 import AddToCallSheet from './AddToCallSheet';
 import { isCapacitorApp } from '../lib/platform';
@@ -52,6 +52,68 @@ function AudioRenderer({ stream }) {
     ref.current.play().catch(() => {});
   }, [stream]);
   return <audio ref={ref} autoPlay playsInline style={{ display: 'none' }} />;
+}
+
+// ── Laptop/tablet video fit preference ──────────────────────────────────────
+// A phone's camera is portrait; on a laptop/tablet screen 'cover' stretches it
+// to fill the whole window and crops it. On larger screens people can choose:
+//   'fit'  = mobile view (default) — whole portrait frame, centred, uncropped
+//   'fill' = expanded — fills the screen (the previous behaviour)
+// Phones always keep 'cover'. The choice is remembered on this device.
+const FIT_KEY = 'sp_call_video_fit';
+const FIT_EVENT = 'sp-call-video-fit-change';
+const isLargeScreen = () => typeof window !== 'undefined'
+  && Math.min(window.innerWidth, window.innerHeight) >= 600;
+const readFitPref = () => {
+  try { return localStorage.getItem(FIT_KEY) === 'fill' ? 'fill' : 'fit'; } catch { return 'fit'; }
+};
+
+function useVideoFit() {
+  const [large, setLarge] = useState(isLargeScreen);
+  const [mode, setMode] = useState(readFitPref);
+  useEffect(() => {
+    const onResize = () => setLarge(isLargeScreen());
+    const onChange = () => setMode(readFitPref());
+    window.addEventListener('resize', onResize);
+    window.addEventListener(FIT_EVENT, onChange);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener(FIT_EVENT, onChange);
+    };
+  }, []);
+  const toggle = () => {
+    const next = readFitPref() === 'fill' ? 'fit' : 'fill';
+    try { localStorage.setItem(FIT_KEY, next); } catch { /* storage blocked: still switch for this session */ }
+    setMode(next);
+    window.dispatchEvent(new Event(FIT_EVENT));
+  };
+  // Fit to use for a normal (non screen-share) camera video.
+  const faceFit = large && mode === 'fit' ? 'contain' : 'cover';
+  return { large, mode, toggle, faceFit };
+}
+
+// Small round button, laptop/tablet only. Rendered over the call stage.
+function FitToggleButton({ large, mode, onToggle }) {
+  if (!large) return null;
+  const expanded = mode === 'fill';
+  const label = expanded ? 'Mobile view' : 'Full screen';
+  return (
+    <button
+      type="button"
+      className="ooc-fit-toggle"
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      title={label}
+      aria-label={label}
+      style={{
+        position: 'absolute', top: 'calc(16px + var(--sp-status-bar-inset, 0px))', left: 16, zIndex: 6,
+        width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(0,0,0,0.45)', color: '#fff', padding: 0,
+      }}
+    >
+      {expanded ? <Minimize2 size={18} color="#fff" /> : <Maximize2 size={18} color="#fff" />}
+    </button>
+  );
 }
 
 // fit: 'cover' (default, fills the tile — right for a face-cam, where
@@ -194,6 +256,7 @@ export default function OneOnOneCallScreen({
   onSendMessage,
 }) {
   const isVideo = mode === 'video';
+  const { large: largeScreen, mode: fitMode, toggle: toggleFit, faceFit } = useVideoFit();
   // While sharing, the local tile should show the shared screen, not the
   // (deliberately disabled) camera feed sitting unchanged in localStream.
   const localDisplayStream = isScreenSharing && screenShareStream ? screenShareStream : localStream;
@@ -576,7 +639,10 @@ export default function OneOnOneCallScreen({
         <SoloStage
           remote={remotes[0]}
           isVideo={isVideo}
-          localStream={localDisplayStream}
+          // On the Android app the shared screen is a canvas stream; also rendering it
+          // back into a <video> here (your own screen mirrored in a corner) doubled the
+          // decode/paint work for no benefit and made the app sluggish while sharing.
+          localStream={isScreenSharing && isCapacitorApp() ? null : localDisplayStream}
           isCamOn={isCamOn}
           isScreenSharing={isScreenSharing}
           isMicOn={isMicOn}
@@ -585,6 +651,7 @@ export default function OneOnOneCallScreen({
         />
       ) : !fullscreenTile ? (
         <div className={`ooc-grid n-${Math.min(6, remotes.length + 1)}`}>
+          {isVideo && <FitToggleButton large={largeScreen} mode={fitMode} onToggle={toggleFit} />}
           {remotes.map(r => {
             // A member just added via "Add to call" gets a placeholder tile
             // the instant the invite goes out (see addMemberToCall/
@@ -596,7 +663,7 @@ export default function OneOnOneCallScreen({
             return (
               <div key={r.username} className={`ooc-tile${speakingKeys.has(r.username) ? ' ooc-tile-speaking' : ''}`}>
                 {r.hasVideo ? (
-                  <VideoTile stream={r.stream} fit={r.sharingScreen ? 'contain' : 'cover'} />
+                  <VideoTile stream={r.stream} fit={r.sharingScreen ? 'contain' : faceFit} />
                 ) : (
                   <Avatar url={r.avatarUrl} name={r.displayName} size={64} pulsing={!isRinging && r.micOn} />
                 )}
@@ -656,7 +723,7 @@ export default function OneOnOneCallScreen({
         const name = isMe ? 'You' : target.displayName;
         return (
           <div className="ooc-fullscreen-tile" onClick={() => setFullscreenTile(null)}>
-            <VideoTile stream={stream} muted={isMe} fit={sharingScreen ? 'contain' : 'cover'} />
+            <VideoTile stream={stream} muted={isMe} fit={sharingScreen ? 'contain' : faceFit} />
             {/* stay-white: the app's light-mode stylesheet forces most
                 un-colored text/icons dark for readability elsewhere — this
                 bar sits on a permanently-dark video backdrop regardless of
@@ -882,6 +949,7 @@ const PIP_DEFAULT_TOP = 96; // px below the top bar — matches the old fixed po
 
 function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isMicOn, myAvatarUrl, isFlippingCamera }) {
   const [mainIsLocal, setMainIsLocal] = useState(false);
+  const { large: largeScreen, mode: fitMode, toggle: toggleFit, faceFit } = useVideoFit();
   useEffect(() => { if (!isVideo) setMainIsLocal(false); }, [isVideo]);
 
   const localHasVideo = isVideo && (isCamOn || isScreenSharing) && !!localStream;
@@ -890,7 +958,10 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isM
   const mainName = mainIsLocal ? 'You' : remote.displayName;
   const pipHasVideo = mainIsLocal ? remote.hasVideo : localHasVideo;
   const pipAvatarUrl = mainIsLocal ? remote.avatarUrl : myAvatarUrl;
-  const mainFit = (mainIsLocal ? isScreenSharing : remote.sharingScreen) ? 'contain' : 'cover';
+  // Screen shares are always letterboxed; a camera follows the laptop/tablet
+  // fit preference (phones: 'cover' as before). Only the remote person's camera
+  // gets the preference — your own preview (when swapped to main) is unchanged.
+  const mainFit = (mainIsLocal ? isScreenSharing : remote.sharingScreen) ? 'contain' : (mainIsLocal ? 'cover' : faceFit);
   const pipFit = (mainIsLocal ? remote.sharingScreen : isScreenSharing) ? 'contain' : 'cover';
 
   // ── Freely draggable PiP, WhatsApp-style edge "peek" ──
@@ -985,6 +1056,10 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isM
         {!mainIsLocal && !mainHasVideo && <AudioRenderer stream={remote.stream} />}
         {mainIsLocal && pipHasVideo === false && <AudioRenderer stream={remote.stream} />}
       </div>
+
+      {isVideo && remote.hasVideo && !remote.sharingScreen && !mainIsLocal && (
+        <FitToggleButton large={largeScreen} mode={fitMode} onToggle={toggleFit} />
+      )}
 
       {isVideo && (
         <div
