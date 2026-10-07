@@ -106,12 +106,14 @@ function FitToggleButton({ large, mode, onToggle }) {
       aria-label={label}
       style={{
         position: 'absolute', top: 'calc(16px + var(--sp-status-bar-inset, 0px))', left: 16, zIndex: 6,
-        width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.45)', color: '#fff', padding: 0,
+        height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        background: 'rgba(0,0,0,0.55)', color: '#fff', padding: '0 14px',
+        fontSize: 13, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap',
       }}
     >
       {expanded ? <Minimize2 size={18} color="#fff" /> : <Maximize2 size={18} color="#fff" />}
+      <span>{label}</span>
     </button>
   );
 }
