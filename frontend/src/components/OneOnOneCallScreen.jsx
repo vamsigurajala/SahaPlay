@@ -92,11 +92,44 @@ function useVideoFit() {
   return { large, mode, toggle, faceFit };
 }
 
-// Small round button, laptop/tablet only. Rendered over the call stage.
-function FitToggleButton({ large, mode, onToggle }) {
+// Where the (letterboxed) video actually sits inside its stage, so the toggle
+// can be pinned to the corner of the picture itself rather than the window.
+// 'cover' fills the whole stage; 'contain' leaves bars left/right or top/bottom.
+function useVideoRect(stageRef, fit, active) {
+  const [rect, setRect] = useState(null);
+  useEffect(() => {
+    if (!active) return undefined;
+    const measure = () => {
+      const stage = stageRef.current;
+      const v = stage?.querySelector('video');
+      if (!stage || !v) { setRect(null); return; }
+      let left = 0, top = 0;
+      const W = stage.clientWidth, H = stage.clientHeight;
+      if (fit === 'contain' && v.videoWidth && v.videoHeight && W && H) {
+        const scale = Math.min(W / v.videoWidth, H / v.videoHeight);
+        left = Math.max(0, Math.round((W - v.videoWidth * scale) / 2));
+        top = Math.max(0, Math.round((H - v.videoHeight * scale) / 2));
+      }
+      setRect(prev => (prev && prev.left === left && prev.top === top ? prev : { left, top }));
+    };
+    measure();
+    const id = setInterval(measure, 500);
+    window.addEventListener('resize', measure);
+    return () => { clearInterval(id); window.removeEventListener('resize', measure); };
+  }, [stageRef, fit, active]);
+  return active ? rect : null;
+}
+
+// Small round button, laptop/tablet only, pinned to the corner of the other
+// person's video and fading in/out together with the top bar and dock
+// (`visible` is the call screen's chrome state). Sits above the top bar so it
+// stays clickable. `rect` = the video's offset inside the stage (null = use a
+// fixed spot below the top bar, e.g. over the group grid).
+function FitToggleButton({ large, mode, onToggle, visible = true, rect = null }) {
   if (!large) return null;
   const expanded = mode === 'fill';
   const label = expanded ? 'Mobile view' : 'Full screen';
+  const inset = 'var(--sp-status-bar-inset, 0px)';
   return (
     <button
       type="button"
@@ -105,15 +138,17 @@ function FitToggleButton({ large, mode, onToggle }) {
       title={label}
       aria-label={label}
       style={{
-        position: 'absolute', top: 'calc(16px + var(--sp-status-bar-inset, 0px))', left: 16, zIndex: 6,
-        height: 40, borderRadius: 999, border: '1px solid rgba(255,255,255,0.18)', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        background: 'rgba(0,0,0,0.55)', color: '#fff', padding: '0 14px',
-        fontSize: 13, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap',
+        position: 'absolute', zIndex: 25,
+        top: rect ? `calc(${rect.top + 14}px + ${inset})` : `calc(84px + ${inset})`,
+        left: rect ? rect.left + 14 : 16,
+        width: 40, height: 40, borderRadius: '50%', border: 'none', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(0,0,0,0.5)', color: '#fff', padding: 0,
+        opacity: visible ? 1 : 0, pointerEvents: visible ? 'auto' : 'none',
+        transition: 'opacity 0.3s ease',
       }}
     >
       {expanded ? <Minimize2 size={18} color="#fff" /> : <Maximize2 size={18} color="#fff" />}
-      <span>{label}</span>
     </button>
   );
 }
@@ -639,6 +674,7 @@ export default function OneOnOneCallScreen({
 
       {!isGroup ? (
         <SoloStage
+          chromeVisible={chromeVisible}
           remote={remotes[0]}
           isVideo={isVideo}
           // On the Android app the shared screen is a canvas stream; also rendering it
@@ -653,7 +689,7 @@ export default function OneOnOneCallScreen({
         />
       ) : !fullscreenTile ? (
         <div className={`ooc-grid n-${Math.min(6, remotes.length + 1)}`}>
-          {isVideo && <FitToggleButton large={largeScreen} mode={fitMode} onToggle={toggleFit} />}
+          {isVideo && <FitToggleButton large={largeScreen} mode={fitMode} onToggle={toggleFit} visible={chromeVisible} />}
           {remotes.map(r => {
             // A member just added via "Add to call" gets a placeholder tile
             // the instant the invite goes out (see addMemberToCall/
@@ -949,7 +985,7 @@ export default function OneOnOneCallScreen({
 const PIP_W = 128, PIP_H = 176, PIP_MARGIN = 16, PIP_PEEK = 18;
 const PIP_DEFAULT_TOP = 96; // px below the top bar — matches the old fixed position
 
-function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isMicOn, myAvatarUrl, isFlippingCamera }) {
+function SoloStage({ chromeVisible, remote, isVideo, localStream, isCamOn, isScreenSharing, isMicOn, myAvatarUrl, isFlippingCamera }) {
   const [mainIsLocal, setMainIsLocal] = useState(false);
   const { large: largeScreen, mode: fitMode, toggle: toggleFit, faceFit } = useVideoFit();
   useEffect(() => { if (!isVideo) setMainIsLocal(false); }, [isVideo]);
@@ -965,6 +1001,9 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isM
   // gets the preference — your own preview (when swapped to main) is unchanged.
   const mainFit = (mainIsLocal ? isScreenSharing : remote.sharingScreen) ? 'contain' : (mainIsLocal ? 'cover' : faceFit);
   const pipFit = (mainIsLocal ? remote.sharingScreen : isScreenSharing) ? 'contain' : 'cover';
+  const stageRef = useRef(null);
+  const showFitToggle = isVideo && remote.hasVideo && !remote.sharingScreen && !mainIsLocal;
+  const videoRect = useVideoRect(stageRef, mainFit, showFitToggle && largeScreen);
 
   // ── Freely draggable PiP, WhatsApp-style edge "peek" ──
   // null = the original default top-right spot. Once dragged, {x, y} is the
@@ -1039,7 +1078,7 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isM
 
   return (
     <>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div ref={stageRef} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {mainHasVideo ? (
           <VideoTile stream={mainIsLocal ? localStream : remote.stream} muted={mainIsLocal} fit={mainFit} />
         ) : (
@@ -1059,8 +1098,8 @@ function SoloStage({ remote, isVideo, localStream, isCamOn, isScreenSharing, isM
         {mainIsLocal && pipHasVideo === false && <AudioRenderer stream={remote.stream} />}
       </div>
 
-      {isVideo && remote.hasVideo && !remote.sharingScreen && !mainIsLocal && (
-        <FitToggleButton large={largeScreen} mode={fitMode} onToggle={toggleFit} />
+      {showFitToggle && videoRect && (
+        <FitToggleButton large={largeScreen} mode={fitMode} onToggle={toggleFit} visible={chromeVisible} rect={videoRect} />
       )}
 
       {isVideo && (
