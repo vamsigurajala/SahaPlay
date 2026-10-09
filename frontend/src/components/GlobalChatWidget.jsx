@@ -1667,8 +1667,9 @@ const MessageTick = ({ msg, username, isLight, onLightSurface = false }) => {
 function renderMentionSpan(part, key, isMe, isLight) {
   const highlight = part.isMe || isMe;
   if (!highlight) return <React.Fragment key={key}>@{part.mention}</React.Fragment>;
-  const style = { color: '#ef4444', fontWeight: 700, background: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(239,68,68,0.12)', borderRadius: 4, padding: '0 3px' };
-  return <span key={key} style={style}>@{part.mention}</span>;
+  // Plain red text only — no pill/background/bold box around it, explicitly
+  // asked for after an earlier version added one.
+  return <span key={key} style={{ color: '#ef4444' }}>@{part.mention}</span>;
 }
 
 function MessageText({ text, isMe, isLight, knownUsernames, myUsername }) {
@@ -3349,7 +3350,23 @@ const GlobalChatWidget = React.memo(forwardRef(({
   };
 
   const markChatAsRead = (chatKey, silent = false) => {
-    const conv = (conversations || []).find(c => c.id === chatKey || c.partner === chatKey);
+    // Prefer the live activeChat ref over the conversations list lookup: a
+    // chat opened for the very first time (notification tap, or a brand-new
+    // room this widget hasn't fetched into `conversations` yet) has no entry
+    // there at all, and the old fallback ("not found → assume isDm: true")
+    // silently mislabeled a real GROUP chat as a DM. That wrong isDm then
+    // got sent straight through to the server's chat:mark_read handler,
+    // which trusts it as-is to build the room id to mark read — it
+    // computed a bogus "dm-..." room id that matched zero real messages, so
+    // message_seen never got a row and the sender's tick stayed on single
+    // forever, even though the recipient genuinely had the chat open.
+    // activeChatRef is already authoritative for a just-opened chat (set
+    // synchronously by doOpenChat before this ever runs) regardless of
+    // whether the conversations list has caught up yet.
+    const activeMatch = activeChatRef.current && (activeChatRef.current.id === chatKey || activeChatRef.current.partner === chatKey)
+      ? activeChatRef.current
+      : null;
+    const conv = activeMatch || (conversations || []).find(c => c.id === chatKey || c.partner === chatKey);
     const isDm = conv ? conv.type === 'private' : true;
     setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
       (c.id === chatKey || c.partner === chatKey) ? { ...c, unread: 0, hasUnreadMention: false } : c

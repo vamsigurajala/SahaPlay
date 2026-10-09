@@ -1161,8 +1161,9 @@ function renderMentionSpan(part, i, isMe) {
   // room.
   const highlight = part.isMe || isMe;
   if (!highlight) return <React.Fragment key={i}>@{part.mention}</React.Fragment>;
-  const style = { color: '#ef4444', fontWeight: 700, background: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(239,68,68,0.12)', borderRadius: 4, padding: '0 3px' };
-  return <span key={i} style={style}>@{part.mention}</span>;
+  // Plain red text only — no pill/background/bold box around it, explicitly
+  // asked for after an earlier version added one.
+  return <span key={i} style={{ color: '#ef4444' }}>@{part.mention}</span>;
 }
 
 function renderMessageText(text, isMe, knownUsernames, myUsername) {
