@@ -1160,14 +1160,19 @@ function renderMentionSpan(part, i, isMe) {
   // for EVERY viewer, same as Microsoft Teams' own @mention/@everyone split
   // — see mentions.js's header comment for why these two behave differently.
   const highlight = part.isEveryone || part.isMe || isMe;
-  if (!highlight) return <React.Fragment key={i}>@{part.mention}</React.Fragment>;
+  // The leading "@" is dropped from the RENDERED bubble only — just the
+  // name/"everyone" itself — explicitly asked for. The composer still
+  // inserts/stores the real "@username" text (mentions.js's regex needs the
+  // "@" to detect it at all); this only affects how an already-sent message
+  // displays.
+  if (!highlight) return <React.Fragment key={i}>{part.mention}</React.Fragment>;
   // Plain red text only — no pill/background/bold box around it, explicitly
   // asked for after an earlier version added one. A CSS CLASS, not an
   // inline style — see index.css's .mention-red for why a plain inline
   // color loses to App.jsx's light-theme `.msg-sent * { color: #fff
   // !important }` rule on a sent bubble (confirmed live: DevTools showed
   // the inline color applied, but the glyph still rendered white).
-  return <span key={i} className="mention-red">@{part.mention}</span>;
+  return <span key={i} className="mention-red">{part.mention}</span>;
 }
 
 function renderMessageText(text, isMe, knownUsernames, myUsername) {
