@@ -170,9 +170,20 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
    the gesture handler, not React state, so a drag never has to re-render
    the whole message list to move. Global (not scoped to one page's own
    <style> block) since GlobalChatWidget.jsx mounts .msg-row outside
-   Room.jsx too (Navbar/BottomNav/Profile). */
+   Room.jsx too (Navbar/BottomNav/Profile).
+   The spring-back transition lives here, always on, rather than being
+   toggled via React state per row — see useTimestampPeek.js's own doc
+   comment for the real-device "stuck, doesn't spring back" bug that caused
+   (a React re-render landing a frame too late to catch the release). The
+   html.sp-ts-dragging override below turns it off for the DURATION of an
+   active drag only, flipped by the same synchronous DOM write that moves
+   the value itself, so the two can never race. */
 .msg-row {
   transform: translateX(var(--sp-ts-peek-x, 0px));
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+html.sp-ts-dragging .msg-row {
+  transition: none;
 }
 
 html, body {
