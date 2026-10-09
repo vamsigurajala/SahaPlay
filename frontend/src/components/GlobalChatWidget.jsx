@@ -52,7 +52,7 @@ import DownloadAppModal from './DownloadAppModal';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isNotifyCategoryEnabled } from '../lib/notifyGating';
 import { onAppResume } from '../lib/appResume';
-import { extractMentionedUsernames, splitTextWithMentions, textMentionsUser } from '../utils/mentions';
+import { extractMentionedUsernames, splitTextWithMentions, textMentionsUser, EVERYONE_KEYWORD } from '../utils/mentions';
 import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
@@ -1657,15 +1657,15 @@ const MessageTick = ({ msg, username, isLight, onLightSurface = false }) => {
 // knownUsernames/myUsername are only ever passed from a room/group chat's
 // bubbles — a private 1:1 DM's call sites omit them, so @mention
 // highlighting never applies there (see mentions.js's own header comment
-// for why). Red highlight is scoped to the two people who actually care
-// about this specific @mention: the person it names (part.isMe) and the
-// person who typed it (isMe — this bubble is one of my own sent messages).
-// Everyone else in the group sees it as perfectly plain text, same as any
-// other word in the message — explicitly asked for, so a mention of some
-// OTHER member doesn't read as a highlighted/special token to the rest of
-// the room.
+// for why). An individual "@name" mention's red highlight is scoped to the
+// two people who actually care about it: the person it names (part.isMe)
+// and the person who typed it (isMe — this bubble is one of my own sent
+// messages) — everyone else in the group sees it as perfectly plain text.
+// "@everyone" (part.isEveryone) is the one exception: it highlights red for
+// EVERY viewer, same as Microsoft Teams' own @mention/@everyone split —
+// see mentions.js's header comment for why these two behave differently.
 function renderMentionSpan(part, key, isMe, isLight) {
-  const highlight = part.isMe || isMe;
+  const highlight = part.isEveryone || part.isMe || isMe;
   if (!highlight) return <React.Fragment key={key}>@{part.mention}</React.Fragment>;
   // Plain red text only — no pill/background/bold box around it, explicitly
   // asked for after an earlier version added one.
@@ -2988,7 +2988,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
     const names = roomMemberCache[roomIdStr] || Array.from(new Set((messages || []).map(m => m.senderName || m.username).filter(Boolean)));
     const q = (widgetMention.mentionQuery || '').toLowerCase();
     const myLower = (myUsername || '').toLowerCase();
-    return names.filter(n => n && n.toLowerCase() !== myLower && n.toLowerCase().includes(q)).slice(0, 6);
+    const matches = names.filter(n => n && n.toLowerCase() !== myLower && n.toLowerCase().includes(q));
+    // "everyone" is a reserved keyword (see mentions.js), not a real member —
+    // offered here so it's actually discoverable, same as Teams surfaces
+    // "Everyone" at the top of its own @mention picker.
+    const withEveryone = EVERYONE_KEYWORD.includes(q) ? ['everyone', ...matches] : matches;
+    return withEveryone.slice(0, 6);
   }, [widgetMention.isMentionOpen, widgetMention.mentionQuery, activeChat, roomMemberCache, messages, myUsername]);
   const socketRef = useRef(null);
   // Tracks which token the live socket was authenticated with, so a token
