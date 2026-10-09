@@ -611,7 +611,7 @@ function formatSenderList(senders) {
 // and sam sent new messages in Movie Night") instead of one entry per
 // message — combines with sendPushToTokens' tag-based replacement above so
 // the tray only ever holds the latest, most complete summary.
-async function notifyChatMessage({ recipients, senderUsername, chatId, chatType, chatLabel, mentions }) {
+async function notifyChatMessage({ recipients, senderUsername, chatId, chatType, chatLabel, mentions, mentionsEveryone }) {
   if (!firebaseAdmin || !recipients || recipients.length === 0) return;
   // Lowercased, already-validated-against-real-membership usernames (see the
   // 'room' branch of POST /api/chats/send, the only caller that ever passes
@@ -691,9 +691,15 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
         // told "X mentioned you" is strictly more useful than "N new
         // messages", and the message that triggered THIS push (the latest
         // one) is what mentionSet reflects, regardless of how many other
-        // messages piled up in the same burst.
+        // messages piled up in the same burst. "@everyone" gets its own
+        // wording rather than reusing "mentioned you" for every recipient —
+        // client-reported (mentions.js expands "@everyone" into every real
+        // member before this ever runs, so mentionSet already contains
+        // everyone regardless), it's purely cosmetic copy, not a trust
+        // decision: WHETHER to notify and WHO is still entirely governed by
+        // mentionSet's server-validated membership check above it.
         body = mentionSet.has(recipient.toLowerCase())
-          ? `${senderUsername} mentioned you`
+          ? (mentionsEveryone ? `${senderUsername} mentioned everyone` : `${senderUsername} mentioned you`)
           : (count > 1
             ? `${formatSenderList(senders)} sent new messages`
             : `${senderUsername} sent a message`);
@@ -4019,6 +4025,37 @@ app.get('/api/rooms/:roomId/public-keys', authenticateTokenOptional, async (req,
   return res.json({ keys: connectedKeys });
 });
 
+// ─── Room participant usernames, for @mention recognition only ───
+// Deliberately separate from /api/rooms/:roomId/public-keys above: that
+// endpoint's job is building the E2EE recipient/key list for actually
+// SENDING a message, and only includes someone if a public key is
+// resolvable for them (live connection, or a message they've sent before)
+// — a real member who joined but has never once spoken in this room's chat
+// is invisible to it. That's fine for encryption (nothing to encrypt FOR
+// them without a key on file anyway), but it made @name mentions of a
+// genuinely silent member fail to even register as a mention at all for
+// anyone, sender included — confirmed live: "@vamsi" rendered as plain
+// text, not red, because vamsi had never posted in that thread. This route
+// uses getRoomParticipantUsernames (the same "anyone who's ever opened this
+// room" durable membership signal already used for offline push routing),
+// not keys, so it has no bearing on who a message actually gets encrypted
+// for — purely a "is this @word a real member" check for the frontend's
+// mention-highlighting candidate list.
+app.get('/api/rooms/:roomId/participants', authenticateTokenOptional, async (req, res) => {
+  const { roomId } = req.params;
+  const normalizedId = (roomId || '').toLowerCase();
+  const usernames = await getRoomParticipantUsernames(normalizedId);
+  // Live-connected users may not have opened this room's chat yet this
+  // session (so firstJoined's own timestamp predates this visit but is
+  // still present) — included anyway via the in-memory roster so someone
+  // who just joined is mentionable immediately, not only after their first
+  // message or a server-side firstJoined write completes.
+  const room = rooms.get(normalizedId);
+  const liveUsernames = room ? (room.users || []).map(u => u.username).filter(Boolean) : [];
+  const merged = Array.from(new Set([...usernames, ...liveUsernames]));
+  return res.json({ usernames: merged });
+});
+
 // ─── Fetch Active Room Participant Public Keys (Legacy/Direct Fallback) ───
 // See the matching comment on the /api/rooms/:roomId/public-keys route above
 // — same reasoning for allowing an unauthenticated guest caller here too.
@@ -5846,7 +5883,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   const { type, partner: rawPartner, message, replyTo, mediaUrl, mediaType, tempId,
           nonce, ephemeralPublicKey, e2eeKeys, senderMessage,
           mediaFileName, mediaFileSize, mediaDuration, forwarded, mediaGroupId,
-          isNotice, noticeThemeId, isPoll, mentions: rawMentions } = req.body;
+          isNotice, noticeThemeId, isPoll, mentions: rawMentions, mentionsEveryone } = req.body;
   // Plain usernames the client says it @mentioned (see mentions.js) — never
   // the message content, which stays E2EE end to end. Capped and
   // lower-cased here; validated against ACTUAL room membership down in the
@@ -5856,6 +5893,10 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   const requestedMentions = Array.isArray(rawMentions)
     ? rawMentions.filter(m => typeof m === 'string' && m.length > 0 && m.length <= 32).slice(0, 50).map(m => m.toLowerCase())
     : [];
+  // Purely cosmetic push-copy flag ("mentioned everyone" vs "mentioned
+  // you") — see notifyChatMessage's own comment for why this doesn't need
+  // the same spoof-proofing as requestedMentions above.
+  const isEveryoneMention = !!mentionsEveryone;
   const isNoticeMsg = !!isNotice;
   const isPollMsg = !!isPoll;
   const isForwarded = !!forwarded;
@@ -6146,6 +6187,7 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
             chatType: 'room',
             chatLabel: roomLabel,
             mentions: validatedMentions,
+            mentionsEveryone: isEveryoneMention,
           });
         })().catch(e => console.error('[FCM] room notify error:', e.message));
       }

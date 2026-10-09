@@ -1493,6 +1493,35 @@ export default function RoomChatPanel({ p }) {
     const withEveryone = EVERYONE_KEYWORD.includes(q) ? [{ username: 'everyone' }, ...matches] : matches;
     return withEveryone.slice(0, 6);
   }, [groupMention.isMentionOpen, groupMention.mentionQuery, p.userList, p.username]);
+  // Render-side mention RECOGNITION list — deliberately broader than
+  // p.userList (the live, currently-connected socket roster used for the
+  // dropdown above). p.userList misses a real member who joined this room
+  // but isn't connected to it right this second, which made an already-sent
+  // "@name" mentioning them render as plain text instead of red — confirmed
+  // live, same bug GlobalChatWidget.jsx's own roomMentionCandidates had and
+  // fixed the same way: /api/rooms/:id/participants returns the durable
+  // "anyone who's ever opened this room" membership list, not a live-only
+  // snapshot. Fetched once per room and merged with the live roster so a
+  // brand-new member shows up immediately even before this resolves.
+  const [roomParticipantCache, setRoomParticipantCache] = React.useState({});
+  React.useEffect(() => {
+    const roomIdStr = (p.roomId || '').toLowerCase();
+    if (!roomIdStr || roomParticipantCache[roomIdStr] || !p.SOCKET_SERVER_URL) return;
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn) return;
+    fetch(`${p.SOCKET_SERVER_URL}/api/rooms/${roomIdStr}/participants`, { headers: { 'Authorization': `Bearer ${tkn}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const names = (data?.usernames || []).filter(Boolean);
+        setRoomParticipantCache(prev => ({ ...prev, [roomIdStr]: names }));
+      })
+      .catch(() => {});
+  }, [p.roomId, p.SOCKET_SERVER_URL]);
+  const groupKnownUsernames = React.useMemo(() => {
+    const roomIdStr = (p.roomId || '').toLowerCase();
+    const liveNames = (p.userList || []).map(u => u.username).filter(Boolean);
+    return Array.from(new Set([...(roomParticipantCache[roomIdStr] || []), ...liveNames]));
+  }, [p.roomId, p.userList, roomParticipantCache]);
   React.useEffect(() => { setGroupMentionHighlight(0); }, [groupMention.mentionQuery]);
   // Click-outside closes the dropdown — not blur, since a click on a row
   // below would blur the textarea first and could race the row's own
@@ -3920,7 +3949,7 @@ export default function RoomChatPanel({ p }) {
                               (() => {
                                 let pollDef = null;
                                 try { pollDef = JSON.parse(msg.decryptedText); } catch {}
-                                if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} knownUsernames={p.userList?.map(u => u.username)} myUsername={myUser} />;
+                                if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} knownUsernames={groupKnownUsernames} myUsername={myUser} />;
                                 const resolveAvatar = (u) => {
                                   const uname = (u || '').toLowerCase();
                                   const myUserLower = (myUser || '').toLowerCase();
@@ -3950,12 +3979,12 @@ export default function RoomChatPanel({ p }) {
                                 );
                               })()
                             ) : msg.decryptedText !== null ? (
-                              <MessageText text={msg.decryptedText} isMe={isMe} knownUsernames={p.userList?.map(u => u.username)} myUsername={myUser} />
+                              <MessageText text={msg.decryptedText} isMe={isMe} knownUsernames={groupKnownUsernames} myUsername={myUser} />
                             ) : (
                               (!msg.mediaType && (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message)))) ? (
                                 <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                               ) : (
-                                !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} knownUsernames={p.userList?.map(u => u.username)} myUsername={myUser} />
+                                !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} knownUsernames={groupKnownUsernames} myUsername={myUser} />
                               )
                             )}
                           </div>

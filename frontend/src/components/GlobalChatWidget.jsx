@@ -2943,16 +2943,20 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // (widgetMentionCandidates below), and — just as importantly —
   // roomMentionCandidates further down, which decides whether an already-
   // SENT "@name" in a bubble is even recognized as a real mention at all
-  // for rendering. That second use is why this used to be gated on
-  // widgetMention.isMentionOpen (only fetched for whoever was actively
-  // composing a mention): a message mentioning someone who had never sent a
-  // message in this thread, viewed by someone who never typed "@" either,
-  // fell back to roomMentionCandidates' own weak "every sender already
-  // visible in this thread" heuristic — which doesn't contain that person,
-  // so splitTextWithMentions never recognized "@name" as a mention token at
-  // all and it rendered as plain text, not even reaching the red/plain
-  // highlight decision. Fetching for every room chat as soon as it's open
-  // means any viewer gets the real member list in time to render it.
+  // for rendering.
+  //
+  // Hits /api/rooms/:id/participants (plain usernames, no keys) rather than
+  // /api/rooms/:id/public-keys — that endpoint only includes someone if a
+  // public key happens to be resolvable for them (a live connection, or a
+  // message they've sent before), so a genuinely silent member who joined
+  // but never once spoke was invisible to it. Confirmed live: "@vamsi"
+  // rendered as plain white text, not red, even for the sender who typed
+  // it, specifically because vamsi had never posted in that thread and so
+  // never appeared in the public-keys candidate list splitTextWithMentions
+  // was validating "@vamsi" against. The participants endpoint uses the
+  // same durable "anyone who's ever opened this room" membership signal the
+  // backend's own offline-push routing already relies on, so it isn't
+  // fooled by that.
   const [roomMemberCache, setRoomMemberCache] = useState({});
   useEffect(() => {
     if (activeChat?.type !== 'room' || isSahaplayOfficialGroup(activeChat)) return;
@@ -2960,10 +2964,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
     if (!roomIdStr || roomMemberCache[roomIdStr]) return;
     const tkn = localStorage.getItem('watch_token');
     if (!tkn) return;
-    fetch(`${API}/api/rooms/${roomIdStr}/public-keys`, { headers: { 'Authorization': `Bearer ${tkn}` } })
+    fetch(`${API}/api/rooms/${roomIdStr}/participants`, { headers: { 'Authorization': `Bearer ${tkn}` } })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        const names = (data?.keys || []).map(k => k.username).filter(Boolean);
+        const names = (data?.usernames || []).filter(Boolean);
         setRoomMemberCache(prev => ({ ...prev, [roomIdStr]: names }));
       })
       .catch(() => {});
@@ -6297,6 +6301,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
         // mentions.js's own header comment for why this never touches
         // encryption, it only scans the SAME plaintext just encrypted above).
         mentions: activeChat.type === 'room' ? extractMentionedUsernames(optimisticMsg.message, groupRecipientUsernames, myUsername) : undefined,
+        // Cosmetic-only push-copy flag ("mentioned everyone" vs "mentioned
+        // you") — see notifyChatMessage's own comment for why this doesn't
+        // need the same spoof-proofing as `mentions` above.
+        mentionsEveryone: activeChat.type === 'room' ? new RegExp(`@${EVERYONE_KEYWORD}\\b`, 'i').test(optimisticMsg.message || '') : undefined,
       };
 
       const resp = await fetch(`${API}/api/chats/send`, {
