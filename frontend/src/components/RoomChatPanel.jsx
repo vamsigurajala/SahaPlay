@@ -10,7 +10,7 @@ import { wipeLockedChatsData } from '../lib/chatLockUtils';
 import {
   Users, Send, MessageSquare, Reply, Flag, Lock, BellOff, Bell, Pin, Eye,
   X, ChevronLeft, ChevronRight, MoreVertical, Edit2, Trash2, MoreHorizontal, SmilePlus, Plus, ArrowDown, ChevronDown, Ban,
-  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Star, Shield, Mic, Download, Music, FileText, Clock, Copy,
+  Image as ImageIcon, Paperclip, FilePlus, Loader2, Play, Pause, CheckCheck, Check, Mic, Download, Music, FileText, Clock, Copy,
   SquareCheck, Square, Forward, User, Phone, Video, PhoneMissed, PhoneOff, Palette, Camera, BarChart2, ImageOff
 } from 'lucide-react';
 import { CHAT_THEMES, CHAT_THEME_BUBBLE_STRIDE, findWallpaper, getWallpaperDominantColor, getThemeSolidColor, isRgbColorDark } from '../lib/chatThemes';
@@ -3752,31 +3752,10 @@ export default function RoomChatPanel({ p }) {
                       return <span onClick={(e) => { e.stopPropagation(); if (!amIBlockedBySender) goToProfile(partnerName); }} title={amIBlockedBySender ? 'Blocked User' : `View ${partnerName}'s profile`} style={{cursor:amIBlockedBySender?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={displayAvatarSrc} isHost={uIsHost} isAdmin={uIsAdmin}/></span>;
                     })()}
                     <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
-                      {!isMe && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                const sName = msg.senderName || msg.username;
-                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) goToProfile(sName);
-                              }}
-                              style={{ fontSize: 10, color: metaIsLight ? '#374151' : (groupWallpaper ? 'rgba(255,255,255,0.85)' : '#888'), cursor: blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'default' : 'pointer' }}
-                              title={blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'Blocked User' : `View ${msg.senderName || msg.username}'s profile`}
-                            >
-                              {blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) ? 'User' : formatUsername(msg.senderName || msg.username)}
-                            </span>
-                            {(() => {
-                              const sName = msg.senderName || msg.username;
-                              if (!sName || blockingMe.some(u => u.toLowerCase() === sName.toLowerCase())) return null;
-                              const userObj = p.userList?.find(u => u.username === sName);
-                              const isH = userObj?.isHost || (p.room?.hostUsername && sName.toLowerCase() === p.room.hostUsername.toLowerCase());
-                              const isA = !!(p.room?.settings?.newMembersAdmins && sName && sName !== 'Anonymous' && !sName.toLowerCase().startsWith('guest_') && !isH);
-                              if (isH) return <Star size={8} color="#fbbf24" fill="#fbbf24" />;
-                              if (isA) return <Shield size={8} color="#3b82f6" fill="#3b82f6" />;
-                              return null;
-                            })()}
-                          </div>
-                      )}
+                      {/* Sender name label removed — explicitly asked to drop the
+                          repeated name on every single group-message bubble. The
+                          avatar beside the bubble (clickable to the same profile)
+                          is what identifies the sender now. */}
                       <div style={{position:'relative', display:'flex', alignItems:'center'}}
                         // hoveredMsgId is set here now, not on .msg-bubble itself — the
                         // hover-menu chevron+dropdown live as a SIBLING of the bubble
@@ -4943,16 +4922,11 @@ export default function RoomChatPanel({ p }) {
                           </div>
                         )}
                         <div style={{display:'flex',alignItems:'center',gap:8,flexDirection:isMe?'row-reverse':'row',maxWidth:'85%'}}>
-                          {!isMe && (() => {
-                            const rName = msg.senderName || msg.username;
-                            const partner = (rName || '').toLowerCase();
-                            const isSenderBlocked = blockingMe.some(u => u.toLowerCase() === partner) || blockedChats.some(u => u.toLowerCase() === partner);
-                            const displayUsername = isSenderBlocked ? 'User' : rName;
-                            const uObj = p.userList.find(u => u.username === rName);
-                            const fallbackMsgAvatar = msg.senderAvatar || p.knownAvatars?.[rName] || p.knownAvatars?.[rName.toLowerCase()] || uObj?.avatarPath;
-                            const avatarSrc = isSenderBlocked ? null : getAvatarUrl(fallbackMsgAvatar);
-                            return <span onClick={(e) => { e.stopPropagation(); if (!isSenderBlocked) goToProfile(rName); }} title={isSenderBlocked ? 'Blocked User' : `View ${rName}'s profile`} style={{cursor:isSenderBlocked?'default':'pointer'}}><Avatar name={displayUsername} size={28} src={avatarSrc}/></span>;
-                          })()}
+                          {/* No avatar for a 1:1 private chat — explicitly asked to
+                              remove it, since the other person is already named at
+                              the top of this DM thread (unlike a group, where the
+                              avatar beside each bubble is what identifies who's
+                              speaking). Just the plain bubble now. */}
                           <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
                             <div style={{position:'relative', display:'flex', alignItems:'center'}}
                               // hoveredMsgId set here, not on .msg-bubble — see the
@@ -5288,7 +5262,10 @@ export default function RoomChatPanel({ p }) {
                             </div>
                           </div>
                         </div>
-                        <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4, paddingLeft: isMe ? 0 : 36}}>
+                        {/* No leading paddingLeft reserve here (unlike the group tab's
+                            identical row) — a DM bubble no longer has an avatar column
+                            beside it to align under, now that DM avatars are removed. */}
+                        <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:isMe?'flex-end':'flex-start', marginTop:-4}}>
                           {Object.entries(reactions).filter(([,v])=>v.length>0).map(([emoji,uids])=>(
                             <button key={emoji} onClick={(e)=>{ e.stopPropagation(); setReactorsSheet({ msgId: msg.id || msg.timestamp, emoji, uids, chatType: 'dm' }); }} style={{background: metaIsLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.16)',border:`1px solid ${uids.includes(p.username)?'var(--brand-1)' : (metaIsLight ? '#e2e8f0' : 'rgba(255,255,255,0.1)')}`,borderRadius:12,padding:'2px 8px',cursor:'pointer',fontSize:12,color: metaIsLight ? '#1e293b' : '#ddd'}}>
                               {emoji} {uids.length}

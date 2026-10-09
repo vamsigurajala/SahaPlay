@@ -9568,7 +9568,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
                         </div>
                       )}
                       <div style={{display:'flex',alignItems:'flex-start',gap:8,flexDirection:isMe?'row-reverse':'row',maxWidth:'95%'}}>
-                         {/* Profile avatar — left side for all incoming messages */}
+                         {/* Profile avatar — group/room chats only. A private 1:1 DM has
+                             exactly one other person (already named at the top of the
+                             chat header), so repeating their avatar on every received
+                             bubble was pure clutter — explicitly asked to be removed,
+                             leaving just the plain message bubble there. */}
                          {!isMe && activeChat?.type === 'room' && isSahaplayOfficialGroup(activeChat) ? (
                            // Broadcast channel — always the app's own mark, never whichever
                            // admin account actually posted it (matches the "SahaPlay" sender
@@ -9577,7 +9581,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                            <div style={{ flexShrink:0, width:32, height:32, borderRadius:'50%', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', background:'#fff', marginTop:2 }}>
                              <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width:'62%', height:'62%', objectFit:'contain' }} />
                            </div>
-                         ) : !isMe && (() => {
+                         ) : !isMe && activeChat?.type === 'room' && (() => {
                            const sNameOriginal = msg.senderName || msg.username || '?';
                            const partner = sNameOriginal.toLowerCase();
                            let isBlocked = false;
@@ -9608,23 +9612,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
                            );
                          })()}
                         <div style={{display:'flex',flexDirection:'column',gap:2,alignItems:isMe?'flex-end':'flex-start'}}>
-                          {!isMe && activeChat?.type === 'room' && (
-                            isSahaplayOfficialGroup(activeChat) ? (
-                              // Broadcast channel — recipients should see "SahaPlay" as the
-                              // sender, not whichever admin account actually posted it.
-                              <span style={{ fontSize: 10, color: activeWallpaper ? 'rgba(255,255,255,0.85)' : '#888', marginBottom: 1 }}>SahaPlay</span>
-                            ) : (
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const sName = msg.senderName || msg.username;
-                                if (sName && !blockingMe.some(u => u.toLowerCase() === sName.toLowerCase()) && !blockedChats.some(u => u.toLowerCase() === sName.toLowerCase())) { leaveChatToViewProfile(sName); }
-                              }}
-                              style={{ fontSize: 10, color: activeWallpaper ? 'rgba(255,255,255,0.85)' : '#888', marginBottom: 1, cursor: (blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'default' : 'pointer' }}
-                              title={`View ${msg.senderName || msg.username}'s profile`}
-                            >{(blockingMe.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase()) || blockedChats.some(u => u.toLowerCase() === (msg.senderName||msg.username||'').toLowerCase())) ? 'User' : (msg.senderName || msg.username)}</span>
-                            )
-                          )}
+                          {/* Sender name label removed — explicitly asked to drop the
+                              repeated name on every single group-message bubble. The
+                              avatar beside the bubble (clickable to the same profile)
+                              is what identifies the sender now, same as it always has
+                              for the bubble content's own tap target. */}
                           <div style={{position:'relative', display:'flex', alignItems:'center'}}
                                onMouseEnter={() => setHoveredRowId(msg.id||i)}
                                onMouseLeave={() => setHoveredRowId(null)}
