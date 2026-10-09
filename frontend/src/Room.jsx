@@ -98,6 +98,7 @@ import TimerActivity from './components/TimerActivity';
 import CallingActivity from './components/CallingActivity';
 import { ROOM_THEMES } from './data/roomThemes';
 import { getAvatarUrl, getRoomThumbnailUrl } from './utils/avatarUtils';
+import { extractMentionedUsernames } from './utils/mentions';
 import { FaWhatsapp, FaTelegramPlane, FaYoutube, FaTwitch, FaVimeo, FaSoundcloud, FaInstagram, FaSnapchatGhost, FaDiscord, FaRedditAlien, FaFacebookF, FaLinkedinIn, FaPinterestP, FaApple, FaSpotify, FaTiktok } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import { SiNetflix, SiCrunchyroll, SiHbomax, SiAppletv, SiGmail } from 'react-icons/si';
@@ -7304,7 +7305,8 @@ const Room = () => {
       roomId: (roomId || '').toLowerCase(),
       message: encryptedPayload.ciphertext,
       e2ee: { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) },
-      username, tempId, replyTo: sanitizeReplyToForWire(replyTo)
+      username, tempId, replyTo: sanitizeReplyToForWire(replyTo),
+      mentions: extractMentionedUsernames(msgText, userList.map(u => u.username), username),
     });
   };
 
@@ -7502,7 +7504,12 @@ const Room = () => {
         },
         username,
         tempId,
-        replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo)
+        replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo),
+        // Plain usernames only — never message content — purely so the
+        // server knows who to push a "mentioned you" notification to. See
+        // mentions.js's own header comment: this never touches encryption,
+        // it only scans the SAME plaintext that was just encrypted above.
+        mentions: extractMentionedUsernames(msgText, userList.map(u => u.username), username),
       });
     } finally {
       isSendingGroupRef.current = false;
@@ -7831,6 +7838,7 @@ const Room = () => {
       mediaFileName: rawFile?.name || null,
       mediaFileSize: rawFile?.size || null,
       mediaDuration: mediaDuration || null,
+      mentions: caption ? extractMentionedUsernames(caption, userList.map(u => u.username), username) : [],
       mediaGroupId: mediaGroupId || null,
       tempId,
       e2ee: encryptedPayload ? { nonce: encryptedPayload.nonce, keys: encryptedPayload.keys, senderPublicKey: encodeBase64(myKeyPair.current.publicKey) } : null,

@@ -592,8 +592,15 @@ function formatSenderList(senders) {
 // and sam sent new messages in Movie Night") instead of one entry per
 // message — combines with sendPushToTokens' tag-based replacement above so
 // the tray only ever holds the latest, most complete summary.
-async function notifyChatMessage({ recipients, senderUsername, chatId, chatType, chatLabel }) {
+async function notifyChatMessage({ recipients, senderUsername, chatId, chatType, chatLabel, mentions }) {
   if (!firebaseAdmin || !recipients || recipients.length === 0) return;
+  // Lowercased, already-validated-against-real-membership usernames (see the
+  // 'room' branch of POST /api/chats/send, the only caller that ever passes
+  // this) — a recipient in here gets "X mentioned you" instead of the usual
+  // "X sent a message" wording, below. Never used to decide WHETHER to
+  // notify, only HOW to word it — a muted/notifications-off recipient is
+  // still skipped exactly as before.
+  const mentionSet = new Set((mentions || []).map(m => (m || '').toLowerCase()));
   const targets = recipients.filter(u => u && u.toLowerCase() !== (senderUsername || '').toLowerCase());
   // Fetched once per call (not per-recipient) — every recipient gets a push
   // about the same sender, so the avatar is identical for all of them. Lets
@@ -661,9 +668,16 @@ async function notifyChatMessage({ recipients, senderUsername, chatId, chatType,
         body = count > 1 ? `${count} new messages` : 'Sent you a message';
       } else {
         title = chatLabel || 'Group chat';
-        body = count > 1
-          ? `${formatSenderList(senders)} sent new messages`
-          : `${senderUsername} sent a message`;
+        // A mention always wins over the generic/aggregated wording — being
+        // told "X mentioned you" is strictly more useful than "N new
+        // messages", and the message that triggered THIS push (the latest
+        // one) is what mentionSet reflects, regardless of how many other
+        // messages piled up in the same burst.
+        body = mentionSet.has(recipient.toLowerCase())
+          ? `${senderUsername} mentioned you`
+          : (count > 1
+            ? `${formatSenderList(senders)} sent new messages`
+            : `${senderUsername} sent a message`);
       }
 
       // dataOnly: true — was a plain `notification`-block push, which
@@ -5813,7 +5827,16 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
   const { type, partner: rawPartner, message, replyTo, mediaUrl, mediaType, tempId,
           nonce, ephemeralPublicKey, e2eeKeys, senderMessage,
           mediaFileName, mediaFileSize, mediaDuration, forwarded, mediaGroupId,
-          isNotice, noticeThemeId, isPoll } = req.body;
+          isNotice, noticeThemeId, isPoll, mentions: rawMentions } = req.body;
+  // Plain usernames the client says it @mentioned (see mentions.js) — never
+  // the message content, which stays E2EE end to end. Capped and
+  // lower-cased here; validated against ACTUAL room membership down in the
+  // 'room' branch before it's ever allowed to change a push notification's
+  // wording, so a client can't spoof a "mentioned you" push to someone who
+  // was never genuinely mentioned (or isn't even in the room).
+  const requestedMentions = Array.isArray(rawMentions)
+    ? rawMentions.filter(m => typeof m === 'string' && m.length > 0 && m.length <= 32).slice(0, 50).map(m => m.toLowerCase())
+    : [];
   const isNoticeMsg = !!isNotice;
   const isPollMsg = !!isPoll;
   const isForwarded = !!forwarded;
@@ -6090,12 +6113,20 @@ app.post('/api/chats/send', authenticateToken, async (req, res) => {
           const activeUsernames = new Set((rooms.get(partner)?.users || []).map(u => (u.username || '').toLowerCase()));
           const recipients = participants.filter(u => !activeUsernames.has((u || '').toLowerCase()));
           const roomLabel = (rooms.get(partner)?.roomName) || roomRow?.roomName || partner;
+          // Only usernames that are ACTUALLY participants in this room ever
+          // reach notifyChatMessage as a "mention" — requestedMentions is
+          // client-supplied and otherwise unchecked, so this is what stops a
+          // client from spoofing a "mentioned you" push to an arbitrary or
+          // non-member username.
+          const participantSet = new Set(participants.map(u => (u || '').toLowerCase()));
+          const validatedMentions = requestedMentions.filter(m => participantSet.has(m));
           await notifyChatMessage({
             recipients,
             senderUsername: username,
             chatId: partner,
             chatType: 'room',
             chatLabel: roomLabel,
+            mentions: validatedMentions,
           });
         })().catch(e => console.error('[FCM] room notify error:', e.message));
       }

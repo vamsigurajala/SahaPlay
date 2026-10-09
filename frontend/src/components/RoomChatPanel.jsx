@@ -40,6 +40,8 @@ import DownloadAppModal from './DownloadAppModal';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { getMessagePreview } from '../utils/messagePreview';
 import { keepMenuInView } from '../utils/keepMenuInView';
+import { extractMentionedUsernames, splitTextWithMentions } from '../utils/mentions';
+import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
 
@@ -1079,7 +1081,7 @@ function enforceWordLimit(val) {
   return result.join('');
 }
 
-function MessageText({ text, isMe }) {
+function MessageText({ text, isMe, knownUsernames, myUsername }) {
   const [isExpanded, setIsExpanded] = React.useState(false);
   if (!text) return null;
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
@@ -1111,7 +1113,7 @@ function MessageText({ text, isMe }) {
     }
   }
 
-  const renderedText = renderMessageText(displayText, isMe);
+  const renderedText = renderMessageText(displayText, isMe, knownUsernames, myUsername);
 
   return (
     <div>
@@ -1142,9 +1144,29 @@ function MessageText({ text, isMe }) {
   );
 }
 
-function renderMessageText(text, isMe) {
+// knownUsernames/myUsername are only ever passed from the GROUP tab's
+// message bubbles (see its own MessageText call sites below) — the DM tab's
+// calls omit them, so @mention highlighting never applies to a 1:1 chat,
+// where "@someone" is never ambiguous and isn't offered as a feature.
+// Mention tokens are only ever found WITHIN each already-split plain-text
+// segment (never inside an already-matched URL/link), so this can't ever
+// turn part of a link into a mention span.
+function renderMentionSpan(part, i, isMe) {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  // "You were mentioned" gets the red/accent Teams-style highlight the
+  // feature was asked for; a mention of someone ELSE in the same message
+  // still reads as a mention (bold + brand color) without implying it's
+  // about the viewer.
+  const style = part.isMe
+    ? { color: '#ef4444', fontWeight: 700, background: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(239,68,68,0.12)', borderRadius: 4, padding: '0 3px' }
+    : { color: isMe ? 'rgba(255,255,255,0.95)' : (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)'), fontWeight: 600 };
+  return <span key={i} style={style}>@{part.mention}</span>;
+}
+
+function renderMessageText(text, isMe, knownUsernames, myUsername) {
   if (!text) return null;
   const parts = text.split(URL_REGEX);
+  let mentionKey = 0;
   return parts.map((part, i) => {
     URL_REGEX.lastIndex = 0;
     if (URL_REGEX.test(part)) {
@@ -1158,7 +1180,14 @@ function renderMessageText(text, isMe) {
       );
     }
     URL_REGEX.lastIndex = 0;
-    return part;
+    if (!knownUsernames || !knownUsernames.length || !part || part.indexOf('@') === -1) return part;
+    const mentionParts = splitTextWithMentions(part, knownUsernames, myUsername);
+    if (mentionParts.length === 1 && typeof mentionParts[0] === 'string') return part;
+    return (
+      <React.Fragment key={i}>
+        {mentionParts.map((mp) => (typeof mp === 'string' ? mp : renderMentionSpan(mp, `m${i}-${mentionKey++}`, isMe)))}
+      </React.Fragment>
+    );
   });
 }
 
@@ -1439,6 +1468,39 @@ export default function RoomChatPanel({ p }) {
   const composerFocusedRef = React.useRef(false);
   const groupWrapperRef = React.useRef(null);
   const dmWrapperRef = React.useRef(null);
+  // @mention autocomplete — group/room composer only (see mentions.js's own
+  // header comment for why a 1:1 DM doesn't get this). Pure text-editing
+  // state; never touches p.sendGroupChat or anything encryption-related.
+  const groupMention = useMentionAutocomplete({
+    value: p.groupChatInput,
+    setValue: p.setGroupChatInput,
+    textareaRef: p.groupInputRef,
+  });
+  const [groupMentionHighlight, setGroupMentionHighlight] = React.useState(0);
+  const groupMentionDropdownRef = React.useRef(null);
+  const groupMentionCandidates = React.useMemo(() => {
+    if (!groupMention.isMentionOpen) return [];
+    const q = (groupMention.mentionQuery || '').toLowerCase();
+    const myLower = (p.username || '').toLowerCase();
+    return (p.userList || [])
+      .filter(u => u.username && u.username.toLowerCase() !== myLower && u.username.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [groupMention.isMentionOpen, groupMention.mentionQuery, p.userList, p.username]);
+  React.useEffect(() => { setGroupMentionHighlight(0); }, [groupMention.mentionQuery]);
+  // Click-outside closes the dropdown — not blur, since a click on a row
+  // below would blur the textarea first and could race the row's own
+  // onClick before it fires (same reasoning as every other popup/menu
+  // in this file that uses an outside-click ref instead of onBlur).
+  React.useEffect(() => {
+    if (!groupMention.isMentionOpen) return;
+    const onDocClick = (e) => {
+      if (groupMentionDropdownRef.current && !groupMentionDropdownRef.current.contains(e.target) && e.target !== p.groupInputRef?.current) {
+        groupMention.closeMentionDropdown();
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [groupMention.isMentionOpen]);
   // Real wall-clock time this client FIRST rendered each still-encrypted media message:
   // msgKey -> Date.now(), lazily stamped at that first render — see the identical comment
   // on GlobalChatWidget.jsx's own mediaDecryptStartedAt. Fixes the same "Couldn't load"
@@ -3872,7 +3934,7 @@ export default function RoomChatPanel({ p }) {
                               (() => {
                                 let pollDef = null;
                                 try { pollDef = JSON.parse(msg.decryptedText); } catch {}
-                                if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} />;
+                                if (!pollDef) return <MessageText text="📊 Poll" isMe={isMe} knownUsernames={p.userList?.map(u => u.username)} myUsername={myUser} />;
                                 const resolveAvatar = (u) => {
                                   const uname = (u || '').toLowerCase();
                                   const myUserLower = (myUser || '').toLowerCase();
@@ -3902,12 +3964,12 @@ export default function RoomChatPanel({ p }) {
                                 );
                               })()
                             ) : msg.decryptedText !== null ? (
-                              <MessageText text={msg.decryptedText} isMe={isMe} />
+                              <MessageText text={msg.decryptedText} isMe={isMe} knownUsernames={p.userList?.map(u => u.username)} myUsername={myUser} />
                             ) : (
                               (!msg.mediaType && (msg.e2ee || msg.nonce || (msg.message && looksLikeCiphertext(msg.message)))) ? (
                                 <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                               ) : (
-                                !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} />
+                                !msg.mediaType && msg.message && <MessageText text={msg.message} isMe={isMe} knownUsernames={p.userList?.map(u => u.username)} myUsername={myUser} />
                               )
                             )}
                           </div>
@@ -4262,8 +4324,20 @@ export default function RoomChatPanel({ p }) {
                         ref={p.groupInputRef}
                         rows={1}
                         value={p.groupChatInput}
-                        onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited);}}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                        onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'room'); p.setGroupChatInput(limited); groupMention.handleMentionInputChange(limited, e.target.selectionStart);}}
+                        onKeyDown={(e) => {
+                          if (groupMention.isMentionOpen) {
+                            if (e.key === 'Escape') { e.preventDefault(); groupMention.closeMentionDropdown(); return; }
+                            if (e.key === 'ArrowDown') { e.preventDefault(); setGroupMentionHighlight(i => Math.min(i + 1, Math.max(groupMentionCandidates.length - 1, 0))); return; }
+                            if (e.key === 'ArrowUp') { e.preventDefault(); setGroupMentionHighlight(i => Math.max(i - 1, 0)); return; }
+                            if ((e.key === 'Enter' || e.key === 'Tab') && groupMentionCandidates[groupMentionHighlight]) {
+                              e.preventDefault();
+                              groupMention.selectMentionCandidate(groupMentionCandidates[groupMentionHighlight].username);
+                              return;
+                            }
+                          }
+                          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); }
+                        }}
                         // Re-captured on every physical tap (not just onFocus
                         // below) — see the matching comment on this ref's
                         // declaration: dismissing the keyboard via Android's
@@ -4322,6 +4396,36 @@ export default function RoomChatPanel({ p }) {
                           transition: 'background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
                         }}
                       />
+
+                      {/* @mention autocomplete dropdown — Teams-style: opens the
+                          moment "@" is typed, filtered live, click or
+                          Enter/Tab to insert "@username " at the caret. */}
+                      {groupMention.isMentionOpen && groupMentionCandidates.length > 0 && (
+                        <div ref={groupMentionDropdownRef} style={{
+                          position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: 6,
+                          background: isLight ? '#fff' : '#1c1c22',
+                          border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 12, boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
+                          overflow: 'hidden', zIndex: 100030, maxHeight: 220, overflowY: 'auto',
+                        }}>
+                          {groupMentionCandidates.map((u, idx) => (
+                            <button
+                              key={u.username}
+                              type="button"
+                              onMouseEnter={() => setGroupMentionHighlight(idx)}
+                              onClick={() => groupMention.selectMentionCandidate(u.username)}
+                              style={{
+                                width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                                padding: '9px 12px', background: idx === groupMentionHighlight ? (isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(255,255,255,0.06)') : 'transparent',
+                                border: 'none', cursor: 'pointer', textAlign: 'left',
+                              }}
+                            >
+                              <Avatar name={u.username} size={24} src={getAvatarUrl(p.knownAvatars?.[u.username] || p.knownAvatars?.[u.username?.toLowerCase()])} />
+                              <span style={{ fontSize: 13.5, fontWeight: 600, color: isLight ? '#0f172a' : '#fff' }}>{u.username}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
                       {(!p.groupChatInput && !isUploading) && (
                         <>

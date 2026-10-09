@@ -51,6 +51,8 @@ import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntil
 import DownloadAppModal from './DownloadAppModal';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isNotifyCategoryEnabled } from '../lib/notifyGating';
+import { extractMentionedUsernames, splitTextWithMentions, textMentionsUser } from '../utils/mentions';
+import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
@@ -1651,7 +1653,20 @@ const MessageTick = ({ msg, username, isLight, onLightSurface = false }) => {
   return <Check size={13} color={greyColor} style={{ flexShrink: 0 }} />;
 };
 
-function MessageText({ text, isMe, isLight }) {
+// knownUsernames/myUsername are only ever passed from a room/group chat's
+// bubbles — a private 1:1 DM's call sites omit them, so @mention
+// highlighting never applies there (see mentions.js's own header comment
+// for why). "You were mentioned" gets the red/accent Teams-style highlight
+// this feature was asked for; a mention of someone else still reads as a
+// mention (bold + brand color), just without implying it's about the viewer.
+function renderMentionSpan(part, key, isMe, isLight) {
+  const style = part.isMe
+    ? { color: '#ef4444', fontWeight: 700, background: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(239,68,68,0.12)', borderRadius: 4, padding: '0 3px' }
+    : { color: isMe ? '#fff' : (isLight ? '#2563eb' : '#38bdf8'), fontWeight: 600 };
+  return <span key={key} style={style}>@{part.mention}</span>;
+}
+
+function MessageText({ text, isMe, isLight, knownUsernames, myUsername }) {
   const [isExpanded, setIsExpanded] = React.useState(false);
   if (!text) return null;
 
@@ -1684,25 +1699,33 @@ function MessageText({ text, isMe, isLight }) {
 
   const urlRegex = /(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/g;
   const parts = displayText.split(urlRegex);
+  let mentionKey = 0;
   const renderedText = parts.map((part, i) => {
     if (!part) return null;
     if (typeof part === 'string' && part.match(/(https?:\/\/[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/i)) {
       let href = part;
       if (!href.match(/^https?:\/\//i)) href = 'http://' + href;
       return (
-        <a 
-          key={i} 
-          href={href} 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          style={{color: isMe ? '#fff' : (isLight ? '#2563eb' : '#38bdf8'), textDecoration: 'underline'}} 
+        <a
+          key={i}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{color: isMe ? '#fff' : (isLight ? '#2563eb' : '#38bdf8'), textDecoration: 'underline'}}
           onClick={e => e.stopPropagation()}
         >
           {part}
         </a>
       );
     }
-    return part;
+    if (!knownUsernames || !knownUsernames.length || part.indexOf('@') === -1) return part;
+    const mentionParts = splitTextWithMentions(part, knownUsernames, myUsername);
+    if (mentionParts.length === 1 && typeof mentionParts[0] === 'string') return part;
+    return (
+      <React.Fragment key={i}>
+        {mentionParts.map((mp) => (typeof mp === 'string' ? mp : renderMentionSpan(mp, `m${i}-${mentionKey++}`, isMe, isLight)))}
+      </React.Fragment>
+    );
   });
 
   return (
@@ -2898,6 +2921,53 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const inputRef = useRef(null);
   const isSendingGlobalRef = useRef(false);
   useAutoResizeTextarea(inputRef, inputValue);
+  // @mention autocomplete — room/group chats only (see mentions.js's own
+  // header comment). Pure text-editing state; never touches the encrypted
+  // send path below at all.
+  const widgetMention = useMentionAutocomplete({ value: inputValue, setValue: setInputValue, textareaRef: inputRef });
+  const [widgetMentionHighlight, setWidgetMentionHighlight] = useState(0);
+  const widgetMentionDropdownRef = useRef(null);
+  // Lazily fetched the first time "@" is typed in a given room chat, keyed
+  // by roomId — deliberately its OWN fetch, entirely separate from the
+  // send-time /api/rooms/:id/public-keys calls used for E2EE below, so this
+  // autocomplete convenience can never affect encryption timing/freshness.
+  const [roomMemberCache, setRoomMemberCache] = useState({});
+  useEffect(() => {
+    if (!widgetMention.isMentionOpen || activeChat?.type !== 'room' || isSahaplayOfficialGroup(activeChat)) return;
+    const roomIdStr = (activeChat.partner || activeChat.id || '').toLowerCase();
+    if (!roomIdStr || roomMemberCache[roomIdStr]) return;
+    const tkn = localStorage.getItem('watch_token');
+    if (!tkn) return;
+    fetch(`${API}/api/rooms/${roomIdStr}/public-keys`, { headers: { 'Authorization': `Bearer ${tkn}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const names = (data?.keys || []).map(k => k.username).filter(Boolean);
+        setRoomMemberCache(prev => ({ ...prev, [roomIdStr]: names }));
+      })
+      .catch(() => {});
+  }, [widgetMention.isMentionOpen, activeChat]);
+  useEffect(() => { setWidgetMentionHighlight(0); }, [widgetMention.mentionQuery]);
+  // Click-outside closes the dropdown — not blur, since a click on a row
+  // below would blur the textarea first and could race the row's own
+  // onClick before it fires (same reasoning as every other popup in this file).
+  useEffect(() => {
+    if (!widgetMention.isMentionOpen) return;
+    const onDocClick = (e) => {
+      if (widgetMentionDropdownRef.current && !widgetMentionDropdownRef.current.contains(e.target) && e.target !== inputRef.current) {
+        widgetMention.closeMentionDropdown();
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [widgetMention.isMentionOpen]);
+  const widgetMentionCandidates = React.useMemo(() => {
+    if (!widgetMention.isMentionOpen || activeChat?.type !== 'room') return [];
+    const roomIdStr = (activeChat.partner || activeChat.id || '').toLowerCase();
+    const names = roomMemberCache[roomIdStr] || Array.from(new Set((messages || []).map(m => m.senderName || m.username).filter(Boolean)));
+    const q = (widgetMention.mentionQuery || '').toLowerCase();
+    const myLower = (myUsername || '').toLowerCase();
+    return names.filter(n => n && n.toLowerCase() !== myLower && n.toLowerCase().includes(q)).slice(0, 6);
+  }, [widgetMention.isMentionOpen, widgetMention.mentionQuery, activeChat, roomMemberCache, messages, myUsername]);
   const socketRef = useRef(null);
   // Tracks which token the live socket was authenticated with, so a token
   // change (re-login as a different account without this widget unmounting)
@@ -6029,6 +6099,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
       let nonceValue = null, ephemeralKey = null, e2eeKeysGroup = null;
       let targetPubKey = null;
       let dmNetworkFailure = false;
+      // Captured below, room sends only — the SAME recipient usernames the
+      // group encryption block already fetched (read-only reuse, nothing
+      // about the encryption path itself changes), just so @mentions can be
+      // validated against real room members without a second network call.
+      let groupRecipientUsernames = [];
       if (activeChat.type === 'private' && keyPair) {
         // Live-fetch-first, authoritative-on-success, cache-fallback only on
         // a genuine network failure — same vetted resolver Room.jsx's DM
@@ -6075,6 +6150,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
             username: k.username,
             publicKey: robustDecode(k.publicKey)
           }));
+          groupRecipientUsernames = recipients.map(r => r.username);
 
           try {
             const enc = encryptGroupMessage(optimisticMsg.message, recipients, keyPair, myUsername);
@@ -6124,7 +6200,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
         e2eeKeys: e2eeKeysGroup,
         encrypted: isEncrypted,
         replyTo: sanitizeReplyToForWire(optimisticMsg.replyTo),
-        tempId: tempId
+        tempId: tempId,
+        // Plain usernames only — never message content — purely so the
+        // server knows who to push a "mentioned you" notification to (it
+        // re-validates these against real room membership itself; see
+        // mentions.js's own header comment for why this never touches
+        // encryption, it only scans the SAME plaintext just encrypted above).
+        mentions: activeChat.type === 'room' ? extractMentionedUsernames(optimisticMsg.message, groupRecipientUsernames, myUsername) : undefined,
       };
 
       const resp = await fetch(`${API}/api/chats/send`, {
@@ -8699,6 +8781,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
             const unread = chat.unread || 0;
             const isMe = chat.isMyLastMessage || (chat.lastSenderName && chat.lastSenderName === myUsername);
             const chatRowLongPressHandlers = chatListLongPress.getHandlers(chatKey);
+            // Teams-style "you were mentioned" indicator — only while the
+            // mention is still unread; reading the chat clears it the same
+            // way any other unread state does. isMyLastMessage is excluded
+            // on purpose: you can't be mentioned by your own message.
+            const hasUnreadMention = chat.type === 'room' && unread > 0 && !isMe && textMentionsUser(chat.decryptedText || chat.message, myUsername);
             return (
               <div key={chatKey} onClick={() => {
                 if (chatListLongPress.activeId === chatKey) return;
@@ -8706,6 +8793,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
               }} style={{
                 display: 'flex', alignItems: 'center', gap: '12px', padding: '16px',
                 borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer',
+                borderLeft: hasUnreadMention ? '3px solid #ef4444' : '3px solid transparent',
                 transition: 'background 0.2s', position: 'relative',
                 background: selectedChats.includes(chatKey) ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent',
                 // Same fix as .msg-sent/.msg-received in index.css — a
@@ -9117,6 +9205,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   const lastMsg = messages[lastRenderIdx];
                   const isLastSentByMe = lastMsg && (lastMsg.isMe || (lastMsg.username && lastMsg.username.toLowerCase() === myUsername?.toLowerCase()) || (lastMsg.senderName && lastMsg.senderName.toLowerCase() === myUsername?.toLowerCase()));
                   const renderReceiptIndex = isLastSentByMe ? lastRenderIdx : -1;
+                  // @mention highlighting candidate list — room/group chats
+                  // only (see mentions.js's own header comment). GlobalChatWidget
+                  // has no live room roster the way Room.jsx's userList does, so
+                  // this uses every distinct sender already visible in this
+                  // thread — always in sync with what's actually loaded, no
+                  // extra fetch needed just to render a highlight.
+                  const roomMentionCandidates = (activeChat?.type === 'room' && !isSahaplayOfficialGroup(activeChat))
+                    ? Array.from(new Set(messages.map(m => m.senderName || m.username).filter(Boolean)))
+                    : null;
                   return messages.map((msg, i) => {
                     if (msg.isNotice) {
                       const isMeChange = msg.isMe;
@@ -9651,12 +9748,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                     );
                                   })()
                                 ) : msg.decryptedText !== null ? (
-                                  <MessageText text={msg.decryptedText} isMe={isMe} isLight={isLight} />
+                                  <MessageText text={msg.decryptedText} isMe={isMe} isLight={isLight} knownUsernames={roomMentionCandidates} myUsername={myUsername} />
                                 ) : (
                                   (!msg.mediaType && msg.message && looksLikeCiphertext(msg.message)) ? (
                                     <div style={{whiteSpace:'pre-wrap', opacity:0.5, fontSize:12, display:'flex', alignItems:'center', gap:4}}><em>Encrypted message</em></div>
                                   ) : (
-                                    msg.message && !msg.mediaType && <MessageText text={msg.message} isMe={isMe} isLight={isLight} />
+                                    msg.message && !msg.mediaType && <MessageText text={msg.message} isMe={isMe} isLight={isLight} knownUsernames={roomMentionCandidates} myUsername={myUsername} />
                                   )
                                 )}
                               </div>
@@ -10164,7 +10261,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
                           disabled={!!(activeChat?.type === 'room' && chatLocked && !isHost)}
                           value={inputValue}
                           onChange={e => {
-                            setInputValue(enforceWordLimit(e.target.value));
+                            const limited = enforceWordLimit(e.target.value);
+                            setInputValue(limited);
+                            if (activeChat?.type === 'room') widgetMention.handleMentionInputChange(limited, e.target.selectionStart);
                             if (socketRef.current && activeChat) {
                               socketRef.current.emit('chat:typing', {
                                 partner: activeChat.type === 'room' ? activeChat.partner || activeChat.id : activeChat.partner,
@@ -10179,7 +10278,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                }, 3000);
                             }
                           }}
-                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                          onKeyDown={(e) => {
+                            if (widgetMention.isMentionOpen) {
+                              if (e.key === 'Escape') { e.preventDefault(); widgetMention.closeMentionDropdown(); return; }
+                              if (e.key === 'ArrowDown') { e.preventDefault(); setWidgetMentionHighlight(i => Math.min(i + 1, Math.max(widgetMentionCandidates.length - 1, 0))); return; }
+                              if (e.key === 'ArrowUp') { e.preventDefault(); setWidgetMentionHighlight(i => Math.max(i - 1, 0)); return; }
+                              if ((e.key === 'Enter' || e.key === 'Tab') && widgetMentionCandidates[widgetMentionHighlight]) {
+                                e.preventDefault();
+                                widgetMention.selectMentionCandidate(widgetMentionCandidates[widgetMentionHighlight]);
+                                return;
+                              }
+                            }
+                            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); }
+                          }}
                           // Re-captured on every physical tap, not just
                           // onFocus below: dismissing the on-screen keyboard
                           // via Android's back gesture doesn't always fire a
@@ -10258,6 +10369,39 @@ const GlobalChatWidget = React.memo(forwardRef(({
                           }}
                           onBlur={e => { e.target.style.background = '#1c1c1e'; e.target.style.borderColor = 'rgba(255,255,255,0.08)'; composerFocusedRef.current = false; }}
                         />
+
+                        {/* @mention autocomplete dropdown — Teams-style: opens the
+                            moment "@" is typed in a room/group chat, filtered
+                            live, click or Enter/Tab to insert "@username " at
+                            the caret. */}
+                        {widgetMention.isMentionOpen && widgetMentionCandidates.length > 0 && (
+                          <div ref={widgetMentionDropdownRef} style={{
+                            position: 'absolute', left: 0, right: 0, bottom: '100%', marginBottom: 6,
+                            background: isLight ? '#fff' : '#1c1c22',
+                            border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: 12, boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
+                            overflow: 'hidden', zIndex: 100030, maxHeight: 220, overflowY: 'auto',
+                          }}>
+                            {widgetMentionCandidates.map((uname, idx) => (
+                              <button
+                                key={uname}
+                                type="button"
+                                onMouseEnter={() => setWidgetMentionHighlight(idx)}
+                                onClick={() => widgetMention.selectMentionCandidate(uname)}
+                                style={{
+                                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                                  padding: '9px 12px', background: idx === widgetMentionHighlight ? (isLight ? 'rgba(var(--brand-1-rgb),0.08)' : 'rgba(255,255,255,0.06)') : 'transparent',
+                                  border: 'none', cursor: 'pointer', textAlign: 'left',
+                                }}
+                              >
+                                <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: getAvatarColor(uname), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span className="stay-white" style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>{getInitials(uname)}</span>
+                                </div>
+                                <span style={{ fontSize: 13.5, fontWeight: 600, color: isLight ? '#0f172a' : '#fff' }}>{uname}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
 
                         {!inputValue && !isUploading && (
                           <>
