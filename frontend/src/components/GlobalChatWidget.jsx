@@ -57,6 +57,14 @@ import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
 
+// Same "Anonymous" / "guest_"-prefix shape the backend's own isGuestUsername
+// (lib/joinFlow.js) uses to recognize ephemeral QR/local-join identities —
+// a guest's username isn't a persistent account, so mentioning one after
+// they've left the room isn't meaningful (and that name could even get
+// reused by a different guest later). A logged-in user's username IS a
+// persistent account, so they stay mentionable after leaving.
+const isGuestName = (name) => !name || name === 'Anonymous' || name.toLowerCase().startsWith('guest_');
+
 const getMessageCopyText = (msg) => {
   if (!msg) return '';
   if (msg.decryptedText) return msg.decryptedText;
@@ -3005,12 +3013,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const widgetMentionCandidates = React.useMemo(() => {
     if (!widgetMention.isMentionOpen || activeChat?.type !== 'room') return [];
     const roomIdStr = (activeChat.partner || activeChat.id || '').toLowerCase();
-    // Dropdown is scoped to who's actually here RIGHT NOW (live), not
-    // everyone who's ever joined — suggesting someone who already left
-    // isn't actionable. Falls back to recent senders only if the live
-    // fetch hasn't resolved yet, same as before.
+    // Dropdown mixes two different lifetimes: a logged-in user's account is
+    // persistent, so they stay mentionable even after they've left (pulled
+    // from the historical+live `names` list) — but a guest's identity dies
+    // with their session, so a guest only belongs here while actually
+    // connected right now (pulled from `live` only). Falls back to recent
+    // senders only if the fetch hasn't resolved yet, same as before.
     const cached = roomMemberCache[roomIdStr];
-    const names = cached ? cached.live : Array.from(new Set((messages || []).map(m => m.senderName || m.username).filter(Boolean)));
+    const names = cached
+      ? Array.from(new Set([...cached.names.filter(n => !isGuestName(n)), ...cached.live.filter(isGuestName)]))
+      : Array.from(new Set((messages || []).map(m => m.senderName || m.username).filter(Boolean)));
     const q = (widgetMention.mentionQuery || '').toLowerCase();
     const myLower = (myUsername || '').toLowerCase();
     const matches = names.filter(n => n && n.toLowerCase() !== myLower && n.toLowerCase().includes(q));

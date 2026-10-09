@@ -74,6 +74,14 @@ const formatUsername = (name) => {
   return name;
 };
 
+// Same "Anonymous" / "guest_"-prefix shape the backend's own isGuestUsername
+// (lib/joinFlow.js) uses to recognize ephemeral QR/local-join identities —
+// a guest's username isn't a persistent account, so mentioning one after
+// they've left the room isn't meaningful (and that name could even get
+// reused by a different guest later). A logged-in user's username IS a
+// persistent account, so they stay mentionable after leaving.
+const isGuestName = (name) => !name || name === 'Anonymous' || name.toLowerCase().startsWith('guest_');
+
 // WhatsApp-style call-summary bubble — renders in place of raw text whenever
 // a decrypted DM message starts with CALL_LOG_PREFIX (see
 // CallContext.writeCallLog). Mirrors GlobalChatWidget's CallLogBubble so a
@@ -1490,21 +1498,9 @@ export default function RoomChatPanel({ p }) {
   });
   const [groupMentionHighlight, setGroupMentionHighlight] = React.useState(0);
   const groupMentionDropdownRef = React.useRef(null);
-  const groupMentionCandidates = React.useMemo(() => {
-    if (!groupMention.isMentionOpen) return [];
-    const q = (groupMention.mentionQuery || '').toLowerCase();
-    const myLower = (p.username || '').toLowerCase();
-    const matches = (p.userList || [])
-      .filter(u => u.username && u.username.toLowerCase() !== myLower && u.username.toLowerCase().includes(q));
-    // "everyone" is a reserved keyword (see mentions.js), not a real member —
-    // offered here so it's actually discoverable, same as Teams surfaces
-    // "Everyone" at the top of its own @mention picker.
-    const withEveryone = EVERYONE_KEYWORD.includes(q) ? [{ username: 'everyone' }, ...matches] : matches;
-    return withEveryone.slice(0, 6);
-  }, [groupMention.isMentionOpen, groupMention.mentionQuery, p.userList, p.username]);
   // Render-side mention RECOGNITION list — deliberately broader than
   // p.userList (the live, currently-connected socket roster used for the
-  // dropdown above). p.userList misses a real member who joined this room
+  // dropdown below). p.userList misses a real member who joined this room
   // but isn't connected to it right this second, which made an already-sent
   // "@name" mentioning them render as plain text instead of red — confirmed
   // live, same bug GlobalChatWidget.jsx's own roomMentionCandidates had and
@@ -1526,6 +1522,28 @@ export default function RoomChatPanel({ p }) {
       })
       .catch(() => {});
   }, [p.roomId, p.SOCKET_SERVER_URL]);
+  const groupMentionCandidates = React.useMemo(() => {
+    if (!groupMention.isMentionOpen) return [];
+    const roomIdStr = (p.roomId || '').toLowerCase();
+    const q = (groupMention.mentionQuery || '').toLowerCase();
+    const myLower = (p.username || '').toLowerCase();
+    // A logged-in user's account is persistent, so they stay mentionable
+    // even after leaving (pulled from the historical+live participant
+    // cache) — but a guest's identity dies with their session, so a guest
+    // only belongs here while actually connected right now (pulled from
+    // the live p.userList only).
+    const historical = (roomParticipantCache[roomIdStr] || []).filter(n => !isGuestName(n));
+    const liveGuests = (p.userList || []).map(u => u.username).filter(isGuestName);
+    const pool = Array.from(new Set([...historical, ...liveGuests]));
+    const matches = pool
+      .filter(n => n && n.toLowerCase() !== myLower && n.toLowerCase().includes(q))
+      .map(username => ({ username }));
+    // "everyone" is a reserved keyword (see mentions.js), not a real member —
+    // offered here so it's actually discoverable, same as Teams surfaces
+    // "Everyone" at the top of its own @mention picker.
+    const withEveryone = EVERYONE_KEYWORD.includes(q) ? [{ username: 'everyone' }, ...matches] : matches;
+    return withEveryone.slice(0, 6);
+  }, [groupMention.isMentionOpen, groupMention.mentionQuery, p.userList, p.username, roomParticipantCache, p.roomId]);
   const groupKnownUsernames = React.useMemo(() => {
     const roomIdStr = (p.roomId || '').toLowerCase();
     const liveNames = (p.userList || []).map(u => u.username).filter(Boolean);
