@@ -381,8 +381,21 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 // app's FirebaseMessagingService (SahaplayFirebaseMessagingService.java),
 // foreground or not, which is required for the native full-screen incoming-
 // call UI to have any chance of showing while the app is backgrounded or
-// fully killed. android.priority 'high' asks FCM to wake a killed/doze'd
-// app process for it, same as WhatsApp/Signal-style call pushes rely on.
+// fully killed.
+//
+// android.priority is ALWAYS 'high', for both branches — this used to be
+// 'normal' for ordinary notification-block pushes (chat messages, friend
+// requests, reactions), on no stronger reasoning than "only calls need to
+// wake a killed/doze'd process". That was wrong: FCM is free to defer a
+// 'normal'-priority message for an arbitrary stretch (commonly several
+// seconds, sometimes much longer) once the recipient's device is idle —
+// confirmed live: a chat message to a fully-closed app arrived ~10s late,
+// exactly the kind of delay 'normal' priority is documented to allow, and
+// nothing a WhatsApp/Signal-style app would accept for an ordinary message.
+// 'high' priority is explicitly supported alongside a `notification` block
+// (it's not exclusive to data-only messages) and is what every mainstream
+// chat app actually uses for message pushes, so this just brings ordinary
+// notifications in line with the urgency calls already got.
 async function sendPushToTokens(tokens, { title, body, data = {}, tag, dataOnly = false } = {}) {
   if (!firebaseAdmin || !tokens || tokens.length === 0) return;
   const stringData = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]));
@@ -403,7 +416,7 @@ async function sendPushToTokens(tokens, { title, body, data = {}, tag, dataOnly 
       const resp = await firebaseAdmin.messaging().sendEachForMulticast({
         notification: dataOnly ? undefined : { title, body },
         android: {
-          priority: dataOnly ? 'high' : 'normal',
+          priority: 'high',
           notification: (!dataOnly && tag) ? { tag } : undefined,
         },
         data: stringData,
@@ -440,7 +453,13 @@ async function sendWebPushToTokens(subscriptions, payload) {
     try {
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.keys_p256dh, auth: sub.keys_auth } },
-        JSON.stringify(payload)
+        JSON.stringify(payload),
+        // Same reasoning as sendPushToTokens' android.priority: 'high' above —
+        // without this, push services are free to delay delivery while the
+        // browser/device is idle. 'high' is the most urgent tier the Web Push
+        // protocol defines (the only higher-urgency reason to delay would be
+        // battery-saving on the user's end, which this explicitly opts out of).
+        { urgency: 'high' }
       );
     } catch (e) {
       // 404/410 = the subscription no longer exists on the browser's push

@@ -2932,13 +2932,29 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const widgetMention = useMentionAutocomplete({ value: inputValue, setValue: setInputValue, textareaRef: inputRef });
   const [widgetMentionHighlight, setWidgetMentionHighlight] = useState(0);
   const widgetMentionDropdownRef = useRef(null);
-  // Lazily fetched the first time "@" is typed in a given room chat, keyed
-  // by roomId — deliberately its OWN fetch, entirely separate from the
-  // send-time /api/rooms/:id/public-keys calls used for E2EE below, so this
-  // autocomplete convenience can never affect encryption timing/freshness.
+  // Fetched the moment a room chat is opened (not just when "@" is typed —
+  // see the fix note below), keyed by roomId. Deliberately its OWN fetch,
+  // entirely separate from the send-time /api/rooms/:id/public-keys calls
+  // used for E2EE below, so this autocomplete/highlighting convenience can
+  // never affect encryption timing/freshness.
+  //
+  // Used for two things: the autocomplete dropdown's own candidate list
+  // (widgetMentionCandidates below), and — just as importantly —
+  // roomMentionCandidates further down, which decides whether an already-
+  // SENT "@name" in a bubble is even recognized as a real mention at all
+  // for rendering. That second use is why this used to be gated on
+  // widgetMention.isMentionOpen (only fetched for whoever was actively
+  // composing a mention): a message mentioning someone who had never sent a
+  // message in this thread, viewed by someone who never typed "@" either,
+  // fell back to roomMentionCandidates' own weak "every sender already
+  // visible in this thread" heuristic — which doesn't contain that person,
+  // so splitTextWithMentions never recognized "@name" as a mention token at
+  // all and it rendered as plain text, not even reaching the red/plain
+  // highlight decision. Fetching for every room chat as soon as it's open
+  // means any viewer gets the real member list in time to render it.
   const [roomMemberCache, setRoomMemberCache] = useState({});
   useEffect(() => {
-    if (!widgetMention.isMentionOpen || activeChat?.type !== 'room' || isSahaplayOfficialGroup(activeChat)) return;
+    if (activeChat?.type !== 'room' || isSahaplayOfficialGroup(activeChat)) return;
     const roomIdStr = (activeChat.partner || activeChat.id || '').toLowerCase();
     if (!roomIdStr || roomMemberCache[roomIdStr]) return;
     const tkn = localStorage.getItem('watch_token');
@@ -2950,7 +2966,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
         setRoomMemberCache(prev => ({ ...prev, [roomIdStr]: names }));
       })
       .catch(() => {});
-  }, [widgetMention.isMentionOpen, activeChat]);
+  }, [activeChat]);
   useEffect(() => { setWidgetMentionHighlight(0); }, [widgetMention.mentionQuery]);
   // Click-outside closes the dropdown — not blur, since a click on a row
   // below would blur the textarea first and could race the row's own
@@ -9260,13 +9276,19 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   const isLastSentByMe = lastMsg && (lastMsg.isMe || (lastMsg.username && lastMsg.username.toLowerCase() === myUsername?.toLowerCase()) || (lastMsg.senderName && lastMsg.senderName.toLowerCase() === myUsername?.toLowerCase()));
                   const renderReceiptIndex = isLastSentByMe ? lastRenderIdx : -1;
                   // @mention highlighting candidate list — room/group chats
-                  // only (see mentions.js's own header comment). GlobalChatWidget
-                  // has no live room roster the way Room.jsx's userList does, so
-                  // this uses every distinct sender already visible in this
-                  // thread — always in sync with what's actually loaded, no
-                  // extra fetch needed just to render a highlight.
+                  // only (see mentions.js's own header comment). Prefers the
+                  // real room membership fetched into roomMemberCache above;
+                  // falls back to "every distinct sender already visible in
+                  // this thread" only for the brief window before that fetch
+                  // resolves (or if it failed) — that fallback is what used
+                  // to be the ONLY source here, which is why mentioning
+                  // someone who had never sent a message in this thread
+                  // rendered as plain text instead of a highlight, even to
+                  // the person who typed it: they were never a "sender" the
+                  // old heuristic could see.
                   const roomMentionCandidates = (activeChat?.type === 'room' && !isSahaplayOfficialGroup(activeChat))
-                    ? Array.from(new Set(messages.map(m => m.senderName || m.username).filter(Boolean)))
+                    ? (roomMemberCache[(activeChat.partner || activeChat.id || '').toLowerCase()]
+                      || Array.from(new Set(messages.map(m => m.senderName || m.username).filter(Boolean))))
                     : null;
                   return messages.map((msg, i) => {
                     if (msg.isNotice) {
