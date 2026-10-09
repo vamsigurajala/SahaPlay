@@ -186,6 +186,29 @@ html.sp-ts-dragging .msg-row {
   transition: none;
 }
 
+/* @mention red highlight (GlobalChatWidget.jsx/RoomChatPanel.jsx's own
+   renderMentionSpan) has to survive App.jsx's light-theme rule that forces
+   `.msg-sent, .msg-sent * { color: #fff !important }` so a sent bubble's
+   purple-gradient background stays readable — without this, an inline
+   `color: #ef4444` loses to that !important stylesheet rule (confirmed
+   live: DevTools showed the inline style correctly applied, but the glyph
+   still rendered white). A plain `.mention-red { color:#ef4444 !important }`
+   alone would TIE that rule's specificity and come down to source-order
+   luck, so the light-theme-scoped selector below matches its exact shape
+   with one extra class to win outright regardless of stylesheet load order.
+   The unscoped rule beneath it covers dark theme/no-wallpaper cases, where
+   nothing else forces a color in the first place but this keeps the win
+   unconditional either way. */
+.mention-red {
+  color: #ef4444 !important;
+  -webkit-text-fill-color: #ef4444 !important;
+}
+html[data-theme='light'] .msg-sent .mention-red,
+html[data-theme='light'] .stay-white .mention-red {
+  color: #ef4444 !important;
+  -webkit-text-fill-color: #ef4444 !important;
+}
+
 html, body {
   overflow-x: hidden;
   /* Ensure touch scrolling always works on iOS/iPad/Android */
