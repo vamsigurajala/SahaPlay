@@ -2948,11 +2948,10 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // used for E2EE below, so this autocomplete/highlighting convenience can
   // never affect encryption timing/freshness.
   //
-  // Used for two things: the autocomplete dropdown's own candidate list
-  // (widgetMentionCandidates below), and — just as importantly —
-  // roomMentionCandidates further down, which decides whether an already-
-  // SENT "@name" in a bubble is even recognized as a real mention at all
-  // for rendering.
+  // Used for two things: roomMentionCandidates further down (render-time —
+  // decides whether an already-SENT "@name" in a bubble is even recognized
+  // as a real mention at all), and widgetMentionCandidates below (the
+  // autocomplete dropdown while composing).
   //
   // Hits /api/rooms/:id/participants (plain usernames, no keys) rather than
   // /api/rooms/:id/public-keys — that endpoint only includes someone if a
@@ -2965,7 +2964,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // was validating "@vamsi" against. The participants endpoint uses the
   // same durable "anyone who's ever opened this room" membership signal the
   // backend's own offline-push routing already relies on, so it isn't
-  // fooled by that.
+  // fooled by that — this historical+live union (`usernames`) is kept for
+  // render-time recognition specifically so an already-sent mention doesn't
+  // stop highlighting just because that person later left.
+  //
+  // The dropdown itself is a different need: suggesting someone who already
+  // left the room isn't actionable, so it's deliberately scoped to the
+  // endpoint's separate `live` field (currently-connected users only, not
+  // "anyone who ever joined") — see widgetMentionCandidates below.
   const [roomMemberCache, setRoomMemberCache] = useState({});
   useEffect(() => {
     if (activeChat?.type !== 'room' || isSahaplayOfficialGroup(activeChat)) return;
@@ -2977,7 +2983,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         const names = (data?.usernames || []).filter(Boolean);
-        setRoomMemberCache(prev => ({ ...prev, [roomIdStr]: names }));
+        const live = (data?.live || []).filter(Boolean);
+        setRoomMemberCache(prev => ({ ...prev, [roomIdStr]: { names, live } }));
       })
       .catch(() => {});
   }, [activeChat]);
@@ -2998,7 +3005,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
   const widgetMentionCandidates = React.useMemo(() => {
     if (!widgetMention.isMentionOpen || activeChat?.type !== 'room') return [];
     const roomIdStr = (activeChat.partner || activeChat.id || '').toLowerCase();
-    const names = roomMemberCache[roomIdStr] || Array.from(new Set((messages || []).map(m => m.senderName || m.username).filter(Boolean)));
+    // Dropdown is scoped to who's actually here RIGHT NOW (live), not
+    // everyone who's ever joined — suggesting someone who already left
+    // isn't actionable. Falls back to recent senders only if the live
+    // fetch hasn't resolved yet, same as before.
+    const cached = roomMemberCache[roomIdStr];
+    const names = cached ? cached.live : Array.from(new Set((messages || []).map(m => m.senderName || m.username).filter(Boolean)));
     const q = (widgetMention.mentionQuery || '').toLowerCase();
     const myLower = (myUsername || '').toLowerCase();
     const matches = names.filter(n => n && n.toLowerCase() !== myLower && n.toLowerCase().includes(q));
@@ -9326,7 +9338,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                   // the person who typed it: they were never a "sender" the
                   // old heuristic could see.
                   const roomMentionCandidates = (activeChat?.type === 'room' && !isSahaplayOfficialGroup(activeChat))
-                    ? (roomMemberCache[(activeChat.partner || activeChat.id || '').toLowerCase()]
+                    ? (roomMemberCache[(activeChat.partner || activeChat.id || '').toLowerCase()]?.names
                       || Array.from(new Set(messages.map(m => m.senderName || m.username).filter(Boolean))))
                     : null;
                   return messages.map((msg, i) => {

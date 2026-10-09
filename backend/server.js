@@ -4053,7 +4053,13 @@ app.get('/api/rooms/:roomId/participants', authenticateTokenOptional, async (req
   const room = rooms.get(normalizedId);
   const liveUsernames = room ? (room.users || []).map(u => u.username).filter(Boolean) : [];
   const merged = Array.from(new Set([...usernames, ...liveUsernames]));
-  return res.json({ usernames: merged });
+  // `usernames` (merged, historical+live) is for RENDER-time mention
+  // recognition — an already-sent "@name" should still highlight even if
+  // that person has since left, so a mention doesn't retroactively look
+  // wrong. `live` (live-connected only) is for the autocomplete DROPDOWN —
+  // suggesting someone who already left the room isn't actionable, so the
+  // picker should only offer who's actually here right now.
+  return res.json({ usernames: merged, live: Array.from(new Set(liveUsernames)) });
 });
 
 // ─── Fetch Active Room Participant Public Keys (Legacy/Direct Fallback) ───
