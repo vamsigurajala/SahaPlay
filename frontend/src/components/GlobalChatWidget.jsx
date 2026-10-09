@@ -51,6 +51,7 @@ import { countSoonExpiringMedia, dismissExpiryBanner12h, snoozeExpiryBannerUntil
 import DownloadAppModal from './DownloadAppModal';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isNotifyCategoryEnabled } from '../lib/notifyGating';
+import { onAppResume } from '../lib/appResume';
 import { extractMentionedUsernames, splitTextWithMentions, textMentionsUser } from '../utils/mentions';
 import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete';
 
@@ -1656,13 +1657,17 @@ const MessageTick = ({ msg, username, isLight, onLightSurface = false }) => {
 // knownUsernames/myUsername are only ever passed from a room/group chat's
 // bubbles — a private 1:1 DM's call sites omit them, so @mention
 // highlighting never applies there (see mentions.js's own header comment
-// for why). "You were mentioned" gets the red/accent Teams-style highlight
-// this feature was asked for; a mention of someone else still reads as a
-// mention (bold + brand color), just without implying it's about the viewer.
+// for why). Red highlight is scoped to the two people who actually care
+// about this specific @mention: the person it names (part.isMe) and the
+// person who typed it (isMe — this bubble is one of my own sent messages).
+// Everyone else in the group sees it as perfectly plain text, same as any
+// other word in the message — explicitly asked for, so a mention of some
+// OTHER member doesn't read as a highlighted/special token to the rest of
+// the room.
 function renderMentionSpan(part, key, isMe, isLight) {
-  const style = part.isMe
-    ? { color: '#ef4444', fontWeight: 700, background: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(239,68,68,0.12)', borderRadius: 4, padding: '0 3px' }
-    : { color: isMe ? '#fff' : (isLight ? '#2563eb' : '#38bdf8'), fontWeight: 600 };
+  const highlight = part.isMe || isMe;
+  if (!highlight) return <React.Fragment key={key}>@{part.mention}</React.Fragment>;
+  const style = { color: '#ef4444', fontWeight: 700, background: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(239,68,68,0.12)', borderRadius: 4, padding: '0 3px' };
   return <span key={key} style={style}>@{part.mention}</span>;
 }
 
@@ -3331,7 +3336,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
     const conv = (conversations || []).find(c => c.id === chatKey || c.partner === chatKey);
     const isDm = conv ? conv.type === 'private' : true;
     setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
-      (c.id === chatKey || c.partner === chatKey) ? { ...c, unread: 0 } : c
+      (c.id === chatKey || c.partner === chatKey) ? { ...c, unread: 0, hasUnreadMention: false } : c
     ));
     try {
       const localCounts = JSON.parse(localStorage.getItem('chat_unread_counts') || '{}');
@@ -3490,7 +3495,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
       const key = (chatId || '').toLowerCase();
       setConversations(prev => (Array.isArray(prev) ? prev : []).map(c =>
         (c.id === key || c.id === chatId || c.partner === key || c.partner === chatId)
-          ? { ...c, unread: 0 }
+          ? { ...c, unread: 0, hasUnreadMention: false }
           : c
       ));
       setReactionPreviewOverrides(prev => {
@@ -3514,7 +3519,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
       setPersistedReactionPreview(chatKey, previewText);
     },
     markAllRead: () => {
-      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0 })));
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0, hasUnreadMention: false })));
     },
     // Called by Room.jsx's checkUnread polling — syncs GCW list badges to server-authoritative counts.
     // serverCounts is { chatKeyLower: unreadNumber } — any key not present has 0 unread.
@@ -3523,7 +3528,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
       setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => {
         const key = ((c.id || c.partner) || '').toLowerCase();
         const serverUnread = serverCounts[key] ?? 0;
-        return c.unread === serverUnread ? c : { ...c, unread: serverUnread };
+        if (c.unread === serverUnread) return c;
+        // A non-zero server count doesn't tell us whether a mention is still
+        // among those unread messages — only a genuine "fully read" (0)
+        // report is authoritative enough to clear the border here.
+        return { ...c, unread: serverUnread, ...(serverUnread === 0 ? { hasUnreadMention: false } : {}) };
       }));
     }
   }));
@@ -3589,6 +3598,25 @@ const GlobalChatWidget = React.memo(forwardRef(({
   // Expose an imperative method to open a chat directly from parent
 
 
+  // Force a fresh socket reconnect the instant the app comes back to the
+  // foreground — see appResume.js's own comment for the full "zombie
+  // connection" reasoning this closes. Deliberately a disconnect()+connect()
+  // pair rather than just checking sock.connected first: the whole point is
+  // that a dead connection the OS silently dropped still LOOKS connected to
+  // both this client and the server until the next heartbeat timeout, so a
+  // connected-state check here would just as often skip the exact case this
+  // needs to fix. The existing 'connect' handler above already re-fetches
+  // conversations and re-subscribes to tracked rooms, so this is fully
+  // self-healing — no separate resync logic needed here.
+  useEffect(() => {
+    return onAppResume(() => {
+      const sock = socketRef.current;
+      if (!sock) return;
+      sock.disconnect();
+      sock.connect();
+    });
+  }, []);
+
   // Connect socket for live updates (reactions + new messages)
   useEffect(() => {
     if (!token || !isReady) return;
@@ -3653,7 +3681,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
       setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => {
         const cId = (c.id || '').toLowerCase();
         const cPartner = (c.partner || '').toLowerCase();
-        return (cId === target || cPartner === target) ? { ...c, unread: 0 } : c;
+        return (cId === target || cPartner === target) ? { ...c, unread: 0, hasUnreadMention: false } : c;
       }));
       // Every mounted instance of this widget (Room's inline chat panel,
       // the floating overlay, BottomNav's own instance that owns the nav
@@ -3673,7 +3701,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
 
     sock.on('chat:mark_all_read', () => {
       // Another tab/device marked all as read — sync this tab too
-      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0 })));
+      setConversations(prev => (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0, hasUnreadMention: false })));
       if (typeof onMarkAllRead === 'function') onMarkAllRead();
     });
 
@@ -4471,6 +4499,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
           const safePreview = (finalizedPreview && looksLikeCiphertext(finalizedPreview))
             ? exists.message
             : finalizedPreview;
+          // Teams-style "you were mentioned" row border: OR'd onto whatever
+          // was already true rather than recomputed from just this message,
+          // so it isn't lost the moment a later, non-mentioning message
+          // becomes the chat's newest one (the bug this fixes — the border
+          // used to be derived live from only the latest message's text,
+          // so a mention sitting two messages back silently stopped showing
+          // one). Cleared only when the chat is actually opened (every
+          // `unread: 0` reset site below also resets this alongside it).
+          const mentionsMeNow = isGroup && !isMine && !isViewingThis && textMentionsUser(convDecryptedText, myUsername);
           const updatedItem = {
             ...exists,
             message: isNewer ? safePreview : exists.message,
@@ -4483,6 +4520,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
             lastSenderName: isNewer ? (msg.senderName || msg.username) : exists.lastSenderName,
             isMyLastMessage: isNewer ? isMine : exists.isMyLastMessage,
             unread: Number(exists.unread || 0) + (!isMine && !isViewingThis ? 1 : 0),
+            hasUnreadMention: isViewingThis ? false : ((exists.hasUnreadMention || false) || mentionsMeNow),
             partner: partner,
             displayName: isGroup
               ? (msg.roomName || exists.displayName || 'Room Chat')
@@ -4523,7 +4561,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
             lastSenderName: msg.senderName || msg.username,
             isMyLastMessage: isMine,
             type: isGroup ? 'room' : 'private',
-            unread: !isMine && !isViewingThis ? 1 : 0
+            unread: !isMine && !isViewingThis ? 1 : 0,
+            hasUnreadMention: isGroup && !isMine && !isViewingThis && textMentionsUser(convDecryptedText, myUsername)
           }, ...conversations];
         }
         return updatedList.sort((a,b) => getSortTime(b) - getSortTime(a));
@@ -5373,7 +5412,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
             const serverTs = Number(finalC.lastTimestamp) || 0;
             if (!serverTs || (clearTs && serverTs <= clearTs)) {
               // Carry clearedAt forward so getSortTime keeps this chat at its cleared position
-              return { ...finalC, message: '', decryptedText: '', lastTimestamp: 0, lastMediaType: null, lastMediaDuration: null, unread: 0, clearedAt: clearTs };
+              return { ...finalC, message: '', decryptedText: '', lastTimestamp: 0, lastMediaType: null, lastMediaDuration: null, unread: 0, hasUnreadMention: false, clearedAt: clearTs };
             }
           }
           
@@ -5470,6 +5509,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
           const seenTs = lastSeen[chatKey] || lastSeen[chatKey.toLowerCase()] || 0;
           const definitelyRead = seenTs > 0 && serverTs > 0 && seenTs >= serverTs;
 
+          // hasUnreadMention mirrors the same "OR onto whatever was already
+          // true" approach as the live handleNewMsg path above — this fetch
+          // only ever sees the chat's single latest message, so a mention
+          // sitting further back in the unread backlog would otherwise be
+          // lost the moment this refetch runs (e.g. on socket reconnect).
+          // `existing` (this tab's own prior state) is the only place that
+          // accumulated history can still be found, since the server has no
+          // notion of mentions at all (messages are E2EE — it never sees
+          // plaintext to check).
+          const freshMentionGuess = !definitelyRead && finalC.type === 'room' && Number(finalC.unread) > 0 && textMentionsUser(betterDecryptedText, myUsername);
+          const hasUnreadMention = definitelyRead ? false : ((existing?.hasUnreadMention || false) || freshMentionGuess);
+
           return {
             ...finalC,
             decryptedText: betterDecryptedText,
@@ -5477,6 +5528,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
             lastMediaFileName: betterMediaFileName,
             lastMediaDuration: betterMediaDuration,
             message: betterMessage,
+            hasUnreadMention,
             ...(keepClearedAt ? { clearedAt: localClearedAt } : {}),
             ...(definitelyRead ? { unread: 0 } : {}),
           };
@@ -6006,8 +6058,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
     }
     // Reset unread count in local conversation list
     setConversations(prev => {
-      const updated = (Array.isArray(prev) ? prev : []).map(c => 
-        (c.partner === targetPartner || c.id === targetPartner) ? { ...c, unread: 0 } : c
+      const updated = (Array.isArray(prev) ? prev : []).map(c =>
+        (c.partner === targetPartner || c.id === targetPartner) ? { ...c, unread: 0, hasUnreadMention: false } : c
       );
       return updated.sort((a,b) => getSortTime(b) - getSortTime(a));
     });
@@ -8053,7 +8105,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                         onClick={() => {
                           // Zero out all unread counts in GCW's own conversation list
                           setConversations(prev =>
-                            (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0 }))
+                            (Array.isArray(prev) ? prev : []).map(c => ({ ...c, unread: 0, hasUnreadMention: false }))
                           );
                           if (socketRef.current) {
                             socketRef.current.emit('chat:mark_all_read');
@@ -8781,11 +8833,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
             const unread = chat.unread || 0;
             const isMe = chat.isMyLastMessage || (chat.lastSenderName && chat.lastSenderName === myUsername);
             const chatRowLongPressHandlers = chatListLongPress.getHandlers(chatKey);
-            // Teams-style "you were mentioned" indicator — only while the
-            // mention is still unread; reading the chat clears it the same
-            // way any other unread state does. isMyLastMessage is excluded
-            // on purpose: you can't be mentioned by your own message.
-            const hasUnreadMention = chat.type === 'room' && unread > 0 && !isMe && textMentionsUser(chat.decryptedText || chat.message, myUsername);
+            // Teams-style "you were mentioned" indicator — persisted on the
+            // conversation object itself (accumulated in handleNewMsg/
+            // fetchConversations, OR'd across every unread message rather
+            // than recomputed from just the latest one) so it survives a
+            // mention getting buried under later, non-mentioning messages
+            // before the chat is opened. Cleared the moment unread hits 0.
+            const hasUnreadMention = !!chat.hasUnreadMention && unread > 0;
             return (
               <div key={chatKey} onClick={() => {
                 if (chatListLongPress.activeId === chatKey) return;

@@ -1152,14 +1152,16 @@ function MessageText({ text, isMe, knownUsernames, myUsername }) {
 // segment (never inside an already-matched URL/link), so this can't ever
 // turn part of a link into a mention span.
 function renderMentionSpan(part, i, isMe) {
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-  // "You were mentioned" gets the red/accent Teams-style highlight the
-  // feature was asked for; a mention of someone ELSE in the same message
-  // still reads as a mention (bold + brand color) without implying it's
-  // about the viewer.
-  const style = part.isMe
-    ? { color: '#ef4444', fontWeight: 700, background: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(239,68,68,0.12)', borderRadius: 4, padding: '0 3px' }
-    : { color: isMe ? 'rgba(255,255,255,0.95)' : (isLight ? 'var(--brand-1-dark)' : 'var(--brand-1-light)'), fontWeight: 600 };
+  // Red highlight is scoped to the two people who actually care about this
+  // specific @mention: the person it names (part.isMe) and the person who
+  // typed it (isMe — this bubble is one of my own sent messages). Everyone
+  // else in the group sees it as perfectly plain text, same as any other
+  // word in the message — explicitly asked for, so a mention of some OTHER
+  // member doesn't read as a highlighted/special token to the rest of the
+  // room.
+  const highlight = part.isMe || isMe;
+  if (!highlight) return <React.Fragment key={i}>@{part.mention}</React.Fragment>;
+  const style = { color: '#ef4444', fontWeight: 700, background: isMe ? 'rgba(255,255,255,0.18)' : 'rgba(239,68,68,0.12)', borderRadius: 4, padding: '0 3px' };
   return <span key={i} style={style}>@{part.mention}</span>;
 }
 
