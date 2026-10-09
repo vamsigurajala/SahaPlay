@@ -2,6 +2,7 @@ import React from 'react'
 import { Image, Video, Mic, FileText, Paperclip, File, Phone, PhoneMissed, BarChart2 } from 'lucide-react'
 import { isSahaplayOfficialGroup } from '../lib/sahaplayOfficial'
 import { CALL_LOG_PREFIX } from '../contexts/CallContext'
+import { stripMentionAt } from './mentions'
 
 const ICON_SIZE = 11
 
@@ -115,7 +116,12 @@ export function getMessagePreview(chat, myUsername) {
   if (media) {
     content = media
   } else {
-    const text = chat.decryptedText || chat.message || ''
+    // @mentions are group/room-only (see mentions.js) — stripping the "@"
+    // for a private DM's preview would risk eating a literal "@" someone
+    // typed for an unrelated reason (an email address, a handle), which
+    // never carries mention semantics there in the first place.
+    const rawText = chat.decryptedText || chat.message || ''
+    const text = chat.type === 'room' ? stripMentionAt(rawText) : rawText
     if (text && text.startsWith(CALL_LOG_PREFIX)) {
       content = callLogContent(text, myUsername) || 'Call'
     } else if (isPollJSON(text)) {

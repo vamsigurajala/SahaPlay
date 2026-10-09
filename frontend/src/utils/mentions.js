@@ -119,3 +119,20 @@ export function textMentionsUser(text, username) {
   const re = new RegExp(`@${escaped}\\b`, 'i');
   return re.test(text);
 }
+
+/**
+ * Strips the leading "@" off every mention-shaped "@word" in `text`, for
+ * plain-text PREVIEW surfaces (the conversation-list last-message snippet,
+ * a quoted reply-to preview) that show truncated raw text rather than going
+ * through splitTextWithMentions' full React-node rendering — those never
+ * had a reason to also validate against a live candidate list (a preview is
+ * read-only summary text, not something a recipient needs to be precisely
+ * correct about), so this applies to any "@word" shaped like a username,
+ * same charset reasoning as the rest of this file (an email's "@domain"
+ * part, or a bare "@", still never matches and passes through untouched).
+ */
+export function stripMentionAt(text) {
+  if (!text) return text;
+  const re = new RegExp(MENTION_RE.source, 'g');
+  return text.replace(re, (_match, word) => word);
+}

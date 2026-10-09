@@ -52,7 +52,7 @@ import DownloadAppModal from './DownloadAppModal';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isNotifyCategoryEnabled } from '../lib/notifyGating';
 import { onAppResume } from '../lib/appResume';
-import { extractMentionedUsernames, splitTextWithMentions, textMentionsUser, EVERYONE_KEYWORD } from '../utils/mentions';
+import { extractMentionedUsernames, splitTextWithMentions, textMentionsUser, EVERYONE_KEYWORD, stripMentionAt } from '../utils/mentions';
 import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
@@ -9602,7 +9602,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
                             if (isPollJSON(r.message)) return '📊 Poll';
                             const raw = r.message || '';
                             if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
-                            return raw.slice(0,60) || 'Media';
+                            // @mentions are group/room-only — see messagePreview.jsx's
+                            // identical gate on stripMentionAt for why this never
+                            // touches a DM's own quoted-reply preview.
+                            const previewText = activeChat?.type === 'room' ? stripMentionAt(raw) : raw;
+                            return previewText.slice(0,60) || 'Media';
                           })()}
                         </div>
                       )}

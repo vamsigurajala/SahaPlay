@@ -40,7 +40,7 @@ import DownloadAppModal from './DownloadAppModal';
 import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { getMessagePreview } from '../utils/messagePreview';
 import { keepMenuInView } from '../utils/keepMenuInView';
-import { extractMentionedUsernames, splitTextWithMentions, EVERYONE_KEYWORD } from '../utils/mentions';
+import { extractMentionedUsernames, splitTextWithMentions, EVERYONE_KEYWORD, stripMentionAt } from '../utils/mentions';
 import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
@@ -3771,9 +3771,10 @@ export default function RoomChatPanel({ p }) {
                         const raw = msg.replyTo.message || '';
                         if (msg.replyTo.mediaType) { const rmt=msg.replyTo.mediaType; return rmt.startsWith('video')?'Video':rmt.startsWith('image')?'Photo':rmt.startsWith('audio')?'Voice Note':(msg.replyTo.mediaFileName || msg.replyTo._fileName || 'File'); }
                         if (isPollJSON(msg.replyTo.decryptedText) || isPollJSON(raw)) return '📊 Poll';
-                        if (msg.replyTo.decryptedText) return msg.replyTo.decryptedText.slice(0,60);
+                        // Group tab only — @mentions are group/room-only (see mentions.js).
+                        if (msg.replyTo.decryptedText) return stripMentionAt(msg.replyTo.decryptedText).slice(0,60);
                         if (typeof looksLikeCiphertext === 'function' && looksLikeCiphertext(raw)) return 'Message';
-                        return raw.slice(0,60) || 'Message';
+                        return stripMentionAt(raw).slice(0,60) || 'Message';
                       })()}
                     </div>
                   )}
