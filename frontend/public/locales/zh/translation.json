@@ -902,7 +902,7 @@
   "preventSpamLinks": "防止聊天中出现垃圾链接",
   "pricing": "价格",
   "primeTheBoys": "Prime Video — 男孩们",
-  "primeVideo": "优质视频",
+  "primeVideo": "Prime Video",
   "privacyByDesignDesc": "我们以您的隐私为基础构建 SahaPlay，而不是事后才想到的。",
   "privacyByDesignTitle": "隐私设计",
   "privacyCardBody1": "所有私人消息在发送前都会在您的设备上进行加密。我们只存储加密版本——我们无法读取它们。",
@@ -917,10 +917,10 @@
   "privateAndSafe": "私密且安全",
   "privateChat": "私人聊天",
   "privateChatF1": "只有你们两个人可以看到的私人聊天",
-  "privateChatF2": "端到端加密——完全安全",
-  "privateChatF3": "使用 PIN 码锁定任何聊天以获得额外隐私",
-  "privateChatF4": "媒体共享——图像和视频",
-  "privateChatF5": "即使房间结束后消息也会保存",
+  "privateChatF2": "使用表情符号回复消息",
+  "privateChatF3": "端到端加密——完全安全",
+  "privateChatF4": "使用 PIN 码锁定任何聊天以获得额外隐私",
+  "privateChatF5": "媒体共享——图像和视频",
   "privateDmSarah": "私人DM（莎拉）",
   "privateEncryptedDMsDesc": "向房间里任何人发送私信。端到端加密 — 其他人无法阅读。",
   "privateEncryptedDMsTitle": "私人加密私信",
@@ -1981,5 +1981,8 @@
   "offlineStillOffline": "仍处于离线状态",
   "getTheApp": "获取应用",
   "getItOnGooglePlay": "Google Play 下载",
-  "shareThisApp": "分享此应用："
+  "shareThisApp": "分享此应用：",
+  "groupChatF6": "端到端加密——完全安全",
+  "privateChatF6": "回复特定消息",
+  "privateChatF7": "未读消息徽章计数器"
 }

@@ -902,7 +902,7 @@
   "preventSpamLinks": "채팅에서 스팸 링크 방지",
   "pricing": "요금",
   "primeTheBoys": "프라임 비디오 — 더 보이즈",
-  "primeVideo": "프라임 비디오",
+  "primeVideo": "Prime Video",
   "privacyByDesignDesc": "우리는 나중에 고려하지 않고 귀하의 개인정보 보호를 기반으로 SahaPlay를 구축했습니다.",
   "privacyByDesignTitle": "개인정보 보호 설계",
   "privacyCardBody1": "모든 비공개 메시지는 보내기 전에 귀하의 장치에서 암호화됩니다. 우리는 암호화된 버전만 저장하므로 읽을 수 없습니다.",
@@ -917,10 +917,10 @@
   "privateAndSafe": "개인정보 보호 및 안전",
   "privateChat": "개인 채팅",
   "privateChatF1": "비공개 채팅은 두 사람만 볼 수 있습니다.",
-  "privateChatF2": "엔드투엔드 암호화 — 완벽한 보안",
-  "privateChatF3": "추가 개인정보 보호를 위해 PIN으로 모든 채팅을 잠그세요.",
-  "privateChatF4": "미디어 공유 — 이미지 및 비디오",
-  "privateChatF5": "방이 끝난 후에도 메시지가 저장됩니다.",
+  "privateChatF2": "이모티콘으로 메시지에 반응",
+  "privateChatF3": "엔드투엔드 암호화 — 완벽한 보안",
+  "privateChatF4": "추가 개인정보 보호를 위해 PIN으로 모든 채팅을 잠그세요.",
+  "privateChatF5": "미디어 공유 — 이미지 및 비디오",
   "privateDmSarah": "비공개 DM(사라)",
   "privateEncryptedDMsDesc": "방 안의 누구에게나 개인 메시지를 보내세요. 종단간 암호화 — 아무도 읽을 수 없습니다.",
   "privateEncryptedDMsTitle": "개인 암호화 DM",
@@ -1981,5 +1981,8 @@
   "offlineStillOffline": "아직 오프라인입니다",
   "getTheApp": "앱 다운로드",
   "getItOnGooglePlay": "Google Play에서 다운로드",
-  "shareThisApp": "이 앱 공유하기:"
+  "shareThisApp": "이 앱 공유하기:",
+  "groupChatF6": "엔드투엔드 암호화 — 완벽한 보안",
+  "privateChatF6": "특정 메시지에 답장하기",
+  "privateChatF7": "읽지 않은 메시지 배지 카운터"
 }

@@ -903,7 +903,7 @@
   "preventSpamLinks": "Evite links de spam no chat",
   "pricing": "Preços",
   "primeTheBoys": "Vídeo principal - Os meninos",
-  "primeVideo": "Vídeo principal",
+  "primeVideo": "Prime Video",
   "privacyByDesignDesc": "Construímos o SahaPlay tendo a sua privacidade como base, não uma reflexão tardia.",
   "privacyByDesignTitle": "Privacidade desde o projeto",
   "privacyCardBody1": "Todas as mensagens privadas são criptografadas no seu dispositivo antes do envio. Armazenamos apenas a versão criptografada – não podemos lê-la.",
@@ -918,10 +918,10 @@
   "privateAndSafe": "Privado e Seguro",
   "privateChat": "Chat Privado",
   "privateChatF1": "Bate-papos privados que só vocês dois podem ver",
-  "privateChatF2": "Criptografado de ponta a ponta – totalmente seguro",
-  "privateChatF3": "Bloqueie qualquer bate-papo com um PIN para maior privacidade",
-  "privateChatF4": "Compartilhamento de mídia – imagens e vídeos",
-  "privateChatF5": "Mensagens salvas mesmo após o término da sala",
+  "privateChatF2": "Reaja às mensagens com emojis",
+  "privateChatF3": "Criptografado de ponta a ponta – totalmente seguro",
+  "privateChatF4": "Bloqueie qualquer bate-papo com um PIN para maior privacidade",
+  "privateChatF5": "Compartilhamento de mídia – imagens e vídeos",
   "privateDmSarah": "DM privado (Sarah)",
   "privateEncryptedDMsDesc": "Envie mensagens privadas para qualquer pessoa na sala. Criptografia de ponta a ponta — ninguém mais pode ler.",
   "privateEncryptedDMsTitle": "Mensagens Privadas Criptografadas",
@@ -1983,5 +1983,8 @@
   "offlineStillOffline": "Ainda offline",
   "getTheApp": "Baixe o app",
   "getItOnGooglePlay": "Disponível no Google Play",
-  "shareThisApp": "Compartilhe este aplicativo:"
+  "shareThisApp": "Compartilhe este aplicativo:",
+  "groupChatF6": "Criptografado de ponta a ponta – totalmente seguro",
+  "privateChatF6": "Responder a mensagens específicas",
+  "privateChatF7": "Contador de selos de mensagens não lidas"
 }

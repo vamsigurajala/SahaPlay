@@ -902,7 +902,7 @@
   "preventSpamLinks": "チャット内のスパムリンクを防止する",
   "pricing": "料金",
   "primeTheBoys": "Prime Video — ザ・ボーイズ",
-  "primeVideo": "プライムビデオ",
+  "primeVideo": "Prime Video",
   "privacyByDesignDesc": "私たちは、後付けではなく、あなたのプライバシーを基盤として SahaPlay を構築しました。",
   "privacyByDesignTitle": "プライバシーバイデザイン",
   "privacyCardBody1": "すべてのプライベート メッセージは、送信前にデバイス上で暗号化されます。暗号化されたバージョンのみが保存されます。暗号化されたバージョンを読み取ることはできません。",
@@ -917,10 +917,10 @@
   "privateAndSafe": "プライベート&安全",
   "privateChat": "プライベートチャット",
   "privateChatF1": "二人だけが見られるプライベートチャット",
-  "privateChatF2": "エンドツーエンドの暗号化 - 完全に安全",
-  "privateChatF3": "プライバシーをさらに高めるために、PIN を使用してチャットをロックします",
-  "privateChatF4": "メディア共有 — 画像とビデオ",
-  "privateChatF5": "ルーム終了後もメッセージは保存される",
+  "privateChatF2": "絵文字を使ってメッセージに反応する",
+  "privateChatF3": "エンドツーエンドの暗号化 - 完全に安全",
+  "privateChatF4": "プライバシーをさらに高めるために、PIN を使用してチャットをロックします",
+  "privateChatF5": "メディア共有 — 画像とビデオ",
   "privateDmSarah": "プライベートDM（サラ）",
   "privateEncryptedDMsDesc": "ルーム内の誰にでもプライベートメッセージを送信。エンドツーエンド暗号化 — 他の誰も読めません。",
   "privateEncryptedDMsTitle": "プライベート暗号化DM",
@@ -1981,5 +1981,8 @@
   "offlineStillOffline": "まだオフラインです",
   "getTheApp": "アプリを入手",
   "getItOnGooglePlay": "Google Play で手に入れよう",
-  "shareThisApp": "このアプリを共有:"
+  "shareThisApp": "このアプリを共有:",
+  "groupChatF6": "エンドツーエンドの暗号化 - 完全に安全",
+  "privateChatF6": "特定のメッセージに返信する",
+  "privateChatF7": "未読メッセージバッジカウンター"
 }

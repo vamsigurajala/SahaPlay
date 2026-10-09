@@ -917,10 +917,10 @@
   "privateAndSafe": "Privat und sicher",
   "privateChat": "Privater Chat",
   "privateChatF1": "Private Chats, die nur Sie beide sehen können",
-  "privateChatF2": "Ende-zu-Ende-verschlüsselt – absolut sicher",
-  "privateChatF3": "Sperren Sie jeden Chat mit einer PIN für zusätzliche Privatsphäre",
-  "privateChatF4": "Medienfreigabe – Bilder und Videos",
-  "privateChatF5": "Nachrichten werden auch nach Ende des Raums gespeichert",
+  "privateChatF2": "Reagieren Sie auf Nachrichten mit Emojis",
+  "privateChatF3": "Ende-zu-Ende-verschlüsselt – absolut sicher",
+  "privateChatF4": "Sperren Sie jeden Chat mit einer PIN für zusätzliche Privatsphäre",
+  "privateChatF5": "Medienfreigabe – Bilder und Videos",
   "privateDmSarah": "Private DM (Sarah)",
   "privateEncryptedDMsDesc": "Sende private Nachrichten an alle im Raum. Ende-zu-Ende-verschlüsselt — niemand sonst kann sie lesen.",
   "privateEncryptedDMsTitle": "Private verschlüsselte Nachrichten",
@@ -1981,5 +1981,8 @@
   "offlineStillOffline": "Weiterhin offline",
   "getTheApp": "App herunterladen",
   "getItOnGooglePlay": "Jetzt bei Google Play",
-  "shareThisApp": "Diese App teilen:"
+  "shareThisApp": "Diese App teilen:",
+  "groupChatF6": "Ende-zu-Ende-verschlüsselt – absolut sicher",
+  "privateChatF6": "Auf bestimmte Nachrichten antworten",
+  "privateChatF7": "Badge-Zähler für ungelesene Nachrichten"
 }
