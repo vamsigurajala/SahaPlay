@@ -570,7 +570,7 @@
   "groupRoomChatDesc": "Все в комнате общаются вместе в реальном времени с эмодзи-реакциями, ответами и обменом медиафайлами.",
   "groupRoomChatTitle": "Групповой чат комнаты",
   "guestDisplayName": "Имя гостя",
-  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
+  "guestLimitations": "Сейчас вы просматриваете сайт как гость. Гости могут изучать SahaPlay и присоединяться к комнатам, если это разрешит хост, но создавать комнаты могут только зарегистрированные участники. Зарегистрируйте бесплатный аккаунт, чтобы получить полный доступ.",
   "guestNameRequired": "Пожалуйста, введите имя для входа как гость",
   "guestsCannotChat": "Гости не могут общаться",
   "hdStreaming": "Четкое HD-качество",
@@ -1980,5 +1980,8 @@
   "offlineTitle": "Нет подключения к интернету",
   "offlineRetry": "Повторить",
   "offlineChecking": "Проверка…",
-  "offlineStillOffline": "Всё ещё нет сети"
+  "offlineStillOffline": "Всё ещё нет сети",
+  "getTheApp": "Получить приложение",
+  "getItOnGooglePlay": "Доступно в Google Play",
+  "shareThisApp": "Поделиться приложением:"
 }

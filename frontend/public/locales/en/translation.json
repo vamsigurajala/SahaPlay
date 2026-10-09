@@ -569,7 +569,7 @@
   "groupRoomChatDesc": "Everyone in the room chats together in real time with emoji reactions, replies, and media sharing.",
   "groupRoomChatTitle": "Group Room Chat",
   "guestDisplayName": "Guest Display Name",
-  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
+  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay and join rooms if the host allows it, but only logged-in members can create rooms. Sign up for a free account to unlock full access.",
   "guestNameRequired": "Please enter a display name to join as guest",
   "guestsCannotChat": "Guests cannot chat",
   "hdStreaming": "Crisp HD Quality",
@@ -1935,5 +1935,8 @@
   "offlineTitle": "No internet connection",
   "offlineRetry": "Try again",
   "offlineChecking": "Checking…",
-  "offlineStillOffline": "Still offline"
+  "offlineStillOffline": "Still offline",
+  "getTheApp": "Get the App",
+  "getItOnGooglePlay": "Get it on Google Play",
+  "shareThisApp": "Share this application:"
 }

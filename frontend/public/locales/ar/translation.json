@@ -570,7 +570,7 @@
   "groupRoomChatDesc": "يتحدث الجميع في الغرفة معاً في الوقت الفعلي مع ردود الفعل التعبيرية والردود ومشاركة الوسائط.",
   "groupRoomChatTitle": "دردشة غرفة المجموعة",
   "guestDisplayName": "اسم عرض الضيف",
-  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
+  "guestLimitations": "أنت تتصفح حاليًا كضيف. يمكن للضيوف استكشاف SahaPlay والانضمام إلى الغرف إذا سمح المضيف بذلك، لكن يمكن للأعضاء المسجلين فقط إنشاء الغرف. سجّل للحصول على حساب مجاني لفتح الوصول الكامل.",
   "guestNameRequired": "يرجى إدخال اسم عرض للانضمام كضيف",
   "guestsCannotChat": "لا يمكن للضيوف الدردشة",
   "hdStreaming": "جودة HD واضحة",
@@ -1980,5 +1980,8 @@
   "offlineTitle": "لا يوجد اتصال بالإنترنت",
   "offlineRetry": "حاول مرة أخرى",
   "offlineChecking": "جارٍ التحقق…",
-  "offlineStillOffline": "ما زلت غير متصل"
+  "offlineStillOffline": "ما زلت غير متصل",
+  "getTheApp": "احصل على التطبيق",
+  "getItOnGooglePlay": "احصل عليه من Google Play",
+  "shareThisApp": "شارك هذا التطبيق:"
 }

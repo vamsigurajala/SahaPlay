@@ -570,7 +570,7 @@
   "groupRoomChatDesc": "ರೂಮ್‌ನಲ್ಲಿರುವ ಎಲ್ಲರೂ ಇಮೋಜಿ ಪ್ರತಿಕ್ರಿಯೆಗಳು, ಉತ್ತರಗಳು ಮತ್ತು ಮೀಡಿಯಾ ಶೇರಿಂಗ್‌ನೊಂದಿಗೆ ರಿಯಲ್-ಟೈಮ್‌ನಲ್ಲಿ ಒಟ್ಟಿಗೆ ಚಾಟ್ ಮಾಡುತ್ತಾರೆ.",
   "groupRoomChatTitle": "ಗ್ರೂಪ್ ರೂಮ್ ಚಾಟ್",
   "guestDisplayName": "ಅತಿಥಿ ಹೆಸರು",
-  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
+  "guestLimitations": "ನೀವು ಪ್ರಸ್ತುತ ಅತಿಥಿಯಾಗಿ ಬ್ರೌಸ್ ಮಾಡುತ್ತಿದ್ದೀರಿ. ಅತಿಥಿಗಳು SahaPlay ಅನ್ನು ಅನ್ವೇಷಿಸಬಹುದು ಮತ್ತು ಹೋಸ್ಟ್ ಅನುಮತಿಸಿದರೆ ಕೊಠಡಿಗಳಿಗೆ ಸೇರಬಹುದು, ಆದರೆ ಲಾಗ್ ಇನ್ ಆಗಿರುವ ಸದಸ್ಯರು ಮಾತ್ರ ಕೊಠಡಿಗಳನ್ನು ರಚಿಸಬಹುದು. ಪೂರ್ಣ ಪ್ರವೇಶವನ್ನು ಅನ್ಲಾಕ್ ಮಾಡಲು ಉಚಿತ ಖಾತೆಗಾಗಿ ಸೈನ್ ಅಪ್ ಮಾಡಿ.",
   "guestNameRequired": "ಅತಿಥಿಯಾಗಿ ಸೇರಲು ದಯವಿಟ್ಟು ಹೆಸರನ್ನು ನಮೂದಿಸಿ",
   "guestsCannotChat": "ಅತಿಥಿಗಳು ಚಾಟ್ ಮಾಡಲು ಸಾಧ್ಯವಿಲ್ಲ",
   "hdStreaming": "ಗರಿಗರಿಯಾದ HD ಗುಣಮಟ್ಟ",
@@ -1979,5 +1979,8 @@
   "offlineTitle": "ಇಂಟರ್ನೆಟ್ ಸಂಪರ್ಕವಿಲ್ಲ",
   "offlineRetry": "ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ",
   "offlineChecking": "ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ…",
-  "offlineStillOffline": "ಇನ್ನೂ ಆಫ್‌ಲೈನ್"
+  "offlineStillOffline": "ಇನ್ನೂ ಆಫ್‌ಲೈನ್",
+  "getTheApp": "ಆ್ಯಪ್ ಪಡೆಯಿರಿ",
+  "getItOnGooglePlay": "Google Play ನಲ್ಲಿ ಪಡೆಯಿರಿ",
+  "shareThisApp": "ಈ ಆ್ಯಪ್ ಅನ್ನು ಹಂಚಿಕೊಳ್ಳಿ:"
 }

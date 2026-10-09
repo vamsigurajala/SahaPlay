@@ -570,7 +570,7 @@
   "groupRoomChatDesc": "방 안의 모든 사람이 이모지 반응, 답글, 미디어 공유로 실시간으로 함께 채팅.",
   "groupRoomChatTitle": "그룹 방 채팅",
   "guestDisplayName": "게스트 표시 이름",
-  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
+  "guestLimitations": "현재 게스트로 둘러보고 계십니다. 게스트는 SahaPlay를 둘러보고 호스트가 허용하면 방에 참여할 수 있지만, 방 생성은 로그인한 회원만 가능합니다. 무료 계정을 만들어 모든 기능을 이용하세요.",
   "guestNameRequired": "게스트로 참여하려면 표시 이름을 입력하세요",
   "guestsCannotChat": "게스트는 채팅할 수 없습니다",
   "hdStreaming": "선명한 HD 품질",
@@ -1978,5 +1978,8 @@
   "offlineTitle": "인터넷에 연결되어 있지 않습니다",
   "offlineRetry": "다시 시도",
   "offlineChecking": "확인 중…",
-  "offlineStillOffline": "아직 오프라인입니다"
+  "offlineStillOffline": "아직 오프라인입니다",
+  "getTheApp": "앱 다운로드",
+  "getItOnGooglePlay": "Google Play에서 다운로드",
+  "shareThisApp": "이 앱 공유하기:"
 }

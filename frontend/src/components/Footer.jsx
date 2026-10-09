@@ -6,6 +6,8 @@ import { FaWhatsapp, FaTelegramPlane } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import { isTauriApp } from '../lib/platform';
 
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.sahaplay.app&pcampaignid=web_share';
+
 const Footer = () => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
@@ -55,44 +57,72 @@ const Footer = () => {
           <p style={{ fontSize: 14, lineHeight: 1.6, maxWidth: 300, color: '#6b7280', margin: 0, cursor: 'text' }}>
             {t('footerDesc', 'Stream, share, and celebrate together — no matter where you are.')}
           </p>
-          <div style={{ display: 'flex', gap: 12 }}>
-            {[
-              {
-                Icon: FaXTwitter,
-                label: 'X (Twitter)',
-                brandBg: '#000000',
-                href: `https://twitter.com/intent/tweet?text=${encodeURIComponent('Watch together with friends in sync! 🎬')}&url=${encodeURIComponent(window.location.origin)}`
-              },
-              {
-                Icon: FaTelegramPlane,
-                label: 'Telegram',
-                brandBg: '#0088cc',
-                href: `https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${encodeURIComponent('Watch together with friends in sync! 🎬')}`
-              },
-              {
-                Icon: FaWhatsapp,
-                label: 'WhatsApp',
-                brandBg: '#25d366',
-                href: `https://wa.me/?text=${encodeURIComponent('Watch together with friends in sync! 🎬 ' + window.location.origin)}`
-              }
-            ].map(({ Icon, label, href, brandBg }, idx) => (
-              <button
-                key={idx}
-                className="footer-social-btn"
-                title={`Share on ${label}`}
-                onClick={() => window.open(href, '_blank', 'noopener,noreferrer')}
-                onMouseEnter={() => setHoveredSocial(idx)}
-                onMouseLeave={() => setHoveredSocial(null)}
-                style={hoveredSocial === idx ? {
-                  background: brandBg,
-                  borderColor: brandBg,
-                  color: '#ffffff',
-                  transform: 'translateY(-2px)',
-                } : {}}
-              >
-                <Icon size={18}/>
-              </button>
-            ))}
+
+          {/* Get the app — official Google Play badge, above the social share
+              row per explicit request: banner first, then "Share this
+              application" label, then the X/Telegram/WhatsApp icons below. */}
+          <div>
+            <h4 style={{ color: '#fff', fontSize: 13, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', margin: '0 0 10px' }}>
+              {t('getTheApp', 'Get the App')}
+            </h4>
+            <a
+              href={PLAY_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', lineHeight: 0 }}
+              title={t('getItOnGooglePlay', 'Get it on Google Play')}
+            >
+              <img
+                src="/images/google-play-badge.png"
+                alt={t('getItOnGooglePlay', 'Get it on Google Play')}
+                style={{ height: 50, width: 'auto', display: 'block' }}
+              />
+            </a>
+          </div>
+
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', margin: '0 0 10px' }}>
+              {t('shareThisApp', 'Share this application:')}
+            </p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {[
+                {
+                  Icon: FaXTwitter,
+                  label: 'X (Twitter)',
+                  brandBg: '#000000',
+                  href: `https://twitter.com/intent/tweet?text=${encodeURIComponent('Watch together with friends in sync! 🎬')}&url=${encodeURIComponent(window.location.origin)}`
+                },
+                {
+                  Icon: FaTelegramPlane,
+                  label: 'Telegram',
+                  brandBg: '#0088cc',
+                  href: `https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${encodeURIComponent('Watch together with friends in sync! 🎬')}`
+                },
+                {
+                  Icon: FaWhatsapp,
+                  label: 'WhatsApp',
+                  brandBg: '#25d366',
+                  href: `https://wa.me/?text=${encodeURIComponent('Watch together with friends in sync! 🎬 ' + window.location.origin)}`
+                }
+              ].map(({ Icon, label, href, brandBg }, idx) => (
+                <button
+                  key={idx}
+                  className="footer-social-btn"
+                  title={`Share on ${label}`}
+                  onClick={() => window.open(href, '_blank', 'noopener,noreferrer')}
+                  onMouseEnter={() => setHoveredSocial(idx)}
+                  onMouseLeave={() => setHoveredSocial(null)}
+                  style={hoveredSocial === idx ? {
+                    background: brandBg,
+                    borderColor: brandBg,
+                    color: '#ffffff',
+                    transform: 'translateY(-2px)',
+                  } : {}}
+                >
+                  <Icon size={18}/>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

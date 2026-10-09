@@ -570,7 +570,7 @@
   "groupRoomChatDesc": "Tout le monde dans la salle discute ensemble en temps réel avec des réactions emoji, des réponses et du partage de médias.",
   "groupRoomChatTitle": "Chat de salle de groupe",
   "guestDisplayName": "Nom d'invité",
-  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
+  "guestLimitations": "Vous naviguez actuellement en tant qu'invité. Les invités peuvent explorer SahaPlay et rejoindre des salons si l'hôte l'autorise, mais seuls les membres connectés peuvent créer des salons. Inscrivez-vous gratuitement pour débloquer l'accès complet.",
   "guestNameRequired": "Veuillez entrer un nom pour rejoindre en tant qu'invité",
   "guestsCannotChat": "Les invités ne peuvent pas chatter",
   "hdStreaming": "Qualité HD nette",
@@ -1978,5 +1978,8 @@
   "offlineTitle": "Pas de connexion internet",
   "offlineRetry": "Réessayer",
   "offlineChecking": "Vérification…",
-  "offlineStillOffline": "Toujours hors ligne"
+  "offlineStillOffline": "Toujours hors ligne",
+  "getTheApp": "Obtenir l'application",
+  "getItOnGooglePlay": "Disponible sur Google Play",
+  "shareThisApp": "Partager cette application :"
 }

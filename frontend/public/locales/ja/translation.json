@@ -570,7 +570,7 @@
   "groupRoomChatDesc": "ルーム内の全員が絵文字リアクション、返信、メディア共有でリアルタイムにチャット。",
   "groupRoomChatTitle": "グループルームチャット",
   "guestDisplayName": "ゲストの表示名",
-  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
+  "guestLimitations": "現在ゲストとして閲覧しています。ゲストはSahaPlayを探索でき、ホストが許可すればルームに参加できますが、ルームを作成できるのはログイン済みのメンバーのみです。無料アカウントに登録して、すべての機能を利用しましょう。",
   "guestNameRequired": "ゲストとして参加するには表示名を入力してください",
   "guestsCannotChat": "ゲストはチャットできません",
   "hdStreaming": "鮮明な HD 品質",
@@ -1978,5 +1978,8 @@
   "offlineTitle": "インターネットに接続されていません",
   "offlineRetry": "再試行",
   "offlineChecking": "確認中…",
-  "offlineStillOffline": "まだオフラインです"
+  "offlineStillOffline": "まだオフラインです",
+  "getTheApp": "アプリを入手",
+  "getItOnGooglePlay": "Google Play で手に入れよう",
+  "shareThisApp": "このアプリを共有:"
 }

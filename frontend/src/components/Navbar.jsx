@@ -1245,7 +1245,7 @@ const Navbar = () => {
           <div className="guest-marquee-text">
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
               <AlertCircle size={14} /> 
-              {t('guestLimitations', 'You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.')}
+              {t('guestLimitations', 'You are currently browsing as a Guest. Guests can explore SahaPlay and join rooms if the host allows it, but only logged-in members can create rooms. Sign up for a free account to unlock full access.')}
             </span>
           </div>
         </div>

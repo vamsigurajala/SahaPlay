@@ -560,7 +560,7 @@
   "groupRoomChatDesc": "அறையில் உள்ள அனைவரும் எமோஜி எதிர்வினைகள், பதில்கள் மற்றும் மீடியா பகிர்வுடன் நிகழ்நேரத்தில் ஒன்றாக அரட்டையடிக்கிறார்கள்.",
   "groupRoomChatTitle": "குழு அறை அரட்டை",
   "guestDisplayName": "விருந்தினர் பெயர்",
-  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
+  "guestLimitations": "நீங்கள் தற்போது விருந்தினராக உலாவுகிறீர்கள். விருந்தினர்கள் SahaPlay-ஐ ஆராயலாம் மற்றும் புரவலர் அனுமதித்தால் அறைகளில் இணையலாம், ஆனால் உள்நுழைந்த உறுப்பினர்களால் மட்டுமே அறைகளை உருவாக்க முடியும். முழு அணுகலைத் திறக்க இலவச கணக்கிற்கு பதிவு செய்யுங்கள்.",
   "guestNameRequired": "விருந்தினராக சேர ஒரு பெயரை உள்ளிடவும்",
   "guestsCannotChat": "விருந்தினர்கள் அரட்டையடிக்க முடியாது",
   "hdStreaming": "மிருதுவான HD தரம்",
@@ -1966,5 +1966,8 @@
   "offlineTitle": "இணைய இணைப்பு இல்லை",
   "offlineRetry": "மீண்டும் முயற்சிக்கவும்",
   "offlineChecking": "சரிபார்க்கிறது…",
-  "offlineStillOffline": "இன்னும் ஆஃப்லைனில்"
+  "offlineStillOffline": "இன்னும் ஆஃப்லைனில்",
+  "getTheApp": "ஆப்ஸைப் பெறுங்கள்",
+  "getItOnGooglePlay": "Google Play இல் பெறுங்கள்",
+  "shareThisApp": "இந்த ஆப்ஸைப் பகிரவும்:"
 }

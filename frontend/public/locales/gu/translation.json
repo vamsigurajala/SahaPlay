@@ -567,7 +567,7 @@
   "groupRoomChatDesc": "રૂમમાં દરેક ઇમોજી પ્રતિક્રિયાઓ, જવાબો અને મીડિયા શેરિંગ સાથે રિઅલ-ટાઇમમાં ભેગા ચેટ કરે.",
   "groupRoomChatTitle": "ગ્રૂપ રૂમ ચેટ",
   "guestDisplayName": "અતિથિ નામ",
-  "guestLimitations": "You are currently browsing as a Guest. Guests can explore SahaPlay, but only logged-in members can create or enter rooms. Sign up for a free account to unlock full access.",
+  "guestLimitations": "તમે હાલમાં અતિથિ તરીકે બ્રાઉઝ કરી રહ્યા છો. અતિથિઓ SahaPlay ને એક્સપ્લોર કરી શકે છે અને જો હોસ્ટ મંજૂરી આપે તો રૂમમાં જોડાઈ શકે છે, પરંતુ ફક્ત લોગ-ઇન થયેલા સભ્યો જ રૂમ બનાવી શકે છે. સંપૂર્ણ ઍક્સેસ મેળવવા માટે મફત ખાતા માટે સાઇન અપ કરો.",
   "guestNameRequired": "અતિથિ તરીકે જોડાવા માટે કૃપા કરીને એક નામ દાખલ કરો",
   "guestsCannotChat": "મહેમાનો ચેટ કરી શકતા નથી",
   "hdStreaming": "ચપળ HD ગુણવત્તા",
@@ -1968,5 +1968,8 @@
   "offlineTitle": "ઇન્ટરનેટ કનેક્શન નથી",
   "offlineRetry": "ફરી પ્રયાસ કરો",
   "offlineChecking": "તપાસી રહ્યા છીએ…",
-  "offlineStillOffline": "હજી ઑફલાઇન"
+  "offlineStillOffline": "હજી ઑફલાઇન",
+  "getTheApp": "એપ મેળવો",
+  "getItOnGooglePlay": "Google Play પર મેળવો",
+  "shareThisApp": "આ એપ શેર કરો:"
 }
