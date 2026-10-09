@@ -1400,7 +1400,7 @@
   "termsChatBullet5": "Room chat messages and content shared within public or private rooms are the sole responsibility of the users who created them.",
   "termsChatBullet6Part1": "If you receive harmful, illegal, or abusive messages through SahaPlay, please report them immediately at",
   "termsChatBullet6Part2": "or through our",
-  "termsChatBullet6Part3": "Safety Center at www.SahaPlay.com/safety",
+  "termsChatBullet6Part3": "Safety Center at www.sahaplay.com/safety",
   "termsChatPara1": "SahaPlay provides end-to-end encrypted private messaging features. Due to the nature of end-to-end encryption:",
   "termsChatPinPara": "Users are solely responsible for safeguarding their Chat Lock PIN and Master Recovery Key. If both the PIN and Master Key are lost and email reset is unavailable, locked chat data may become permanently unrecoverable. SahaPlay cannot restore deleted or inaccessible locked chat data.",
   "termsContactPara1": "For any questions about these Terms:",
@@ -1941,5 +1941,7 @@
   "shareThisApp": "Share this application:",
   "groupChatF6": "End-to-end encrypted — fully secure",
   "privateChatF6": "Reply to specific messages",
-  "privateChatF7": "Unread message badge counter"
+  "privateChatF7": "Unread message badge counter",
+  "termsUseBullet12": "Create new accounts to evade suspensions, restrictions, or bans imposed by SahaPlay.",
+  "termsUseBullet13": "Use automated scripts, bots, or tools to interact with the service without permission."
 }

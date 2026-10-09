@@ -278,7 +278,7 @@
   "cookieIndexedItem1": "애플리케이션 캐싱",
   "cookieIndexedItem2": "성능 최적화",
   "cookieIndexedItem3": "암호화된 로컬 애플리케이션 데이터",
-  "cookieIndexedTitle": "IndexedDB",
+  "cookieIndexedTitle": "인덱스드DB",
   "cookieLastUpdated": "최종 업데이트: 2026년 5월",
   "cookieLocalDesc": "브라우저 창이 닫힌 후에도 유지되는 영구 키-값 데이터베이스입니다.",
   "cookieLocalItem1": "테마 환경설정",
@@ -1443,7 +1443,7 @@
   "termsChatBullet5": "공개 또는 비공개 방에서 공유되는 방 채팅 메시지와 콘텐츠는 이를 생성한 사용자의 전적인 책임입니다.",
   "termsChatBullet6Part1": "사하플레이를 통해 유해한, 불법적인, 욕설적인 메시지를 받았다면, 즉시 신고해주세요.",
   "termsChatBullet6Part2": "아니면 우리를 통해",
-  "termsChatBullet6Part3": "www.사하플레이.com/safety의 안전 센터",
+  "termsChatBullet6Part3": "www.sahaplay.com/safety의 안전 센터",
   "termsChatPara1": "SahaPlay은 종단 간 암호화된 개인 메시징 기능을 제공합니다. 종단 간 암호화의 특성으로 인해:",
   "termsChatPinPara": "채팅 잠금 PIN과 마스터 복구 키를 보호하는 것은 전적으로 사용자의 책임입니다. PIN과 마스터 키를 모두 분실하고 이메일 재설정을 사용할 수 없는 경우 잠긴 채팅 데이터를 영구적으로 복구할 수 없게 될 수 있습니다. SahaPlay은 삭제되었거나 액세스할 수 없는 잠긴 채팅 데이터를 복원할 수 없습니다.",
   "termsContactPara1": "본 약관에 관한 질문이 있는 경우:",
@@ -1984,5 +1984,7 @@
   "shareThisApp": "이 앱 공유하기:",
   "groupChatF6": "엔드투엔드 암호화 — 완벽한 보안",
   "privateChatF6": "특정 메시지에 답장하기",
-  "privateChatF7": "읽지 않은 메시지 배지 카운터"
+  "privateChatF7": "읽지 않은 메시지 배지 카운터",
+  "termsUseBullet12": "SahaPlay가 부과한 정지, 제한 또는 차단을 회피하기 위해 새 계정을 만드는 행위.",
+  "termsUseBullet13": "허가 없이 자동화된 스크립트, 봇 또는 도구를 사용하여 서비스와 상호작용하는 행위."
 }

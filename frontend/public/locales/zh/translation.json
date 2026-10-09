@@ -1443,7 +1443,7 @@
   "termsChatBullet5": "公共或私人房间内共享的聊天消息和内容由创建它们的用户承担全部责任。",
   "termsChatBullet6Part1": "如果您通过 萨哈普莱 收到有害、非法或辱骂性消息，请立即举报：",
   "termsChatBullet6Part2": "或通过我们的",
-  "termsChatBullet6Part3": "安全中心：www.萨哈普莱.com/safety",
+  "termsChatBullet6Part3": "安全中心：www.sahaplay.com/safety",
   "termsChatPara1": "SahaPlay提供端到端加密私人消息功能。由于端到端加密的性质：",
   "termsChatPinPara": "用户全权负责保护其聊天锁定 PIN 码和主恢复密钥。如果 PIN 和主密钥都丢失并且电子邮件重置不可用，则锁定的聊天数据可能会永久无法恢复。 SahaPlay无法恢复已删除或无法访问的锁定聊天数据。",
   "termsContactPara1": "如果对这些条款有任何疑问：",
@@ -1984,5 +1984,7 @@
   "shareThisApp": "分享此应用：",
   "groupChatF6": "端到端加密——完全安全",
   "privateChatF6": "回复特定消息",
-  "privateChatF7": "未读消息徽章计数器"
+  "privateChatF7": "未读消息徽章计数器",
+  "termsUseBullet12": "创建新账户以逃避 SahaPlay 实施的暂停、限制或封禁。",
+  "termsUseBullet13": "未经许可使用自动化脚本、机器人或工具与服务进行交互。"
 }

@@ -278,7 +278,7 @@
   "cookieIndexedItem1": "Cache dell'applicazione",
   "cookieIndexedItem2": "Ottimizzazione delle prestazioni",
   "cookieIndexedItem3": "Dati dell'applicazione locale crittografati",
-  "cookieIndexedTitle": "DB indicizzato",
+  "cookieIndexedTitle": "IndexedDB",
   "cookieLastUpdated": "Ultimo aggiornamento: maggio 2026",
   "cookieLocalDesc": "Database di valori-chiave persistente che rimane dopo la chiusura della finestra del browser.",
   "cookieLocalItem1": "Preferenze del tema",
@@ -1986,5 +1986,7 @@
   "shareThisApp": "Condividi questa app:",
   "groupChatF6": "Crittografia end-to-end: completamente sicura",
   "privateChatF6": "Rispondi a messaggi specifici",
-  "privateChatF7": "Contatore badge messaggi non letti"
+  "privateChatF7": "Contatore badge messaggi non letti",
+  "termsUseBullet12": "Creare nuovi account per eludere sospensioni, restrizioni o ban imposti da SahaPlay.",
+  "termsUseBullet13": "Utilizzare script automatizzati, bot o strumenti per interagire con il servizio senza autorizzazione."
 }
