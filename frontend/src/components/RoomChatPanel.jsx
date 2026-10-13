@@ -41,6 +41,7 @@ import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { getMessagePreview } from '../utils/messagePreview';
 import { keepMenuInView } from '../utils/keepMenuInView';
 import { extractMentionedUsernames, splitTextWithMentions, EVERYONE_KEYWORD, stripMentionAt } from '../utils/mentions';
+import { isEnterToSend } from '../lib/chatPreferences';
 import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢'];
@@ -3937,7 +3938,11 @@ export default function RoomChatPanel({ p }) {
                           border: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !groupWallpaper) ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
                           boxShadow: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !groupWallpaper) ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
                           borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                          fontSize: 14,
+                          // --chat-font-size: Profile → Chats' Font Size
+                          // setting (lib/chatPreferences.js) — a plain CSS var
+                          // so every open chat window updates live the instant
+                          // it's changed, with no prop drilling.
+                          fontSize: 'var(--chat-font-size, 14px)',
                           color: isMe ? (groupWallpaper ? groupWallpaperTextColor : '#fff') : (groupWallpaper ? groupWallpaperTextColor : (isLight ? '#111827' : '#fff')),
                           maxWidth: '100%',
                           wordBreak: 'break-word',
@@ -4379,7 +4384,12 @@ export default function RoomChatPanel({ p }) {
                               return;
                             }
                           }
-                          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); }
+                          // Profile → Chats' "Enter is Send" toggle (default ON,
+                          // matching the original hardcoded behavior). Off:
+                          // plain Enter just inserts a newline like Shift+Enter
+                          // already does — sending then only happens via the
+                          // Send button.
+                          if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing && isEnterToSend()) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); }
                         }}
                         // Re-captured on every physical tap (not just onFocus
                         // below) — see the matching comment on this ref's
@@ -5047,7 +5057,11 @@ export default function RoomChatPanel({ p }) {
                                 border: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !dmWallpaper) ? `1px solid ${isLight ? '#e6e9ef' : 'rgba(255,255,255,0.08)'}` : 'none',
                                 boxShadow: ((msg.isPoll || (msg.mediaType && !isMediaOnly)) && !dmWallpaper) ? (isLight ? '0 1px 3px rgba(15,23,42,0.06)' : '0 2px 10px rgba(0,0,0,0.25)') : 'none',
                                 borderRadius: isMe ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                                fontSize: 14,
+                                // --chat-font-size: Profile → Chats' Font Size
+                                // setting (lib/chatPreferences.js) — a plain CSS
+                                // var so every open chat window updates live
+                                // the instant it's changed, with no prop drilling.
+                                fontSize: 'var(--chat-font-size, 14px)',
                                 color: isMe ? (dmWallpaper ? dmWallpaperTextColor : '#fff') : (dmWallpaper ? dmWallpaperTextColor : (isLight ? '#111827' : '#ddd')),
                                 maxWidth: '100%',
                                 wordBreak: 'break-word',
@@ -5525,7 +5539,8 @@ export default function RoomChatPanel({ p }) {
                             rows={1}
                             value={p.dmChatInput}
                             onChange={e=>{const limited = enforceWordLimit(e.target.value); p.handleChatInputChange(limited, 'private'); p.setDmChatInput(limited);}}
-                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+                            // See the identical "Enter is Send" comment on the group thread's composer above.
+                            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing && isEnterToSend()) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
                             // See the identical comment on the group composer's
                             // textarea above — same fix, same reason.
                             onPointerDown={() => { wasNearBottomOnFocusRef.current = isScrollNearBottom(); }}

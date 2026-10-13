@@ -411,6 +411,7 @@ export default function BottomNav() {
                 isDesktopApp={isDesktopApp}
                 onProfileClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/profile'); }}
                 onAppSettingsClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/app-settings'); }}
+                onChatSettingsClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/chat-settings'); }}
                 onContactSupportClick={() => { setShowProfile(false); setShowSupportModal(true); }}
                 onGetDesktopAppClick={() => { setShowProfile(false); setShowDownloadAppModal(true); }}
                 onAdminClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/admin'); }}

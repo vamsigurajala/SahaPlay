@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Settings, HelpCircle, Download, Sparkles, LogOut, ChevronRight } from 'lucide-react';
+import { User, Settings, MessageSquare, HelpCircle, Download, Sparkles, LogOut, ChevronRight } from 'lucide-react';
 
 // Extracted from Navbar.jsx's mobile hamburger drawer (the logged-in/guest
 // action-item list: Profile, App Settings, Contact Support, Get Desktop App,
@@ -44,6 +44,7 @@ export default function ProfileActionMenu({
   isDesktopApp,
   onProfileClick,
   onAppSettingsClick,
+  onChatSettingsClick,
   onContactSupportClick,
   onGetDesktopAppClick,
   onAdminClick,
@@ -89,6 +90,7 @@ export default function ProfileActionMenu({
 
         <CompactRow icon={User} label={t('account', 'Account')} onClick={onProfileClick} active={currentPath === '/profile'} color="var(--brand-1)" />
         <CompactRow icon={Settings} label={t('app', 'App Settings')} onClick={onAppSettingsClick} active={currentPath === '/app-settings'} color="var(--brand-2)" />
+        <CompactRow icon={MessageSquare} label={t('chatsSettingsTitle', 'Chats')} onClick={onChatSettingsClick} active={currentPath === '/chat-settings'} color="#22c55e" />
         <CompactRow icon={HelpCircle} label={t('contactSupport', 'Contact Support')} onClick={onContactSupportClick} color="#38bdf8" />
 
         {isAdminRole && (
@@ -122,6 +124,11 @@ export default function ProfileActionMenu({
       <button className={`nav-link-btn${currentPath === '/app-settings' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={onAppSettingsClick}>
         <Settings size={16} />
         {t('app', 'App Settings')}
+      </button>
+
+      <button className={`nav-link-btn${currentPath === '/chat-settings' ? ' active' : ''}`} style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={onChatSettingsClick}>
+        <MessageSquare size={16} />
+        {t('chatsSettingsTitle', 'Chats')}
       </button>
 
       <button className="nav-link-btn" style={{ width: '100%', textAlign: 'left', padding: '11px 14px', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: '10px' }} onClick={onContactSupportClick}>

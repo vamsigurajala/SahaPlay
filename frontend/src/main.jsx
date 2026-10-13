@@ -37,6 +37,7 @@ import { initNativeGoogleAuthCallback } from './lib/nativeGoogleAuth.js';
 import { initNativePush } from './lib/nativePush.js';
 import { initNativeCallEndLink } from './lib/nativeCallBridge.js';
 import { initNativeChatOpenLink } from './lib/nativeChatOpenBridge.js';
+import { applyChatFontSize } from './lib/chatPreferences.js';
 
 // Must run before any back gesture happens — Capacitor's Android bridge
 // exits the app on every back press by default unless a 'backButton'
@@ -78,6 +79,12 @@ if (isCapacitorApp()) {
     window.dispatchEvent(new Event('native_call_end'));
   });
 }
+
+// Unconditional (web/desktop too, not just Capacitor) — sets the shared
+// --chat-font-size CSS var every message bubble's inline style reads, so
+// the very first paint already reflects whatever size was last chosen in
+// Profile → Chats instead of a flash of the 14px default.
+applyChatFontSize();
 
 // Standalone-mode is session-stable (a launch-time property, not something
 // that flips mid-session), so this is set once here rather than recomputed

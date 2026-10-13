@@ -1689,6 +1689,15 @@ const Profile = () => {
                     </div>
                     {t('app', 'App')}
                   </button>
+                  <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/chat-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.1)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <MessageSquare size={16} color="#22c55e" />
+                    </div>
+                    {t('chatsSettingsTitle', 'Chats')}
+                  </button>
                   {!isGuest && (
                     <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowSupportModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}

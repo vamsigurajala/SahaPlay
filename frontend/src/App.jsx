@@ -33,6 +33,7 @@ const PublicRooms = lazy(() => import('./PublicRooms'));
 const PinnedRooms = lazy(() => import('./PinnedRooms'));
 const Profile = lazy(() => import('./Profile'));
 const AppSettings = lazy(() => import('./AppSettings'));
+const ChatSettings = lazy(() => import('./ChatSettings'));
 const TvPairing = lazy(() => import('./TvPairing'));
 const Features = lazy(() => import('./Features'));
 const HowItWorks = lazy(() => import('./HowItWorks'));
@@ -1544,6 +1545,7 @@ function App() {
             <Route path="/profile/:username" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/app-settings" element={<ProtectedRoute><AppSettings /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AppSettings /></ProtectedRoute>} />
+            <Route path="/chat-settings" element={<ProtectedRoute><ChatSettings /></ProtectedRoute>} />
             <Route path="/room/:roomId" element={<ProtectedRoute><Room /></ProtectedRoute>} />
             <Route path="/admin/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />

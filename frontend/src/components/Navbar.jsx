@@ -998,6 +998,15 @@ const Navbar = () => {
                             </div>
                             {t('app', 'App')}
                           </button>
+                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/chat-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.1)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <MessageSquare size={16} color="#22c55e" />
+                            </div>
+                            {t('chatsSettingsTitle', 'Chats')}
+                          </button>
                           <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowSupportModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -1077,6 +1086,15 @@ const Navbar = () => {
                                 <Settings size={16} color="#10b981" />
                               </div>
                               {t('app', 'App')}
+                            </button>
+                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/chat-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.1)'}
+                              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            >
+                              <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <MessageSquare size={16} color="#22c55e" />
+                              </div>
+                              {t('chatsSettingsTitle', 'Chats')}
                             </button>
                             {!isDesktopApp && (
                               <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); setShowDownloadAppModal(true); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
@@ -1210,6 +1228,7 @@ const Navbar = () => {
                   isDesktopApp={isDesktopApp}
                   onProfileClick={() => navigateAndCloseMenu('/profile')}
                   onAppSettingsClick={() => navigateAndCloseMenu('/app-settings')}
+                  onChatSettingsClick={() => navigateAndCloseMenu('/chat-settings')}
                   onContactSupportClick={() => { setShowSupportModal(true); setShowMobileMenu(false); }}
                   onGetDesktopAppClick={() => { setShowDownloadAppModal(true); setShowMobileMenu(false); }}
                   onAdminClick={() => navigateAndCloseMenu('/admin')}

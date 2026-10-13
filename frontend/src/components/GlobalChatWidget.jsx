@@ -53,6 +53,7 @@ import { isCapacitorApp, isTauriApp } from '../lib/platform';
 import { isNotifyCategoryEnabled } from '../lib/notifyGating';
 import { onAppResume } from '../lib/appResume';
 import { extractMentionedUsernames, splitTextWithMentions, textMentionsUser, EVERYONE_KEYWORD, stripMentionAt } from '../utils/mentions';
+import { isEnterToSend } from '../lib/chatPreferences';
 import { useMentionAutocomplete } from '../hooks/useMentionAutocomplete';
 
 const QUICK_EMOJIS = ['👍','❤️','😂','😮','😢'];
@@ -9814,7 +9815,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 // flush param passed to renderMedia further down.
                                 overflow: (msg.mediaType && !isMediaOnly) ? 'hidden' : 'visible',
                                 borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
-                                fontSize: 14,
+                                // --chat-font-size: Profile → Chats' Font Size
+                                // setting (lib/chatPreferences.js) — a plain CSS
+                                // var so every open chat window updates live the
+                                // instant it's changed, with no prop drilling.
+                                fontSize: 'var(--chat-font-size, 14px)',
                                 color: activeWallpaper ? wallpaperTextColor : (msg.isPoll ? (isLight ? '#0f172a' : '#ffffff') : (transparentMode ? '#fff' : (isMe ? '#ffffff' : (isLight ? '#000000' : '#ffffff')))),
                                 textShadow: (msg.isPoll || !transparentMode) ? 'none' : '0 1px 4px rgba(0,0,0,0.8)',
                                 maxWidth: '100%',
@@ -10464,7 +10469,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
                                 return;
                               }
                             }
-                            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); }
+                            // Profile → Chats' "Enter is Send" toggle (default
+                            // ON, matching the original hardcoded behavior).
+                            // Off: plain Enter just inserts a newline like
+                            // Shift+Enter already does — sending then only
+                            // happens via the Send button.
+                            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent?.isComposing && isEnterToSend()) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); }
                           }}
                           // Re-captured on every physical tap, not just
                           // onFocus below: dismissing the on-screen keyboard
