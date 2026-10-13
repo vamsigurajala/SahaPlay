@@ -1988,5 +1988,15 @@
   "privateChatF6": "Rispondi a messaggi specifici",
   "privateChatF7": "Contatore badge messaggi non letti",
   "termsUseBullet12": "Creare nuovi account per eludere sospensioni, restrizioni o ban imposti da SahaPlay.",
-  "termsUseBullet13": "Utilizzare script automatizzati, bot o strumenti per interagire con il servizio senza autorizzazione."
+  "termsUseBullet13": "Utilizzare script automatizzati, bot o strumenti per interagire con il servizio senza autorizzazione.",
+  "chatsSettingsTitle": "Chat",
+  "fontSize": "Dimensione testo",
+  "fontSizeDesc": "Cambia la dimensione del testo di ogni messaggio, in tutte le chat e le stanze.",
+  "fontSizeSmall": "Piccolo",
+  "fontSizeMedium": "Medio",
+  "fontSizeBig": "Grande",
+  "enterIsSend": "Invio per inviare",
+  "enterIsSendOnDesc": "Premendo Invio il messaggio viene inviato. Usa Maiusc+Invio per andare a capo.",
+  "enterIsSendOffDesc": "Premendo Invio si va a capo. Tocca Invia per inviare il messaggio.",
+  "noChatsMatch": "Nessuna chat corrisponde a \"{{query}}\""
 }

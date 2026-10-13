@@ -1988,5 +1988,15 @@
   "privateChatF6": "Responder a mensagens específicas",
   "privateChatF7": "Contador de selos de mensagens não lidas",
   "termsUseBullet12": "Criar novas contas para evitar suspensões, restrições ou banimentos impostos pelo SahaPlay.",
-  "termsUseBullet13": "Usar scripts automatizados, bots ou ferramentas para interagir com o serviço sem permissão."
+  "termsUseBullet13": "Usar scripts automatizados, bots ou ferramentas para interagir com o serviço sem permissão.",
+  "chatsSettingsTitle": "Conversas",
+  "fontSize": "Tamanho da fonte",
+  "fontSizeDesc": "Altera o tamanho do texto de cada mensagem, em todas as conversas e salas.",
+  "fontSizeSmall": "Pequeno",
+  "fontSizeMedium": "Médio",
+  "fontSizeBig": "Grande",
+  "enterIsSend": "Enter para enviar",
+  "enterIsSendOnDesc": "Pressionar Enter envia sua mensagem. Use Shift+Enter para uma nova linha.",
+  "enterIsSendOffDesc": "Pressionar Enter inicia uma nova linha. Toque em Enviar para enviar sua mensagem.",
+  "noChatsMatch": "Nenhuma conversa corresponde a \"{{query}}\""
 }

@@ -4365,7 +4365,15 @@ export default function RoomChatPanel({ p }) {
                     // closing it is left entirely to the user's own back gesture/tap-away.
                     requestAnimationFrame(() => p.groupInputRef.current?.focus());
                   }} style={{display:'flex',gap:8, alignItems:'flex-end'}}>
-                    <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
+                    {/* minWidth: 0 — see the identical fix/comment on the
+                        global chat window's composer: without it, a flex
+                        item's default min-width ("auto") stops this wrapper
+                        (and the textarea inside it, same fix below) from
+                        shrinking below the empty-state padding's own
+                        intrinsic width, pushing the Send button off the edge
+                        of a narrow phone screen until typing started and the
+                        padding shrank back down. */}
+                    <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end' }}>
                       <input type="file" multiple ref={fileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'group')} />
                       <textarea
                         className="chat-msg-textarea no-scrollbar"
@@ -4410,6 +4418,7 @@ export default function RoomChatPanel({ p }) {
                         disabled={isDisabled}
                         style={{
                           flex:1,
+                          minWidth: 0,
                           resize:'none',
                           // Mirrors useAutoResizeTextarea's own default cap — see
                           // GlobalChatWidget.jsx's identical composer for why.
@@ -5531,7 +5540,8 @@ export default function RoomChatPanel({ p }) {
                           // itself the instant the send button goes disabled.
                           requestAnimationFrame(() => p.dmInputRef.current?.focus());
                         }} style={{display:'flex',gap:8,alignItems:'flex-end'}}>
-                        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
+                        {/* minWidth: 0 — see the identical fix/comment on the group composer above. */}
+                        <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end' }}>
                           <input type="file" multiple ref={dmFileInputRef} style={{display:'none'}} accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,audio/mpeg,audio/wav,audio/ogg,audio/m4a" onChange={(e) => handleFileSelect(e, 'dm')} />
                           <textarea
                             className="chat-msg-textarea no-scrollbar"
@@ -5551,6 +5561,7 @@ export default function RoomChatPanel({ p }) {
                             placeholder={p.userList.some(u => u.username === p.dmTarget) ? t('privateMessage', 'Private message...') : t('offlineMessage', 'Offline message...')}
                             style={{
                               flex:1,
+                              minWidth: 0,
                               resize:'none',
                               // Mirrors useAutoResizeTextarea's own default cap — see
                               // GlobalChatWidget.jsx's identical composer for why.

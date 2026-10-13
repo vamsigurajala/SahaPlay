@@ -1986,5 +1986,15 @@
   "privateChatF6": "Répondre à des messages spécifiques",
   "privateChatF7": "Compteur de badges de messages non lus",
   "termsUseBullet12": "Créer de nouveaux comptes pour échapper aux suspensions, restrictions ou interdictions imposées par SahaPlay.",
-  "termsUseBullet13": "Utiliser des scripts automatisés, des bots ou des outils pour interagir avec le service sans autorisation."
+  "termsUseBullet13": "Utiliser des scripts automatisés, des bots ou des outils pour interagir avec le service sans autorisation.",
+  "chatsSettingsTitle": "Discussions",
+  "fontSize": "Taille de police",
+  "fontSizeDesc": "Modifie la taille du texte de chaque message, dans toutes les discussions et tous les salons.",
+  "fontSizeSmall": "Petite",
+  "fontSizeMedium": "Moyenne",
+  "fontSizeBig": "Grande",
+  "enterIsSend": "Entrée pour envoyer",
+  "enterIsSendOnDesc": "Appuyer sur Entrée envoie votre message. Utilisez Maj+Entrée pour un retour à la ligne.",
+  "enterIsSendOffDesc": "Appuyer sur Entrée crée un retour à la ligne. Appuyez sur Envoyer pour envoyer votre message.",
+  "noChatsMatch": "Aucune discussion ne correspond à « {{query}} »"
 }

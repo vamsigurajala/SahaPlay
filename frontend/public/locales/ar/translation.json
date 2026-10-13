@@ -1988,5 +1988,15 @@
   "privateChatF6": "الرد على رسائل محددة",
   "privateChatF7": "عداد شارة الرسائل غير المقروءة",
   "termsUseBullet12": "إنشاء حسابات جديدة لتجنب التعليق أو القيود أو الحظر الذي تفرضه SahaPlay.",
-  "termsUseBullet13": "استخدام نصوص برمجية آلية أو برامج روبوت أو أدوات للتفاعل مع الخدمة دون إذن."
+  "termsUseBullet13": "استخدام نصوص برمجية آلية أو برامج روبوت أو أدوات للتفاعل مع الخدمة دون إذن.",
+  "chatsSettingsTitle": "المحادثات",
+  "fontSize": "حجم الخط",
+  "fontSizeDesc": "يغيّر حجم نص كل رسالة، في كل محادثة وغرفة.",
+  "fontSizeSmall": "صغير",
+  "fontSizeMedium": "متوسط",
+  "fontSizeBig": "كبير",
+  "enterIsSend": "Enter للإرسال",
+  "enterIsSendOnDesc": "الضغط على Enter يرسل رسالتك. استخدم Shift+Enter للانتقال إلى سطر جديد.",
+  "enterIsSendOffDesc": "الضغط على Enter ينتقل إلى سطر جديد. اضغط على إرسال لإرسال رسالتك.",
+  "noChatsMatch": "لا توجد محادثات مطابقة لـ \"{{query}}\""
 }

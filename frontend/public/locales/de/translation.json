@@ -1986,5 +1986,15 @@
   "privateChatF6": "Auf bestimmte Nachrichten antworten",
   "privateChatF7": "Badge-Zähler für ungelesene Nachrichten",
   "termsUseBullet12": "Neue Konten erstellen, um von SahaPlay verhängte Sperren, Einschränkungen oder Verbote zu umgehen.",
-  "termsUseBullet13": "Automatisierte Skripte, Bots oder Tools verwenden, um ohne Erlaubnis mit dem Dienst zu interagieren."
+  "termsUseBullet13": "Automatisierte Skripte, Bots oder Tools verwenden, um ohne Erlaubnis mit dem Dienst zu interagieren.",
+  "chatsSettingsTitle": "Chats",
+  "fontSize": "Schriftgröße",
+  "fontSizeDesc": "Ändert die Textgröße jeder Nachricht, in jedem Chat und Raum.",
+  "fontSizeSmall": "Klein",
+  "fontSizeMedium": "Mittel",
+  "fontSizeBig": "Groß",
+  "enterIsSend": "Eingabetaste sendet",
+  "enterIsSendOnDesc": "Die Eingabetaste sendet deine Nachricht. Verwende Umschalt+Eingabe für eine neue Zeile.",
+  "enterIsSendOffDesc": "Die Eingabetaste beginnt eine neue Zeile. Tippe auf Senden, um deine Nachricht zu senden.",
+  "noChatsMatch": "Keine Chats gefunden für „{{query}}“"
 }

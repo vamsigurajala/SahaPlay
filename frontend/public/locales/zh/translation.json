@@ -1986,5 +1986,15 @@
   "privateChatF6": "回复特定消息",
   "privateChatF7": "未读消息徽章计数器",
   "termsUseBullet12": "创建新账户以逃避 SahaPlay 实施的暂停、限制或封禁。",
-  "termsUseBullet13": "未经许可使用自动化脚本、机器人或工具与服务进行交互。"
+  "termsUseBullet13": "未经许可使用自动化脚本、机器人或工具与服务进行交互。",
+  "chatsSettingsTitle": "聊天",
+  "fontSize": "字体大小",
+  "fontSizeDesc": "更改每个聊天和房间中每条消息的文字大小。",
+  "fontSizeSmall": "小",
+  "fontSizeMedium": "中",
+  "fontSizeBig": "大",
+  "enterIsSend": "回车发送",
+  "enterIsSendOnDesc": "按回车键会发送你的消息。按 Shift+回车 可换行。",
+  "enterIsSendOffDesc": "按回车键会换行。点击发送按钮来发送消息。",
+  "noChatsMatch": "没有与“{{query}}”匹配的聊天"
 }

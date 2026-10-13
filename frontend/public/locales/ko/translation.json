@@ -1986,5 +1986,15 @@
   "privateChatF6": "특정 메시지에 답장하기",
   "privateChatF7": "읽지 않은 메시지 배지 카운터",
   "termsUseBullet12": "SahaPlay가 부과한 정지, 제한 또는 차단을 회피하기 위해 새 계정을 만드는 행위.",
-  "termsUseBullet13": "허가 없이 자동화된 스크립트, 봇 또는 도구를 사용하여 서비스와 상호작용하는 행위."
+  "termsUseBullet13": "허가 없이 자동화된 스크립트, 봇 또는 도구를 사용하여 서비스와 상호작용하는 행위.",
+  "chatsSettingsTitle": "채팅",
+  "fontSize": "글꼴 크기",
+  "fontSizeDesc": "모든 채팅과 방에서 모든 메시지의 텍스트 크기를 변경합니다.",
+  "fontSizeSmall": "작게",
+  "fontSizeMedium": "보통",
+  "fontSizeBig": "크게",
+  "enterIsSend": "엔터로 전송",
+  "enterIsSendOnDesc": "Enter 키를 누르면 메시지가 전송됩니다. 줄바꿈은 Shift+Enter를 사용하세요.",
+  "enterIsSendOffDesc": "Enter 키를 누르면 줄바꿈됩니다. 메시지를 보내려면 전송 버튼을 누르세요.",
+  "noChatsMatch": "\"{{query}}\"와 일치하는 채팅이 없습니다"
 }

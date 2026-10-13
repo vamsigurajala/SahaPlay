@@ -10428,7 +10428,20 @@ const GlobalChatWidget = React.memo(forwardRef(({
 
                   {!isRecording && !audioBlob && (
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                      <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'flex-end' }}>
+                      {/* minWidth: 0 — a flex item's default min-width is "auto",
+                          which for a textarea means it refuses to shrink below
+                          its own padding-driven intrinsic width. The empty-state
+                          padding below (108px right + 40px left on mobile,
+                          reserved for the emoji/attach/mic/camera icons) made
+                          that intrinsic minimum wide enough that on a narrow
+                          phone screen the Send button (its fixed-width sibling)
+                          got pushed past the visible edge — fixed the moment
+                          typing started and padding dropped back to 18px, which
+                          is what made this read as "Send only appears once I
+                          start typing." minWidth: 0 lets this wrapper (and the
+                          textarea inside it, same fix below) actually shrink to
+                          fit instead, so Send stays on-screen in both states. */}
+                      <div style={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-end' }}>
                         <textarea
                           className="chat-msg-textarea no-scrollbar"
                           ref={inputRef}
@@ -10493,6 +10506,7 @@ const GlobalChatWidget = React.memo(forwardRef(({
                           onPointerDown={() => { wasNearBottomOnFocusRef.current = isScrollNearBottom(); }}
                           style={{
                             flex: 1,
+                            minWidth: 0,
                             resize: 'none',
                             // Mirrors useAutoResizeTextarea's own default cap — this
                             // CSS max-height is just a defensive ceiling (the hook

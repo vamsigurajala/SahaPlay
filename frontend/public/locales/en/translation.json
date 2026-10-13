@@ -1943,5 +1943,15 @@
   "privateChatF6": "Reply to specific messages",
   "privateChatF7": "Unread message badge counter",
   "termsUseBullet12": "Create new accounts to evade suspensions, restrictions, or bans imposed by SahaPlay.",
-  "termsUseBullet13": "Use automated scripts, bots, or tools to interact with the service without permission."
+  "termsUseBullet13": "Use automated scripts, bots, or tools to interact with the service without permission.",
+  "chatsSettingsTitle": "Chats",
+  "fontSize": "Font Size",
+  "fontSizeDesc": "Changes the text size of every message, across every chat and room.",
+  "fontSizeSmall": "Small",
+  "fontSizeMedium": "Medium",
+  "fontSizeBig": "Big",
+  "enterIsSend": "Enter is Send",
+  "enterIsSendOnDesc": "Pressing Enter sends your message. Use Shift+Enter for a new line.",
+  "enterIsSendOffDesc": "Pressing Enter starts a new line. Tap Send to send your message.",
+  "noChatsMatch": "No chats match \"{{query}}\""
 }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Type, CornerDownLeft } from 'lucide-react';
+import { ArrowLeft, Type, CornerDownLeft, Check } from 'lucide-react';
 import ToggleSwitch from './components/ToggleSwitch';
 import { getChatFontSize, setChatFontSize, CHAT_FONT_SIZES, isEnterToSend, setEnterToSend } from './lib/chatPreferences';
 
@@ -55,23 +55,42 @@ export default function ChatSettings() {
           <p style={{ margin: '0 0 18px', fontSize: 13, color: 'var(--header-btn)' }}>
             {t('fontSizeDesc', 'Changes the text size of every message, across every chat and room.')}
           </p>
-          <div style={{ display: 'flex', gap: 10 }}>
+          {/* Radio-group semantics (only one size is ever selected) but
+              drawn as a square selection box per explicit request, not a
+              round radio dot — a small filled/checked square on the right
+              of each row instead. Row text uses var(--header-text)/
+              var(--room-border), the same theme-adaptive vars every other
+              chat surface in the app already reads, so it stays readable in
+              both light and dark mode rather than a color hardcoded for
+              one theme only. */}
+          <div role="radiogroup" aria-label={t('fontSize', 'Font Size')} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {CHAT_FONT_SIZES.map(size => {
               const active = fontSize === size;
               return (
                 <button
                   key={size}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
                   onClick={() => handleFontSizeChange(size)}
                   style={{
-                    flex: 1, padding: '14px 10px', borderRadius: 14, cursor: 'pointer',
-                    border: active ? '2px solid var(--brand-1)' : '1px solid var(--room-border)',
-                    background: active ? 'rgba(var(--brand-1-rgb),0.1)' : 'transparent',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
+                    display: 'flex', alignItems: 'center', gap: 14, width: '100%',
+                    padding: '12px 14px', borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+                    border: active ? '1.5px solid var(--brand-1)' : '1px solid var(--room-border)',
+                    background: active ? 'rgba(var(--brand-1-rgb),0.08)' : 'transparent',
                     transition: 'all 0.15s',
                   }}
                 >
-                  <span style={{ fontSize: FONT_PREVIEW_PX[size], fontWeight: 700, color: 'var(--header-text)' }}>Aa</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: active ? 'var(--brand-1)' : 'var(--header-btn)' }}>{FONT_SIZE_LABELS[size]}</span>
+                  <span style={{ fontSize: FONT_PREVIEW_PX[size], fontWeight: 700, color: 'var(--header-text)', width: 28, textAlign: 'center', flexShrink: 0 }}>Aa</span>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--header-text)' }}>{FONT_SIZE_LABELS[size]}</span>
+                  <span style={{
+                    width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+                    border: active ? 'none' : '2px solid var(--room-border)',
+                    background: active ? 'linear-gradient(135deg,var(--brand-1),var(--brand-2))' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {active && <Check size={13} color="#fff" strokeWidth={3} />}
+                  </span>
                 </button>
               );
             })}
