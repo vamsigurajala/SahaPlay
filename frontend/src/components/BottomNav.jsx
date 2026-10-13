@@ -248,12 +248,13 @@ export default function BottomNav() {
   // of / cover its own bottom-anchored UI (e.g. table pagination controls).
   // Account (/profile and /profile/:username alike — viewing your own
   // profile or someone else's is the same full-screen surface with its own
-  // header/back-nav) and App Settings (/settings, /app-settings) each have
-  // their own bottom-anchored save buttons/forms — the tab bar sat on top of
-  // those. Previously only bare /profile was excluded here, which made the
+  // header/back-nav), App Settings (/settings, /app-settings), and Chats
+  // (/chat-settings, Profile menu's own settings page) each have their own
+  // bottom-anchored save buttons/forms — the tab bar sat on top of those.
+  // Previously only bare /profile was excluded here, which made the
   // tab bar show on someone else's profile but not your own — reported as
   // the bar randomly appearing/disappearing while browsing profiles.
-  const isSettingsPage = location.pathname.startsWith('/profile') || location.pathname.startsWith('/app-settings') || location.pathname.startsWith('/settings');
+  const isSettingsPage = location.pathname.startsWith('/profile') || location.pathname.startsWith('/app-settings') || location.pathname.startsWith('/settings') || location.pathname.startsWith('/chat-settings');
   if (!isStandalonePWA() || !(isLoggedIn || isGuest) || location.pathname.startsWith('/room/') || location.pathname.startsWith('/admin') || isSettingsPage) return null;
 
   const closeAll = () => { setShowChat(false); closeOverlays(); };
