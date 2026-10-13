@@ -8333,7 +8333,24 @@ const GlobalChatWidget = React.memo(forwardRef(({
               top: 0,
               // Literal match to the panel's own #0a0a0a — see the top
               // header's identical comment just above in this file.
-              background: transparentMode ? 'transparent' : (selectMode ? 'rgba(18, 14, 35, 0.98)' : '#0a0a0a'),
+              //
+              // transparentMode used to go fully 'transparent' here with no
+              // blur at all — video showed through perfectly, but "sticky"
+              // only means this element stays glued in place; it doesn't
+              // clip anything underneath on its own. With nothing visually
+              // covering that area, conversation rows scrolling past it
+              // stayed just as visible as everywhere else, and only actually
+              // disappeared once they scrolled past the real clip boundary —
+              // the scroll container's own top edge, which sits ABOVE this
+              // (under the non-scrolling header/title row instead), reported
+              // as "chats disappearing under the conversations nav bar"
+              // rather than under the search bar itself. A frosted-glass look
+              // (low-opacity fill + blur, instead of either fully opaque or
+              // fully invisible) gives this element enough of its own visual
+              // presence that rows reads as fading out right where it sits —
+              // while still being translucent enough for the video to show
+              // through, blurred, same as the rest of this see-through panel.
+              background: transparentMode ? 'rgba(10,10,10,0.32)' : (selectMode ? 'rgba(18, 14, 35, 0.98)' : '#0a0a0a'),
               zIndex: 30,
               // App.jsx's global light-mode CSS turns this div's own
               // background: #0a0a0a into white (matching by literal inline-
@@ -8344,7 +8361,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
               // never intended to show against a white header.
               borderBottom: (transparentMode || isLight) ? 'none' : '1px solid rgba(255,255,255,0.03)',
               transition: 'background 0.25s',
-              backdropFilter: transparentMode ? 'none' : 'blur(10px)'
+              backdropFilter: transparentMode ? 'blur(16px)' : 'blur(10px)',
+              WebkitBackdropFilter: transparentMode ? 'blur(16px)' : 'blur(10px)'
             }}>
               {selectMode ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '38px' }}>
