@@ -1367,7 +1367,20 @@ function App() {
       // Flowing body-background tint (index.css's animated gradientPan) —
       // has separate dark/light values per theme, so pick based on the
       // current light/dark axis (independent of this accent axis).
-      const isLightMode = document.documentElement.getAttribute('data-theme') === 'light';
+      // Reads localStorage directly rather than the documentElement
+      // data-theme attribute: both this effect and the theme-toggle effect
+      // above listen for the same 'theme_changed' event, and whichever
+      // DOM listener happens to be registered second always reads it last
+      // — normally that's this one, but the other effect's listener gets
+      // torn down and re-added whenever its own `i18n` dependency changes,
+      // which can silently flip the order. When this one fired first it
+      // read the attribute before the toggle effect had written the new
+      // value, applying stale corner-gradient colors that then stuck until
+      // something else (e.g. picking an accent theme) re-ran this function.
+      // localStorage is written synchronously before the event dispatches
+      // (see AppSettings.jsx's handleThemeToggle), so reading it here is
+      // immune to that ordering entirely.
+      const isLightMode = (localStorage.getItem('watch_theme') || 'dark') === 'light';
       root.setProperty('--bg-gradient-1', isLightMode ? theme.bgGradient1Light : theme.bgGradient1);
       root.setProperty('--bg-gradient-2', isLightMode ? theme.bgGradient2Light : theme.bgGradient2);
     };
