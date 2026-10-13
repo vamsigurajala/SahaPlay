@@ -10086,18 +10086,68 @@ const Room = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isTouchPlayer, isTvMode, hasMounted, mediaUrl, isScreensharing, isViewer, hasPlayerPrivileges, duration, isPlaying, anyRoomModalOpen, showQualityMenu, showSubtitleMenu]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Shared by both exit paths below (swipe-back AND the virtual-browser
+  // swipe-up-to-chat gesture) so they stay identical — exits the CSS-driven
+  // mobile fullscreen back into the normal docked layout (player strip on
+  // top, chat below), same as tapping an explicit "exit fullscreen" button
+  // would.
+  const exitMobileFullscreenToChat = useCallback(() => {
+    setIsMobileFsMode(false);
+    setIsRealLandscapeLock(false);
+    if (screen?.orientation?.unlock) screen.orientation.unlock();
+    if (isCapacitorApp()) unlockNativeOrientation();
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    setStatusBarHidden(false);
+  }, []);
+
   // Mobile/iPad swipe-back while in the CSS-driven mobile fullscreen (games,
   // activities, calls) should exit fullscreen instead of navigating away.
   const mobileFsBack = useBackIntercept(isTouchPlayer && isMobileFsMode ? 1 : 0, (newLevel) => {
-    if (newLevel === 0) {
-      setIsMobileFsMode(false);
-      setIsRealLandscapeLock(false);
-      if (screen?.orientation?.unlock) screen.orientation.unlock();
-      if (isCapacitorApp()) unlockNativeOrientation();
-      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
-      setStatusBarHidden(false);
-    }
+    if (newLevel === 0) exitMobileFullscreenToChat();
   });
+
+  // Virtual-browser (Hyperbeam) portrait fullscreen has no chat visible at
+  // all — only player controls — and the swipe-back gesture above, while it
+  // does work, depends on the shared back-intercept history stack (see
+  // useBackIntercept.js) and isn't an obvious affordance inside a remote
+  // OTT site's own UI (Netflix/Prime etc). Explicit request: tapping the
+  // lower part of the screen and swiping up should reveal chat too, same
+  // destination as swipe-back (exitMobileFullscreenToChat — docks the
+  // player at the top, chat fills the rest below). Scoped to a swipe that
+  // STARTS in the bottom ~35% of the screen so normal interaction with the
+  // remote browser itself (tapping a show, dragging a progress bar, etc.)
+  // elsewhere on screen is never hijacked.
+  const vbSwipeGestureRef = useRef({ active: false, startY: 0, startedInZone: false, triggered: false });
+  const VB_SWIPE_BOTTOM_ZONE_RATIO = 0.65; // gesture must start below this fraction of the screen height
+  const VB_SWIPE_UP_THRESHOLD_PX = 56; // upward travel required before it counts as a deliberate swipe, not a tap/scroll jitter
+
+  const handleVbSwipeTouchStart = (e) => {
+    resetControlsTimer();
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const startedInZone = (touch.clientY - rect.top) > rect.height * VB_SWIPE_BOTTOM_ZONE_RATIO;
+    vbSwipeGestureRef.current = { active: true, startY: touch.clientY, startedInZone, triggered: false };
+  };
+  const handleVbSwipeTouchMove = (e) => {
+    const g = vbSwipeGestureRef.current;
+    if (!g.active || !g.startedInZone || g.triggered) return;
+    const touch = e.touches?.[0];
+    if (!touch) return;
+    const deltaY = g.startY - touch.clientY; // positive = finger moved up
+    if (deltaY > VB_SWIPE_UP_THRESHOLD_PX) {
+      g.triggered = true;
+      // Claim the gesture once it's confirmed as a deliberate swipe, so the
+      // remote browser underneath doesn't also interpret the same drag as
+      // its own scroll/carousel-swipe once chat is already taking over.
+      e.preventDefault();
+      e.stopPropagation();
+      exitMobileFullscreenToChat();
+    }
+  };
+  const handleVbSwipeTouchEnd = () => {
+    vbSwipeGestureRef.current.active = false;
+  };
 
   // Belt-and-suspenders for the mobile/iPad fullscreen edge-gap fix — see the
   // sp-mobile-fs-active CSS rule in index.css.
@@ -12920,7 +12970,13 @@ const Room = () => {
                         // handlers on hyperbeamContainerRef don't bubble touch/pointer
                         // activity back up — without this, tapping inside the remote
                         // browser itself would never re-arm the Show Chat auto-hide timer.
-                        onTouchStartCapture={resetControlsTimer}
+                        // handleVbSwipeTouchStart calls resetControlsTimer itself (same as
+                        // the old bare handler) before arming the swipe-up-to-chat gesture
+                        // tracked in vbSwipeGestureRef — see its own comment above.
+                        onTouchStartCapture={isMobile ? handleVbSwipeTouchStart : resetControlsTimer}
+                        onTouchMoveCapture={isMobile ? handleVbSwipeTouchMove : undefined}
+                        onTouchEndCapture={isMobile ? handleVbSwipeTouchEnd : undefined}
+                        onTouchCancelCapture={isMobile ? handleVbSwipeTouchEnd : undefined}
                         onMouseMoveCapture={resetControlsTimer}
                       >
                         <div
