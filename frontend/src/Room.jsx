@@ -14807,7 +14807,20 @@ const Room = () => {
               const restoreBtnAutoHide = !isEmbedPlatform(mediaUrl);
               return (
               <button
-                onClick={() => setHideCustomControls(false)}
+                // setHideCustomControls(false) alone switches the MODE back to
+                // our custom controls, but whether that control bar is actually
+                // VISIBLE is a separate flag (showControls) — its own auto-hide
+                // timer keeps running independently the whole time native
+                // controls were up, so by the time this is tapped showControls
+                // has usually already gone false. The mode switch was taking
+                // effect (confirmed: a second, unrelated tap elsewhere always
+                // did make the bar appear), it just rendered invisible until
+                // something else happened to flip showControls true — read as
+                // "I click it and the controls don't come back, need multiple
+                // clicks." resetControlsTimer() forces showControls true (and
+                // re-arms its own timer) in the same tap, so the restored bar
+                // is immediately visible instead of silently correct-but-hidden.
+                onClick={() => { setHideCustomControls(false); resetControlsTimer(); }}
                 style={isTouchPlayer ? {
                   position: 'absolute',
                   top: '14px',

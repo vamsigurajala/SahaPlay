@@ -7817,6 +7817,18 @@ const GlobalChatWidget = React.memo(forwardRef(({
             // own box (per its fixed height above) never actually changes.
             willChange: 'transform',
             transform: 'translateZ(0)',
+            // In transparentMode (the fullscreen/mobile-takeover Room video
+            // overlay — the normal global chat window elsewhere always has
+            // transparentMode false and keeps the wallpaper at full opacity)
+            // a wallpaper theme was painting fully opaque regardless, same as
+            // every other chat surface — but here it means the video behind
+            // it is completely hidden the moment the user has any wallpaper
+            // set, unlike the default (no-theme) chat which stays see-through.
+            // Dimming it way down (rather than switching it off) keeps the
+            // user's chosen theme visibly in effect — its color/mood still
+            // reads — without it blocking the video they opened chat over.
+            opacity: transparentMode ? 0.1 : 1,
+            transition: 'opacity 0.25s ease',
           }} />
         )}
         {/* Lightbox portal — fixed overlay above everything */}
@@ -7862,8 +7874,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
           // this element's own stacking context) it was landing as a visibly
           // different shade from the plain list/message areas right below it.
           // A literal value removes any room for that mismatch.
-          background: activeWallpaper ? 'rgba(10,10,10,0.94)' : (transparentMode ? 'transparent' : '#0a0a0a'),
-          borderBottom: activeWallpaper ? '1px solid rgba(255,255,255,0.08)' : (transparentMode ? 'none' : '1px solid rgba(255,255,255,0.06)')
+          //
+          // transparentMode wins over the activeWallpaper branch too (it used
+          // to stay a near-opaque 0.94 strip even there) — same reasoning as
+          // the wallpaper backdrop and message-list container below: a
+          // wallpaper theme shouldn't block the video in this one surface
+          // just because it's allowed to paint opaque everywhere else.
+          background: transparentMode ? 'transparent' : (activeWallpaper ? 'rgba(10,10,10,0.94)' : '#0a0a0a'),
+          borderBottom: transparentMode ? 'none' : (activeWallpaper ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.06)')
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1, overflow: 'hidden' }}>
             {view === 'chat' && (
@@ -9298,7 +9316,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
                 // backdrop layer behind the whole panel (see above) so it
                 // shows through here AND behind the composer bar as one
                 // continuous picture — this container just stays transparent.
-                background: activeWallpaper ? 'transparent' : (isCustomTheme ? (isLight ? '#ffffff' : '#0a0a0a') : 'transparent'),
+                // A color-only theme (isCustomTheme, no wallpaper image) is
+                // the one case that painted a fully opaque fill here — fine
+                // normally, but in transparentMode (the fullscreen/mobile-
+                // takeover Room video overlay) that blocked the video behind
+                // it completely, unlike the default (no-theme) chat which
+                // stays see-through there. Same "dim it way down instead of
+                // switching it off" treatment as the wallpaper backdrop above —
+                // the theme's color still tints the panel, it just doesn't
+                // fully hide the video anymore.
+                background: activeWallpaper ? 'transparent' : (isCustomTheme ? (transparentMode ? (isLight ? 'rgba(255,255,255,0.08)' : 'rgba(10,10,10,0.1)') : (isLight ? '#ffffff' : '#0a0a0a')) : 'transparent'),
+                transition: 'background 0.25s ease',
               }}
             >
               {historyLoading && (
