@@ -8301,9 +8301,17 @@ const GlobalChatWidget = React.memo(forwardRef(({
         {/* Body */}
         <div ref={ptr.containerRef} className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {view === 'list' && (
-            <div className="chat-list-header" style={{ 
-              padding: '16px 20px', 
-              position: 'sticky', 
+            <div className="chat-list-header" style={{
+              // In transparentMode (the fullscreen/mobile-takeover Room video
+              // overlay only — the plain global chat window elsewhere always
+              // has transparentMode false and is untouched by this) the
+              // search bar sits right under the header's own title/icon row
+              // instead of leaving its normal 16px top gap, per explicit
+              // request to have it "attached" to that nav bar specifically
+              // in this surface. Bottom padding is unchanged so spacing
+              // against the conversation list below still looks normal.
+              padding: transparentMode ? '4px 20px 16px' : '16px 20px',
+              position: 'sticky',
               top: 0,
               // Literal match to the panel's own #0a0a0a — see the top
               // header's identical comment just above in this file.
@@ -8625,7 +8633,16 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       // variable was the one visibly different resting-state
                       // background in the whole list view. The border alone
                       // still marks this as an input field.
-                      background: '#0a0a0a',
+                      //
+                      // transparentMode (fullscreen/mobile-takeover Room
+                      // video overlay only) is the one exception: this input
+                      // used to stay hardcoded opaque black even there,
+                      // unlike every other surface in this same header/list
+                      // area, which is what read as "search bar is full
+                      // black" blocking the video underneath. Falls back to
+                      // the same literal #0a0a0a everywhere else (normal
+                      // global chat window, any theme) — unchanged.
+                      background: transparentMode ? 'transparent' : '#0a0a0a',
                       border: '1px solid var(--input-border)',
                       borderRadius: 20,
                       color: 'var(--input-text)',
@@ -8634,11 +8651,11 @@ const GlobalChatWidget = React.memo(forwardRef(({
                       transition: 'all 0.2s'
                     }}
                     onFocus={(e) => {
-                      e.target.style.background = 'var(--menu-item-hover)';
+                      e.target.style.background = transparentMode ? 'rgba(10,10,10,0.55)' : 'var(--menu-item-hover)';
                       e.target.style.borderColor = 'rgba(var(--brand-1-rgb),0.3)';
                     }}
                     onBlur={(e) => {
-                      e.target.style.background = '#0a0a0a';
+                      e.target.style.background = transparentMode ? 'transparent' : '#0a0a0a';
                       e.target.style.borderColor = 'var(--input-border)';
                     }}
                   />
