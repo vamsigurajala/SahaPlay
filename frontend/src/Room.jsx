@@ -14822,7 +14822,17 @@ const Room = () => {
                   backdropFilter: 'blur(8px)',
                   transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease',
                   opacity: restoreBtnAutoHide && !showControls ? 0 : 1,
-                  pointerEvents: restoreBtnAutoHide && !showControls ? 'none' : 'auto'
+                  // Always tappable, even while visually faded — this used to mirror
+                  // opacity (pointerEvents: 'none' while faded), which meant the FIRST
+                  // tap on a faded button never actually hit it at all: it fell through
+                  // to the tap-gesture zone underneath (z-index 8), which only re-arms
+                  // showControls, making the button fade back in — so restoring custom
+                  // controls needed two taps in the exact same spot (one to "wake up"
+                  // the button, a second to actually press it). Reported as "have to
+                  // click a certain spot" / not responding immediately. Keeping
+                  // pointerEvents always 'auto' means the very first tap always lands
+                  // on this button regardless of its current fade state.
+                  pointerEvents: 'auto'
                 } : {
                   position: 'absolute',
                   top: '16px',
@@ -14843,7 +14853,10 @@ const Room = () => {
                   backdropFilter: 'blur(8px)',
                   transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease',
                   opacity: restoreBtnAutoHide && !showControls ? 0 : 1,
-                  pointerEvents: restoreBtnAutoHide && !showControls ? 'none' : 'auto'
+                  // Same reasoning as the touch branch above — always tappable/clickable
+                  // regardless of current fade state, so a click never needs a "wake up"
+                  // pass first.
+                  pointerEvents: 'auto'
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.transform = 'translateX(-50%) scale(1.05) translateY(-1px)';
