@@ -4292,7 +4292,7 @@ export default function RoomChatPanel({ p }) {
           {/* Bottom padding trimmed vs. the top (was symmetric 10px) — pulls
               the composer a little closer to the keyboard, matching the
               tighter gap the global chat window already has. */}
-          <div style={{padding:'10px 12px 6px',flexShrink:0,position:'relative', background: (p.groupReplyTo || p.groupEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
+          <div style={{padding:'10px 12px calc(6px + var(--sp-nav-bar-inset, 0px))',flexShrink:0,position:'relative', background: (p.groupReplyTo || p.groupEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
             {/* Restriction badges */}
             {(() => {
               const chatLocked = p.chatPerm === 'host' && !p.isHost;
@@ -5367,7 +5367,7 @@ export default function RoomChatPanel({ p }) {
                     see the identical comment on the group composer wrapper. */}
                 {/* Bottom padding trimmed vs. the top — see the identical
                     comment on the group composer wrapper. */}
-                <div style={{padding:'10px 12px 6px',flexShrink:0,position:'relative', background: (p.dmReplyTo || p.dmEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
+                <div style={{padding:'10px 12px calc(6px + var(--sp-nav-bar-inset, 0px))',flexShrink:0,position:'relative', background: (p.dmReplyTo || p.dmEditingMessage) ? (isLight ? '#f1f5f9' : '#1c1c1e') : undefined}}>
                   {p.dmReplyTo && (
                     // Solid fill — see the identical comment on the group
                     // reply preview above.

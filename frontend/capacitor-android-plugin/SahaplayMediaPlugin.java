@@ -634,6 +634,48 @@ public class SahaplayMediaPlugin extends Plugin {
         }
     }
 
+    // The app's own edge-to-edge WebView config (capacitor.config.json's
+    // StatusBar.overlaysWebView: true — see android-capacitor-build.yml's
+    // comment on why that's forced unconditionally on every Android version
+    // now) draws page content full-bleed behind BOTH the status bar AND the
+    // bottom system navigation bar. That's invisible on a gesture-nav device
+    // (just a thin, mostly-transparent pill), but on a device still using
+    // the classic 3-button nav bar (back/home/recents), that bar has real
+    // opaque height and visually sits on top of whatever's drawn at the very
+    // bottom of the page — reported live as the chat composer's input box
+    // becoming unclickable, hidden under those three buttons.
+    //
+    // CSS env(safe-area-inset-bottom) is the standard way a page would
+    // normally learn this and pad itself — but per nativeShell.js's own
+    // initNativeStatusBarInset() comment, that whole env(safe-area-inset-*)
+    // family reports 0 in this specific Capacitor Android WebView regardless
+    // of the viewport-fit=cover meta tag, the same gap that method works
+    // around for the top inset. This is the bottom-inset equivalent: reads
+    // the real, current navigation-bar height from WindowInsetsCompat (the
+    // same non-deprecated API StatusBar.getInfo() itself is built on) and
+    // hands it back in CSS px (dividing the raw/physical pixel value by the
+    // display density) so JS can republish it as a CSS custom property, the
+    // same pattern --sp-status-bar-inset already uses.
+    @PluginMethod
+    public void getNavigationBarInset(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            android.view.View root = getActivity().getWindow().getDecorView();
+            androidx.core.view.WindowInsetsCompat insets = androidx.core.view.ViewCompat.getRootWindowInsets(root);
+            if (insets == null) {
+                ret.put("height", 0);
+                call.resolve(ret);
+                return;
+            }
+            int navBarPx = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars()).bottom;
+            float density = getContext().getResources().getDisplayMetrics().density;
+            ret.put("height", density > 0 ? navBarPx / density : navBarPx);
+        } catch (Exception e) {
+            ret.put("height", 0);
+        }
+        call.resolve(ret);
+    }
+
     // Best-effort deep link into the OEM-specific "Autostart"/"Startup
     // manager" screen that stock Android has no equivalent for at all —
     // MIUI, ColorOS (Oppo/Realme), FuntouchOS/OriginOS (Vivo), and EMUI/

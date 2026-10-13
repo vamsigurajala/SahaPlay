@@ -5,6 +5,7 @@ import { isCapacitorApp } from './platform';
 // `cap sync` has run, so this needs no `@capacitor/core` import.
 const statusBar = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.StatusBar : null);
 const capApp = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.App : null);
+const sahaplayMedia = () => (isCapacitorApp() ? window.Capacitor?.Plugins?.SahaplayMedia : null);
 
 // Matches index.css's --bg-color for each theme (dark: #0b0c10, light: #f7fafc)
 // so the status bar reads as part of the page instead of a mismatched strip.
@@ -121,6 +122,46 @@ export async function initNativeStatusBarInset() {
   await applyRealHeight();
   // Status bar height can change on rotation (some OEMs use a shorter bar
   // in landscape) — re-measure on resize/orientation change and app resume.
+  window.addEventListener('resize', applyRealHeight);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') applyRealHeight();
+  });
+}
+
+// Bottom-of-screen equivalent of initNativeStatusBarInset above. The app's
+// edge-to-edge WebView config draws content full-bleed behind the bottom
+// system navigation bar too, not just the status bar — invisible on a
+// gesture-nav device (a thin, mostly-transparent pill), but on a device
+// still using the classic 3-button nav bar (back/home/recents), that bar
+// has real opaque height and sits on top of whatever's at the very bottom
+// of the page. Reported live: the chat composer's input box becoming
+// unclickable, hidden under those three buttons. CSS env(safe-area-inset-
+// bottom) is the standard way a page would normally learn this, but per
+// initNativeStatusBarInset's own comment, that whole env(safe-area-inset-*)
+// family reports 0 in this Capacitor Android WebView — so this reads the
+// real value from the custom SahaplayMedia.getNavigationBarInset() native
+// method instead (see SahaplayMediaPlugin.java) and republishes it the same
+// way, as a CSS custom property every bottom-anchored bar in the app can
+// pad against.
+const NAV_BAR_INSET_VAR = '--sp-nav-bar-inset';
+
+export async function initNativeNavBarInset() {
+  if (!isCapacitorApp()) return;
+  document.documentElement.style.setProperty(NAV_BAR_INSET_VAR, '0px');
+  const media = sahaplayMedia();
+  if (!media) return;
+  const applyRealHeight = async () => {
+    try {
+      const info = await media.getNavigationBarInset();
+      const h = typeof info?.height === 'number' && info.height >= 0 ? info.height : 0;
+      document.documentElement.style.setProperty(NAV_BAR_INSET_VAR, `${h}px`);
+    } catch {}
+  };
+  await applyRealHeight();
+  // The 3-button nav bar can appear/disappear independent of rotation (some
+  // OEMs let it auto-hide, or the user can switch gesture-nav <-> 3-button
+  // from Settings without restarting the app) — re-measure on the same
+  // signals the status-bar inset already re-measures on.
   window.addEventListener('resize', applyRealHeight);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') applyRealHeight();

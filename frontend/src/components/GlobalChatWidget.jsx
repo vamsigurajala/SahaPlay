@@ -10174,7 +10174,13 @@ const GlobalChatWidget = React.memo(forwardRef(({
           // in light mode even in the idle/transparent state above, which is
           // exactly what read as a leftover white strip under the composer.
           <div className="gcw-composer-bar" style={{
-            padding: '12px 14px',
+            // Bottom padding leaves real room for a visible 3-button Android
+            // nav bar (back/home/recents) — see initNativeNavBarInset's own
+            // comment. --sp-nav-bar-inset is 0 on a gesture-nav device (or
+            // on desktop/web), so this collapses back to the plain 12px
+            // there — it only grows on a device where the OS bar would
+            // otherwise sit on top of the input and block taps.
+            padding: '12px 14px calc(12px + var(--sp-nav-bar-inset, 0px)) 14px',
             // A wallpaper theme sits directly on the shared backdrop layer
             // instead of this bar painting its own opaque strip on top of
             // the picture — no border/tint here in that case, same as the
