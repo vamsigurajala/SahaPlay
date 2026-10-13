@@ -1996,5 +1996,9 @@
   "enterIsSend": "回车发送",
   "enterIsSendOnDesc": "按回车键会发送你的消息。按 Shift+回车 可换行。",
   "enterIsSendOffDesc": "按回车键会换行。点击发送按钮来发送消息。",
-  "noChatsMatch": "没有与“{{query}}”匹配的聊天"
+  "noChatsMatch": "没有与“{{query}}”匹配的聊天",
+  "appUpdateAvailable": "有新版本可用",
+  "appUpdateButton": "更新",
+  "appUpdateDownloading": "正在下载更新…",
+  "appUpdateInstalling": "正在安装更新…"
 }

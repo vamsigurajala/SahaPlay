@@ -1996,5 +1996,9 @@
   "enterIsSend": "Enterで送信",
   "enterIsSendOnDesc": "Enterキーを押すとメッセージが送信されます。改行するにはShift+Enterを使用してください。",
   "enterIsSendOffDesc": "Enterキーを押すと改行されます。メッセージを送信するには送信ボタンをタップしてください。",
-  "noChatsMatch": "「{{query}}」に一致するチャットはありません"
+  "noChatsMatch": "「{{query}}」に一致するチャットはありません",
+  "appUpdateAvailable": "新しいバージョンが利用可能です",
+  "appUpdateButton": "更新",
+  "appUpdateDownloading": "更新をダウンロード中…",
+  "appUpdateInstalling": "更新をインストール中…"
 }

@@ -1996,5 +1996,9 @@
   "enterIsSend": "Eingabetaste sendet",
   "enterIsSendOnDesc": "Die Eingabetaste sendet deine Nachricht. Verwende Umschalt+Eingabe für eine neue Zeile.",
   "enterIsSendOffDesc": "Die Eingabetaste beginnt eine neue Zeile. Tippe auf Senden, um deine Nachricht zu senden.",
-  "noChatsMatch": "Keine Chats gefunden für „{{query}}“"
+  "noChatsMatch": "Keine Chats gefunden für „{{query}}“",
+  "appUpdateAvailable": "Eine neue Version ist verfügbar",
+  "appUpdateButton": "Aktualisieren",
+  "appUpdateDownloading": "Update wird heruntergeladen…",
+  "appUpdateInstalling": "Update wird installiert…"
 }

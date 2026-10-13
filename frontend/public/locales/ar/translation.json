@@ -1998,5 +1998,9 @@
   "enterIsSend": "Enter للإرسال",
   "enterIsSendOnDesc": "الضغط على Enter يرسل رسالتك. استخدم Shift+Enter للانتقال إلى سطر جديد.",
   "enterIsSendOffDesc": "الضغط على Enter ينتقل إلى سطر جديد. اضغط على إرسال لإرسال رسالتك.",
-  "noChatsMatch": "لا توجد محادثات مطابقة لـ \"{{query}}\""
+  "noChatsMatch": "لا توجد محادثات مطابقة لـ \"{{query}}\"",
+  "appUpdateAvailable": "يتوفر إصدار جديد",
+  "appUpdateButton": "تحديث",
+  "appUpdateDownloading": "جارٍ تنزيل التحديث…",
+  "appUpdateInstalling": "جارٍ تثبيت التحديث…"
 }

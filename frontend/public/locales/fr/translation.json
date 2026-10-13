@@ -1996,5 +1996,9 @@
   "enterIsSend": "Entrée pour envoyer",
   "enterIsSendOnDesc": "Appuyer sur Entrée envoie votre message. Utilisez Maj+Entrée pour un retour à la ligne.",
   "enterIsSendOffDesc": "Appuyer sur Entrée crée un retour à la ligne. Appuyez sur Envoyer pour envoyer votre message.",
-  "noChatsMatch": "Aucune discussion ne correspond à « {{query}} »"
+  "noChatsMatch": "Aucune discussion ne correspond à « {{query}} »",
+  "appUpdateAvailable": "Une nouvelle version est disponible",
+  "appUpdateButton": "Mettre à jour",
+  "appUpdateDownloading": "Téléchargement de la mise à jour…",
+  "appUpdateInstalling": "Installation de la mise à jour…"
 }

@@ -1996,5 +1996,9 @@
   "enterIsSend": "엔터로 전송",
   "enterIsSendOnDesc": "Enter 키를 누르면 메시지가 전송됩니다. 줄바꿈은 Shift+Enter를 사용하세요.",
   "enterIsSendOffDesc": "Enter 키를 누르면 줄바꿈됩니다. 메시지를 보내려면 전송 버튼을 누르세요.",
-  "noChatsMatch": "\"{{query}}\"와 일치하는 채팅이 없습니다"
+  "noChatsMatch": "\"{{query}}\"와 일치하는 채팅이 없습니다",
+  "appUpdateAvailable": "새 버전을 사용할 수 있습니다",
+  "appUpdateButton": "업데이트",
+  "appUpdateDownloading": "업데이트 다운로드 중…",
+  "appUpdateInstalling": "업데이트 설치 중…"
 }

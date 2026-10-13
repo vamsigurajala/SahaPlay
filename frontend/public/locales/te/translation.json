@@ -1996,5 +1996,9 @@
   "enterIsSend": "ఎంటర్ పంపుతుంది",
   "enterIsSendOnDesc": "Enter నొక్కితే మీ సందేశం పంపబడుతుంది. కొత్త లైన్ కోసం Shift+Enter ఉపయోగించండి.",
   "enterIsSendOffDesc": "Enter నొక్కితే కొత్త లైన్ మొదలవుతుంది. సందేశం పంపడానికి Send నొక్కండి.",
-  "noChatsMatch": "\"{{query}}\" తో సరిపోలే చాట్‌లు లేవు"
+  "noChatsMatch": "\"{{query}}\" తో సరిపోలే చాట్‌లు లేవు",
+  "appUpdateAvailable": "కొత్త వెర్షన్ అందుబాటులో ఉంది",
+  "appUpdateButton": "అప్‌డేట్ చేయండి",
+  "appUpdateDownloading": "అప్‌డేట్ డౌన్‌లోడ్ అవుతోంది…",
+  "appUpdateInstalling": "అప్‌డేట్ ఇన్‌స్టాల్ అవుతోంది…"
 }

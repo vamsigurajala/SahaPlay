@@ -1984,5 +1984,9 @@
   "enterIsSend": "Enter அனுப்பும்",
   "enterIsSendOnDesc": "Enter அழுத்தினால் உங்கள் செய்தி அனுப்பப்படும். புதிய வரிக்கு Shift+Enter ஐப் பயன்படுத்தவும்.",
   "enterIsSendOffDesc": "Enter அழுத்தினால் புதிய வரி தொடங்கும். செய்தியை அனுப்ப Send ஐத் தட்டவும்.",
-  "noChatsMatch": "\"{{query}}\" உடன் பொருந்தும் அரட்டைகள் இல்லை"
+  "noChatsMatch": "\"{{query}}\" உடன் பொருந்தும் அரட்டைகள் இல்லை",
+  "appUpdateAvailable": "புதிய பதிப்பு கிடைக்கிறது",
+  "appUpdateButton": "புதுப்பிக்கவும்",
+  "appUpdateDownloading": "புதுப்பிப்பு பதிவிறக்கம் செய்யப்படுகிறது…",
+  "appUpdateInstalling": "புதுப்பிப்பு நிறுவப்படுகிறது…"
 }

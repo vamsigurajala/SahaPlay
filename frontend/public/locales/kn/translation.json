@@ -1997,5 +1997,9 @@
   "enterIsSend": "ಎಂಟರ್ ಕಳುಹಿಸುತ್ತದೆ",
   "enterIsSendOnDesc": "Enter ಒತ್ತಿದಾಗ ನಿಮ್ಮ ಸಂದೇಶ ಕಳುಹಿಸಲಾಗುತ್ತದೆ. ಹೊಸ ಸಾಲಿಗೆ Shift+Enter ಬಳಸಿ.",
   "enterIsSendOffDesc": "Enter ಒತ್ತಿದಾಗ ಹೊಸ ಸಾಲು ಪ್ರಾರಂಭವಾಗುತ್ತದೆ. ಸಂದೇಶ ಕಳುಹಿಸಲು Send ಅನ್ನು ಟ್ಯಾಪ್ ಮಾಡಿ.",
-  "noChatsMatch": "\"{{query}}\" ಗೆ ಹೊಂದಿಕೆಯಾಗುವ ಯಾವುದೇ ಚಾಟ್ ಇಲ್ಲ"
+  "noChatsMatch": "\"{{query}}\" ಗೆ ಹೊಂದಿಕೆಯಾಗುವ ಯಾವುದೇ ಚಾಟ್ ಇಲ್ಲ",
+  "appUpdateAvailable": "ಹೊಸ ಆವೃತ್ತಿ ಲಭ್ಯವಿದೆ",
+  "appUpdateButton": "ಅಪ್‌ಡೇಟ್ ಮಾಡಿ",
+  "appUpdateDownloading": "ಅಪ್‌ಡೇಟ್ ಡೌನ್‌ಲೋಡ್ ಆಗುತ್ತಿದೆ…",
+  "appUpdateInstalling": "ಅಪ್‌ಡೇಟ್ ಇನ್‌ಸ್ಟಾಲ್ ಆಗುತ್ತಿದೆ…"
 }

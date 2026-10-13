@@ -1986,5 +1986,9 @@
   "enterIsSend": "एंटर म्हणजे पाठवा",
   "enterIsSendOnDesc": "Enter दाबल्यास तुमचा संदेश पाठवला जातो. नवीन ओळीसाठी Shift+Enter वापरा.",
   "enterIsSendOffDesc": "Enter दाबल्यास नवीन ओळ सुरू होते. संदेश पाठवण्यासाठी Send वर टॅप करा.",
-  "noChatsMatch": "\"{{query}}\" शी जुळणारे कोणतेही चॅट नाहीत"
+  "noChatsMatch": "\"{{query}}\" शी जुळणारे कोणतेही चॅट नाहीत",
+  "appUpdateAvailable": "नवीन आवृत्ती उपलब्ध आहे",
+  "appUpdateButton": "अपडेट करा",
+  "appUpdateDownloading": "अपडेट डाउनलोड होत आहे…",
+  "appUpdateInstalling": "अपडेट इंस्टॉल होत आहे…"
 }

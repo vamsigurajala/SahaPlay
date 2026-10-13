@@ -1998,5 +1998,9 @@
   "enterIsSend": "Invio per inviare",
   "enterIsSendOnDesc": "Premendo Invio il messaggio viene inviato. Usa Maiusc+Invio per andare a capo.",
   "enterIsSendOffDesc": "Premendo Invio si va a capo. Tocca Invia per inviare il messaggio.",
-  "noChatsMatch": "Nessuna chat corrisponde a \"{{query}}\""
+  "noChatsMatch": "Nessuna chat corrisponde a \"{{query}}\"",
+  "appUpdateAvailable": "È disponibile una nuova versione",
+  "appUpdateButton": "Aggiorna",
+  "appUpdateDownloading": "Download dell'aggiornamento in corso…",
+  "appUpdateInstalling": "Installazione dell'aggiornamento in corso…"
 }

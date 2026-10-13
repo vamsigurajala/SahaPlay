@@ -14,6 +14,7 @@ import DownloadAppModal from './DownloadAppModal';
 import NotificationsPanelContent from './NotificationsPanelContent';
 import { blockPullToRefresh, unblockPullToRefresh } from '../lib/pullToRefreshGate';
 import ProfileActionMenu from './ProfileActionMenu';
+import AppUpdateBanner from './AppUpdateBanner';
 import { getAvatarUrl } from '../utils/avatarUtils';
 import { API } from '../lib/api';
 import { useBackIntercept, suppressNextPop } from '../hooks/useBackIntercept';
@@ -1139,6 +1140,12 @@ const Navbar = () => {
             </div>
           </div>
         )}
+        {/* Android-only "a new version is available" strip — self-gates on
+            isAndroidApp() (see AppUpdateBanner.jsx), so this renders nothing
+            everywhere else. Placed inside the same navRef-measured element
+            so the fixed-nav spacer below grows to reserve its space too,
+            with no extra wiring. */}
+        <AppUpdateBanner />
       </nav>
       {/* Reserves the space main-nav no longer occupies now that it's
           position:fixed — see navHeight's own comment above. Not needed in

@@ -1953,5 +1953,9 @@
   "enterIsSend": "Enter is Send",
   "enterIsSendOnDesc": "Pressing Enter sends your message. Use Shift+Enter for a new line.",
   "enterIsSendOffDesc": "Pressing Enter starts a new line. Tap Send to send your message.",
-  "noChatsMatch": "No chats match \"{{query}}\""
+  "noChatsMatch": "No chats match \"{{query}}\"",
+  "appUpdateAvailable": "A new version is available",
+  "appUpdateButton": "Update",
+  "appUpdateDownloading": "Downloading update…",
+  "appUpdateInstalling": "Installing update…"
 }

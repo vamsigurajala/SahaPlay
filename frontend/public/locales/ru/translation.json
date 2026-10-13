@@ -1998,5 +1998,9 @@
   "enterIsSend": "Enter отправляет",
   "enterIsSendOnDesc": "Нажатие Enter отправляет сообщение. Для новой строки используйте Shift+Enter.",
   "enterIsSendOffDesc": "Нажатие Enter начинает новую строку. Нажмите «Отправить», чтобы отправить сообщение.",
-  "noChatsMatch": "Нет чатов, соответствующих «{{query}}»"
+  "noChatsMatch": "Нет чатов, соответствующих «{{query}}»",
+  "appUpdateAvailable": "Доступна новая версия",
+  "appUpdateButton": "Обновить",
+  "appUpdateDownloading": "Загрузка обновления…",
+  "appUpdateInstalling": "Установка обновления…"
 }

@@ -1993,5 +1993,9 @@
   "enterIsSend": "एंटर से भेजें",
   "enterIsSendOnDesc": "Enter दबाने से आपका मैसेज भेज दिया जाता है। नई लाइन के लिए Shift+Enter का उपयोग करें।",
   "enterIsSendOffDesc": "Enter दबाने से नई लाइन शुरू होती है। मैसेज भेजने के लिए Send पर टैप करें।",
-  "noChatsMatch": "\"{{query}}\" से मेल खाती कोई चैट नहीं मिली"
+  "noChatsMatch": "\"{{query}}\" से मेल खाती कोई चैट नहीं मिली",
+  "appUpdateAvailable": "एक नया वर्शन उपलब्ध है",
+  "appUpdateButton": "अपडेट करें",
+  "appUpdateDownloading": "अपडेट डाउनलोड हो रहा है…",
+  "appUpdateInstalling": "अपडेट इंस्टॉल हो रहा है…"
 }

@@ -1998,5 +1998,9 @@
   "enterIsSend": "Enter para enviar",
   "enterIsSendOnDesc": "Pressionar Enter envia sua mensagem. Use Shift+Enter para uma nova linha.",
   "enterIsSendOffDesc": "Pressionar Enter inicia uma nova linha. Toque em Enviar para enviar sua mensagem.",
-  "noChatsMatch": "Nenhuma conversa corresponde a \"{{query}}\""
+  "noChatsMatch": "Nenhuma conversa corresponde a \"{{query}}\"",
+  "appUpdateAvailable": "Uma nova versão está disponível",
+  "appUpdateButton": "Atualizar",
+  "appUpdateDownloading": "Baixando atualização…",
+  "appUpdateInstalling": "Instalando atualização…"
 }

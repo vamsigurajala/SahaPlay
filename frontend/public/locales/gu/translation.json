@@ -1986,5 +1986,9 @@
   "enterIsSend": "એન્ટર એટલે મોકલો",
   "enterIsSendOnDesc": "Enter દબાવવાથી તમારો સંદેશ મોકલાય છે. નવી લાઇન માટે Shift+Enter વાપરો.",
   "enterIsSendOffDesc": "Enter દબાવવાથી નવી લાઇન શરૂ થાય છે. સંદેશ મોકલવા માટે Send પર ટેપ કરો.",
-  "noChatsMatch": "\"{{query}}\" સાથે મેળ ખાતી કોઈ ચેટ નથી"
+  "noChatsMatch": "\"{{query}}\" સાથે મેળ ખાતી કોઈ ચેટ નથી",
+  "appUpdateAvailable": "નવું વર્ઝન ઉપલબ્ધ છે",
+  "appUpdateButton": "અપડેટ કરો",
+  "appUpdateDownloading": "અપડેટ ડાઉનલોડ થઈ રહ્યું છે…",
+  "appUpdateInstalling": "અપડેટ ઇન્સ્ટોલ થઈ રહ્યું છે…"
 }

@@ -1996,5 +1996,9 @@
   "enterIsSend": "Enter para enviar",
   "enterIsSendOnDesc": "Al pulsar Enter se envía tu mensaje. Usa Mayús+Enter para un salto de línea.",
   "enterIsSendOffDesc": "Al pulsar Enter se inicia una nueva línea. Toca Enviar para enviar tu mensaje.",
-  "noChatsMatch": "No hay chats que coincidan con \"{{query}}\""
+  "noChatsMatch": "No hay chats que coincidan con \"{{query}}\"",
+  "appUpdateAvailable": "Hay una nueva versión disponible",
+  "appUpdateButton": "Actualizar",
+  "appUpdateDownloading": "Descargando actualización…",
+  "appUpdateInstalling": "Instalando actualización…"
 }

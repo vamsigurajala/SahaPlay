@@ -91,9 +91,21 @@ jobs:
       # real-device testing found entries silently failing to persist when
       # backed by the WebView's own localStorage alone; SharedPreferences via
       # this plugin doesn't share that failure mode.
+      # @capawesome/capacitor-app-update wraps Google Play Core's in-app
+      # update API — AppUpdateBanner.jsx's "a new version is available"
+      # strip (frontend/src/lib/appUpdate.js) calls it off
+      # window.Capacitor.Plugins.AppUpdate, same ambient-proxy pattern as
+      # every other plugin here, so (same as them) it's never added to the
+      # committed package.json either. Deliberately unpinned, same reasoning
+      # as every other package on this line: installed together in one
+      # resolution pass so npm picks a version of this plugin that's
+      # actually compatible with whatever @capacitor/core major also
+      # resolves to here, rather than two separate installs risking a
+      # mismatched pair. No AndroidManifest or extra Gradle config needed
+      # beyond `cap sync` per the plugin's own docs.
       - name: Install Capacitor packages
         working-directory: frontend
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app @capacitor/browser @capacitor/push-notifications @capacitor/filesystem @capacitor/preferences fs-extra
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app @capacitor/browser @capacitor/push-notifications @capacitor/filesystem @capacitor/preferences @capawesome/capacitor-app-update fs-extra
 
       # Hand-authored, same "write the config the CLI would otherwise ask for
       # interactively" approach already used for the old TWA build's

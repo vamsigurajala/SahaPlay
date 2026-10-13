@@ -1997,5 +1997,9 @@
   "enterIsSend": "ਐਂਟਰ ਨਾਲ ਭੇਜੋ",
   "enterIsSendOnDesc": "Enter ਦਬਾਉਣ ਨਾਲ ਤੁਹਾਡਾ ਸੁਨੇਹਾ ਭੇਜਿਆ ਜਾਂਦਾ ਹੈ। ਨਵੀਂ ਲਾਈਨ ਲਈ Shift+Enter ਵਰਤੋ।",
   "enterIsSendOffDesc": "Enter ਦਬਾਉਣ ਨਾਲ ਨਵੀਂ ਲਾਈਨ ਸ਼ੁਰੂ ਹੁੰਦੀ ਹੈ। ਸੁਨੇਹਾ ਭੇਜਣ ਲਈ Send 'ਤੇ ਟੈਪ ਕਰੋ।",
-  "noChatsMatch": "\"{{query}}\" ਨਾਲ ਮੇਲ ਖਾਂਦੀ ਕੋਈ ਚੈਟ ਨਹੀਂ"
+  "noChatsMatch": "\"{{query}}\" ਨਾਲ ਮੇਲ ਖਾਂਦੀ ਕੋਈ ਚੈਟ ਨਹੀਂ",
+  "appUpdateAvailable": "ਨਵਾਂ ਵਰਜਨ ਉਪਲਬਧ ਹੈ",
+  "appUpdateButton": "ਅੱਪਡੇਟ ਕਰੋ",
+  "appUpdateDownloading": "ਅੱਪਡੇਟ ਡਾਊਨਲੋਡ ਹੋ ਰਿਹਾ ਹੈ…",
+  "appUpdateInstalling": "ਅੱਪਡੇਟ ਇੰਸਟੌਲ ਹੋ ਰਿਹਾ ਹੈ…"
 }

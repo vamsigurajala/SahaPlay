@@ -1997,5 +1997,9 @@
   "enterIsSend": "এন্টার মানে পাঠানো",
   "enterIsSendOnDesc": "Enter চাপলে আপনার বার্তা পাঠানো হবে। নতুন লাইনের জন্য Shift+Enter ব্যবহার করুন।",
   "enterIsSendOffDesc": "Enter চাপলে নতুন লাইন শুরু হবে। বার্তা পাঠাতে Send-এ চাপুন।",
-  "noChatsMatch": "\"{{query}}\" এর সাথে মিলে এমন কোনো চ্যাট নেই"
+  "noChatsMatch": "\"{{query}}\" এর সাথে মিলে এমন কোনো চ্যাট নেই",
+  "appUpdateAvailable": "একটি নতুন সংস্করণ উপলব্ধ",
+  "appUpdateButton": "আপডেট করুন",
+  "appUpdateDownloading": "আপডেট ডাউনলোড হচ্ছে…",
+  "appUpdateInstalling": "আপডেট ইনস্টল হচ্ছে…"
 }
