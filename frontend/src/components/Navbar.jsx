@@ -23,7 +23,15 @@ import { isTauriApp, isStandalonePWA, isCapacitorApp } from '../lib/platform';
 import { peekPendingNotificationTap, clearPendingNotificationTap } from '../lib/nativePush';
 import { useCrypto } from '../contexts/CryptoContext';
 
-const Navbar = () => {
+// showBackButton: opts a settings-style sub-page (e.g. ChatSettings.jsx) into
+// a "Back" button in place of the logo/nav-links, instead of that page hand-
+// rolling its own near-complete duplicate of this entire component just to
+// get a different left side — which is exactly what Profile.jsx/AppSettings.jsx
+// already did (see their own "Navbar — this page hand-rolls its own instead
+// of reusing the shared <Navbar/>" comment) before this prop existed. Every
+// existing <Navbar/> call site omits it, so this is purely additive — their
+// logo/nav-links rendering is completely unchanged.
+const Navbar = ({ showBackButton = false }) => {
   const isDesktopApp = isTauriApp();
   const standalone = isStandalonePWA();
   // The native Android wrapper specifically (the installed .apk), not a
@@ -545,16 +553,57 @@ const Navbar = () => {
           text-align: left !important;
           justify-content: flex-start !important;
         }
+        /* showBackButton mode only — copied from Profile.jsx/AppSettings.jsx's
+           own identical .back-btn (kept pixel-for-pixel the same so a page
+           switching from their hand-rolled nav to this shared one, or vice
+           versa, looks identical either way). .nav-icon-btn/.profile-pill are
+           already global (index.css), this is the one class those two pages'
+           hand-rolled nav needed that this component didn't have yet. */
+        .back-btn {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.1);
+          color: #fff;
+          padding: 10px 20px;
+          border-radius: 16px;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          font-size: 14px;
+          font-weight: 700;
+          backdrop-filter: blur(12px);
+        }
+        .back-btn:hover {
+          background: rgba(255,255,255,0.1);
+          border-color: rgba(255,255,255,0.2);
+        }
+        @media (max-width: 768px) {
+          .back-btn span {
+            display: none !important;
+          }
+          .back-btn {
+            padding: 10px !important;
+            border-radius: 50% !important;
+          }
+        }
       `}</style>
       <nav ref={navRef} className={`main-nav${scrolled ? ' scrolled' : ''}${isApk ? ' nav-static' : ''}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         {isMobileOrTablet ? (
           /* Mobile / Tablet Layout */
           <div className="nav-bar-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', position: 'relative' }}>
-            {/* Left: Logo */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => navigateAndCloseMenu('/')}>
-              <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
-              <span className="nav-logo-text" style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</span>
-            </div>
+            {/* Left: Logo, or a Back button on pages that opt in */}
+            {showBackButton ? (
+              <button className="back-btn" onClick={() => navigate(-1)}>
+                <ArrowLeft size={18} />
+                <span>{t('back', 'Back')}</span>
+              </button>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => navigateAndCloseMenu('/')}>
+                <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
+                <span className="nav-logo-text" style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</span>
+              </div>
+            )}
 
             {/* Center: stylish script wordmark — standalone (PWA/TWA) home screen
                 only, same idea as Instagram's centered script logotype on its home
@@ -769,15 +818,27 @@ const Navbar = () => {
         ) : (
           /* Desktop Layout */
           <div className="nav-bar-row">
-            {/* Left: Logo */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/')}>
-              <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
-              <span style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</span>
-            </div>
+            {/* Left: Logo, or a Back button on pages that opt in */}
+            {showBackButton ? (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+                <button className="back-btn" onClick={() => navigate(-1)}>
+                  <ArrowLeft size={18} />
+                  <span>{t('back', 'Back')}</span>
+                </button>
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => navigate('/')}>
+                <img src="/logos/trans_webl.png" alt="SahaPlay" style={{ width: 32, height: 32 }} />
+                <span style={{ fontSize: 18, fontWeight: 800, margin: 0, letterSpacing: '-0.5px', color: '#fff' }}>SahaPlay</span>
+              </div>
+            )}
 
-            {/* Center: Nav Links */}
+            {/* Center: Nav Links — empty on a back-button page, same as
+                Profile.jsx/AppSettings.jsx's own hand-rolled nav (identity/
+                actions live on the right, nothing marketing-site-ish belongs
+                here on a settings sub-page). */}
             <div className="nav-links-desktop" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-              {isDesktopApp ? (
+              {showBackButton ? null : isDesktopApp ? (
                 <>
                   <button className={`nav-icon-btn${location.pathname === '/' ? ' active' : ''}`} title={t('home', 'Home')} onClick={() => navigate('/')}>
                     <Home size={18} />

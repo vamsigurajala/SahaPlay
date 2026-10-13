@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Type, CornerDownLeft, Check } from 'lucide-react';
+import { Type, CornerDownLeft, Check } from 'lucide-react';
+import Navbar from './components/Navbar';
 import ToggleSwitch from './components/ToggleSwitch';
 import { getChatFontSize, setChatFontSize, CHAT_FONT_SIZES, isEnterToSend, setEnterToSend } from './lib/chatPreferences';
 
@@ -12,7 +12,6 @@ import { getChatFontSize, setChatFontSize, CHAT_FONT_SIZES, isEnterToSend, setEn
 const FONT_PREVIEW_PX = { small: 12, medium: 14, big: 17 };
 
 export default function ChatSettings() {
-  const navigate = useNavigate();
   const { t } = useTranslation();
   const [fontSize, setFontSizeState] = useState(getChatFontSize());
   const [enterToSend, setEnterToSendState] = useState(isEnterToSend());
@@ -34,15 +33,17 @@ export default function ChatSettings() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-color)', paddingBottom: 60 }}>
+    // No background here, deliberately — same as Profile.jsx/AppSettings.jsx's
+    // own root wrapper (neither sets one either). Leaving it unset lets
+    // body's own animated, accent-theme-reactive gradient (index.css's
+    // --bg-gradient-1/--bg-gradient-2, repainted by App.jsx's accent-theme
+    // effect) show through, instead of a flat var(--bg-color) painting over
+    // it and hiding the current accent color's tint — reported live as this
+    // page not re-coloring along with every other page when the accent theme
+    // changes.
+    <div style={{ minHeight: '100vh', paddingBottom: 60 }}>
+      <Navbar showBackButton />
       <div style={{ maxWidth: 620, margin: '0 auto', padding: '20px 20px 0' }}>
-        <button
-          onClick={() => navigate(-1)}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 15, fontWeight: 600, cursor: 'pointer', padding: '8px 0', marginBottom: 20 }}
-        >
-          <ArrowLeft size={20} /> {t('back', 'Back')}
-        </button>
-
         <h2 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 24px', color: 'var(--text-primary)' }}>{t('chatsSettingsTitle', 'Chats')}</h2>
 
         {/* Font size — applies to every message bubble in every chat
