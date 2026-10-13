@@ -755,7 +755,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { useScrollToBottom } from '../hooks/useScrollToBottom';
 import { useVisualViewportResize } from '../hooks/useVisualViewportResize';
 import { useStableViewportHeight } from '../hooks/useStableViewportHeight';
-import { useDebounce } from '../hooks/useDebounce';
 import { useCrypto } from '../contexts/CryptoContext';
 import { encryptDM, encryptGroupMessage, decryptDM, decryptGroupMessage, decryptDMSenderCopy, robustDecode, encryptMedia, decryptMedia, packMediaKeyAndCaption, unpackMediaKeyAndCaption, sanitizeReplyToForWire } from '../lib/crypto';
 import { resolveDmRecipientPublicKey } from '../lib/dmKeyResolution.js';
@@ -2824,9 +2823,14 @@ const GlobalChatWidget = React.memo(forwardRef(({
       } catch {}
     }
   }, [location.pathname]);
+  // Scoped to chats this user already has — not a lookup across every user
+  // in the database (that broader search belongs exclusively to the app's
+  // main search icon, Navbar.jsx/SearchTabContent.jsx, which already hits
+  // /api/users/search for exactly that). This was previously ALSO hitting
+  // that same endpoint from inside the chat window itself, so typing here
+  // surfaced arbitrary users you'd never actually messaged — the filtering
+  // below instead narrows the existing `conversations` list in place.
   const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
-  const [searchResults, setSearchResults] = useState([]);
   const [activeRelation, setActiveRelation] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [lightbox, setLightbox] = useState(null); // { items: [{url, type}], index }
@@ -5077,23 +5081,9 @@ const GlobalChatWidget = React.memo(forwardRef(({
       setActiveReactionMsg(null);
       setShowEmojiPicker(false);
       setSearchQuery('');
-      setSearchResults([]);
       setLightbox(null);
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    if (!debouncedSearchQuery) {
-      setSearchResults([]);
-      return;
-    }
-    fetch(`${API}/api/users/search?q=${debouncedSearchQuery}`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    })
-      .then(r => r.json())
-      .then(d => { if(Array.isArray(d)) setSearchResults(d); else setSearchResults([]); })
-      .catch(() => {});
-  }, [debouncedSearchQuery, token]);
 
   // Re-run fetchHistory when keyPair becomes available (fixes race condition where history
   // was fetched before CryptoContext finished loading the key from sessionStorage).
@@ -8316,9 +8306,25 @@ const GlobalChatWidget = React.memo(forwardRef(({
           </div>
         )}
 
-        {/* Body */}
-        <div ref={ptr.containerRef} className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
-          {view === 'list' && (
+        {/* Search bar lives OUTSIDE the scrollable Body below (not just
+            sticky inside it, which it used to be) so conversation rows are
+            genuinely clipped by the Body's own overflow boundary right at
+            this element's bottom edge, instead of merely being visually
+            covered by an opaque bar floating above them. That distinction
+            only shows up in transparentMode (the fullscreen/mobile-takeover
+            Room video overlay, where this needs to stay fully see-through
+            with no background/blur at all) — "sticky" never actually clips
+            anything on its own, it only stays glued in place, so rows used
+            to keep scrolling past it unclipped until they reached the real
+            boundary above (the non-scrolling header/title row), reading as
+            "chats disappear under the nav bar, not the search bar." Giving
+            this its own real layout boundary makes rows disappear exactly
+            here instead, while staying fully transparent like the rest of
+            this see-through panel — no visible divider needed, the clip
+            edge itself does the job invisibly. The plain (non-transparent)
+            global chat window renders identically either way, since its
+            search bar was already opaque and covering that same gap. */}
+        {view === 'list' && (
             <div className="chat-list-header" style={{
               // In transparentMode (the fullscreen/mobile-takeover Room video
               // overlay only — the plain global chat window elsewhere always
@@ -8329,28 +8335,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
               // in this surface. Bottom padding is unchanged so spacing
               // against the conversation list below still looks normal.
               padding: transparentMode ? '4px 20px 16px' : '16px 20px',
-              position: 'sticky',
-              top: 0,
+              // No longer 'sticky' — this element now lives outside the
+              // scrollable Body entirely (see the comment above it), so it's
+              // naturally always on screen without needing sticky
+              // positioning, and conversation rows are genuinely clipped by
+              // the Body's own boundary instead of relying on this having an
+              // opaque/blurred fill to visually cover them.
               // Literal match to the panel's own #0a0a0a — see the top
               // header's identical comment just above in this file.
-              //
-              // transparentMode used to go fully 'transparent' here with no
-              // blur at all — video showed through perfectly, but "sticky"
-              // only means this element stays glued in place; it doesn't
-              // clip anything underneath on its own. With nothing visually
-              // covering that area, conversation rows scrolling past it
-              // stayed just as visible as everywhere else, and only actually
-              // disappeared once they scrolled past the real clip boundary —
-              // the scroll container's own top edge, which sits ABOVE this
-              // (under the non-scrolling header/title row instead), reported
-              // as "chats disappearing under the conversations nav bar"
-              // rather than under the search bar itself. A frosted-glass look
-              // (low-opacity fill + blur, instead of either fully opaque or
-              // fully invisible) gives this element enough of its own visual
-              // presence that rows reads as fading out right where it sits —
-              // while still being translucent enough for the video to show
-              // through, blurred, same as the rest of this see-through panel.
-              background: transparentMode ? 'rgba(10,10,10,0.32)' : (selectMode ? 'rgba(18, 14, 35, 0.98)' : '#0a0a0a'),
+              background: transparentMode ? 'transparent' : (selectMode ? 'rgba(18, 14, 35, 0.98)' : '#0a0a0a'),
               zIndex: 30,
               // App.jsx's global light-mode CSS turns this div's own
               // background: #0a0a0a into white (matching by literal inline-
@@ -8361,8 +8354,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
               // never intended to show against a white header.
               borderBottom: (transparentMode || isLight) ? 'none' : '1px solid rgba(255,255,255,0.03)',
               transition: 'background 0.25s',
-              backdropFilter: transparentMode ? 'blur(16px)' : 'blur(10px)',
-              WebkitBackdropFilter: transparentMode ? 'blur(16px)' : 'blur(10px)'
+              backdropFilter: transparentMode ? 'none' : 'blur(10px)',
+              WebkitBackdropFilter: transparentMode ? 'none' : 'blur(10px)'
             }}>
               {selectMode ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '38px' }}>
@@ -8700,6 +8693,8 @@ const GlobalChatWidget = React.memo(forwardRef(({
             </div>
           )}
 
+        {/* Body */}
+        <div ref={ptr.containerRef} className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
           {/* Locked chats mode banner */}
           {!loading && view === 'list' && !searchQuery && showLockedChats && (
             <div className="vault-header" style={{
@@ -8877,55 +8872,23 @@ const GlobalChatWidget = React.memo(forwardRef(({
             </div>
           )}
 
-          {view === 'list' && searchQuery && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {searchResults.length > 0 ? (
-                searchResults.map((u, idx) => (
-                  <div key={idx} onClick={() => {
-                    setSearchQuery('');
-                    openChat({
-                      id: u.username,
-                      partner: u.username,
-                      targetId: String(u.id),
-                      displayName: u.displayName || u.username,
-                      partnerAvatar: u.avatarPath,
-                      type: 'private'
-                    });
-                  }} style={{
-                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px',
-                    cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.03)'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ width: 36, height: 36, minWidth: 36, borderRadius: '50%', background: '#333', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {u.avatarPath ? (
-                        <img src={getAvatarUrl(u.avatarPath)} alt="Avatar" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      ) : (
-                        <User size={18} color="#888" />
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--header-text)' }}>{u.displayName || u.username}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--header-btn)' }}>@{u.username}</div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: 20, textAlign: 'center', color: '#555', fontSize: 13 }}>No users found matching "{searchQuery}"</div>
-              )}
-            </div>
-          )}
-
-          {view === 'list' && !searchQuery && conversations.filter(c => {
+          {view === 'list' && conversations.filter(c => {
             const cId = (c.id || c.partner).toLowerCase();
             if (showLockedChats) return lockedChats.includes(cId);
             const isHidden = hiddenChats.some(k => k.toLowerCase() === cId);
             if (showHiddenChats) return isHidden;
             return !isHidden && (!chatLockEnabled || !lockedChats.includes(cId));
+          }).filter(c => {
+            // Scoped to chats this user already has — see searchQuery's own
+            // declaration comment for why this doesn't hit /api/users/search.
+            if (!searchQuery) return true;
+            const q = searchQuery.toLowerCase();
+            return (c.displayName || '').toLowerCase().includes(q) || (c.partner || c.id || '').toLowerCase().includes(q);
           }).length === 0 && (
             <div style={{ padding: 32, textAlign: 'center', color: '#555', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-              {showLockedChats ? (
+              {searchQuery ? (
+                <div style={{ color: 'var(--header-btn)' }}>{t('noChatsMatch', 'No chats match "{{query}}"', { query: searchQuery })}</div>
+              ) : showLockedChats ? (
                 <>
                   <Lock size={28} color="var(--header-btn)" />
                   <div style={{ fontSize: 14, color: 'var(--header-btn)' }}>{t('vaultEmpty', 'Vault is empty')}</div>
@@ -8943,13 +8906,21 @@ const GlobalChatWidget = React.memo(forwardRef(({
             </div>
           )}
 
-          {view === 'list' && !searchQuery && [...conversations]
+          {view === 'list' && [...conversations]
             .filter(c => {
               const cId = (c.id || c.partner).toLowerCase();
               if (showLockedChats) return lockedChats.includes(cId);
               const isHidden = hiddenChats.some(k => k.toLowerCase() === cId);
               if (showHiddenChats) return isHidden;
               return !isHidden && (!chatLockEnabled || !lockedChats.includes(cId));
+            })
+            .filter(c => {
+              // Scoped to chats this user already has — see searchQuery's
+              // own declaration comment for why this doesn't hit
+              // /api/users/search the way the app's main search icon does.
+              if (!searchQuery) return true;
+              const q = searchQuery.toLowerCase();
+              return (c.displayName || '').toLowerCase().includes(q) || (c.partner || c.id || '').toLowerCase().includes(q);
             })
             .sort((a, b) => {
             const aKey = a.id || a.partner;
