@@ -2,6 +2,9 @@ import { useEffect, useId, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, ArrowLeft, RotateCcw } from 'lucide-react';
 import { GENRES, SHELVES, FRIDGE_SHELVES, DISHES, OVEN_ITEMS } from '../../data/gamifyBooks';
+import { WARDROBES, COSMETICS, GARDEN } from '../../data/gamifyItems';
+import { useBookCover } from '../../data/bookCovers';
+import { ClothArt, BeautyArt, PlantArt } from './viewerArt';
 
 // Full-screen "look closer" views for props in the Gamify house: bookshelf (tap a
 // book to read it), fridge (hover an item for its name), oven (something is baking)
@@ -42,7 +45,6 @@ function useEscape(onClose) {
   }, [onClose]);
 }
 
-const hash = (s) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
 const shade = (hex, amt) => {
   const n = parseInt(hex.slice(1), 16);
   const c = (v) => Math.max(0, Math.min(255, v + amt));
@@ -68,61 +70,81 @@ function GenreIcon({ genre, size = 64, color }) {
   );
 }
 
-function Spine({ book, onPick, h, w }) {
+// A cover: the real one from Open Library when found, otherwise a drawn cover in
+// the genre colours. The drawn cover always sits underneath so nothing flashes.
+function BookCover({ book, size = 'M', big = false }) {
   const g = GENRES[book.genre];
-  const s = hash(book.id);
-  const tilt = (s % 7) === 0;
+  const url = useBookCover(book, size);
+  const [ok, setOk] = useState(false);
+  useEffect(() => { setOk(false); }, [url]);
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 4, overflow: 'hidden', background: `linear-gradient(135deg, ${g.a}, ${g.b})`, color: g.ink, fontFamily: 'Georgia, serif', boxShadow: 'inset 0 0 0 3px rgba(255,215,120,0.4)' }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: big ? 28 : 8, gap: big ? 14 : 5 }}>
+        <GenreIcon genre={book.genre} size={big ? 80 : 34} color={g.ink} />
+        <div style={{ fontWeight: 700, fontSize: big ? 30 : 12.5, lineHeight: 1.2 }}>{book.title}</div>
+        <div style={{ fontStyle: 'italic', fontSize: big ? 17 : 10.5, opacity: 0.85 }}>{book.author}</div>
+      </div>
+      {url && (
+        <img
+          src={url} alt={`${book.title} cover`} loading="lazy" referrerPolicy="no-referrer"
+          onLoad={e => setOk(e.currentTarget.naturalWidth > 40)} onError={() => setOk(false)}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: ok ? 1 : 0, transition: 'opacity .3s' }}
+        />
+      )}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 8, background: 'linear-gradient(90deg, rgba(0,0,0,0.4), rgba(255,255,255,0.12) 60%, transparent)' }} />
+    </div>
+  );
+}
+
+function BookCard({ book, onPick }) {
   return (
     <button
       onClick={() => onPick(book)}
       title={`${book.title} - ${book.author}`}
-      style={{
-        width: w, height: h, border: 'none', cursor: 'pointer', borderRadius: '3px 3px 1px 1px', position: 'relative', flex: 'none', padding: '6px 0',
-        background: `linear-gradient(90deg, rgba(255,255,255,0.22), rgba(255,255,255,0) 22%, rgba(0,0,0,0.28) 100%), linear-gradient(180deg, ${g.a}, ${g.b})`,
-        color: g.ink, boxShadow: '2px 0 5px rgba(0,0,0,0.55)', transition: 'transform .16s', transformOrigin: 'bottom center',
-        transform: tilt ? 'rotate(-3deg)' : 'none', alignSelf: 'flex-end', marginLeft: tilt ? 4 : 0,
-      }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-14px)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = tilt ? 'rotate(-3deg)' : 'none'; }}
+      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#fff', textAlign: 'center', transition: 'transform .16s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
     >
-      <span style={{ position: 'absolute', left: 0, right: 0, top: 10, height: 2, background: 'rgba(255,215,120,0.8)' }} />
-      <span style={{ position: 'absolute', left: 0, right: 0, bottom: 10, height: 2, background: 'rgba(255,215,120,0.8)' }} />
-      <span style={{ writingMode: 'vertical-rl', fontSize: 13.5, fontWeight: 700, fontFamily: 'Georgia, serif', display: 'block', margin: '18px auto 18px', maxHeight: h - 40, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{book.title}</span>
+      <div style={{ width: '100%', aspectRatio: '2 / 3', boxShadow: '0 8px 14px rgba(0,0,0,0.6)' }}><BookCover book={book} /></div>
+      <div className="stay-white" style={{ fontSize: 12.5, fontWeight: 700, lineHeight: 1.25, maxWidth: '100%' }}>{book.title}</div>
+      <div className="stay-white" style={{ fontSize: 11, opacity: 0.65, lineHeight: 1.2, marginTop: -3 }}>{book.author}</div>
     </button>
   );
 }
 
 function BookshelfView({ shelfId, onPick }) {
   const shelf = SHELVES[shelfId] || SHELVES.default;
-  const perRow = typeof window !== 'undefined' && window.innerWidth < 640 ? 7 : 12;
+  const [genre, setGenre] = useState('all');
+  const w = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  const perRow = w < 520 ? 3 : w < 860 ? 4 : 6;
+  const genres = [...new Set(shelf.books.map(b => b.genre))];
+  const books = genre === 'all' ? shelf.books : shelf.books.filter(b => b.genre === genre);
   const rows = useMemo(() => {
     const out = [];
-    for (let i = 0; i < shelf.books.length; i += perRow) out.push(shelf.books.slice(i, i + perRow));
+    for (let i = 0; i < books.length; i += perRow) out.push(books.slice(i, i + perRow));
     return out;
-  }, [shelf, perRow]);
-  const genres = [...new Set(shelf.books.map(b => b.genre))];
+  }, [books, perRow]);
+  const chip = (active) => ({ ...pill, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: active ? 'rgba(255,255,255,0.22)' : pill.background });
   return (
     <div style={{ width: '100%', maxWidth: 980 }}>
       <div className="stay-white" style={{ textAlign: 'center', fontSize: 22, fontWeight: 800 }}>{shelf.title}</div>
-      <div className="stay-white" style={{ textAlign: 'center', fontSize: 13, opacity: 0.7, margin: '2px 0 14px' }}>{shelf.books.length} books - tap one to read it</div>
+      <div className="stay-white" style={{ textAlign: 'center', fontSize: 13, opacity: 0.7, margin: '2px 0 12px' }}>{books.length} books - tap a cover to open it</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 14 }}>
+        <button className="stay-white" style={chip(genre === 'all')} onClick={() => setGenre('all')}>All</button>
+        {genres.map(g => (
+          <button key={g} className="stay-white" style={chip(genre === g)} onClick={() => setGenre(g)}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: GENRES[g].a }} />{GENRES[g].label}
+          </button>
+        ))}
+      </div>
       <div style={{ background: 'linear-gradient(180deg,#4a3322,#2a1d12)', borderRadius: 14, padding: '14px 14px 6px', boxShadow: '0 30px 70px rgba(0,0,0,0.65), inset 0 0 0 5px #5a4030' }}>
         {rows.map((row, ri) => (
-          <div key={ri} style={{ marginBottom: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-start', gap: 3, minHeight: 190, padding: '10px 10px 0', background: 'linear-gradient(180deg, rgba(0,0,0,0.5), rgba(0,0,0,0.22))', borderRadius: 5, overflow: 'hidden' }}>
-              {row.map(b => {
-                const s = hash(b.id);
-                return <Spine key={b.id} book={b} onPick={onPick} h={150 + (s % 5) * 16} w={40 + ((s >>> 3) % 4) * 9} />;
-              })}
+          <div key={ri} style={{ marginBottom: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${perRow}, 1fr)`, gap: 14, padding: '14px 12px 12px', background: 'linear-gradient(180deg, rgba(0,0,0,0.5), rgba(0,0,0,0.2))', borderRadius: 5, alignItems: 'start' }}>
+              {row.map(b => <BookCard key={b.id} book={b} onPick={onPick} />)}
             </div>
             <div style={{ height: 14, background: 'linear-gradient(180deg,#8a5e3a,#4a3322)', borderRadius: 3, boxShadow: '0 5px 9px rgba(0,0,0,0.55)' }} />
           </div>
-        ))}
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 14 }}>
-        {genres.map(g => (
-          <span key={g} className="stay-white" style={{ ...pill, display: 'flex', alignItems: 'center', gap: 6, padding: '4px 11px', fontSize: 12, fontWeight: 700 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: GENRES[g].a }} />{GENRES[g].label}
-          </span>
         ))}
       </div>
     </div>
@@ -166,13 +188,7 @@ function BookReader({ book, onBack }) {
       <button onClick={onBack} className="stay-white" style={{ ...btnPill, alignSelf: 'flex-start' }}><ArrowLeft size={15} /> Back to shelf</button>
       <div key={sheet} style={{ width: '100%', height: small ? '60vh' : 'min(64vh, 540px)', animation: sheet === 1 ? 'gp-open .5s ease-out' : 'gp-page .35s ease-out', display: 'flex', borderRadius: 10, boxShadow: '0 30px 70px rgba(0,0,0,0.7)', overflow: 'hidden' }}>
         {cur === 'cover' ? (
-          <div style={{ flex: 1, background: `linear-gradient(135deg, ${g.a}, ${g.b})`, color: g.ink, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 28, fontFamily: 'Georgia, serif', border: '7px double rgba(255,215,120,0.55)', boxSizing: 'border-box', position: 'relative' }}>
-            <div style={{ position: 'absolute', top: 18, fontSize: 12, letterSpacing: '0.3em', textTransform: 'uppercase', opacity: 0.8 }}>{g.label}</div>
-            <GenreIcon genre={book.genre} size={small ? 70 : 96} color={g.ink} />
-            <div style={{ fontSize: small ? 26 : 38, fontWeight: 700, lineHeight: 1.2, marginTop: 18 }}>{book.title}</div>
-            <div style={{ width: 90, height: 2, background: 'rgba(255,215,120,0.8)', margin: '18px 0' }} />
-            <div style={{ fontSize: small ? 15 : 20, fontStyle: 'italic' }}>{book.author}</div>
-          </div>
+          <div style={{ flex: 1, minHeight: 0 }}><BookCover book={book} size="L" big /></div>
         ) : cur.map((pg, i) => <div key={i} style={{ flex: 1, display: 'flex', borderRight: i === 0 && cur.length > 1 ? '1px solid rgba(0,0,0,0.15)' : 'none' }}>{pg}</div>)}
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -454,6 +470,124 @@ function StoveView() {
   );
 }
 
+// ── wardrobe, dressing table, garden ─────────────────────────────────────────
+function ItemCard({ item, Art, picked, onPick, hang }) {
+  return (
+    <button
+      onClick={() => onPick(item.name)}
+      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, color: '#fff', transition: 'transform .15s', transform: picked ? 'translateY(-6px) scale(1.06)' : 'none', filter: picked ? 'drop-shadow(0 8px 8px rgba(0,0,0,0.45))' : 'none' }}
+      onMouseEnter={() => onPick(item.name, true)}
+      onMouseLeave={() => onPick(null, true)}
+    >
+      {hang && <div style={{ width: 3, height: 10, background: '#b8bccb', borderRadius: 2 }} />}
+      <div style={{ width: 84, height: 84 }}><Art kind={item.kind} color={item.color} accent={item.accent} /></div>
+      <div className="stay-white" style={{ fontSize: 12, fontWeight: 700, textAlign: 'center', maxWidth: 96, lineHeight: 1.2 }}>{item.name}</div>
+    </button>
+  );
+}
+
+function SectionGrid({ sections, Art, tone }) {
+  const [pinned, setPinned] = useState(null);
+  const [hover, setHover] = useState(null);
+  const shown = hover || pinned;
+  const pick = (name, isHover) => { if (isHover) setHover(name); else setPinned(p => (p === name ? null : name)); };
+  return (
+    <>
+      <div className="stay-white" style={{ ...pill, minHeight: 36, padding: '7px 20px', margin: '10px 0 14px', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+        {shown || 'Hover or tap an item'}
+      </div>
+      <div style={{ width: '100%', background: tone.body, borderRadius: 16, padding: '16px 14px 8px', boxShadow: `0 30px 70px rgba(0,0,0,0.65), inset 0 0 0 6px ${tone.rim}` }}>
+        {sections.map(sec => (
+          <div key={sec.label} style={{ marginBottom: 12 }}>
+            <div className="stay-white" style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.7, margin: '0 4px 4px' }}>{sec.label}</div>
+            {sec.label === 'Hanging' && <div style={{ height: 5, borderRadius: 3, background: 'linear-gradient(180deg,#e0e4f0,#8a90a8)', margin: '0 2px' }} />}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 10px', justifyContent: 'center', padding: '4px 4px 12px', background: 'rgba(0,0,0,0.22)', borderRadius: 8, borderBottom: `7px solid ${tone.shelf}` }}>
+              {sec.items.map(it => <ItemCard key={it.name} item={it} Art={Art} picked={shown === it.name} onPick={pick} hang={sec.label === 'Hanging'} />)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function WardrobeView({ id }) {
+  const data = WARDROBES[id] || WARDROBES['wd-a'];
+  const [open, setOpen] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setOpen(true), 60); return () => clearTimeout(t); }, []);
+  return (
+    <div style={{ width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div className="stay-white" style={{ fontSize: 22, fontWeight: 800 }}>{data.title}</div>
+      <div style={{ position: 'relative', width: '100%', perspective: 1600 }}>
+        <SectionGrid sections={data.sections} Art={ClothArt} tone={{ body: 'linear-gradient(180deg,#5a4070,#2e2040)', rim: '#7a5a96', shelf: '#8a6a4a' }} />
+        {[['left', -1], ['right', 1]].map(([side, dir]) => (
+          <div key={side} style={{
+            position: 'absolute', top: 56, bottom: 0, [side]: 0, width: '50%', transformOrigin: `${side} center`,
+            transform: open ? `rotateY(${dir * -110}deg)` : 'rotateY(0)', background: 'linear-gradient(135deg,#6a4c86,#3a2850)', borderRadius: 16, boxShadow: '0 0 0 2px #8a6aa6',
+            pointerEvents: 'none', opacity: open ? 0 : 1, transitionProperty: 'transform, opacity', transitionDuration: '1s, .5s', transitionDelay: '0s, .6s', transitionTimingFunction: 'cubic-bezier(.22,1,.36,1)',
+          }}>
+            <div style={{ position: 'absolute', top: '40%', [dir > 0 ? 'left' : 'right']: 12, width: 8, height: 60, borderRadius: 4, background: '#d9c48a' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CosmeticsView() {
+  return (
+    <div style={{ width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div className="stay-white" style={{ fontSize: 22, fontWeight: 800 }}>{COSMETICS.title}</div>
+      <div style={{ width: 150, height: 190, marginTop: 10, borderRadius: '50% 50% 46% 46%', border: '9px solid #c9a77a', background: 'radial-gradient(circle at 35% 28%, #ffffff, #cfe2f6 55%, #8fb0d8)', boxShadow: '0 20px 40px rgba(0,0,0,0.55), inset 0 0 30px rgba(255,255,255,0.7)', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: -20, left: 20, width: 36, height: 260, background: 'rgba(255,255,255,0.45)', transform: 'rotate(22deg)' }} />
+      </div>
+      <SectionGrid sections={COSMETICS.sections} Art={BeautyArt} tone={{ body: 'linear-gradient(180deg,#6a3a56,#331828)', rim: '#a86a8a', shelf: '#c9a77a' }} />
+    </div>
+  );
+}
+
+function GardenView({ arg }) {
+  const [tab, setTab] = useState(GARDEN[arg] ? arg : 'flowers');
+  const data = GARDEN[tab];
+  const [pinned, setPinned] = useState(null);
+  const [hover, setHover] = useState(null);
+  useEffect(() => { setPinned(null); setHover(null); }, [tab]);
+  const shownName = hover || pinned;
+  const shown = data.items.find(i => i.name === shownName);
+  const tabBtn = (id, label) => (
+    <button key={id} onClick={() => setTab(id)} className="stay-white" style={{ ...btnPill, background: tab === id ? 'rgba(255,255,255,0.24)' : pill.background }}>{label}</button>
+  );
+  return (
+    <div style={{ width: '100%', maxWidth: 860, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div className="stay-white" style={{ fontSize: 22, fontWeight: 800 }}>{data.title}</div>
+      <div style={{ display: 'flex', gap: 8, margin: '10px 0', flexWrap: 'wrap', justifyContent: 'center' }}>
+        {tabBtn('flowers', 'Flowers')}{tabBtn('veg', 'Vegetables')}{tabBtn('herbs', 'Herbs')}
+      </div>
+      <div className="stay-white" style={{ ...pill, borderRadius: 14, minHeight: 54, padding: '8px 20px', margin: '0 0 14px', fontSize: 14, display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center', maxWidth: 520 }}>
+        {shown ? (<><div style={{ fontWeight: 800, fontSize: 16 }}>{shown.name}{shown.local && shown.local !== shown.name ? ` (${shown.local})` : ''}</div><div style={{ opacity: 0.8, fontSize: 13 }}>{shown.note}</div></>) : 'Hover or tap a plant to see its name'}
+      </div>
+      <div style={{ width: '100%', background: 'linear-gradient(180deg,#27502f,#14301c)', borderRadius: 16, padding: 14, boxShadow: '0 30px 70px rgba(0,0,0,0.6), inset 0 0 0 6px #3f7a4a', display: 'flex', flexWrap: 'wrap', gap: '12px 12px', justifyContent: 'center' }}>
+        {data.items.map(it => {
+          const on = shownName === it.name;
+          return (
+            <button
+              key={it.name}
+              onClick={() => setPinned(p => (p === it.name ? null : it.name))}
+              onMouseEnter={() => setHover(it.name)}
+              onMouseLeave={() => setHover(null)}
+              style={{ background: on ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, padding: '10px 8px 8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 108, color: '#fff', transition: 'transform .15s', transform: on ? 'translateY(-5px)' : 'none' }}
+            >
+              <div style={{ width: 80, height: 80 }}><PlantArt kind={it.kind} color={it.color} accent={it.accent} /></div>
+              <div className="stay-white" style={{ fontSize: 13, fontWeight: 800 }}>{it.name}</div>
+              {it.local && it.local !== it.name && <div className="stay-white" style={{ fontSize: 11, opacity: 0.65 }}>{it.local}</div>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function PropViewer({ kind, arg, onClose }) {
   const [book, setBook] = useState(null);
   useEscape(onClose);
@@ -466,6 +600,9 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'fridge' && <FridgeView />}
         {kind === 'oven' && <OvenView />}
         {kind === 'stove' && <StoveView />}
+        {kind === 'wardrobe' && <WardrobeView id={arg} />}
+        {kind === 'cosmetics' && <CosmeticsView />}
+        {kind === 'garden' && <GardenView arg={arg} />}
       </div>
     </div>,
     document.body,

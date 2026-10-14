@@ -190,6 +190,7 @@ function WardrobeChip() {
     const o = view.current.open || (view.current.open = {});
     const next = !WARDROBE_IDS.some(id => o[id]);
     WARDROBE_IDS.forEach(id => { o[id] = next; });
+    if (next) view.current.openProp?.('wardrobe', WARDROBE_IDS[0]);
     force(n => n + 1);
   };
   return (

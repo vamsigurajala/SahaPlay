@@ -2,7 +2,12 @@ import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, 
 import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Cell } from './cell';
-import { Clock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass } from './props';
+import { Clock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity } from './props';
+
+const ROSES = ['#d0183a', '#ff4f8a', '#ff9ac0', '#fff0f6'];
+const MIXED = ['#ff6fb5', '#ffcf5a', '#a56bff', '#ff8a5a', '#ffffff', '#4fa8ff'];
+const SUN = ['#f6c030', '#f0a020'];
+const PURPLE = ['#9a7aff', '#c85ae0', '#e0529f'];
 import IndianKitchen from './indianKitchen';
 
 const PI = Math.PI;
@@ -86,9 +91,7 @@ export function Bedroom() {
     <Cell id="bedroom" base={<BedroomBase />}>
       <Wardrobe p={[11.8, 0, 0.7]} id="wd-b" />
       <Wardrobe p={[14.0, 0, 0.7]} c="#33265a" id="wd-c" />
-      <Box p={[16.7, 0.6, 0.8]} s={[1.9, 1.2, 1.2]} c="#33265a" r={0.05} />
-      {[16.2, 17.2].map(x => <Box key={x} p={[x, 0.8, 1.42]} s={[0.5, 0.1, 0.04]} c="#d9c48a" shadow={false} />)}
-      <Neon p={[16.7, 2.5, 0.12]} s={[1.6, 1.8, 0.06]} color="#d6ecff" halo={false} />
+      <Vanity p={[16.7, 0, 0.8]} />
       <Rug p={[13.4, 0, 8.8]} w={6.4} d={4.6} c="#6a4796" c2="#7d58ad" />
       <Sofa p={[13.4, 0, 7.4]} rot={0} w={3.8} c="#8f6bff" back="#7a58e0" />
       <Table p={[13.4, 0, 9.4]} w={2.0} d={1.0} h={0.5} />
@@ -113,7 +116,6 @@ export function Bedroom() {
       {[[3.1, 3.2], [3.7, 3.9], [4.5, 3.4], [5.3, 4.0], [3.4, 4.6], [4.2, 4.2], [5.5, 2.9], [3.0, 2.4]].map(([x, z], i) => (
         <mesh key={i} position={[x, 1.245, z]} rotation={[-PI / 2, 0, i]}><circleGeometry args={[0.1, 8]} /><meshBasicMaterial color={i % 3 ? '#d0183a' : '#ff6f9a'} /></mesh>
       ))}
-      {[16.2, 16.7, 17.2].map((x, i) => <Candle key={x} p={[x, 1.2, 0.85]} h={0.16 + (i % 2) * 0.1} />)}
       <Candle p={[1.9, 0.9, 0.7]} h={0.2} />
       <Candle p={[8.1, 0.9, 0.9]} h={0.2} />
       <group position={[5.6, 0, 11.4]}>
@@ -205,10 +207,16 @@ export function Garden() {
       <Jhula p={[10.4, 0, 6.2]} w={2.2} />
       <Bench p={[1.6, 0, 8.0]} rot={PI / 2} />
       {/* flower beds + trees */}
-      <Box p={[13.0, 0.2, 4.4]} s={[3.2, 0.4, 1.2]} c="#5a3d2b" r={0.04} />
-      {[11.9, 12.5, 13.1, 13.7].map((x, i) => (
-        <mesh key={x} position={[x, 0.5, 4.4]}><sphereGeometry args={[0.2, 10, 8]} /><meshStandardMaterial color={['#ff6fb5', '#ffcf5a', '#a56bff', '#ff8a5a'][i]} /></mesh>
-      ))}
+      <FlowerPatch p={[13.6, 0, 4.2]} w={5.0} d={1.8} n={70} colors={MIXED} seed={3} />
+      <FlowerPatch p={[1.6, 0, 12.0]} w={1.7} d={4.2} n={44} colors={SUN} tall={1.1} head={0.28} seed={4} />
+      <FlowerPatch p={[8.6, 0, 9.2]} w={2.6} d={1.4} n={36} colors={ROSES} tall={0.7} seed={5} />
+      <FlowerPatch p={[16.3, 0, 9.0]} w={1.5} d={3.4} n={36} colors={PURPLE} tall={0.8} seed={6} />
+      <VegPatch p={[9.3, 0, 13.2]} />
+      <Hedge p={[9.3, 0, 15.2]} w={3.8} flowers="#ff6fb5" />
+      <Hedge p={[17.4, 0, 12.4]} w={4.2} rot={PI / 2} flowers="#ffcf5a" />
+      <Topiary p={[4.6, 0, 5.4]} scale={0.9} />
+      <Topiary p={[4.6, 0, 8.0]} scale={0.9} />
+      <FlowerArch p={[4.6, 0, 10.4]} rot={PI / 2} />
       <Tree p={[17.0, 0, 1.2]} scale={1.05} />
       <Tree p={[12.6, 0, 1.3]} scale={0.85} />
       <Tree p={[17.3, 0, 7.0]} scale={0.9} />

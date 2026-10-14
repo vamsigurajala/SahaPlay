@@ -1,6 +1,9 @@
-import { Box, Neon, Plant, Tree, BeanBag, Rug, Table, Stool, FloorLamp } from './parts';
+import { Box, Neon, Plant, Tree, BeanBag, Rug, Table, Stool, FloorLamp, useOpenProp } from './parts';
 import { Cell } from './cell';
-import { Charpai, Car, Scooter, Jhula, LampPost, Diya, Rangoli, Pillar, Telescope, Planter } from './props';
+import { Charpai, Car, Scooter, Jhula, LampPost, Diya, Rangoli, Pillar, Telescope, Planter, FlowerPatch, VegPatch, Hedge, LotusPond, Banana } from './props';
+
+const MARIGOLD = ['#f0a020', '#ff8a2a', '#f6c030'];
+const PINKS = ['#ff6fb5', '#ffffff', '#e0529f', '#a56bff'];
 import { NEON_PINK, NEON_VIOLET, NEON_AMBER } from './constants';
 
 const PI = Math.PI;
@@ -86,12 +89,13 @@ export function FrontYard() {
 }
 
 export function Courtyard() {
+  const openHerbs = useOpenProp('garden', 'herbs');
   return (
     <Cell id="courtyard">
       {/* corner pillars */}
       {[[1.6, 1.6], [16.4, 1.6], [1.6, 14.4], [16.4, 14.4]].map(([x, z], i) => <Pillar key={i} p={[x, 0, z]} />)}
       {/* tulsi vrindavan */}
-      <group position={[12.0, 0, 9.6]}>
+      <group position={[12.0, 0, 9.6]} {...openHerbs}>
         <Box p={[0, 0.2, 0]} s={[1.6, 0.4, 1.6]} c="#d9c9a8" r={0.03} />
         <Box p={[0, 0.6, 0]} s={[1.2, 0.4, 1.2]} c="#c9a77a" r={0.03} />
         <Box p={[0, 1.0, 0]} s={[0.9, 0.4, 0.9]} c="#d9c9a8" r={0.03} />
@@ -110,6 +114,13 @@ export function Courtyard() {
         {[-0.8, 0.8].map(x => <Box key={x} p={[x, 1.6, 0]} s={[0.1, 1.2, 0.1]} c="#7a4a1a" />)}
         <Box p={[0, 2.25, 0]} s={[1.9, 0.1, 0.12]} c="#7a4a1a" />
       </group>
+      <LotusPond p={[5.8, 0, 4.6]} r={2.0} />
+      <Banana p={[1.3, 0, 2.6]} scale={1.1} />
+      <Banana p={[17.0, 0, 9.4]} scale={1.0} />
+      <FlowerPatch p={[10.8, 0, 2.6]} w={4.4} d={1.4} n={50} colors={MARIGOLD} seed={11} />
+      <FlowerPatch p={[16.0, 0, 3.2]} w={1.6} d={2.6} n={30} colors={PINKS} seed={12} />
+      <VegPatch p={[2.4, 0, 7.4]} w={2.6} d={3.2} />
+      <Hedge p={[12.6, 0, 0.8]} w={4.4} flowers="#ffffff" />
       <Planter p={[1.0, 0, 11.4]} scale={1.2} />
       <Planter p={[17.0, 0, 11.0]} scale={1.2} color="#3bbf74" />
       <Planter p={[8.6, 0, 15.0]} scale={1.0} />

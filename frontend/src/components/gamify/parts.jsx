@@ -321,7 +321,13 @@ export function Wardrobe({ p, rot = 0, c = '#3a2d66', w = 2.0, id }) {
     if (left.current) left.current.rotation.y = -angle.current;
     if (right.current) right.current.rotation.y = angle.current;
   });
-  const toggle = (e) => { e?.stopPropagation?.(); const o = view.current.open || (view.current.open = {}); o[id] = !o[id]; };
+  const toggle = (e) => {
+    if (e?.delta > 6) return;
+    e?.stopPropagation?.();
+    const o = view.current.open || (view.current.open = {});
+    o[id] = !o[id];
+    if (o[id]) view.current.openProp?.('wardrobe', id);
+  };
   const hover = (on) => () => { try { document.body.style.cursor = on ? 'pointer' : ''; } catch { /* non-browser */ } };
   const n = Math.max(4, Math.floor((w - 0.4) / 0.2));
   const door = (side) => (

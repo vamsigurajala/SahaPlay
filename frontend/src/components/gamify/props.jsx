@@ -1,5 +1,6 @@
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Box, Neon, Plant } from './parts';
+import { Box, Neon, Plant, useOpenProp } from './parts';
 import { NEON_CYAN, NEON_AMBER } from './constants';
 
 const PI = Math.PI;
@@ -284,6 +285,213 @@ export function WineGlass({ p }) {
       <mesh position={[0, 0.11, 0]}><cylinderGeometry args={[0.012, 0.012, 0.18, 6]} /><meshStandardMaterial color="#e8f0ff" transparent opacity={0.8} /></mesh>
       <mesh position={[0, 0.27, 0]}><cylinderGeometry args={[0.09, 0.04, 0.16, 12]} /><meshStandardMaterial color="#e8f0ff" transparent opacity={0.55} /></mesh>
       <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.075, 0.035, 0.08, 12]} /><meshStandardMaterial color="#9a1030" /></mesh>
+    </group>
+  );
+}
+
+// ── garden ───────────────────────────────────────────────────────────────────
+const rng = (seed) => { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; };
+
+// Fills one InstancedMesh from a list of {p, s, c, r}.
+function Instances({ items, geo, castShadow = false, rough = 0.8 }) {
+  const ref = useRef();
+  useLayoutEffect(() => {
+    const m = ref.current;
+    if (!m) return;
+    const o = new THREE.Object3D();
+    const col = new THREE.Color();
+    items.forEach((it, i) => {
+      o.position.set(it.p[0], it.p[1], it.p[2]);
+      o.rotation.set(0, it.r || 0, 0);
+      if (Array.isArray(it.s)) o.scale.set(it.s[0], it.s[1], it.s[2]); else o.scale.setScalar(it.s);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+      m.setColorAt(i, col.set(it.c));
+    });
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  }, [items]);
+  return (
+    <instancedMesh ref={ref} args={[null, null, items.length]} castShadow={castShadow} frustumCulled={false}>
+      {geo}
+      <meshStandardMaterial roughness={rough} />
+    </instancedMesh>
+  );
+}
+
+// A raised bed packed with blooms on stems. Tap it to read the flower names.
+export function FlowerPatch({ p, w = 3, d = 1.4, n = 40, colors, tall = 0.55, head = 0.17, seed = 1, rot = 0 }) {
+  const open = useOpenProp('garden', 'flowers');
+  const { stems, heads, cores, leaves } = useMemo(() => {
+    const r = rng(seed * 977);
+    const stems = []; const heads = []; const cores = []; const leaves = [];
+    for (let i = 0; i < n; i++) {
+      const x = (r() - 0.5) * (w - 0.3);
+      const z = (r() - 0.5) * (d - 0.3);
+      const h = tall * (0.7 + r() * 0.6);
+      const c = colors[Math.floor(r() * colors.length)];
+      stems.push({ p: [x, 0.35 + h / 2, z], s: [1, h, 1], c: '#2f8f4a' });
+      const hs = 0.8 + r() * 0.5;
+      heads.push({ p: [x, 0.4 + h, z], s: [hs, hs * 0.55, hs], c });
+      cores.push({ p: [x, 0.4 + h + head * 0.28, z], s: 1, c: '#f0b020' });
+      leaves.push({ p: [x + 0.08, 0.45 + h * 0.3, z], s: [1.3, 0.5, 0.8], c: '#3aa862', r: r() * 3 });
+    }
+    return { stems, heads, cores, leaves };
+  }, [n, w, d, colors, tall, head, seed]);
+  return (
+    <group position={p} rotation={[0, rot, 0]} {...open}>
+      <Box p={[0, 0.17, 0]} s={[w, 0.34, d]} c="#5a3d2b" r={0.05} />
+      <Box p={[0, 0.34, 0]} s={[w - 0.2, 0.05, d - 0.2]} c="#2a1c10" shadow={false} />
+      <Instances items={stems} geo={<cylinderGeometry args={[0.018, 0.018, 1, 5]} />} />
+      <Instances items={leaves} geo={<sphereGeometry args={[0.1, 6, 4]} />} />
+      <Instances items={heads} geo={<sphereGeometry args={[head, 9, 7]} />} castShadow />
+      <Instances items={cores} geo={<sphereGeometry args={[head * 0.4, 6, 5]} />} />
+    </group>
+  );
+}
+
+// Vegetable rows in a raised bed: tomato bushes, brinjal, cabbages and carrot tops.
+export function VegPatch({ p, w = 3.4, d = 3, rot = 0 }) {
+  const open = useOpenProp('garden', 'veg');
+  const { bushes, fruit, cabbages, tops, stakes } = useMemo(() => {
+    const bushes = []; const fruit = []; const cabbages = []; const tops = []; const stakes = [];
+    const rows = 4;
+    const r = rng(77);
+    for (let ri = 0; ri < rows; ri++) {
+      const z = -d / 2 + 0.45 + ri * ((d - 0.9) / (rows - 1));
+      const per = Math.floor((w - 0.5) / 0.55);
+      for (let i = 0; i < per; i++) {
+        const x = -w / 2 + 0.4 + i * ((w - 0.8) / (per - 1));
+        if (ri === 0 || ri === 1) {
+          bushes.push({ p: [x, 0.65, z], s: [0.9, 1.1, 0.9], c: ri ? '#3a9a4a' : '#2f8f4a' });
+          stakes.push({ p: [x, 0.7, z + 0.2], s: [1, 1, 1], c: '#a8884a' });
+          for (let k = 0; k < 3; k++) fruit.push({ p: [x + (r() - 0.5) * 0.45, 0.5 + r() * 0.5, z + (r() - 0.5) * 0.45], s: 1, c: ri ? '#6a2a9a' : '#e0392b' });
+        } else if (ri === 2) {
+          cabbages.push({ p: [x, 0.5, z], s: [1, 0.8, 1], c: i % 2 ? '#8ad06a' : '#5ab04a' });
+        } else {
+          for (let k = 0; k < 3; k++) tops.push({ p: [x + (k - 1) * 0.12, 0.5, z + (r() - 0.5) * 0.1], s: [0.5, 1.3, 0.5], c: '#4aa83a' });
+        }
+      }
+    }
+    return { bushes, fruit, cabbages, tops, stakes };
+  }, [w, d]);
+  return (
+    <group position={p} rotation={[0, rot, 0]} {...open}>
+      <Box p={[0, 0.17, 0]} s={[w, 0.34, d]} c="#6a4a2f" r={0.05} />
+      <Box p={[0, 0.34, 0]} s={[w - 0.2, 0.05, d - 0.2]} c="#3a2412" shadow={false} />
+      <Instances items={stakes} geo={<cylinderGeometry args={[0.02, 0.02, 1, 5]} />} />
+      <Instances items={bushes} geo={<icosahedronGeometry args={[0.3, 0]} />} castShadow />
+      <Instances items={fruit} geo={<sphereGeometry args={[0.07, 7, 5]} />} />
+      <Instances items={cabbages} geo={<sphereGeometry args={[0.24, 9, 7]} />} castShadow />
+      <Instances items={tops} geo={<coneGeometry args={[0.1, 0.3, 5]} />} />
+    </group>
+  );
+}
+
+export function Hedge({ p, w = 3, h = 0.9, d = 0.7, rot = 0, color = '#2f8f4a', flowers }) {
+  const dots = useMemo(() => {
+    if (!flowers) return [];
+    const r = rng(Math.round(w * 31));
+    return Array.from({ length: Math.round(w * 6) }).map(() => ({ p: [(r() - 0.5) * w, 0.3 + r() * h, d / 2 + 0.02 + r() * 0.05], s: 1, c: flowers }));
+  }, [w, h, d, flowers]);
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      <Box p={[0, h / 2, 0]} s={[w, h, d]} c={color} r={0.22} />
+      {dots.length > 0 && <Instances items={dots} geo={<sphereGeometry args={[0.07, 6, 5]} />} />}
+    </group>
+  );
+}
+
+export function Topiary({ p, scale = 1, color = '#2f9a4a' }) {
+  return (
+    <group position={p} scale={scale}>
+      <mesh position={[0, 0.3, 0]} castShadow><cylinderGeometry args={[0.32, 0.26, 0.6, 12]} /><meshStandardMaterial color="#c46a3a" roughness={0.7} /></mesh>
+      <mesh position={[0, 0.9, 0]}><cylinderGeometry args={[0.05, 0.05, 0.6, 6]} /><meshStandardMaterial color="#6b4a2f" /></mesh>
+      <mesh position={[0, 1.4, 0]} castShadow><icosahedronGeometry args={[0.5, 1]} /><meshStandardMaterial color={color} roughness={0.85} flatShading /></mesh>
+      <mesh position={[0, 1.95, 0]} castShadow><icosahedronGeometry args={[0.28, 1]} /><meshStandardMaterial color={color} roughness={0.85} flatShading /></mesh>
+    </group>
+  );
+}
+
+// Round pond with lily pads and lotus flowers; tap for the flower names.
+export function LotusPond({ p, r = 2.0 }) {
+  const open = useOpenProp('garden', 'flowers');
+  const pads = [[0.6, 0.5, 0.42], [-0.8, 0.3, 0.38], [0.1, -0.9, 0.4], [-0.5, -0.6, 0.34], [1.0, -0.4, 0.32], [-1.1, 0.9, 0.36]];
+  const lotus = [[0.6, 0.5, '#ff9ac0'], [-0.8, 0.3, '#fff0f6'], [0.1, -0.9, '#ff7aa8']];
+  return (
+    <group position={p} {...open}>
+      <mesh position={[0, 0.16, 0]} castShadow receiveShadow><cylinderGeometry args={[r, r + 0.12, 0.32, 28]} /><meshStandardMaterial color="#a8896a" roughness={0.9} /></mesh>
+      <mesh position={[0, 0.3, 0]}><cylinderGeometry args={[r - 0.25, r - 0.25, 0.04, 28]} /><meshStandardMaterial color="#1f7ab0" emissive="#1f7ab0" emissiveIntensity={0.45} roughness={0.2} /></mesh>
+      {pads.map(([x, z, s], i) => <mesh key={i} position={[x * r / 2, 0.34, z * r / 2]} rotation={[0, i, 0]}><cylinderGeometry args={[s, s, 0.02, 12, 1, false, 0.4, 5.5]} /><meshStandardMaterial color="#2f9a4a" roughness={0.7} /></mesh>)}
+      {lotus.map(([x, z, c], i) => (
+        <group key={i} position={[x * r / 2, 0.36, z * r / 2]}>
+          {[0, 1, 2, 3, 4, 5].map(k => <mesh key={k} position={[Math.cos(k * 1.047) * 0.1, 0.1, Math.sin(k * 1.047) * 0.1]} rotation={[Math.sin(k * 1.047) * 0.5, 0, -Math.cos(k * 1.047) * 0.5]}><coneGeometry args={[0.07, 0.3, 5]} /><meshStandardMaterial color={c} roughness={0.6} /></mesh>)}
+          <mesh position={[0, 0.12, 0]}><sphereGeometry args={[0.05, 6, 5]} /><meshStandardMaterial color="#f0c030" /></mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+export function Banana({ p, scale = 1 }) {
+  return (
+    <group position={p} scale={scale}>
+      <mesh position={[0, 1.0, 0]} castShadow><cylinderGeometry args={[0.14, 0.2, 2.0, 8]} /><meshStandardMaterial color="#7aa84a" roughness={0.9} /></mesh>
+      {[0, 1, 2, 3, 4, 5].map(i => (
+        <group key={i} position={[0, 2.0, 0]} rotation={[0, i * 1.05, 0]}>
+          <mesh position={[0.75, 0, 0]} rotation={[0, 0, -0.5 - (i % 2) * 0.25]} castShadow><boxGeometry args={[1.7, 0.03, 0.5]} /><meshStandardMaterial color={i % 2 ? '#4aa83a' : '#3a9a3a'} roughness={0.8} /></mesh>
+        </group>
+      ))}
+      <mesh position={[0.18, 1.6, 0.1]}><sphereGeometry args={[0.16, 8, 6]} /><meshStandardMaterial color="#f0d030" /></mesh>
+    </group>
+  );
+}
+
+// Arch of trellis covered in bright bougainvillea. Faces +z.
+export function FlowerArch({ p, rot = 0, color = '#e0187a' }) {
+  const open = useOpenProp('garden', 'flowers');
+  const dots = useMemo(() => {
+    const r = rng(5);
+    return Array.from({ length: 60 }).map(() => {
+      const a = r() * PI;
+      return { p: [Math.cos(a) * 1.5 + (r() - 0.5) * 0.3, 2.4 + Math.sin(a) * 0.9 - r() * 0.2 - (r() > 0.7 ? 1.2 * r() : 0), (r() - 0.5) * 0.3], s: 0.6 + r() * 0.9, c: r() > 0.3 ? color : '#ff7ac0' };
+    });
+  }, [color]);
+  const leaves = useMemo(() => dots.map(d => ({ p: [d.p[0] * 0.98, d.p[1] - 0.05, d.p[2] - 0.1], c: '#2f8f4a', s: d.s * 0.9 })), [dots]);
+  return (
+    <group position={p} rotation={[0, rot, 0]} {...open}>
+      {[-1.5, 1.5].map(x => <Box key={x} p={[x, 1.25, 0]} s={[0.14, 2.5, 0.14]} c="#f6efe0" />)}
+      <mesh position={[0, 2.5, 0]}><torusGeometry args={[1.5, 0.07, 6, 18, PI]} /><meshStandardMaterial color="#f6efe0" /></mesh>
+      <Instances items={leaves} geo={<sphereGeometry args={[0.15, 6, 4]} />} />
+      <Instances items={dots} geo={<sphereGeometry args={[0.13, 7, 5]} />} />
+    </group>
+  );
+}
+
+// Dressing table: drawer unit, mirror, and a clutter of makeup. Tap for the full shelf.
+export function Vanity({ p, rot = 0 }) {
+  const open = useOpenProp('cosmetics');
+  return (
+    <group position={p} rotation={[0, rot, 0]} {...open}>
+      <Box p={[0, 0.6, 0]} s={[1.9, 1.2, 1.1]} c="#5a3a4a" r={0.05} />
+      <Box p={[0, 1.22, 0]} s={[2.0, 0.08, 1.2]} c="#7a5a6a" r={0.03} />
+      {[-0.45, 0.45].map(x => <Box key={x} p={[x, 0.8, 0.57]} s={[0.8, 0.4, 0.04]} c="#6a4a5a" shadow={false} />)}
+      {[-0.45, 0.45].map(x => <Box key={x} p={[x, 0.8, 0.61]} s={[0.3, 0.05, 0.04]} c="#d9c48a" shadow={false} />)}
+      {[-0.45, 0.45].map(x => <Box key={x} p={[x, 0.32, 0.57]} s={[0.8, 0.4, 0.04]} c="#6a4a5a" shadow={false} />)}
+      {[-0.45, 0.45].map(x => <Box key={x} p={[x, 0.32, 0.61]} s={[0.3, 0.05, 0.04]} c="#d9c48a" shadow={false} />)}
+      {/* mirror on the wall behind */}
+      <mesh position={[0, 2.5, -0.46]} rotation={[PI / 2, 0, 0]}><cylinderGeometry args={[0.9, 0.9, 0.08, 24]} /><meshStandardMaterial color="#d9c48a" metalness={0.5} roughness={0.35} /></mesh>
+      <mesh position={[0, 2.5, -0.41]}><circleGeometry args={[0.78, 24]} /><meshBasicMaterial color="#d6ecff" toneMapped={false} /></mesh>
+      <mesh position={[0, 2.5, -0.4]} rotation={[0, 0, 0.5]}><planeGeometry args={[0.15, 1.4]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.35} /></mesh>
+      {/* makeup on top */}
+      {[[-0.7, '#d0183a'], [-0.55, '#e0529f'], [-0.4, '#f0b73a']].map(([x, c], i) => <mesh key={i} position={[x, 1.38, 0.1]}><cylinderGeometry args={[0.04, 0.04, 0.24, 8]} /><meshStandardMaterial color={c} /></mesh>)}
+      <mesh position={[0.2, 1.4, 0]}><cylinderGeometry args={[0.1, 0.12, 0.28, 10]} /><meshStandardMaterial color="#c8a0ff" transparent opacity={0.8} /></mesh>
+      <mesh position={[0.5, 1.33, 0.2]}><cylinderGeometry args={[0.2, 0.2, 0.1, 14]} /><meshStandardMaterial color="#e8c9a0" /></mesh>
+      <mesh position={[0.78, 1.36, -0.1]} rotation={[0, 0.3, 0]}><boxGeometry args={[0.06, 0.04, 0.5]} /><meshStandardMaterial color="#c9a77a" /></mesh>
+      <mesh position={[-0.1, 1.31, 0.3]}><cylinderGeometry args={[0.07, 0.07, 0.06, 10]} /><meshStandardMaterial color="#e0529f" /></mesh>
+      {/* stool */}
+      <mesh position={[0, 0.55, 1.15]} castShadow><cylinderGeometry args={[0.42, 0.42, 0.12, 14]} /><meshStandardMaterial color="#e0529f" roughness={0.8} /></mesh>
+      <mesh position={[0, 0.27, 1.15]}><cylinderGeometry args={[0.07, 0.07, 0.5, 8]} /><meshStandardMaterial color="#d9c48a" /></mesh>
     </group>
   );
 }
