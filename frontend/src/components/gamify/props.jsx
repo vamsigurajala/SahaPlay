@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { Box, Neon, Plant } from './parts';
 import { NEON_CYAN, NEON_AMBER } from './constants';
 
@@ -174,4 +175,115 @@ export function Pillar({ p, h = 3.6 }) {
 
 export function Planter({ p, scale = 1, color = '#2f9e5a' }) {
   return <Plant p={p} scale={scale} color={color} pot="#c46a3a" />;
+}
+
+// ── cosy / romantic bedroom props ─────────────────────────────────────────────
+let heartGeo;
+function getHeartGeo() {
+  if (heartGeo) return heartGeo;
+  const s = new THREE.Shape();
+  s.moveTo(0, -0.5);
+  s.bezierCurveTo(-0.1, -0.4, -0.55, -0.1, -0.55, 0.2);
+  s.bezierCurveTo(-0.55, 0.5, -0.2, 0.6, 0, 0.35);
+  s.bezierCurveTo(0.2, 0.6, 0.55, 0.5, 0.55, 0.2);
+  s.bezierCurveTo(0.55, -0.1, 0.1, -0.4, 0, -0.5);
+  heartGeo = new THREE.ExtrudeGeometry(s, { depth: 0.12, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 2, curveSegments: 14 });
+  heartGeo.translate(0, 0, -0.06);
+  return heartGeo;
+}
+
+// Faces +z by default; flat lays it on the floor.
+export function Heart({ p, rot = 0, scale = 1, color = '#ff4f8a', glow = false, flat = false, thin = false }) {
+  return (
+    <group position={p} rotation={[flat ? -PI / 2 : 0, rot, 0]} scale={[scale, scale, thin ? 0.25 : 1]}>
+      <mesh geometry={getHeartGeo()} castShadow={!glow}>
+        {glow ? <meshBasicMaterial color={color} toneMapped={false} /> : <meshStandardMaterial color={color} roughness={0.55} />}
+      </mesh>
+      {glow && (
+        <mesh geometry={getHeartGeo()} scale={1.18}>
+          <meshBasicMaterial color={color} transparent opacity={0.22} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+export function Candle({ p, h = 0.24 }) {
+  return (
+    <group position={p}>
+      <mesh position={[0, h / 2, 0]}><cylinderGeometry args={[0.06, 0.06, h, 10]} /><meshStandardMaterial color="#f6ecd6" roughness={0.7} /></mesh>
+      <mesh position={[0, h + 0.07, 0]}><coneGeometry args={[0.03, 0.12, 8]} /><meshBasicMaterial color="#ffd36b" toneMapped={false} /></mesh>
+      <mesh position={[0, h + 0.07, 0]}><sphereGeometry args={[0.13, 10, 8]} /><meshBasicMaterial color="#ffb347" transparent opacity={0.22} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} /></mesh>
+    </group>
+  );
+}
+
+export function Teddy({ p, rot = 0, scale = 1, color = '#b0773f' }) {
+  const m = <meshStandardMaterial color={color} roughness={0.95} />;
+  return (
+    <group position={p} rotation={[0, rot, 0]} scale={scale}>
+      <mesh position={[0, 0.35, 0]} castShadow><sphereGeometry args={[0.38, 14, 12]} />{m}</mesh>
+      <mesh position={[0, 0.88, 0]} castShadow><sphereGeometry args={[0.28, 14, 12]} />{m}</mesh>
+      {[-0.2, 0.2].map(x => <mesh key={x} position={[x, 1.1, 0]}><sphereGeometry args={[0.1, 10, 8]} />{m}</mesh>)}
+      <mesh position={[0, 0.82, 0.24]}><sphereGeometry args={[0.11, 10, 8]} /><meshStandardMaterial color="#e8c9a0" /></mesh>
+      <mesh position={[0, 0.85, 0.34]}><sphereGeometry args={[0.04, 8, 6]} /><meshStandardMaterial color="#2a1a10" /></mesh>
+      {[-0.1, 0.1].map(x => <mesh key={x} position={[x, 0.94, 0.25]}><sphereGeometry args={[0.03, 8, 6]} /><meshStandardMaterial color="#2a1a10" /></mesh>)}
+      {[-0.42, 0.42].map(x => <mesh key={x} position={[x, 0.42, 0.1]}><sphereGeometry args={[0.14, 10, 8]} />{m}</mesh>)}
+      {[-0.2, 0.2].map(x => <mesh key={x} position={[x, 0.05, 0.25]}><sphereGeometry args={[0.15, 10, 8]} />{m}</mesh>)}
+      <mesh position={[0, 0.62, 0.2]}><boxGeometry args={[0.5, 0.08, 0.1]} /><meshStandardMaterial color="#d0392b" /></mesh>
+    </group>
+  );
+}
+
+// A swag of warm fairy lights along a wall (axis x), sagging between its ends.
+export function FairyLights({ from, to, y = 4.3, z, count = 16, sag = 0.45 }) {
+  return (
+    <group>
+      {Array.from({ length: count }).map((_, i) => {
+        const t = i / (count - 1);
+        const x = from + (to - from) * t;
+        const yy = y - Math.sin(t * PI * 3) * sag * 0.5 - Math.sin(t * PI) * 0.15;
+        return (
+          <group key={i} position={[x, yy, z]}>
+            <mesh><sphereGeometry args={[0.07, 8, 6]} /><meshBasicMaterial color={i % 3 === 0 ? '#ffb4d6' : '#ffe2a0'} toneMapped={false} /></mesh>
+            <mesh><sphereGeometry args={[0.2, 8, 6]} /><meshBasicMaterial color={i % 3 === 0 ? '#ff8fc0' : '#ffd36b'} transparent opacity={0.2} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} /></mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+export function Curtain({ p, w = 0.6, h = 2.4, color = '#ff9ad8' }) {
+  return (
+    <group position={p}>
+      {[-1, 0, 1].map(i => <Box key={i} p={[i * (w / 3), h / 2, (i % 2) * 0.04]} s={[w / 3 - 0.01, h, 0.06]} c={color} r={0.02} shadow={false} />)}
+      <Box p={[0, h + 0.05, 0]} s={[w + 0.1, 0.06, 0.1]} c="#d9c48a" shadow={false} />
+    </group>
+  );
+}
+
+export function RoseVase({ p }) {
+  return (
+    <group position={p}>
+      <mesh position={[0, 0.18, 0]}><cylinderGeometry args={[0.1, 0.07, 0.36, 12]} /><meshStandardMaterial color="#d8f0ff" transparent opacity={0.7} /></mesh>
+      {[[0, 0.55, 0], [-0.08, 0.45, 0.04], [0.08, 0.48, -0.03]].map(([x, y, z], i) => (
+        <group key={i}>
+          <mesh position={[x * 0.5, y / 2, z * 0.5]}><cylinderGeometry args={[0.012, 0.012, y, 5]} /><meshStandardMaterial color="#2f8f4a" /></mesh>
+          <mesh position={[x, y + 0.03, z]}><sphereGeometry args={[0.08, 10, 8]} /><meshStandardMaterial color="#d0183a" roughness={0.6} /></mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+export function WineGlass({ p }) {
+  return (
+    <group position={p}>
+      <mesh position={[0, 0.02, 0]}><cylinderGeometry args={[0.06, 0.06, 0.02, 10]} /><meshStandardMaterial color="#e8f0ff" transparent opacity={0.8} /></mesh>
+      <mesh position={[0, 0.11, 0]}><cylinderGeometry args={[0.012, 0.012, 0.18, 6]} /><meshStandardMaterial color="#e8f0ff" transparent opacity={0.8} /></mesh>
+      <mesh position={[0, 0.27, 0]}><cylinderGeometry args={[0.09, 0.04, 0.16, 12]} /><meshStandardMaterial color="#e8f0ff" transparent opacity={0.55} /></mesh>
+      <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.075, 0.035, 0.08, 12]} /><meshStandardMaterial color="#9a1030" /></mesh>
+    </group>
+  );
 }

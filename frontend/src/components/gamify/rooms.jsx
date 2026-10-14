@@ -22,7 +22,7 @@ export function StudyBase() {
         </group>
       ))}
       {/* bookshelf wall */}
-      <Bookshelf p={[-15.45, 0, -5.2]} rot={PI / 2} w={6.6} h={3.8} d={0.9} />
+      <Bookshelf p={[-15.45, 0, -5.2]} rot={PI / 2} w={6.6} h={3.8} d={0.9} shelf="study-a" />
       {/* reading nook */}
       <Box p={[-10.6, 0.03, -3.6]} s={[5.6, 0.06, 4.2]} c="#2b5a8a" rough={1} shadow={false} />
       <Box p={[-10.6, 0.07, -3.6]} s={[5.0, 0.02, 3.6]} c="#3a72a8" rough={1} shadow={false} />

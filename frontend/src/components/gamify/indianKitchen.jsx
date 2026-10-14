@@ -32,6 +32,8 @@ const Flame = ({ p }) => (
 // steel thali dining set and a jute mat.
 export default function IndianKitchen() {
   const openFridge = useOpenProp('fridge');
+  const openStove = useOpenProp('stove');
+  const openOven = useOpenProp('oven');
   return (
     <group>
       {/* backsplash tiles behind both counter runs */}
@@ -44,7 +46,8 @@ export default function IndianKitchen() {
       <Box p={[3.4, 0.5, 0.95]} s={[5.8, 1.0, 1.3]} c={CREAM} r={0.03} />
       <Box p={[3.4, 1.04, 0.95]} s={[5.9, 0.08, 1.4]} c={GRANITE} rough={0.25} metal={0.2} />
       {[-1.3, -0.4, 0.5, 1.4].map((dx, i) => <Box key={i} p={[3.4 + dx, 0.5, 1.62]} s={[0.85, 0.85, 0.03]} c="#d6c3a0" shadow={false} />)}
-      {/* gas hob */}
+      {/* gas hob + kadhai + tawa — tap to choose what to cook */}
+      <group {...openStove}>
       <Box p={[2.2, 1.1, 0.95]} s={[1.7, 0.06, 0.85]} c={STEEL} metal={0.8} rough={0.3} />
       {[[-0.4, 0], [0.4, 0]].map(([dx], i) => (
         <group key={i}>
@@ -60,6 +63,7 @@ export default function IndianKitchen() {
       </mesh>
       <mesh position={[2.6, 1.17, 0.95]}><cylinderGeometry args={[0.42, 0.42, 0.04, 22]} /><meshStandardMaterial color="#141218" metalness={0.5} roughness={0.5} /></mesh>
       <mesh position={[3.15, 1.17, 0.95]}><boxGeometry args={[0.5, 0.05, 0.07]} /><meshStandardMaterial color="#141218" /></mesh>
+      </group>
       {/* pressure cooker + masala dabba + utensils */}
       <Pot p={[4.6, 1.08, 0.9]} r={0.36} h={0.55} />
       <Steel p={[4.6, 1.68, 0.9]} args={[0.38, 0.36, 0.1, 18]} />
@@ -91,10 +95,12 @@ export default function IndianKitchen() {
       <mesh position={[12.2, 1.74, 0.62]} rotation={[PI / 2, 0, 0]}><cylinderGeometry args={[0.035, 0.035, 0.36, 8]} /><meshStandardMaterial color={STEEL} metalness={0.85} roughness={0.3} /></mesh>
       <Box p={[13.4, 1.4, 0.8]} s={[0.9, 0.04, 0.5]} c="#9aa0b3" metal={0.7} shadow={false} />
       {[-0.3, -0.1, 0.1, 0.3].map(dx => <mesh key={dx} position={[13.4 + dx, 1.6, 0.8]}><cylinderGeometry args={[0.2, 0.2, 0.03, 14]} /><meshStandardMaterial color="#f4f1e8" /></mesh>)}
-      {/* microwave / OTG */}
+      {/* microwave / OTG — tap to watch something bake */}
+      <group {...openOven}>
       <Box p={[15.0, 1.4, 0.9]} s={[1.3, 0.7, 0.85]} c="#1c1a28" r={0.04} />
       <Box p={[14.85, 1.4, 1.33]} s={[0.85, 0.5, 0.03]} c="#1a2a45" emissive="#1a3a6a" ei={0.5} shadow={false} />
       <Neon p={[15.5, 1.4, 1.34]} s={[0.12, 0.45, 0.02]} color={NEON_CYAN} halo={false} />
+      </group>
       {/* mixer grinder */}
       <Steel p={[16.2, 1.25, 0.9]} args={[0.26, 0.3, 0.38, 16]} color="#c0392b" />
       <mesh position={[16.2, 1.7, 0.9]}><cylinderGeometry args={[0.24, 0.2, 0.55, 16]} /><meshStandardMaterial color="#d8f0ff" transparent opacity={0.55} /></mesh>

@@ -15,13 +15,13 @@ export const ViewContext = createContext({ current: { cur: 1, flip: false } });
 // on phones.
 // Tap handlers that ask the Gamify container to open a full-screen viewer
 // (bookshelf / fridge). `delta` filters out a drag that merely ended on the prop.
-export function useOpenProp(kind) {
+export function useOpenProp(kind, arg) {
   const view = useContext(ViewContext);
   return {
     onClick: (e) => {
       if (e.delta > 6) return;
       e.stopPropagation();
-      view.current.openProp?.(kind);
+      view.current.openProp?.(kind, arg);
     },
     onPointerOver: () => { try { document.body.style.cursor = 'pointer'; } catch { /* non-browser */ } },
     onPointerOut: () => { try { document.body.style.cursor = ''; } catch { /* non-browser */ } },
@@ -185,10 +185,10 @@ export function Monitor({ p, rot = 0, color = '#3ee8ff' }) {
 const BOOK_COLORS = ['#ff6fb5', '#5ad1ff', '#ffcf5a', '#8dff9c', '#a56bff', '#ff8a5a', '#e8e1ff'];
 
 // Front faces +z; rotate with `rot` to face another wall.
-export function Bookshelf({ p, rot = 0, w = 3, h = 3.4, d = 0.8 }) {
+export function Bookshelf({ p, rot = 0, w = 3, h = 3.4, d = 0.8, shelf }) {
   const rows = 4;
   const gap = h / rows;
-  const open = useOpenProp('books');
+  const open = useOpenProp('books', shelf);
   return (
     <group position={p} rotation={[0, rot, 0]} {...open}>
       <Box p={[0, h / 2, -d / 2 + 0.05]} s={[w, h, 0.1]} c="#2a1f4d" />
@@ -288,7 +288,7 @@ export function HotChip({ position, zone, label, icon, onClick }) {
   });
   return (
     <ScaledHtml position={position} zIndexRange={[34, 0]}>
-      <div ref={ref} style={{ transition: 'opacity .25s' }}>
+      <div ref={ref} style={{ transition: 'opacity .18s' }}>
         <button
           className="stay-white"
           onClick={onClick}

@@ -2,7 +2,7 @@ import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, 
 import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Cell } from './cell';
-import { Clock, Telescope, Foosball, ClawMachine, Jhula } from './props';
+import { Clock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass } from './props';
 import IndianKitchen from './indianKitchen';
 
 const PI = Math.PI;
@@ -35,7 +35,7 @@ export function Study() {
       <WallWindow p={[14, 3.3, 0.1]} w={4.4} h={1.5} color="#7fc4ff" />
       <DeskSet p={[12.2, 0, 1.0]} mon={NEON_AMBER} chair="#e0529f" />
       <DeskSet p={[15.8, 0, 1.0]} mon={NEON_VIOLET} chair="#4fa8ff" />
-      <Bookshelf p={[17.45, 0, 11.0]} rot={-PI / 2} w={5} h={3.8} d={0.9} />
+      <Bookshelf p={[17.45, 0, 11.0]} rot={-PI / 2} w={5} h={3.8} d={0.9} shelf="study-b" />
       <Rug p={[13.4, 0, 12.0]} w={7.4} d={4.6} c="#2b5a8a" c2="#3a72a8" />
       <Table p={[13.4, 0, 12.0]} w={5.2} d={2.2} />
       {[12.0, 14.8].map(x => (
@@ -59,7 +59,7 @@ export function Study() {
 export function LivingRoom() {
   return (
     <Cell id="hall" base={<LivingRoomBase />}>
-      <Bookshelf p={[15.3, 0, 0.45]} w={4.4} h={3.8} d={0.8} />
+      <Bookshelf p={[15.3, 0, 0.45]} w={4.4} h={3.8} d={0.8} shelf="hall" />
       <WallPanel p={[12.6, 3.2, 0.08]} color={NEON_PINK} />
       <Rug p={[12.8, 0, 12.5]} w={6.4} d={5.6} c="#2b2a6e" c2="#3b3a8c" />
       <Sofa p={[12.8, 0, 10.6]} rot={0} w={3.8} />
@@ -100,7 +100,29 @@ export function Bedroom() {
       <FloorLamp p={[10.6, 0, 10.8]} color="#ffb4e6" />
       <Plant p={[1.0, 0, 14.8]} scale={1.1} color="#3bbf74" />
       <Plant p={[17.1, 0, 14.8]} scale={1.2} />
-      <Bookshelf p={[0.45, 0, 12.5]} rot={PI / 2} w={3.2} h={2.8} d={0.7} />
+      <Bookshelf p={[0.45, 0, 12.5]} rot={PI / 2} w={3.2} h={2.8} d={0.7} shelf="bed" />
+
+      {/* cosy / romantic touches */}
+      <FairyLights from={0.8} to={7.6} y={4.35} z={0.22} count={18} />
+      <Curtain p={[2.0, 1.55, 0.2]} w={0.7} h={2.6} />
+      <Curtain p={[6.4, 1.55, 0.2]} w={0.7} h={2.6} />
+      <Heart p={[0.14, 3.3, 9.4]} rot={PI / 2} scale={1.5} color="#ff4f8a" glow />
+      <Heart p={[4.2, 1.5, 1.45]} rot={0.2} scale={0.7} color="#e0183a" />
+      <Heart p={[7.6, 0.07, 10.8]} scale={2.1} color="#e0527a" flat thin />
+      <Teddy p={[5.0, 1.24, 4.5]} rot={-0.3} scale={0.55} />
+      {[[3.1, 3.2], [3.7, 3.9], [4.5, 3.4], [5.3, 4.0], [3.4, 4.6], [4.2, 4.2], [5.5, 2.9], [3.0, 2.4]].map(([x, z], i) => (
+        <mesh key={i} position={[x, 1.245, z]} rotation={[-PI / 2, 0, i]}><circleGeometry args={[0.1, 8]} /><meshBasicMaterial color={i % 3 ? '#d0183a' : '#ff6f9a'} /></mesh>
+      ))}
+      {[16.2, 16.7, 17.2].map((x, i) => <Candle key={x} p={[x, 1.2, 0.85]} h={0.16 + (i % 2) * 0.1} />)}
+      <Candle p={[1.9, 0.9, 0.7]} h={0.2} />
+      <Candle p={[8.1, 0.9, 0.9]} h={0.2} />
+      <group position={[5.6, 0, 11.4]}>
+        <Table p={[0, 0, 0]} w={1.0} d={1.0} h={0.75} c="#6a3a4a" leg="#3a1a2a" />
+        <RoseVase p={[0, 0.81, 0]} />
+        <WineGlass p={[-0.28, 0.81, 0.2]} />
+        <WineGlass p={[0.28, 0.81, -0.2]} />
+        <Candle p={[0.25, 0.81, 0.25]} />
+      </group>
       <Clock p={[6.6, 4.25, 0.12]} r={0.5} />
       <WallPanel p={[1.6, 3.2, 0.08]} color={NEON_AMBER} />
       <Plant p={[17.2, 0, 5.2]} scale={1.0} color="#34b36a" />

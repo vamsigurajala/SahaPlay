@@ -159,7 +159,7 @@ function DoorChip({ link, onGo }) {
   });
   return (
     <ScaledHtml position={[link.chip.x, 2.3, link.chip.z]} zIndexRange={[35, 0]}>
-      <div ref={ref} style={{ transition: 'opacity .25s' }}>
+      <div ref={ref} style={{ transition: 'opacity .18s' }}>
         <button
           className="stay-white"
           onClick={() => onGo(link)}

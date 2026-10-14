@@ -291,7 +291,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const [focus, setFocus] = useState(() => viewRef.current.focus);
   const [zoomedOut, setZoomedOut] = useState(false);
   const [myZone, setMyZone] = useState(() => myZoneRef.current);
-  const [viewer, setViewer] = useState(null); // 'books' | 'fridge'
+  const [viewer, setViewer] = useState(null); // { kind: 'books'|'fridge'|'oven'|'stove', arg }
   const [uiShown, setUiShown] = useState(true);
   // drei <Html> overlays (avatars, door buttons, signs) must not mount until the
   // canvas has rendered its first frame: mounted earlier, their DOM parent is
@@ -313,7 +313,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       viewRef.current.uiVisible = true;
       setUiShown(true);
       clearTimeout(t);
-      t = setTimeout(() => { viewRef.current.uiVisible = false; setUiShown(false); }, 3500);
+      t = setTimeout(() => { viewRef.current.uiVisible = false; setUiShown(false); }, 1600);
     };
     show();
     const evs = ['pointermove', 'pointerdown', 'wheel', 'touchstart', 'keydown'];
@@ -323,7 +323,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   // Scene props (bookshelf, fridge) open their full-screen viewer through this hook.
   useEffect(() => {
     const v = viewRef.current;
-    v.openProp = setViewer;
+    v.openProp = (kind, arg) => setViewer({ kind, arg });
     return () => { v.openProp = null; };
   }, []);
 
@@ -429,12 +429,12 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       {/* current room + hint */}
       <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
         <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>{FLOORPLAN_ZONES[focus].label}</div>
-        <div className="stay-white" style={{ transition: 'opacity .4s', fontSize: 11, opacity: uiShown ? 0.7 : 0, textShadow: '0 1px 3px #000' }}>Drag to look around, tap a door to go through</div>
+        <div className="stay-white" style={{ transition: 'opacity .2s', fontSize: 11, opacity: uiShown ? 0.7 : 0, textShadow: '0 1px 3px #000' }}>Drag to look around, tap a door to go through</div>
       </div>
 
       {viewer && (
         <React.Suspense fallback={null}>
-          <PropViewer kind={viewer} onClose={() => setViewer(null)} />
+          <PropViewer kind={viewer.kind} arg={viewer.arg} onClose={() => setViewer(null)} />
         </React.Suspense>
       )}
 
