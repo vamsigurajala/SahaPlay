@@ -23,7 +23,7 @@ const getCategoryLabel = (id, t) => {
 // contain a mix of pinned/unpinned rooms (Room History); omit both and keep
 // using `onUnpin` alone for a grid that's ALWAYS all-pinned (Pinned Rooms
 // itself), which is exactly the original behavior, unchanged.
-export default function PinnedRoomsGrid({ rooms, onUnpin, pinnedIds, onTogglePin, gridClassName = 'pinned-grid', gridStyle, fadeIn = false, titleColor }) {
+export default function PinnedRoomsGrid({ rooms, onUnpin, pinnedIds, onTogglePin, gridClassName = 'pinned-grid', gridStyle, fadeIn = false, titleColor, thumbnailLoading = 'lazy' }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const historyMode = Array.isArray(pinnedIds);
@@ -51,6 +51,7 @@ export default function PinnedRoomsGrid({ rooms, onUnpin, pinnedIds, onTogglePin
               thumbnailPath={room.thumbnailPath}
               alt={t('roomCover', 'Room Cover')}
               imgClassName="pinned-img"
+              loading={thumbnailLoading}
               {...(fadeIn ? { onLoad: (e) => e.target.classList.add('loaded') } : {})}
             />
             <div className="cat-badge">{getCategoryLabel(room.category, t)}</div>

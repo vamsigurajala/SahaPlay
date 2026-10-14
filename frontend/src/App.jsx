@@ -350,6 +350,31 @@ function App() {
     return () => clearTimeout(id);
   }, []);
 
+  // Same idle-warming strategy as Room's chunk above, for the three pages
+  // reached from the Profile menu (Account/App/Chats settings). Without
+  // this, the first tap on any of them in a session makes React suspend
+  // on an uncached dynamic import() — the menu/drawer that triggered the
+  // navigation closes instantly (no exit animation), but the new page's
+  // chunk isn't ready yet, so there's a visible gap where the page behind
+  // the menu shows through before the real content replaces it. Reported
+  // live as "the whole window flickers to Home and then opens the
+  // settings page". Warming all three here means that gap essentially
+  // never happens — by the time anyone actually taps one, it's already
+  // fetched and parsed.
+  useEffect(() => {
+    const warm = () => {
+      import('./Profile').catch(() => {});
+      import('./AppSettings').catch(() => {});
+      import('./ChatSettings').catch(() => {});
+    };
+    if ('requestIdleCallback' in window) {
+      const id = window.requestIdleCallback(warm, { timeout: 4000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const id = setTimeout(warm, 2000);
+    return () => clearTimeout(id);
+  }, []);
+
   // MediaSelectorModal's app cards (Streaming/Games/Social/etc, opened from
   // inside a room) are all small static images already bundled with this
   // deploy — but each <img> only starts downloading the first time its own

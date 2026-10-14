@@ -856,6 +856,12 @@ const Home = () => {
                     onUnpin={unpinRoom}
                     gridClassName="pinned-grid"
                     gridStyle={{ display: 'grid', gap: 20 }}
+                    // Capped at 6 and always above the fold here — lazy
+                    // loading only delayed a fetch that was always going to
+                    // happen immediately, which read as "thumbnails loading
+                    // slowly" on every return visit (see RoomThumbnail.jsx's
+                    // own comment on this prop).
+                    thumbnailLoading="eager"
                   />
                 );
 
