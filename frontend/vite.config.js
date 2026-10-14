@@ -30,6 +30,13 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // three.js + react-three-fiber/drei (Gamify Mode's 3D room) must
+            // live in their OWN chunk, listed before the generic rules below:
+            // '@react-three/fiber' contains "react" so it would otherwise be
+            // swept into vendor-react, and three itself into the catch-all
+            // 'vendor' — both are loaded on every page, which would make the
+            // whole app pay for a feature only a few people open.
+            if (/node_modules[\\/](three|@react-three|three-stdlib|react-reconciler|its-fine|suspend-react|maath|meshline|troika-[^\\/]+|three-mesh-bvh|camera-controls|detect-gpu|webgl-constants|stats-gl|zustand|tunnel-rat)[\\/]/.test(id)) return 'vendor-three';
             if (id.includes('react')) return 'vendor-react';
             if (id.includes('lucide-react') || id.includes('react-icons')) return 'vendor-ui-icons';
             if (id.includes('emoji-mart')) return 'vendor-emoji';

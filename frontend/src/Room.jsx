@@ -29,7 +29,13 @@ import GuidedShareModal from './components/GuidedShareModal';
 import BanConfirmModal from './components/BanConfirmModal';
 import StreamUploadProgress from './components/StreamUploadProgress';
 import SubtitleSettingsModal from './components/SubtitleSettingsModal';
-import GamifyFloorPlan from './components/GamifyFloorPlan';
+// Lazy: the 3D scene pulls in three.js, by far the heaviest dependency in the
+// app, which only matters to people who actually turn Gamify Mode on — it must
+// never add to the cost of just opening a room. preloadGamify() is also kicked
+// off when the toggle button is hovered so the first click is near-instant.
+const gamifyChunk = () => import('./components/GamifyFloorPlan');
+const GamifyFloorPlan = React.lazy(gamifyChunk);
+const preloadGamify = () => { gamifyChunk(); };
 import { useVideoUpload } from './hooks/useVideoUpload';
 import { useVoiceActivityDetection } from './hooks/useVoiceActivityDetection';
 import { useBackIntercept } from './hooks/useBackIntercept';
@@ -1414,21 +1420,19 @@ const Room = () => {
   // corrects) it, same as every other client in the room.
   const [gamifyMode, setGamifyMode] = useState(false);
   const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
-  // The real player element's on-screen rect while gamify mode is on,
-  // reported by GamifyFloorPlan (it owns the TV prop's position/pan/zoom) —
-  // player-wrap is absolutely positioned to match this instead of being
-  // moved into a different parent, so playback/connection state is never
-  // disturbed by toggling the mode. Null means "render player-wrap normally".
-  const [gamifyTvRect, setGamifyTvRect] = useState(null);
-  // player-wrap renders at this fixed "native" size (matching the TV prop's
-  // own 140:90 aspect ratio in frontend/src/data/gamifyZones.js) and gets
-  // uniformly shrunk with a single CSS transform:scale() down to whatever
-  // size the TV currently is on screen, rather than actually resizing its
-  // real box to the TV's (possibly very small) literal pixel dimensions.
-  // This means ReactPlayer/Hyperbeam/the video element always see a normal,
-  // reasonably-sized box to lay out and measure against — ResizeObserver-
-  // driven logic (Hyperbeam's syncResize in particular) never has to deal
-  // with a container that's only, say, 90px tall.
+  // True once the 3D scene has projected the TV screen at least once. While
+  // gamify mode is on, player-wrap is laid out at a fixed "native" size and
+  // GamifyFloorPlan's TvProjector writes a CSS matrix3d straight onto its DOM
+  // node every frame (never through React state — that would re-render this
+  // 16k-line component 60x/sec while panning) so the video appears mapped onto
+  // the slanted 3D TV screen. It's only restyled, never moved into a different
+  // parent, so playback/connection state is never disturbed by the toggle.
+  // Hidden until the first projection lands, to avoid a one-frame flash at the
+  // wrong place.
+  const [gamifyTvReady, setGamifyTvReady] = useState(false);
+  // Must match TV_NATIVE_W/H in components/gamify/GamifyScene.jsx — ReactPlayer/
+  // Hyperbeam/the video element always see this normal, reasonably-sized box to
+  // lay out and measure against, however small the TV appears on screen.
   const GAMIFY_TV_NATIVE_WIDTH = 420;
   const GAMIFY_TV_NATIVE_HEIGHT = 270;
   const [showActivityMenu, setShowActivityMenu] = useState(false);
@@ -4799,9 +4803,9 @@ const Room = () => {
       if (!enabled) setAvatarPositions({}); // mirrors the server clearing roomAvatarPositions on turn-off
     });
     sock.on('avatar_moved', ({ socketId, x, y, zone }) => {
-      // Snap, not lerp — see AvatarSprite.jsx's comment for why that's the
-      // right call for Phase 1. A departed user's entry here is harmless
-      // dead weight (GamifyFloorPlan only renders sprites for current
+      // Stored as-is; Avatar3D glides toward it every frame, so no
+      // interpolation is needed here. A departed user's entry is harmless
+      // dead weight (GamifyFloorPlan only renders avatars for current
       // userList members), so no cleanup is needed on user_left either.
       setAvatarPositions(prev => ({ ...prev, [socketId]: { x, y, zone } }));
     });
@@ -12276,7 +12280,8 @@ const Room = () => {
                 socket?.emit('set_gamify_mode', { roomId, enabled: next });
               }}
               title="Gamify Mode"
-              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+              onMouseEnter={e => { preloadGamify(); e.currentTarget.style.transform = 'scale(1.1)'; }}
+              onTouchStart={preloadGamify}
               onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
               style={{
                 position: 'absolute',
@@ -12303,15 +12308,18 @@ const Room = () => {
               would otherwise interrupt playback or drop a live Hyperbeam
               session. */}
           {gamifyMode && (
-            <GamifyFloorPlan
-              userList={userList}
-              mySocketId={socket?.id}
-              avatarPositions={avatarPositions}
-              knownAvatars={knownAvatars}
-              hostId={hostId}
-              onMove={(x, y, zone) => socket?.emit('avatar_move', { roomId, x, y, zone })}
-              onTvRectChange={setGamifyTvRect}
-            />
+            <React.Suspense fallback={null}>
+              <GamifyFloorPlan
+                userList={userList}
+                mySocketId={socket?.id}
+                avatarPositions={avatarPositions}
+                knownAvatars={knownAvatars}
+                hostId={hostId}
+                onMove={(x, y, zone) => socket?.emit('avatar_move', { roomId, x, y, zone })}
+                tvElementRef={playerWrapRef}
+                onTvReady={setGamifyTvReady}
+              />
+            </React.Suspense>
           )}
 
           <div
@@ -12364,16 +12372,16 @@ const Room = () => {
               // rationale. Hidden (opacity 0) until GamifyFloorPlan reports
               // the TV's first measured rect, so it never flashes at the
               // wrong position/size for a frame after the mode turns on.
+              // (transform/transformOrigin are deliberately absent here —
+              // GamifyFloorPlan's TvProjector owns them via direct DOM writes.)
               ...(gamifyMode ? {
-                top: gamifyTvRect?.top ?? 0,
-                left: gamifyTvRect?.left ?? 0,
+                top: 0,
+                left: 0,
                 width: GAMIFY_TV_NATIVE_WIDTH,
                 height: GAMIFY_TV_NATIVE_HEIGHT,
-                transform: `scale(${gamifyTvRect ? gamifyTvRect.width / GAMIFY_TV_NATIVE_WIDTH : 1})`,
-                transformOrigin: 'top left',
                 zIndex: 20,
-                opacity: gamifyTvRect ? 1 : 0,
-                pointerEvents: gamifyTvRect ? 'auto' : 'none',
+                opacity: gamifyTvReady ? 1 : 0,
+                pointerEvents: gamifyTvReady ? 'auto' : 'none',
                 transition: 'opacity 0.2s',
               } : {}),
             }}

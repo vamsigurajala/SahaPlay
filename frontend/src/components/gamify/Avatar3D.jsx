@@ -1,0 +1,135 @@
+import { useRef, useMemo, useEffect } from 'react';
+import * as THREE from 'three';
+import { useFrame, useThree } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
+import { Crown } from 'lucide-react';
+import Avatar from '../Avatar';
+import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, zoneForPoint } from '../../data/gamifyZones';
+import { WORLD_W, WORLD_D } from './GamifyScene';
+
+const toWorld = (vx, vy) => ({ x: (vx / FLOORPLAN_WIDTH - 0.5) * WORLD_W, z: (vy / FLOORPLAN_HEIGHT - 0.5) * WORLD_D });
+const toVirtual = (wx, wz) => ({ x: (wx / WORLD_W + 0.5) * FLOORPLAN_WIDTH, y: (wz / WORLD_D + 0.5) * FLOORPLAN_HEIGHT });
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// One participant, standing on the floor of the 3D room. Only the viewer's own
+// avatar is draggable; dragging raycasts the pointer onto the floor plane (so
+// movement follows the isometric view correctly at any zoom/pan). Both own and
+// remote avatars glide toward their target each frame instead of teleporting.
+export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, onMove, dragLockRef }) {
+  const group = useRef();
+  const { camera, gl } = useThree();
+  const draggingRef = useRef(false);
+  const targetRef = useRef(toWorld(x, y));
+  const initialPos = useMemo(() => { const t = toWorld(x, y); return [t.x, 0, t.z]; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const lastEmitRef = useRef(0);
+  const pendingRef = useRef(null);
+  const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
+  const hit = useMemo(() => new THREE.Vector3(), []);
+
+  useEffect(() => {
+    if (!draggingRef.current) targetRef.current = toWorld(x, y);
+  }, [x, y]);
+
+  useFrame(() => {
+    const g = group.current;
+    if (!g) return;
+    const t = targetRef.current;
+    const k = draggingRef.current ? 0.55 : 0.2;
+    g.position.x += (t.x - g.position.x) * k;
+    g.position.z += (t.z - g.position.z) * k;
+  });
+
+  const pointToGround = (cx, cy) => {
+    const rect = gl.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -(((cy - rect.top) / rect.height) * 2 - 1));
+    raycaster.setFromCamera(ndc, camera);
+    return raycaster.ray.intersectPlane(plane, hit) ? { x: hit.x, z: hit.z } : null;
+  };
+
+  const emit = (wx, wz) => {
+    const v = toVirtual(wx, wz);
+    const vx = clamp(v.x, 0, FLOORPLAN_WIDTH);
+    const vy = clamp(v.y, 0, FLOORPLAN_HEIGHT);
+    onMove && onMove(vx, vy, zoneForPoint(vx, vy));
+  };
+
+  // ~20/sec to match the server's avatar_move rate bucket, always flushing the
+  // final position on release so the resting spot never desyncs.
+  const emitThrottled = (wx, wz) => {
+    pendingRef.current = { wx, wz };
+    const now = performance.now();
+    if (now - lastEmitRef.current >= 50) {
+      lastEmitRef.current = now;
+      emit(wx, wz);
+      pendingRef.current = null;
+    }
+  };
+
+  const onPointerDown = (e) => {
+    if (!isOwn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = pointToGround(e.clientX, e.clientY);
+    if (!start) return;
+    draggingRef.current = true;
+    if (dragLockRef) dragLockRef.current = true;
+    const off = { x: targetRef.current.x - start.x, z: targetRef.current.z - start.z };
+
+    const move = (ev) => {
+      const p = pointToGround(ev.clientX, ev.clientY);
+      if (!p) return;
+      const wx = clamp(p.x + off.x, -9.3, 9.3);
+      const wz = clamp(p.z + off.z, -5.3, 5.3);
+      targetRef.current = { x: wx, z: wz };
+      emitThrottled(wx, wz);
+    };
+    const up = () => {
+      draggingRef.current = false;
+      if (dragLockRef) dragLockRef.current = false;
+      if (pendingRef.current) { emit(pendingRef.current.wx, pendingRef.current.wz); pendingRef.current = null; }
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+
+  return (
+    <group ref={group} position={initialPos}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]}>
+        <circleGeometry args={[0.55, 24]} />
+        <meshBasicMaterial color="#000" transparent opacity={0.4} depthWrite={false} />
+      </mesh>
+      <Html position={[0, 0.95, 0]} center zIndexRange={[40, 0]}>
+        <div
+          onPointerDown={onPointerDown}
+          style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            cursor: isOwn ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', pointerEvents: 'auto',
+          }}
+        >
+          <Avatar
+            avatarPath={avatarPath}
+            username={username}
+            size={44}
+            style={{
+              border: isOwn ? '3px solid #fff' : '3px solid rgba(255,255,255,0.7)',
+              boxShadow: isOwn ? '0 0 0 3px rgba(139,92,255,0.7), 0 6px 14px rgba(0,0,0,0.5)' : '0 6px 14px rgba(0,0,0,0.5)',
+            }}
+          />
+          <span style={{
+            display: 'flex', alignItems: 'center', gap: 3, padding: '1px 8px', borderRadius: 99,
+            background: 'rgba(8,6,20,0.7)', color: '#fff', fontSize: 11, fontWeight: 700,
+            whiteSpace: 'nowrap', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {isHost && <Crown size={11} color="#fbbf24" />}
+            {username}
+          </span>
+        </div>
+      </Html>
+    </group>
+  );
+}
