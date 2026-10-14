@@ -28,6 +28,19 @@
 .admin-light main select { background: #ffffff !important; border-color: #d1d5db !important; color: #111827 !important; }
 .admin-light main textarea { background: #f9fafb !important; border-color: #d1d5db !important; color: #111827 !important; }
 
+/* <option> background-color is NOT an inherited CSS property, unlike
+   color — every <select> in this file sets its own (often semi-
+   transparent, dark-mode) background inline, but that never reaches its
+   <option> children. The browser instead renders its own native dropdown
+   panel background (effectively opaque white on Chrome/Edge regardless of
+   page theme) while the options still inherit the select's `color`. In
+   dark mode that's light/white text on that white native panel — every
+   row invisible except the one row the browser itself highlights on
+   hover/keyboard-focus. Setting both explicitly on every <option>, in
+   both themes, is the only reliable fix. */
+.admin-wrapper:not(.admin-light) main select option { background: #1a1a26; color: #fff; }
+.admin-light main select option { background: #ffffff; color: #111827; }
+
 /* Stat card values (usually big white numbers in dark mode) */
 .admin-light main [style*="font-size: 28"],
 .admin-light main [style*="font-size: 32"],
