@@ -162,6 +162,33 @@ const Home = () => {
     roomsSwipePendingXRef.current = 0;
     setRoomsDragX(0);
   };
+
+  // Pinned Rooms and Room History used to sit side-by-side in one flexbox
+  // row (width:200%, each panel 50%) so the swipe could translateX between
+  // them. Flexbox's default align-items:stretch then sized BOTH panels to
+  // the row's height, which is the TALLER of the two — so a short Pinned
+  // Rooms grid (few cards) rendered with a huge empty gap underneath it
+  // whenever Room History had many more rooms, even though Pinned Rooms
+  // was the one actually visible. Fix: each panel is now absolutely
+  // positioned (so it never stretches to match its sibling) inside a
+  // container whose height is measured from whichever panel is currently
+  // active and applied explicitly, animating smoothly on tab switch.
+  const pinnedPanelRef = useRef(null);
+  const historyPanelRef = useRef(null);
+  const [roomsRowHeight, setRoomsRowHeight] = useState(null);
+  useEffect(() => {
+    if (!showRoomsTabs) return;
+    const measure = () => {
+      const el = activeRoomsIndex === 0 ? pinnedPanelRef.current : historyPanelRef.current;
+      if (el) setRoomsRowHeight(el.scrollHeight);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    if (pinnedPanelRef.current) ro.observe(pinnedPanelRef.current);
+    if (historyPanelRef.current) ro.observe(historyPanelRef.current);
+    return () => ro.disconnect();
+  }, [showRoomsTabs, activeRoomsIndex, pinnedRooms.length, roomHistory.length, isPinnedLoading, isHistoryLoading]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isLight, setIsLight] = useState(() => document.documentElement.getAttribute('data-theme') === 'light');
   useEffect(() => {
@@ -896,20 +923,25 @@ const Home = () => {
 
                 return (
                   <div
-                    style={{ overflow: 'hidden', touchAction: 'pan-y' }}
+                    style={{
+                      position: 'relative', overflow: 'hidden', touchAction: 'pan-y',
+                      height: roomsRowHeight != null ? roomsRowHeight : 'auto',
+                      transition: 'height 0.28s cubic-bezier(0.22,1,0.36,1)',
+                    }}
                     onTouchStart={onRoomsTabsTouchStart}
                     onTouchMove={onRoomsTabsTouchMove}
                     onTouchEnd={onRoomsTabsTouchEnd}
                   >
-                    <div style={{
-                      display: 'flex',
-                      width: '200%',
-                      transform: `translateX(calc(${activeRoomsIndex === 0 ? '0%' : '-50%'} + ${roomsDragX}px))`,
+                    <div ref={pinnedPanelRef} style={{
+                      position: 'absolute', top: 0, left: 0, width: '100%',
+                      transform: `translateX(calc(${activeRoomsIndex === 0 ? '0%' : '-100%'} + ${roomsDragX}px))`,
                       transition: isRoomsSwipeDragging ? 'none' : 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
-                    }}>
-                      <div style={{ width: '50%', minWidth: 0, flexShrink: 0 }}>{pinnedRoomsPanel}</div>
-                      <div style={{ width: '50%', minWidth: 0, flexShrink: 0 }}>{roomHistoryPanel}</div>
-                    </div>
+                    }}>{pinnedRoomsPanel}</div>
+                    <div ref={historyPanelRef} style={{
+                      position: 'absolute', top: 0, left: 0, width: '100%',
+                      transform: `translateX(calc(${activeRoomsIndex === 1 ? '0%' : '100%'} + ${roomsDragX}px))`,
+                      transition: isRoomsSwipeDragging ? 'none' : 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
+                    }}>{roomHistoryPanel}</div>
                   </div>
                 );
               })()}
