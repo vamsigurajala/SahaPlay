@@ -1771,7 +1771,7 @@ function ActiveRoomsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ color: isLight ? '#111827' : '#fff', fontWeight: 700, fontSize: 15 }}>{room.roomName}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: room.isPublic ? 'rgba(16,185,129,0.15)' : 'rgba(var(--brand-1-rgb),0.15)', color: room.isPublic ? '#34d399' : 'var(--brand-1-light)', border: `1px solid ${room.isPublic ? 'rgba(16,185,129,0.3)' : 'rgba(var(--brand-1-rgb),0.3)'}` }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: room.isPublic ? 'rgba(16,185,129,0.15)' : 'rgba(129,140,248,0.15)', color: room.isPublic ? '#34d399' : '#a5b4fc', border: `1px solid ${room.isPublic ? 'rgba(16,185,129,0.3)' : 'rgba(129,140,248,0.3)'}` }}>
                       {room.isPublic ? 'Public' : 'Private'}
                     </span>
                   </div>
