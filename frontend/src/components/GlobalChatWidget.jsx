@@ -2172,6 +2172,33 @@ const GlobalChatWidget = React.memo(forwardRef(({
     window.addEventListener('chat_themes_updated', onThemesUpdated);
     return () => window.removeEventListener('chat_themes_updated', onThemesUpdated);
   }, []);
+  // Preloads every wallpaper image actually assigned to one of this user's
+  // chats, during idle time, as soon as chatThemes is known (both from the
+  // localStorage-seeded initial state and once the server fetch above
+  // refreshes it). Without this, opening a wallpaper-themed chat for the
+  // first time in a session paid that image's full network-fetch cost right
+  // there, synchronously — worst right after a cold app restart (nothing
+  // has been fetched yet, and getWallpaperDominantColor's own in-memory
+  // cache is empty too, see the backdrop's backgroundColor fallback above) —
+  // reported live as a themed chat looking blank for 3-4 seconds before the
+  // wallpaper appeared. Typically only 1-3 distinct wallpapers are ever in
+  // use across someone's actual chats, so this is cheap.
+  useEffect(() => {
+    const ids = new Set(Object.values(chatThemes || {}));
+    if (ids.size === 0) return;
+    const warm = () => {
+      ids.forEach(id => {
+        const wp = findWallpaper(id);
+        if (wp?.image) { const img = new Image(); img.src = wp.image; }
+      });
+    };
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(warm, { timeout: 3000 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+    const timeoutId = setTimeout(warm, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [chatThemes]);
   // Sends the "so-and-so changed the chat theme" notice as a REAL, persisted,
   // E2EE-encrypted private message (isNotice:true, noticeThemeId) so it
   // survives a refresh and reaches the other person's account on every
@@ -7794,6 +7821,15 @@ const GlobalChatWidget = React.memo(forwardRef(({
             // anti-shrink behavior the explicit height exists for.
             minHeight: '100%',
             ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
+            // Fallback paint while the actual photo is still being fetched —
+            // without this the chat read as fully blank for however long that
+            // took (worst right after a cold app restart, when
+            // getWallpaperDominantColor's in-memory cache is empty and the
+            // browser hasn't warmed up a connection to fetch it from yet).
+            // wallpaperColor (this same wallpaper's own extracted dominant
+            // tone, once known) is a much closer match than a flat generic
+            // shade whenever it's already cached from earlier this session.
+            backgroundColor: wallpaperColor || '#1a1a24',
             backgroundImage: `linear-gradient(rgba(0,0,0,0.38),rgba(0,0,0,0.38)), url("${activeWallpaper.image}")`,
             backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
             // Promotes this into its own GPU compositor layer, rasterized once

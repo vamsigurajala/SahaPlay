@@ -3493,6 +3493,11 @@ export default function RoomChatPanel({ p }) {
               // behavior the explicit height exists for.
               minHeight: '100%',
               ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
+              // Fallback paint while the actual photo is still being fetched
+              // (worst right after a cold app restart) — see
+              // GlobalChatWidget.jsx's identical fix for why this was
+              // showing as a blank chat for several seconds.
+              backgroundColor: groupWallpaperColor || '#1a1a24',
               backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${groupWallpaper.image}")`,
               backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
               // Promotes this into its own GPU compositor layer, pre-rasterized
@@ -4619,6 +4624,9 @@ export default function RoomChatPanel({ p }) {
                 // same gap-covering fix, same reason.
                 minHeight: '100%',
                 ...(stableViewportHeight ? { height: stableViewportHeight } : {}),
+                // See the identical comment on the group chat backdrop above —
+                // same blank-while-loading fix, same reason.
+                backgroundColor: dmWallpaperColor || '#1a1a24',
                 backgroundImage: `linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.38)), url("${dmWallpaper.image}")`,
                 backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat',
                 // See the identical comment on the group chat backdrop above —

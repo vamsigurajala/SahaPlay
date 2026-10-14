@@ -10,7 +10,7 @@ import { getCenterFeedbackType } from './lib/playbackFeedback.js';
 import { getNativeScreenCaptureStream } from './lib/nativeScreenShare.js';
 import { setStatusBarHidden, syncStatusBarTheme } from './lib/nativeShell.js';
 import { SOCKET_URL as API_SOCKET_URL } from './lib/api';
-import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_WALLPAPERS } from './lib/chatThemes';
+import { CHAT_CATEGORIES, CHAT_THEMES, CHAT_WALLPAPERS, findWallpaper } from './lib/chatThemes';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -2525,6 +2525,28 @@ const Room = () => {
     window.addEventListener('chat_themes_updated', onThemesUpdated);
     return () => window.removeEventListener('chat_themes_updated', onThemesUpdated);
   }, []);
+  // Preloads every wallpaper image actually assigned to a theme in
+  // chatThemes (group chat and/or DMs), during idle time — see
+  // GlobalChatWidget.jsx's identical effect for why: without this, opening
+  // a wallpaper-themed chat for the first time in a session paid that
+  // image's full fetch cost synchronously, worst right after a cold app
+  // restart, which read as the chat staying blank for several seconds.
+  useEffect(() => {
+    const ids = new Set(Object.values(chatThemes || {}));
+    if (ids.size === 0) return;
+    const warm = () => {
+      ids.forEach(id => {
+        const wp = findWallpaper(id);
+        if (wp?.image) { const img = new Image(); img.src = wp.image; }
+      });
+    };
+    if ('requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(warm, { timeout: 3000 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+    const timeoutId = setTimeout(warm, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [chatThemes]);
   const applyChatTheme = useCallback((target, themeId) => {
     if (!target) return;
     const chatKey = (target.type === 'room' ? (target.partner || target.id) : target.partner)?.toLowerCase();
