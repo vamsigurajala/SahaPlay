@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FLOORPLAN_ZONES, ZONE_IDS, DEFAULT_SPAWN, zoneForPoint, FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT } from './gamifyZones';
+import { FLOORPLAN_ZONES, ZONE_IDS, DEFAULT_SPAWN, DOORWAYS, DOOR_LINKS, zoneForPoint, FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D } from './gamifyZones';
 
 describe('gamify zones', () => {
   it('every zone center resolves back to its own zone', () => {
@@ -16,5 +16,16 @@ describe('gamify zones', () => {
   it('default spawn lands in the living room, and out-of-bounds points still get a zone', () => {
     expect(zoneForPoint(DEFAULT_SPAWN.x, DEFAULT_SPAWN.y)).toBe('hall');
     expect(ZONE_IDS).toContain(zoneForPoint(-50, 9999));
+  });
+
+  it('every doorway joins two rooms and gets a hotspot on each side landing in the other room', () => {
+    // 3x2 grid: 2 doors per row between columns + 3 between rows
+    expect(DOORWAYS).toHaveLength(7);
+    expect(DOOR_LINKS).toHaveLength(14);
+    const toVirtual = (p) => [(p.x / WORLD_W + 0.5) * FLOORPLAN_WIDTH, (p.z / WORLD_D + 0.5) * FLOORPLAN_HEIGHT];
+    for (const l of DOOR_LINKS) {
+      expect(zoneForPoint(...toVirtual(l.chip))).toBe(l.from);
+      expect(zoneForPoint(...toVirtual(l.entry))).toBe(l.to);
+    }
   });
 });

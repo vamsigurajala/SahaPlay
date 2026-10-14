@@ -1,10 +1,10 @@
 import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Stool, Monitor, Bookshelf, Arcade, WallWindow, WallPanel } from './parts';
-import { TV, TV_H, NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
+import { TV_LOCAL, TV_H, NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 
 const PI = Math.PI;
 
 // ── STUDY (x -16..-6, z -10..0) ─────────────────────────────────────────────
-export function Study() {
+export function StudyBase() {
   return (
     <group>
       <WallWindow p={[-11, 2.9, -9.9]} w={3.4} h={1.9} color="#7fc4ff" />
@@ -45,17 +45,17 @@ export function Study() {
 }
 
 // ── LIVING ROOM (x -6..6, z -10..0) — the TV lives here ───────────────────────
-export function LivingRoom() {
+export function LivingRoomBase() {
   return (
     <group>
       {/* TV + console */}
-      <Box p={[TV.cx, TV.cy, -9.94]} s={[TV.w + 0.35, TV_H + 0.35, 0.12]} c="#0c0b14" r={0.08} />
-      <mesh position={[TV.cx, TV.cy, TV.z]}>
-        <planeGeometry args={[TV.w, TV_H]} />
+      <Box p={[TV_LOCAL.cx, TV_LOCAL.cy, -9.94]} s={[TV_LOCAL.w + 0.35, TV_H + 0.35, 0.12]} c="#0c0b14" r={0.08} />
+      <mesh position={[TV_LOCAL.cx, TV_LOCAL.cy, TV_LOCAL.z]}>
+        <planeGeometry args={[TV_LOCAL.w, TV_H]} />
         <meshBasicMaterial color="#0a0a18" />
       </mesh>
-      <Box p={[TV.cx, 0.5, -9.35]} s={[7, 1.0, 1.2]} c="#2c2150" r={0.06} />
-      <Neon p={[TV.cx, 1.03, -8.8]} s={[6.8, 0.04, 0.04]} color={NEON_CYAN} />
+      <Box p={[TV_LOCAL.cx, 0.5, -9.35]} s={[7, 1.0, 1.2]} c="#2c2150" r={0.06} />
+      <Neon p={[TV_LOCAL.cx, 1.03, -8.8]} s={[6.8, 0.04, 0.04]} color={NEON_CYAN} />
       {[[-2.6, '#ffcf5a'], [-1.9, '#ff6fb5'], [2.1, '#5ad1ff'], [2.8, '#8dff9c']].map(([x, col], i) => (
         <Box key={i} p={[x, 1.25, -9.4]} s={[0.4, 0.45 + (i % 2) * 0.2, 0.4]} c={col} r={0.08} />
       ))}
@@ -71,8 +71,6 @@ export function LivingRoom() {
       <Box p={[-0.4, 0.065, -4.4]} s={[8.0, 0.02, 5.2]} c="#5846a0" r={0.01} rough={1} shadow={false} />
       <Box p={[-0.6, 0.45, -1.6]} s={[6.6, 0.9, 1.9]} c="#5a4bb5" r={0.2} />
       <Box p={[-0.6, 1.3, -0.75]} s={[6.6, 1.5, 0.5]} c="#4a3c9e" r={0.2} />
-      <Box p={[-4.1, 0.45, -4.4]} s={[1.9, 0.9, 4.2]} c="#5a4bb5" r={0.2} />
-      <Box p={[-4.95, 1.3, -4.4]} s={[0.5, 1.5, 4.2]} c="#4a3c9e" r={0.2} />
       {[-2.9, -0.9, 1.1].map((x, i) => <Box key={i} p={[x, 1.0, -1.7]} s={[1.7, 0.3, 1.3]} c="#7664d6" r={0.14} />)}
       <Box p={[-0.6, 0.32, -4.6]} s={[3.2, 0.5, 1.6]} c="#1d1740" r={0.08} />
       <Neon p={[-0.6, 0.6, -4.6]} s={[3.0, 0.03, 1.4]} color={NEON_CYAN} />
@@ -90,7 +88,7 @@ export function LivingRoom() {
 }
 
 // ── BEDROOM (x 6..16, z -10..0) ─────────────────────────────────────────────
-export function Bedroom() {
+export function BedroomBase() {
   return (
     <group>
       <WallWindow p={[10.2, 3.1, -9.9]} w={3.6} h={1.7} color="#9ad7ff" />
@@ -115,17 +113,12 @@ export function Bedroom() {
       <Box p={[14.5, 1.75, -8.68]} s={[0.07, 0.5, 0.05]} c="#d9c48a" shadow={false} />
       <Box p={[15.4, 1.75, -8.68]} s={[0.07, 0.5, 0.05]} c="#d9c48a" shadow={false} />
       <Neon p={[14.95, 3.58, -8.7]} s={[1.8, 0.04, 0.04]} color={NEON_VIOLET} halo={false} />
-      {/* dresser + mirror against the divider */}
-      <Box p={[6.75, 0.6, -3.4]} s={[1.0, 1.2, 3.2]} c="#33265a" r={0.05} />
-      {[-4.4, -3.4, -2.4].map(z => <Box key={z} p={[7.27, 0.75, z]} s={[0.04, 0.12, 0.7]} c="#d9c48a" shadow={false} />)}
-      <Neon p={[6.62, 2.35, -3.4]} s={[0.06, 1.8, 1.7]} color="#d6ecff" />
       {/* desk + laptop + chair */}
       <Box p={[13.8, 0.9, -2.2]} s={[2.4, 0.12, 1.2]} c="#3a2d66" r={0.04} />
       <Box p={[12.7, 0.45, -2.2]} s={[0.12, 0.9, 1.0]} c="#241c4a" />
       <Box p={[14.9, 0.45, -2.2]} s={[0.12, 0.9, 1.0]} c="#241c4a" />
       <Monitor p={[13.8, 0.96, -2.45]} color={NEON_AMBER} />
       <Chair p={[13.8, 0, -0.9]} rot={PI} c="#e0529f" />
-      <BeanBag p={[8.0, 0, -1.6]} color="#5a8cff" glow={NEON_CYAN} />
       <Plant p={[15.2, 0, -5.4]} scale={1.2} />
       <Plant p={[6.9, 0, -0.8]} scale={0.9} color="#3bbf74" />
     </group>
@@ -133,7 +126,7 @@ export function Bedroom() {
 }
 
 // ── KITCHEN (x -16..-6, z 0..10) ────────────────────────────────────────────
-export function Kitchen() {
+export function KitchenBase() {
   const counter = '#c9c0ea';
   return (
     <group>
@@ -174,17 +167,16 @@ export function Kitchen() {
       {[[-10.2, 6.8, 0], [-8.6, 6.8, 0], [-10.2, 9.2, PI], [-8.6, 9.2, PI]].map(([x, z, r], i) => <Chair key={i} p={[x, 0, z]} rot={r} c="#4f7fe0" />)}
       <Box p={[-9.4, 1.12, 8.0]} s={[0.6, 0.06, 0.6]} c="#ff6fb5" r={0.02} />
       <Plant p={[-6.9, 0, 9.0]} scale={1.2} />
-      <Plant p={[-6.9, 0, 0.9]} scale={0.9} color="#3bbf74" />
     </group>
   );
 }
 
 // ── GAME ROOM (x -6..6, z 0..10) ────────────────────────────────────────────
-export function GameRoom() {
+export function GameRoomBase() {
   return (
     <group>
       {/* arcade row */}
-      {[[-4.6, NEON_CYAN], [-3.0, NEON_PINK], [-1.4, NEON_AMBER], [2.2, NEON_VIOLET], [3.8, '#8dff9c'], [5.0, NEON_CYAN]].map(([x, col], i) => (
+      {[[-4.6, NEON_CYAN], [-3.2, NEON_PINK], [-1.8, NEON_AMBER], [3.0, NEON_VIOLET], [4.2, '#8dff9c'], [5.4, NEON_CYAN]].map(([x, col], i) => (
         <Arcade key={i} p={[x, 0, 0.95]} color={col} />
       ))}
       {/* pool table */}
@@ -221,7 +213,7 @@ export function GameRoom() {
 }
 
 // ── GARDEN + POOL (x 6..16, z 0..10) ────────────────────────────────────────
-export function Garden() {
+export function GardenBase() {
   return (
     <group>
       {/* stone path from the house doorway */}
@@ -258,13 +250,6 @@ export function Garden() {
       {/* trees, bushes, low fence with lanterns along the front edge */}
       <Tree p={[15.3, 0, 1.0]} scale={0.95} />
       <Tree p={[7.0, 0, 1.0]} scale={0.8} />
-      {[7.6, 9.4, 11.2, 13.0, 14.8].map((x, i) => (
-        <group key={x}>
-          <Box p={[x, 0.35, 9.85]} s={[0.14, 0.7, 0.14]} c="#4a3a6e" />
-          <mesh position={[x, 0.82, 9.85]}><sphereGeometry args={[0.1, 10, 8]} /><meshBasicMaterial color={i % 2 ? NEON_PINK : NEON_AMBER} toneMapped={false} /></mesh>
-        </group>
-      ))}
-      <Box p={[11.2, 0.5, 9.85]} s={[8.0, 0.06, 0.06]} c="#4a3a6e" shadow={false} />
       {[7.2, 15.6].map(x => <Plant key={x} p={[x, 0, 0.8]} scale={0.9} color="#34b36a" />)}
     </group>
   );

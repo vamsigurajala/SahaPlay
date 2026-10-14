@@ -213,6 +213,70 @@ export function WallPanel({ p, rot = 0, w = 0.85, h = 1.5, color }) {
   );
 }
 
+export function Rug({ p, w, d, c = '#43357f', c2 = '#5846a0' }) {
+  return (
+    <group position={p}>
+      <Box p={[0, 0.03, 0]} s={[w, 0.06, d]} c={c} r={0.02} rough={1} shadow={false} />
+      <Box p={[0, 0.065, 0]} s={[w - 0.6, 0.02, d - 0.6]} c={c2} r={0.01} rough={1} shadow={false} />
+    </group>
+  );
+}
+
+export function Table({ p, w = 3, d = 1.6, h = 1, c = '#3a2d66', leg = '#241c4a', rot = 0 }) {
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      <Box p={[0, h, 0]} s={[w, 0.12, d]} c={c} r={0.04} />
+      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz], i) => (
+        <Box key={i} p={[sx * (w / 2 - 0.2), h / 2, sz * (d / 2 - 0.2)]} s={[0.14, h, 0.14]} c={leg} />
+      ))}
+    </group>
+  );
+}
+
+// Faces +z (back at -z); rotate with `rot`.
+export function Sofa({ p, rot = 0, w = 3.6, c = '#5a4bb5', back = '#4a3c9e' }) {
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      <Box p={[0, 0.45, 0]} s={[w, 0.9, 1.5]} c={c} r={0.2} />
+      <Box p={[0, 1.2, -0.6]} s={[w, 1.4, 0.4]} c={back} r={0.18} />
+      <Box p={[-w / 2 + 0.2, 0.85, 0]} s={[0.4, 0.9, 1.5]} c={back} r={0.16} />
+      <Box p={[w / 2 - 0.2, 0.85, 0]} s={[0.4, 0.9, 1.5]} c={back} r={0.16} />
+    </group>
+  );
+}
+
+export function Wardrobe({ p, rot = 0, c = '#3a2d66', w = 2.0 }) {
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      <Box p={[0, 1.75, 0]} s={[w, 3.5, 1.2]} c={c} r={0.05} />
+      <Box p={[0, 1.75, 0.62]} s={[0.05, 3.2, 0.04]} c="#150f2b" shadow={false} />
+      <Box p={[-0.45, 1.75, 0.63]} s={[0.07, 0.5, 0.05]} c="#d9c48a" shadow={false} />
+      <Box p={[0.45, 1.75, 0.63]} s={[0.07, 0.5, 0.05]} c="#d9c48a" shadow={false} />
+    </group>
+  );
+}
+
+// A framed doorway cut into a divider wall: two posts, a lintel with a neon
+// strip, and a door leaf swung open against one post. `axis` follows Divider's
+// convention ('x' = wall runs along x).
+export function DoorFrame({ p, axis, color }) {
+  const along = axis === 'x';
+  const s = (len, h, th) => (along ? [len, h, th] : [th, h, len]);
+  const at = (o, y) => (along ? [o, y, 0] : [0, y, o]);
+  return (
+    <group position={p}>
+      <Box p={at(-1.75, 1.6)} s={s(0.3, 3.2, 0.34)} c="#4a3a82" r={0.04} />
+      <Box p={at(1.75, 1.6)} s={s(0.3, 3.2, 0.34)} c="#4a3a82" r={0.04} />
+      <Box p={at(0, 3.3)} s={s(3.8, 0.28, 0.34)} c="#4a3a82" r={0.05} />
+      <Neon p={at(0, 3.12)} s={s(3.2, 0.06, 0.1)} color={color} />
+      <group position={at(-1.45, 0)} rotation={[0, along ? -1.15 : 1.15, 0]}>
+        <Box p={along ? [0.7, 1.5, 0] : [0, 1.5, 0.7]} s={s(1.4, 3.0, 0.1)} c="#7a5cc4" r={0.03} />
+        <Box p={along ? [1.2, 1.5, 0.07] : [0.07, 1.5, 1.2]} s={s(0.1, 0.1, 0.05)} c="#d9c48a" shadow={false} />
+      </group>
+    </group>
+  );
+}
+
 // Html overlays (zone labels, avatar bubbles) keep a constant pixel size by
 // default, which looked huge when zoomed in and tiny when zoomed out — scale
 // them gently with the camera zoom instead, via a direct DOM write per frame.

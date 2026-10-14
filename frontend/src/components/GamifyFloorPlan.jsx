@@ -1,24 +1,35 @@
 import React, { useRef, useEffect, useMemo, useState, useContext } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2 } from 'lucide-react';
-import GamifyScene from './gamify/GamifyScene';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users } from 'lucide-react';
+import GamifyScene, { WALL_H } from './gamify/GamifyScene';
 import Avatar3D from './gamify/Avatar3D';
 import { ViewContext } from './gamify/parts';
 import { TV, TV_H, TV_NATIVE_W, TV_NATIVE_H } from './gamify/constants';
-import { DEFAULT_SPAWN, WORLD_W, WORLD_D } from '../data/gamifyZones';
+import { DEFAULT_SPAWN, FLOORPLAN_ZONES, CELL_W, CELL_D, COLS, ROWS } from '../data/gamifyZones';
 import { homographyMatrix3d } from '../lib/homography';
 
-const MIN_ZOOM = 0.5;
-const MAX_ZOOM = 3.2;
+const MIN_ZOOM = 0.36; // zoomed all the way out shows most of the house
+const MAX_ZOOM = 2.8;
 const FLIP_KEY = 'sp_gamify_flip';
 const CAM_OFFSET = new THREE.Vector3(18, 15.5, 18);
 const SIN_ELEV = CAM_OFFSET.y / CAM_OFFSET.length();
-// Pan limits in world space. Mirrored (flipped) view reflects the house across
-// the x=z diagonal, so the two limits swap.
-const panLimits = (flip) => (flip
-  ? { x: WORLD_D / 2 - 3, z: WORLD_W / 2 - 4 }
-  : { x: WORLD_W / 2 - 4, z: WORLD_D / 2 - 3 });
+const COS_ELEV = Math.sqrt(1 - SIN_ELEV * SIN_ELEV);
+// Zoom 1 = exactly one room (floor + its back walls) fills the view. Screen
+// extent of a CELL_W x CELL_D cell under the isometric camera:
+const FIT_W = (CELL_W + CELL_D) / Math.SQRT2;
+const FIT_H = FIT_W * SIN_ELEV + WALL_H * COS_ELEV;
+// Aim a little above the floor so the room's walls + floor (not just the floor)
+// are centred on screen.
+const TARGET_Y = WALL_H / 2;
+const ZONE_LIST = Object.values(FLOORPLAN_ZONES);
+// Camera targets may roam over every room centre plus a margin. Mirrored (flipped)
+// view reflects the house across the x=z diagonal, so the two limits swap.
+const panLimits = (flip) => {
+  const lx = ((COLS - 1) * CELL_W) / 2 + 4;
+  const lz = ((ROWS - 1) * CELL_D) / 2 + 4;
+  return flip ? { x: lz, z: lx } : { x: lx, z: lz };
+};
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 // Isometric camera. `view.zoom` is the TARGET zoom; `view.cur` eases toward it
@@ -27,7 +38,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // a fixed linear step). Pan targets ease the same way. Everything is read from
 // refs inside useFrame, never React state, so panning/zooming never re-renders
 // Room.jsx.
-function Rig({ viewRef, dragLockRef }) {
+function Rig({ viewRef, dragLockRef, onFocusChange }) {
   const { camera, gl, size } = useThree();
   const target = useMemo(() => new THREE.Vector3(), []);
 
@@ -40,6 +51,7 @@ function Rig({ viewRef, dragLockRef }) {
 
     const down = (e) => {
       if (dragLockRef.current) return;
+      viewRef.current.glide = false; // grabbing the view cancels a door glide
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       el.setPointerCapture?.(e.pointerId);
       if (pts.size === 2) {
@@ -93,17 +105,32 @@ function Rig({ viewRef, dragLockRef }) {
   useFrame((_, dt) => {
     const v = viewRef.current;
     const kz = 1 - Math.exp(-dt * 11);
-    const kp = 1 - Math.exp(-dt * 14);
+    // Dragging tracks the finger closely; a door glide eases slowly between rooms.
+    const kp = 1 - Math.exp(-dt * (v.glide ? 4.2 : 14));
     v.cur += (v.zoom - v.cur) * kz;
     v.px += (v.tx - v.px) * kp;
     v.pz += (v.tz - v.pz) * kp;
-    const base = Math.min(size.width / 40, size.height / 26);
-    camera.zoom = base * v.cur;
-    target.set(v.px, 0, v.pz);
+    if (v.glide && Math.abs(v.tx - v.px) + Math.abs(v.tz - v.pz) < 0.05) v.glide = false;
+    camera.zoom = Math.min(size.width / (FIT_W * 0.95), size.height / (FIT_H * 0.9)) * v.cur;
+    target.set(v.px, TARGET_Y, v.pz);
     camera.position.copy(target).add(CAM_OFFSET);
     camera.lookAt(target);
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
+
+    // Which room is the view centred on? (local, un-mirrored coordinates)
+    const lx = v.flip ? v.pz : v.px;
+    const lz = v.flip ? v.px : v.pz;
+    let best = v.focus;
+    let bestD = Infinity;
+    for (const z of ZONE_LIST) {
+      const d = (z.center.x - lx) ** 2 + (z.center.z - lz) ** 2;
+      if (d < bestD) { bestD = d; best = z.id; }
+    }
+    if (best !== v.focus) {
+      v.focus = best;
+      onFocusChange && onFocusChange(best);
+    }
   });
   return null;
 }
@@ -200,15 +227,27 @@ function readFlip() {
   try { return localStorage.getItem(FLIP_KEY) === '1'; } catch { return false; }
 }
 
+const roomCenterTarget = (id, flip) => {
+  const c = FLOORPLAN_ZONES[id].center;
+  return flip ? { x: c.z, z: c.x } : { x: c.x, z: c.z };
+};
+
 // The 3D social-space view Room.jsx swaps in for the video rectangle when
 // Gamify Mode is on (loaded lazily — three.js is the heaviest dependency in
-// the app and only matters to people who turn this on).
+// the app and only matters to people who turn this on). One room fills the
+// screen at a time; drag to roam to the next, or use a door / the room map.
 export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions, knownAvatars, hostId, onMove, tvElementRef, onTvReady }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
-  if (!viewRef.current) viewRef.current = { zoom: 1, cur: 1, tx: 0, tz: 0, px: 0, pz: 0, flip: readFlip() };
+  const myZoneRef = useRef(avatarPositions?.[mySocketId]?.zone || DEFAULT_SPAWN.zone);
+  if (!viewRef.current) {
+    const flip = readFlip();
+    const t = roomCenterTarget(myZoneRef.current, flip);
+    viewRef.current = { zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, flip, focus: myZoneRef.current, glide: false, walk: null };
+  }
   const dragLockRef = useRef(false);
   const [flipped, setFlipped] = useState(() => viewRef.current.flip);
+  const [focus, setFocus] = useState(() => viewRef.current.focus);
 
   // Wheel zoom: multiplicative (each tick scales by a fixed ratio) so it feels
   // the same at any zoom level. Native non-passive listener — React's onWheel
@@ -226,8 +265,23 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
+  // Glide the camera so room `id` fills the view.
+  const focusRoom = (id, zoom = 1) => {
+    const v = viewRef.current;
+    const t = roomCenterTarget(id, v.flip);
+    v.tx = t.x; v.tz = t.z; v.zoom = zoom; v.glide = true;
+  };
+  // A door: glide into the next room and, if that is where you were standing, walk through it.
+  const goThroughDoor = (link) => {
+    focusRoom(link.to);
+    if (myZoneRef.current === link.from) viewRef.current.walk = { x: link.entry.x, z: link.entry.z };
+  };
+  const handleMove = (x, y, zone) => { myZoneRef.current = zone; if (onMove) onMove(x, y, zone); };
+  // Dropping your avatar into another room brings the camera along.
+  const handleDrop = (zone) => { if (zone !== viewRef.current.focus) focusRoom(zone, viewRef.current.zoom); };
+
   const zoomBy = (ratio) => { const v = viewRef.current; v.zoom = clamp(v.zoom * ratio, MIN_ZOOM, MAX_ZOOM); };
-  const resetView = () => { const v = viewRef.current; v.zoom = 1; v.tx = 0; v.tz = 0; };
+  const resetView = () => focusRoom(myZoneRef.current);
   const toggleFlip = () => {
     const v = viewRef.current;
     const next = !v.flip;
@@ -240,7 +294,14 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     try { localStorage.setItem(FLIP_KEY, next ? '1' : '0'); } catch { /* private mode etc. */ }
   };
 
+  const counts = useMemo(() => {
+    const c = {};
+    userList.forEach(u => { const z = avatarPositions?.[u.socketId]?.zone || DEFAULT_SPAWN.zone; c[z] = (c[z] || 0) + 1; });
+    return c;
+  }, [userList, avatarPositions]);
+
   const btn = { width: 34, height: 34, borderRadius: 9, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(8,6,20,0.65)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(6px)' };
+  const glass = { background: 'rgba(8,6,20,0.65)', border: '1px solid rgba(255,255,255,0.16)', backdropFilter: 'blur(6px)', color: '#fff' };
 
   return (
     <div ref={containerRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#0b0a14', touchAction: 'none' }}>
@@ -249,27 +310,29 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
           orthographic
           shadows
           dpr={[1, 1.5]}
-          camera={{ position: [18, 15.5, 18], zoom: 30, near: -80, far: 260 }}
+          camera={{ position: [18, 15.5, 18], zoom: 30, near: -120, far: 320 }}
           gl={{ antialias: true }}
           style={{ position: 'absolute', inset: 0 }}
         >
           <color attach="background" args={['#0b0a14']} />
           <ViewContext.Provider value={viewRef}>
-            <Rig viewRef={viewRef} dragLockRef={dragLockRef} />
+            <Rig viewRef={viewRef} dragLockRef={dragLockRef} onFocusChange={setFocus} />
             <MirrorRoot>
-              <GamifyScene />
+              <GamifyScene onGoToRoom={goThroughDoor} />
               {userList.map(user => {
                 const pos = avatarPositions?.[user.socketId] || DEFAULT_SPAWN;
+                const own = user.socketId === mySocketId;
                 return (
                   <Avatar3D
                     key={user.socketId}
                     username={user.username}
                     avatarPath={knownAvatars?.[user.username] || user.avatarPath}
                     isHost={user.isHost || user.socketId === hostId}
-                    isOwn={user.socketId === mySocketId}
+                    isOwn={own}
                     x={pos.x}
                     y={pos.y}
-                    onMove={user.socketId === mySocketId ? onMove : undefined}
+                    onMove={own ? handleMove : undefined}
+                    onDrop={own ? handleDrop : undefined}
                     dragLockRef={dragLockRef}
                   />
                 );
@@ -280,9 +343,38 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         </Canvas>
       </WebGLBoundary>
 
+      {/* current room + hint */}
+      <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
+        <div style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>{FLOORPLAN_ZONES[focus].label}</div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', textShadow: '0 1px 3px #000' }}>Drag to look around, tap a door to go through</div>
+      </div>
+
+      {/* room map */}
+      <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 60, display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 4, padding: 6, borderRadius: 12, ...glass }}>
+        {ZONE_LIST.slice().sort((a, b) => a.row - b.row || a.col - b.col).map(z => (
+          <button
+            key={z.id}
+            onClick={() => focusRoom(z.id)}
+            title={`Go to ${z.label}`}
+            style={{
+              minWidth: 62, padding: '6px 6px 5px', borderRadius: 8, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#fff',
+              background: z.id === focus ? 'rgba(139,92,255,0.8)' : 'rgba(255,255,255,0.07)',
+              border: z.id === focus ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.12)',
+            }}
+          >
+            {z.label}
+            {counts[z.id] > 0 && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 4, fontSize: 10, color: '#a7f3d0' }}>
+                <Users size={9} />{counts[z.id]}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       <div style={{ position: 'absolute', bottom: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 60 }}>
         <button onClick={toggleFlip} title="Flip house left/right" style={{ ...btn, background: flipped ? 'rgba(139,92,255,0.75)' : btn.background }}><FlipHorizontal2 size={16} /></button>
-        <button onClick={resetView} title="Reset view" style={btn}><Maximize2 size={16} /></button>
+        <button onClick={resetView} title="Back to my room" style={btn}><Maximize2 size={16} /></button>
         <button onClick={() => zoomBy(1.3)} title="Zoom in" style={btn}><ZoomIn size={16} /></button>
         <button onClick={() => zoomBy(1 / 1.3)} title="Zoom out" style={btn}><ZoomOut size={16} /></button>
       </div>

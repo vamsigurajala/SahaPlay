@@ -18,7 +18,7 @@ const BOUND_Z = WORLD_D / 2 - 0.7;
 // inside the (possibly mirrored) scene root, so positions here are always in
 // the un-mirrored local space — a flipped view only changes how they render,
 // never what's sent over the socket (everyone shares the same virtual coords).
-export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, onMove, dragLockRef }) {
+export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, onMove, onDrop, dragLockRef }) {
   const group = useRef();
   const view = useContext(ViewContext);
   const { camera, gl } = useThree();
@@ -35,11 +35,19 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
     if (!draggingRef.current) targetRef.current = toWorld(x, y);
   }, [x, y]);
 
-  useFrame(() => {
+  useFrame((_, dt) => {
     const g = group.current;
     if (!g) return;
+    // A door click asks this (own) avatar to walk through to the next room.
+    const walk = isOwn ? view.current.walk : null;
+    if (walk && !draggingRef.current) {
+      view.current.walk = null;
+      targetRef.current = { x: walk.x, z: walk.z };
+      emit(walk.x, walk.z);
+    }
     const t = targetRef.current;
-    const k = draggingRef.current ? 0.55 : 0.2;
+    // Frame-rate independent glide; a bit slower while the camera is gliding through a door so the walk is visible.
+    const k = 1 - Math.exp(-dt * (draggingRef.current ? 48 : view.current.glide ? 6 : 13.4));
     g.position.x += (t.x - g.position.x) * k;
     g.position.z += (t.z - g.position.z) * k;
   });
@@ -95,6 +103,10 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
       draggingRef.current = false;
       if (dragLockRef) dragLockRef.current = false;
       if (pendingRef.current) { emit(pendingRef.current.wx, pendingRef.current.wz); pendingRef.current = null; }
+      if (onDrop) {
+        const v = toVirtual(targetRef.current.x, targetRef.current.z);
+        onDrop(zoneForPoint(clamp(v.x, 0, FLOORPLAN_WIDTH), clamp(v.y, 0, FLOORPLAN_HEIGHT)));
+      }
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
