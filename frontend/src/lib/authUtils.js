@@ -33,6 +33,7 @@ export const clearUserSession = () => {
         'blocking_me_',
         'pinned_room_chats_',
         'wt_pk_',
+        'wt_my_pubkey_cache_',
         'e2e_keypair_',
         'sp_recent_msgs_',
         'room_history_cache_'

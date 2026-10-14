@@ -245,6 +245,11 @@ describe('CryptoContext cold-start device unlock (Android) — restore, never re
     expect(nativeUnlock).toHaveBeenCalledTimes(1);
     expect(nativeUnlock).toHaveBeenCalledWith({ accountId: 42, assertion: 'fresh-assertion' });
     expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('save-public-key'), expect.anything());
+    // Caches the just-verified public key for the optimistic fast path on
+    // the NEXT launch (see the describe block below) — the whole point of
+    // this cache is to be populated by an ordinary successful restore like
+    // this one, with no separate opt-in step.
+    expect(localStorage.getItem('wt_my_pubkey_cache_testuser')).toBe(REAL_PUB_B64);
   });
 
   test('browser (no window.Capacitor): device unlock is never attempted, existing passphrase-prompt behavior unchanged', async () => {
@@ -448,6 +453,90 @@ describe('CryptoContext cold-start device unlock (Android) — restore, never re
     // my-keys (1) + 3 assertion attempts = 4 total fetch calls
     const assertionCalls = fetchMock.mock.calls.filter(c => String(c[0]).includes('device-enrollment-assertion'));
     expect(assertionCalls.length).toBe(3);
+  });
+
+  // Optimistic restore: a public key cached from a previous successful
+  // launch (see the first success test above — it asserts this cache gets
+  // written) lets the native unlock attempt start immediately instead of
+  // waiting for the my-keys fetch to resolve first — the fix for "opens the
+  // app, waits a while, then finally asks for biometric."
+  test('cached public key matches the server: restores via the single optimistic attempt, native unlock called only once', async () => {
+    localStorage.setItem('wt_my_pubkey_cache_testuser', REAL_PUB_B64);
+    const nativeUnlock = vi.fn(async () => ({ secretKeyBase64: encodeBase64(REAL_KP.secretKey) }));
+    installNativePlugin({ unlockDeviceKey: nativeUnlock });
+
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
+    expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
+    // The whole point: an accurate cache means exactly one native prompt,
+    // not a wasted optimistic one followed by a second "real" one.
+    expect(nativeUnlock).toHaveBeenCalledTimes(1);
+  });
+
+  test('cached public key is STALE (account key rotated elsewhere): optimistic attempt is discarded, falls back to a fresh attempt against the real server key, never trusts the mismatched result', async () => {
+    const staleKp = nacl.box.keyPair(); // a different, no-longer-current identity
+    localStorage.setItem('wt_my_pubkey_cache_testuser', encodeBase64(staleKp.publicKey));
+    // First call (optimistic, against the stale cached key) returns the
+    // STALE secret key — correctly rejected since it won't match
+    // REAL_PUB_B64 once compared. Second call (the real, fresh-key attempt)
+    // returns the REAL secret key.
+    const nativeUnlock = vi.fn()
+      .mockResolvedValueOnce({ secretKeyBase64: encodeBase64(staleKp.secretKey) })
+      .mockResolvedValueOnce({ secretKeyBase64: encodeBase64(REAL_KP.secretKey) });
+    installNativePlugin({ unlockDeviceKey: nativeUnlock });
+
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
+    expect(screen.getByTestId('needs-reauth').textContent).toBe('false');
+    // Ends up with the REAL key, never the stale optimistic one, and the
+    // cache is corrected for the next launch.
+    expect(screen.getByTestId('public-key').textContent).toBe(REAL_PUB_B64);
+    expect(nativeUnlock).toHaveBeenCalledTimes(2);
+    expect(localStorage.getItem('wt_my_pubkey_cache_testuser')).toBe(REAL_PUB_B64);
+  });
+
+  test('no cache yet (first launch): behaves exactly as before — a single, non-optimistic attempt against the real server key', async () => {
+    // No wt_my_pubkey_cache_testuser seeded — beforeEach's localStorage.clear() already guarantees this.
+    const nativeUnlock = vi.fn(async () => ({ secretKeyBase64: encodeBase64(REAL_KP.secretKey) }));
+    installNativePlugin({ unlockDeviceKey: nativeUnlock });
+
+    const fetchMock = vi.fn(async (url) => {
+      const my = myKeysHandler(url);
+      if (my) return my;
+      if (String(url).includes('/api/auth/device-enrollment-assertion')) {
+        return { ok: true, json: async () => ({ assertion: 'fresh-assertion' }) };
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<CryptoProvider><Probe /></CryptoProvider>);
+
+    await waitFor(() => expect(screen.getByTestId('keypair-state').textContent).toBe('present'), { timeout: 5000 });
+    expect(nativeUnlock).toHaveBeenCalledTimes(1);
   });
 });
 

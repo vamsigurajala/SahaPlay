@@ -339,6 +339,34 @@ export function CryptoProvider({ children }) {
         const secretKey = strictModeActive ? null : await loadKeyFromSession();
         const sessionKp = (secretKey && secretKey.length === 32) ? nacl.box.keyPair.fromSecretKey(secretKey) : null;
 
+        // Speeds up the native biometric/Windows Hello prompt on a cold
+        // launch. Before this, that prompt only appeared after the my-keys
+        // fetch below finished — visible as DeviceUnlockOverlay's
+        // "Unlocking…" for however long that network round-trip took,
+        // reported live as "opens the app, waits a while, then finally asks
+        // for biometric." The server's public key for an account is for all
+        // practical purposes permanent (only a password reset done without
+        // a recovery key, or an explicit re-setup, ever changes it), so a
+        // copy cached from the last successful check here is safe to START
+        // the (possibly native-prompting) restore attempt against right now,
+        // in parallel with the fetch — PROVIDED its result is only ever
+        // trusted once re-verified against that fetch's actual answer
+        // (see usedVerifiedOptimisticAttempt below), exactly the same
+        // "never trust a cached key without checking the server" rule the
+        // sessionKp branch below already follows. Only kicks in once
+        // there's already been one successful launch to populate the cache;
+        // a brand-new login, or any launch after the cache is cleared (see
+        // clearUserSession), behaves exactly as before this change — no
+        // regression, pure upside once warmed.
+        const myPubKeyCacheKey = `wt_my_pubkey_cache_${(localStorage.getItem('watch_username') || '').toLowerCase()}`;
+        let cachedPublicKeyB64 = null;
+        if (!sessionKp) {
+          try { cachedPublicKeyB64 = localStorage.getItem(myPubKeyCacheKey) || null; } catch {}
+        }
+        const optimisticRestorePromise = cachedPublicKeyB64
+          ? tryRestoreViaDeviceUnlock(cachedPublicKeyB64, () => cancelled)
+          : null;
+
         // Fetch the server's current key status up front, whether or not a
         // session key was found — a key cached in THIS tab's sessionStorage
         // from before this account's server-side identity was rotated
@@ -365,6 +393,9 @@ export function CryptoProvider({ children }) {
               serverHasExistingKey = !!(data.publicKey && data.encryptedPrivateKey);
               serverPublicKeyB64 = data.publicKey || null;
               serverCheckOk = true;
+              // Feeds the optimistic fast-path above on the NEXT launch —
+              // see its own comment for why this is safe to cache.
+              if (serverPublicKeyB64) { try { localStorage.setItem(myPubKeyCacheKey, serverPublicKeyB64); } catch {} }
             }
           } catch (e) { console.warn('[CryptoContext] my-keys check failed:', e); }
         }
@@ -429,7 +460,29 @@ export function CryptoProvider({ children }) {
           // against and returns null immediately anyway (see its own guard),
           // so this always falls through to the exact same
           // needsReauth-on-network-failure behavior as before this stage.
-          const restoredKp = serverHasExistingKey ? await tryRestoreViaDeviceUnlock(serverPublicKeyB64, () => cancelled) : null;
+          //
+          // If the optimistic attempt above already ran, only honor its
+          // result when the cached key it checked against turned out to
+          // match what the server JUST confirmed (serverCheckOk true and
+          // equal) — otherwise it verified a restored key against the wrong
+          // (or an unconfirmed) identity and must be discarded exactly like
+          // a stale sessionKp above, falling through to a fresh attempt
+          // against the now-known-correct key. A cache miss/mismatch/failed
+          // fetch all take this same fresh-attempt path, identical to
+          // before the optimistic path existed.
+          let restoredKp = null;
+          let optimisticAttemptWasDefinitive = false;
+          if (optimisticRestorePromise) {
+            const optimisticKp = await optimisticRestorePromise;
+            if (cancelled) return;
+            if (serverCheckOk && cachedPublicKeyB64 === serverPublicKeyB64) {
+              restoredKp = optimisticKp;
+              optimisticAttemptWasDefinitive = true;
+            }
+          }
+          if (!optimisticAttemptWasDefinitive && serverHasExistingKey) {
+            restoredKp = await tryRestoreViaDeviceUnlock(serverPublicKeyB64, () => cancelled);
+          }
           if (cancelled) return; // stopped caring while the (possibly retried) restore attempt was in flight
           if (restoredKp) {
             await saveKeyToSession(restoredKp.secretKey);
