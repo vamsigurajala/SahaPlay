@@ -736,12 +736,19 @@ const Navbar = ({ showBackButton = false }) => {
                   </div>
                 )}
 
-                {isLoggedIn && (
+                {isLoggedIn && (!standalone || !showBackButton) && (
                   /* Notifications — the only icon kept in the standalone top
                      bar (item 2 of the mobile PWA UI pass); Chat/Search/
                      Fullscreen/hamburger are all redundant there since the
                      bottom nav (or, for fullscreen, the OS shell itself)
-                     already covers them. */
+                     already covers them. Exception: a showBackButton page
+                     (e.g. ChatSettings.jsx) hides this too in standalone,
+                     matching Profile.jsx/AppSettings.jsx's own hand-rolled
+                     nav, which hides its whole icon row (bell included) in
+                     standalone — there's no bottom nav "already covering"
+                     notifications on those settings sub-pages the way there
+                     is on Home, so keeping the bell was just an inconsistent
+                     leftover there, not a deliberate choice. */
                   <div style={{ position: 'relative' }}>
                     <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); closeSearch(); setShowRecentChats(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
                       <Bell size={18} />
@@ -948,7 +955,11 @@ const Navbar = ({ showBackButton = false }) => {
                       </button>
                     </div>
       
-                    {/* Notifications */}
+                    {/* Notifications — hidden in standalone on a
+                        showBackButton page, matching Profile.jsx/
+                        AppSettings.jsx's own hand-rolled nav (see the mobile
+                        layout's identical condition above for why). */}
+                    {(!standalone || !showBackButton) && (
                     <div style={{ position: 'relative' }}>
                       <button title={t('notifications', 'Notifications')} onClick={() => { setShowNotifications(!showNotifications); closeSearch(); setShowRecentChats(false); setShowUserMenu(false); }} className={`nav-icon-btn${showNotifications ? ' active' : ''}`}>
                         <Bell size={18} />
@@ -1007,7 +1018,8 @@ const Navbar = ({ showBackButton = false }) => {
                         </div>
                       )}
                     </div>
-      
+                    )}
+
                     {/* App Fullscreen */}
                     <button
                       className={`nav-icon-btn${isAppFullscreen ? ' active' : ''}`}

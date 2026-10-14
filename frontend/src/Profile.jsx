@@ -1195,7 +1195,7 @@ const Profile = () => {
   return (
     <>
       <Toaster position="top-center" containerStyle={{ zIndex: 100001 }} />
-    <div style={{ minHeight: '100vh', filter: showReportUserModal ? 'blur(7px) brightness(0.6)' : 'none', transition: 'filter 0.3s ease', pointerEvents: showReportUserModal ? 'none' : 'auto' }}>
+    <div style={{ minHeight: '100vh', paddingBottom: 'calc(40px + var(--sp-nav-bar-inset, 0px))', filter: showReportUserModal ? 'blur(7px) brightness(0.6)' : 'none', transition: 'filter 0.3s ease', pointerEvents: showReportUserModal ? 'none' : 'auto' }}>
       <style>{`
         .profile-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 20px; padding: 24px 28px; margin-bottom: 24px; transition: all 0.2s; }
         .profile-card:hover { border-color: rgba(255,255,255,0.15); }

@@ -41,7 +41,7 @@ export default function ChatSettings() {
     // it and hiding the current accent color's tint — reported live as this
     // page not re-coloring along with every other page when the accent theme
     // changes.
-    <div style={{ minHeight: '100vh', paddingBottom: 60 }}>
+    <div style={{ minHeight: '100vh', paddingBottom: 'calc(60px + var(--sp-nav-bar-inset, 0px))' }}>
       <Navbar showBackButton />
       <div style={{ maxWidth: 620, margin: '0 auto', padding: '20px 20px 0' }}>
         <h2 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 24px', color: 'var(--text-primary)' }}>{t('chatsSettingsTitle', 'Chats')}</h2>

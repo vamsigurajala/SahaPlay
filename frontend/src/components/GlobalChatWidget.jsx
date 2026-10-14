@@ -8695,7 +8695,12 @@ const GlobalChatWidget = React.memo(forwardRef(({
           )}
 
         {/* Body */}
-        <div ref={ptr.containerRef} className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        {/* paddingBottom reserves real space for a 3-button nav-bar device
+            (--sp-nav-bar-inset, 0 on gesture-nav — see nativeShell.js) so the
+            last conversation row can scroll clear of those buttons instead
+            of ending up rendered underneath them, same fix already applied
+            to the composer bars below. */}
+        <div ref={ptr.containerRef} className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column', position: 'relative', paddingBottom: 'var(--sp-nav-bar-inset, 0px)' }}>
           {/* Locked chats mode banner */}
           {!loading && view === 'list' && !searchQuery && showLockedChats && (
             <div className="vault-header" style={{

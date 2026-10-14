@@ -323,7 +323,18 @@ export default function BottomNav() {
           position: fixed; left: 0; right: 0; bottom: 0; z-index: 100001;
           display: flex; align-items: stretch;
           background: #111114; border-top: 1px solid rgba(255,255,255,0.08);
-          padding-bottom: env(safe-area-inset-bottom, 0px);
+          /* env(safe-area-inset-bottom) reports 0 in this Capacitor Android
+             WebView regardless of viewport-fit=cover (same broken env()
+             family documented on initNativeStatusBarInset/
+             initNativeNavBarInset in nativeShell.js) — on a 3-button nav-bar
+             device this bar's own intrinsic height happened to clear the
+             button row by coincidence on some devices, but not guaranteed on
+             every OEM's button-row height. --sp-nav-bar-inset is the real,
+             measured value (nativeShell.js's initNativeNavBarInset, already
+             used by the chat composer bars for the same reason) and is 0 on
+             a gesture-nav device, so this is strictly more correct with no
+             behavior change there. */
+          padding-bottom: var(--sp-nav-bar-inset, 0px);
         }
         html[data-theme='light'] .bottom-nav-bar {
           background: #ffffff; border-top: 1px solid rgba(0,0,0,0.08);
