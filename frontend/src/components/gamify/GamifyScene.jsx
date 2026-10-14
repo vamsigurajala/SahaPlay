@@ -1,9 +1,9 @@
-import { useMemo, useRef, useContext } from 'react';
+import { useMemo, useRef, useContext, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { DoorOpen } from 'lucide-react';
-import { Box, Neon, ScaledHtml, DoorFrame, ViewContext } from './parts';
-import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden } from './placedRooms';
+import { DoorOpen, LogOut, Shirt } from 'lucide-react';
+import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip } from './parts';
+import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden, Terrace, FrontYard, Courtyard } from './placedRooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { WORLD_W, WORLD_D, CELL_W, CELL_D, COLS, ROWS, FLOORPLAN_ZONES, DOORWAYS, DOOR_LINKS } from '../../data/gamifyZones';
 
@@ -105,7 +105,7 @@ function Divider({ axis, at, from, to, gaps = [], color, tallForAt }) {
 
 // Directional light that follows the room being viewed, so the shadow map covers
 // only what's on screen (sharper shadows than one map stretched over the house).
-function FollowLight() {
+function FollowLight({ shadows, size }) {
   const view = useContext(ViewContext);
   const light = useRef();
   const target = useMemo(() => new THREE.Object3D(), []);
@@ -122,7 +122,7 @@ function FollowLight() {
   });
   return (
     <>
-      <directionalLight ref={light} target={target} intensity={1.5} color="#ffe7ff" castShadow shadow-mapSize={[2048, 2048]}
+      <directionalLight ref={light} target={target} intensity={1.5} color="#ffe7ff" castShadow={shadows} shadow-mapSize={[size, size]}
         shadow-camera-left={-24} shadow-camera-right={24} shadow-camera-top={24} shadow-camera-bottom={-24} shadow-camera-near={1} shadow-camera-far={90} shadow-bias={-0.0004} />
       <primitive object={target} />
     </>
@@ -179,7 +179,39 @@ function DoorChip({ link, onGo }) {
   );
 }
 
-export default function GamifyScene({ onGoToRoom }) {
+// Bedroom: one tap swings every wardrobe open (or shut) — or tap a wardrobe itself.
+const WARDROBE_IDS = ['wd-a', 'wd-b', 'wd-c'];
+function WardrobeChip() {
+  const view = useContext(ViewContext);
+  const [, force] = useState(0);
+  const z = FLOORPLAN_ZONES.bedroom.world;
+  const open = WARDROBE_IDS.some(id => view.current.open?.[id]);
+  const toggle = () => {
+    const o = view.current.open || (view.current.open = {});
+    const next = !WARDROBE_IDS.some(id => o[id]);
+    WARDROBE_IDS.forEach(id => { o[id] = next; });
+    force(n => n + 1);
+  };
+  return (
+    <HotChip position={[z.x0 + 11.8, 2.2, z.z0 + 2.6]} zone="bedroom" label={open ? 'Close wardrobes' : 'Open wardrobes'} icon={<Shirt size={12} />} onClick={toggle} />
+  );
+}
+
+// The front gate: leaves the house to visit another one.
+function ExitChip({ onExit }) {
+  const gate = FLOORPLAN_ZONES.frontyard;
+  return (
+    <HotChip
+      position={[gate.center.x, 2.6, gate.world.z1 - 2.6]}
+      zone="frontyard"
+      label="Leave house"
+      icon={<LogOut size={13} />}
+      onClick={() => onExit && onExit()}
+    />
+  );
+}
+
+export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse }) {
   const textures = useMemo(() => ({
     hall: canvasTexture(512, (g, n) => {
       g.fillStyle = '#3b2a66'; g.fillRect(0, 0, n, n);
@@ -197,14 +229,28 @@ export default function GamifyScene({ onGoToRoom }) {
     bedroom: canvasTexture(128, carpet('#5a3a86'), [7, 6.4]),
     kitchen: canvasTexture(256, (g, n) => {
       const t = n / 4;
-      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#bdb2e6' : '#d9d2f2'; g.fillRect(i * t, j * t, t, t); }
-      g.strokeStyle = 'rgba(60,40,110,0.35)'; g.lineWidth = 2;
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#e0b88a' : '#f1e0c0'; g.fillRect(i * t, j * t, t, t); }
+      g.strokeStyle = 'rgba(90,50,20,0.35)'; g.lineWidth = 2;
       for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * t, 0); g.lineTo(i * t, n); g.stroke(); g.beginPath(); g.moveTo(0, i * t); g.lineTo(n, i * t); g.stroke(); }
     }, [5.4, 4.8]),
     gameroom: canvasTexture(256, (g, n) => {
       g.fillStyle = '#17133a'; g.fillRect(0, 0, n, n);
       g.strokeStyle = 'rgba(62,232,255,0.28)'; g.lineWidth = 2;
       for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * n / 4, 0); g.lineTo(i * n / 4, n); g.stroke(); g.beginPath(); g.moveTo(0, i * n / 4); g.lineTo(n, i * n / 4); g.stroke(); }
+    }, [5.4, 4.8]),
+    terrace: canvasTexture(256, (g, n) => {
+      g.fillStyle = '#9a7a56'; g.fillRect(0, 0, n, n);
+      for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(${i % 2 ? '255,255,255,0.06' : '0,0,0,0.12'})`; g.fillRect(0, i * (n / 6), n, n / 6 - 2); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, i * (n / 6) + n / 6 - 2, n, 2); }
+    }, [5.4, 4.8]),
+    frontyard: canvasTexture(256, (g, n) => {
+      g.fillStyle = '#6a687a'; g.fillRect(0, 0, n, n);
+      const t = n / 4;
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#757386' : '#615f72'; g.fillRect(i * t + 2, j * t + 2, t - 4, t - 4); }
+    }, [5.4, 4.8]),
+    courtyard: canvasTexture(256, (g, n) => {
+      g.fillStyle = '#c98a5a'; g.fillRect(0, 0, n, n);
+      const t = n / 4;
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#d49a6a' : '#be7d4c'; g.fillRect(i * t + 2, j * t + 2, t - 4, t - 4); }
     }, [5.4, 4.8]),
     lawn: canvasTexture(256, (g, n) => {
       g.fillStyle = '#2b7a47'; g.fillRect(0, 0, n, n);
@@ -218,7 +264,7 @@ export default function GamifyScene({ onGoToRoom }) {
   const halfD = WORLD_D / 2;
   const roomLights = [
     ['study', NEON_CYAN, 3.4, 44], ['hall', NEON_PINK, 3.6, 60], ['bedroom', NEON_VIOLET, 3.4, 48],
-    ['kitchen', '#ffd9a0', 3.4, 40], ['gameroom', NEON_CYAN, 3.2, 52], ['lawn', NEON_AMBER, 2.2, 30],
+    ['kitchen', '#ffd9a0', 3.4, 40], ['gameroom', NEON_CYAN, 3.2, 52], ['lawn', NEON_AMBER, 2.2, 30], ['terrace', '#ffb98a', 3.0, 34], ['frontyard', '#ffe0a0', 3.4, 36], ['courtyard', NEON_AMBER, 2.6, 38],
   ];
   const vLines = [];
   for (let c = 1; c < COLS; c++) vLines.push(-halfW + c * CELL_W);
@@ -230,7 +276,7 @@ export default function GamifyScene({ onGoToRoom }) {
       {/* ── Lighting ── */}
       <ambientLight intensity={0.75} color="#b7a4ff" />
       <hemisphereLight args={['#9c8cff', '#1a1030', 0.55]} />
-      <FollowLight />
+      <FollowLight shadows={!lowQ} size={coarse ? 1024 : 2048} />
       {roomLights.map(([id, color, y, intensity]) => {
         const z = FLOORPLAN_ZONES[id];
         return <pointLight key={id} position={[z.center.x, y, z.center.z]} color={color} intensity={intensity} distance={26} decay={2} />;
@@ -265,7 +311,7 @@ export default function GamifyScene({ onGoToRoom }) {
       {vLines.map((x, i) => (
         <Divider key={`v${x}`} axis="z" at={x} from={-halfD} to={halfD} color={DOOR_COLORS[i % 4]}
           gaps={DOORWAYS.filter(d => d.axis === 'v' && d.x === x).map(d => d.z)}
-          tallForAt={(m) => zoneAt(i + 1, m < 0 ? 0 : 1).id} />
+          tallForAt={(m) => zoneAt(i + 1, Math.min(ROWS - 1, Math.max(0, Math.floor((m + halfD) / CELL_D)))).id} />
       ))}
       {hLines.map((z, i) => (
         <Divider key={`h${z}`} axis="x" at={z} from={-halfW} to={halfW} color={DOOR_COLORS[(i + 2) % 4]}
@@ -283,10 +329,15 @@ export default function GamifyScene({ onGoToRoom }) {
       <Kitchen />
       <GameRoom />
       <Garden />
+      <Terrace />
+      <FrontYard />
+      <Courtyard />
 
       {/* ── Room signs + door hotspots ── */}
-      {zones.map(z => <RoomSign key={z.id} z={z} />)}
-      {DOOR_LINKS.map((l, i) => <DoorChip key={i} link={l} onGo={onGoToRoom} />)}
+      {zoomedOut && zones.map(z => <RoomSign key={z.id} z={z} />)}
+      {focus === 'frontyard' && <ExitChip onExit={onExitHouse} />}
+      {focus === 'bedroom' && <WardrobeChip />}
+      {DOOR_LINKS.filter(l => l.from === focus).map(l => <DoorChip key={`${l.from}-${l.to}`} link={l} onGo={onGoToRoom} />)}
     </group>
   );
 }

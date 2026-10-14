@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useMemo, useState, useContext } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { PerformanceMonitor } from '@react-three/drei';
 import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users } from 'lucide-react';
 import GamifyScene, { WALL_H } from './gamify/GamifyScene';
 import Avatar3D from './gamify/Avatar3D';
@@ -38,7 +39,8 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // a fixed linear step). Pan targets ease the same way. Everything is read from
 // refs inside useFrame, never React state, so panning/zooming never re-renders
 // Room.jsx.
-function Rig({ viewRef, dragLockRef, onFocusChange }) {
+function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onReady }) {
+  const readyRef = useRef(false);
   const { camera, gl, size } = useThree();
   const target = useMemo(() => new THREE.Vector3(), []);
 
@@ -46,12 +48,15 @@ function Rig({ viewRef, dragLockRef, onFocusChange }) {
     const el = gl.domElement;
     const pts = new Map();
     let last = null;
+    let lastT = 0;
+    let vel = { x: 0, z: 0 }; // smoothed world-units/sec, for the release fling
     let pinch = null;
     const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
     const down = (e) => {
       if (dragLockRef.current) return;
       viewRef.current.glide = false; // grabbing the view cancels a door glide
+      viewRef.current.vel = null; // ...and any fling in progress
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       el.setPointerCapture?.(e.pointerId);
       if (pts.size === 2) {
@@ -60,6 +65,9 @@ function Rig({ viewRef, dragLockRef, onFocusChange }) {
         last = null;
       } else if (pts.size === 1) {
         last = { x: e.clientX, y: e.clientY };
+        lastT = e.timeStamp;
+        vel = { x: 0, z: 0 };
+        viewRef.current.dragging = true;
       }
     };
     const move = (e) => {
@@ -74,7 +82,9 @@ function Rig({ viewRef, dragLockRef, onFocusChange }) {
       if (!last) return;
       const dx = e.clientX - last.x;
       const dy = e.clientY - last.y;
+      const dtMs = Math.max(1, e.timeStamp - lastT);
       last = { x: e.clientX, y: e.clientY };
+      lastT = e.timeStamp;
       const z = camera.zoom || 1;
       // Ground-plane axes of the isometric view: screen-right and screen-up
       // (away from the camera). Vertical drags are foreshortened by the
@@ -82,13 +92,25 @@ function Rig({ viewRef, dragLockRef, onFocusChange }) {
       const k = 1 / Math.SQRT2;
       const up = dy / (z * SIN_ELEV);
       const lim = panLimits(v.flip);
-      v.tx = clamp(v.tx + (-dx / z) * k - up * k, -lim.x, lim.x);
-      v.tz = clamp(v.tz + (dx / z) * k - up * k, -lim.z, lim.z);
+      const dwx = (-dx / z) * k - up * k;
+      const dwz = (dx / z) * k - up * k;
+      v.tx = clamp(v.tx + dwx, -lim.x, lim.x);
+      v.tz = clamp(v.tz + dwz, -lim.z, lim.z);
+      // blend into the running velocity estimate (units/sec)
+      const a = 0.4;
+      vel = { x: vel.x * (1 - a) + (dwx / dtMs) * 1000 * a, z: vel.z * (1 - a) + (dwz / dtMs) * 1000 * a };
     };
     const up = (e) => {
+      const wasDragging = pts.size === 1 && last;
       pts.delete(e.pointerId);
       if (pts.size < 2) pinch = null;
       last = pts.size === 1 ? { ...[...pts.values()][0] } : null;
+      if (pts.size === 0) {
+        const v = viewRef.current;
+        v.dragging = false;
+        // Fling: keep coasting in the release direction if the finger was still moving.
+        if (wasDragging && e.type === 'pointerup' && e.timeStamp - lastT < 80 && Math.hypot(vel.x, vel.z) > 1.5) v.vel = { x: vel.x, z: vel.z };
+      }
     };
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
@@ -105,11 +127,25 @@ function Rig({ viewRef, dragLockRef, onFocusChange }) {
   useFrame((_, dt) => {
     const v = viewRef.current;
     const kz = 1 - Math.exp(-dt * 11);
-    // Dragging tracks the finger closely; a door glide eases slowly between rooms.
-    const kp = 1 - Math.exp(-dt * (v.glide ? 4.2 : 14));
     v.cur += (v.zoom - v.cur) * kz;
-    v.px += (v.tx - v.px) * kp;
-    v.pz += (v.tz - v.pz) * kp;
+    if (v.vel) {
+      // fling: coast with friction, stopping at the pan limits
+      const lim = panLimits(v.flip);
+      v.tx = clamp(v.tx + v.vel.x * dt, -lim.x, lim.x);
+      v.tz = clamp(v.tz + v.vel.z * dt, -lim.z, lim.z);
+      const f = Math.exp(-dt * 3.2);
+      v.vel.x *= f; v.vel.z *= f;
+      if (Math.hypot(v.vel.x, v.vel.z) < 0.4) v.vel = null;
+    }
+    if (v.dragging || v.vel) {
+      // the view sticks to the finger 1:1 while dragging (no easing lag)
+      v.px = v.tx; v.pz = v.tz;
+    } else {
+      // a door glide eases slowly between rooms; everything else settles quickly
+      const kp = 1 - Math.exp(-dt * (v.glide ? 4.2 : 14));
+      v.px += (v.tx - v.px) * kp;
+      v.pz += (v.tz - v.pz) * kp;
+    }
     if (v.glide && Math.abs(v.tx - v.px) + Math.abs(v.tz - v.pz) < 0.05) v.glide = false;
     camera.zoom = Math.min(size.width / (FIT_W * 0.95), size.height / (FIT_H * 0.9)) * v.cur;
     target.set(v.px, TARGET_Y, v.pz);
@@ -117,6 +153,8 @@ function Rig({ viewRef, dragLockRef, onFocusChange }) {
     camera.lookAt(target);
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld();
+
+    if (!readyRef.current) { readyRef.current = true; onReady && onReady(); }
 
     // Which room is the view centred on? (local, un-mirrored coordinates)
     const lx = v.flip ? v.pz : v.px;
@@ -127,6 +165,8 @@ function Rig({ viewRef, dragLockRef, onFocusChange }) {
       const d = (z.center.x - lx) ** 2 + (z.center.z - lz) ** 2;
       if (d < bestD) { bestD = d; best = z.id; }
     }
+    const out = v.cur < 0.8;
+    if (out !== v.out) { v.out = out; onOutChange && onOutChange(out); }
     if (best !== v.focus) {
       v.focus = best;
       onFocusChange && onFocusChange(best);
@@ -236,18 +276,28 @@ const roomCenterTarget = (id, flip) => {
 // Gamify Mode is on (loaded lazily — three.js is the heaviest dependency in
 // the app and only matters to people who turn this on). One room fills the
 // screen at a time; drag to roam to the next, or use a door / the room map.
-export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions, knownAvatars, hostId, onMove, tvElementRef, onTvReady }) {
+export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions, knownAvatars, hostId, onMove, onExitHouse, tvElementRef, onTvReady }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
   const myZoneRef = useRef(avatarPositions?.[mySocketId]?.zone || DEFAULT_SPAWN.zone);
   if (!viewRef.current) {
     const flip = readFlip();
     const t = roomCenterTarget(myZoneRef.current, flip);
-    viewRef.current = { zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, flip, focus: myZoneRef.current, glide: false, walk: null };
+    viewRef.current = { zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, flip, focus: myZoneRef.current, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
   }
   const dragLockRef = useRef(false);
   const [flipped, setFlipped] = useState(() => viewRef.current.flip);
   const [focus, setFocus] = useState(() => viewRef.current.focus);
+  const [zoomedOut, setZoomedOut] = useState(false);
+  // drei <Html> overlays (avatars, door buttons, signs) must not mount until the
+  // canvas has rendered its first frame: mounted earlier, their DOM parent is
+  // still changing, and the resulting unmount/remount race leaves some of them
+  // missing for good.
+  const [ready, setReady] = useState(false);
+  // Phones/tablets: lighter render settings from the start, and PerformanceMonitor
+  // drops further (no shadows, 1x pixels) if the frame rate is still poor.
+  const coarse = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
+  const [lowQ, setLowQ] = useState(false);
 
   // Wheel zoom: multiplicative (each tick scales by a fixed ratio) so it feels
   // the same at any zoom level. Native non-passive listener — React's onWheel
@@ -308,18 +358,19 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       <WebGLBoundary>
         <Canvas
           orthographic
-          shadows
-          dpr={[1, 1.5]}
+          shadows={!lowQ}
+          dpr={lowQ ? 1 : [1, coarse ? 1.25 : 1.5]}
           camera={{ position: [18, 15.5, 18], zoom: 30, near: -120, far: 320 }}
           gl={{ antialias: true }}
           style={{ position: 'absolute', inset: 0 }}
         >
           <color attach="background" args={['#0b0a14']} />
           <ViewContext.Provider value={viewRef}>
-            <Rig viewRef={viewRef} dragLockRef={dragLockRef} onFocusChange={setFocus} />
+            <PerformanceMonitor onDecline={() => setLowQ(true)} flipflops={2} />
+            <Rig viewRef={viewRef} dragLockRef={dragLockRef} onFocusChange={setFocus} onOutChange={setZoomedOut} onReady={() => setReady(true)} />
             <MirrorRoot>
-              <GamifyScene onGoToRoom={goThroughDoor} />
-              {userList.map(user => {
+              <GamifyScene onGoToRoom={goThroughDoor} onExitHouse={onExitHouse} focus={ready ? focus : null} zoomedOut={ready && zoomedOut} lowQ={lowQ} coarse={coarse} />
+              {ready && userList.map(user => {
                 const pos = avatarPositions?.[user.socketId] || DEFAULT_SPAWN;
                 const own = user.socketId === mySocketId;
                 return (

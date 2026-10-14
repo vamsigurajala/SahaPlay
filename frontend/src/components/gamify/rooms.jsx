@@ -1,4 +1,4 @@
-import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Stool, Monitor, Bookshelf, Arcade, WallWindow, WallPanel } from './parts';
+import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Stool, Monitor, Bookshelf, Arcade, WallWindow, WallPanel, Wardrobe } from './parts';
 import { TV_LOCAL, TV_H, NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 
 const PI = Math.PI;
@@ -107,12 +107,8 @@ export function BedroomBase() {
       <TableLamp p={[7.3, 0.9, -9.3]} color="#ffb4e6" />
       <Box p={[13.1, 0.45, -9.3]} s={[0.95, 0.9, 0.95]} c="#2f2358" r={0.08} />
       <TableLamp p={[13.1, 0.9, -9.3]} color="#b4e0ff" />
-      {/* wardrobe */}
-      <Box p={[14.95, 1.75, -9.3]} s={[2.0, 3.5, 1.2]} c="#3a2d66" r={0.05} />
-      <Box p={[14.95, 1.75, -8.68]} s={[0.05, 3.2, 0.04]} c="#150f2b" shadow={false} />
-      <Box p={[14.5, 1.75, -8.68]} s={[0.07, 0.5, 0.05]} c="#d9c48a" shadow={false} />
-      <Box p={[15.4, 1.75, -8.68]} s={[0.07, 0.5, 0.05]} c="#d9c48a" shadow={false} />
-      <Neon p={[14.95, 3.58, -8.7]} s={[1.8, 0.04, 0.04]} color={NEON_VIOLET} halo={false} />
+      {/* wardrobe — tap to open */}
+      <Wardrobe p={[14.95, 0, -9.3]} id="wd-a" />
       {/* desk + laptop + chair */}
       <Box p={[13.8, 0.9, -2.2]} s={[2.4, 0.12, 1.2]} c="#3a2d66" r={0.04} />
       <Box p={[12.7, 0.45, -2.2]} s={[0.12, 0.9, 1.0]} c="#241c4a" />

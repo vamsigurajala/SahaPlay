@@ -1,6 +1,7 @@
 import { createContext, useContext, useRef } from 'react';
 import * as THREE from 'three';
-import { RoundedBox, Html } from '@react-three/drei';
+import { Html } from '@react-three/drei';
+import { RoundedBoxGeometry } from 'three-stdlib';
 import { useFrame } from '@react-three/fiber';
 import { NEON_CYAN } from './constants';
 
@@ -9,11 +10,30 @@ import { NEON_CYAN } from './constants';
 // triggers a React re-render while panning or zooming.
 export const ViewContext = createContext({ current: { cur: 1, flip: false } });
 
-export function Box({ p, s, c, r = 0, emissive, ei = 1, rough = 0.75, shadow = true, rot = 0, opacity }) {
+// Rounded boxes with the same size/radius share one geometry — the scene has
+// hundreds of them, and building each separately dominated load time and memory
+// on phones.
+const boxGeoCache = new Map();
+function roundedGeo(s, r) {
+  const key = `${s[0]}|${s[1]}|${s[2]}|${r}`;
+  let g = boxGeoCache.get(key);
+  if (!g) { g = new RoundedBoxGeometry(s[0], s[1], s[2], 3, r); boxGeoCache.set(key, g); }
+  return g;
+}
+const plainGeoCache = new Map();
+function plainGeo(s) {
+  const key = `${s[0]}|${s[1]}|${s[2]}`;
+  let g = plainGeoCache.get(key);
+  if (!g) { g = new THREE.BoxGeometry(s[0], s[1], s[2]); plainGeoCache.set(key, g); }
+  return g;
+}
+
+export function Box({ p, s, c, r = 0, emissive, ei = 1, rough = 0.75, shadow = true, rot = 0, opacity, metal = 0, onClick, onPointerOver, onPointerOut }) {
   const material = (
     <meshStandardMaterial
       color={c}
       roughness={rough}
+      metalness={metal}
       emissive={emissive || '#000'}
       emissiveIntensity={emissive ? ei : 0}
       transparent={opacity != null}
@@ -21,16 +41,9 @@ export function Box({ p, s, c, r = 0, emissive, ei = 1, rough = 0.75, shadow = t
       toneMapped={!emissive}
     />
   );
-  if (r > 0.001) {
-    return (
-      <RoundedBox args={s} radius={Math.min(r, Math.min(...s) / 2 - 0.001)} smoothness={3} position={p} rotation={[0, rot, 0]} castShadow={shadow} receiveShadow>
-        {material}
-      </RoundedBox>
-    );
-  }
+  const geometry = r > 0.001 ? roundedGeo(s, Math.min(r, Math.min(...s) / 2 - 0.001)) : plainGeo(s);
   return (
-    <mesh position={p} rotation={[0, rot, 0]} castShadow={shadow} receiveShadow>
-      <boxGeometry args={s} />
+    <mesh geometry={geometry} position={p} rotation={[0, rot, 0]} castShadow={shadow} receiveShadow onClick={onClick} onPointerOver={onPointerOver} onPointerOut={onPointerOut}>
       {material}
     </mesh>
   );
@@ -245,13 +258,85 @@ export function Sofa({ p, rot = 0, w = 3.6, c = '#5a4bb5', back = '#4a3c9e' }) {
   );
 }
 
-export function Wardrobe({ p, rot = 0, c = '#3a2d66', w = 2.0 }) {
+// Small pill that floats over an interactive prop; only visible/clickable while
+// `zone` is the room being viewed (so a house full of them stays uncluttered).
+export function HotChip({ position, zone, label, icon, onClick }) {
+  const view = useContext(ViewContext);
+  const ref = useRef();
+  useFrame(() => {
+    const el = ref.current;
+    if (!el) return;
+    const on = view.current.focus === zone;
+    el.style.opacity = on ? '1' : '0';
+    el.style.pointerEvents = on ? 'auto' : 'none';
+  });
+  return (
+    <ScaledHtml position={position} zIndexRange={[34, 0]}>
+      <div ref={ref} style={{ transition: 'opacity .25s' }}>
+        <button
+          className="stay-white"
+          onClick={onClick}
+          onPointerDown={e => e.stopPropagation()}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 99, cursor: 'pointer',
+            background: 'rgba(12,10,24,0.78)', color: '#fff', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap',
+            border: '1px solid rgba(255,255,255,0.35)', backdropFilter: 'blur(4px)',
+          }}
+        >{icon}{label}</button>
+      </div>
+    </ScaledHtml>
+  );
+}
+
+const CLOTHES = ['#ff6fb5', '#4fa8ff', '#ffcf5a', '#8dff9c', '#a56bff', '#ff8a5a', '#e8e1ff', '#3ee8ff', '#e0529f', '#f0b73a', '#5ad1ff'];
+
+// Tap (or use the chip) to swing the doors open and see what is inside: hanging
+// clothes on a rail, folded stacks and shoe boxes on shelves. Open/closed is a
+// local, cosmetic state — it is not synced between people.
+export function Wardrobe({ p, rot = 0, c = '#3a2d66', w = 2.0, id }) {
+  const view = useContext(ViewContext);
+  const left = useRef();
+  const right = useRef();
+  const angle = useRef(0);
+  useFrame((_, dt) => {
+    const want = view.current.open?.[id] ? 1.95 : 0;
+    if (Math.abs(want - angle.current) < 0.002) return;
+    angle.current += (want - angle.current) * (1 - Math.exp(-dt * 9));
+    if (left.current) left.current.rotation.y = -angle.current;
+    if (right.current) right.current.rotation.y = angle.current;
+  });
+  const toggle = (e) => { e?.stopPropagation?.(); const o = view.current.open || (view.current.open = {}); o[id] = !o[id]; };
+  const hover = (on) => () => { try { document.body.style.cursor = on ? 'pointer' : ''; } catch { /* non-browser */ } };
+  const n = Math.max(4, Math.floor((w - 0.4) / 0.2));
+  const door = (side) => (
+    <group ref={side < 0 ? left : right} position={[side * (w / 2 - 0.04), 0, 0.6]}>
+      <Box p={[-side * (w / 4 - 0.02), 1.75, 0]} s={[w / 2 - 0.04, 3.4, 0.07]} c={c} r={0.03} onClick={toggle} onPointerOver={hover(true)} onPointerOut={hover(false)} />
+      <Box p={[-side * (w / 2 - 0.2), 1.75, 0.06]} s={[0.06, 0.5, 0.05]} c="#d9c48a" shadow={false} />
+    </group>
+  );
   return (
     <group position={p} rotation={[0, rot, 0]}>
-      <Box p={[0, 1.75, 0]} s={[w, 3.5, 1.2]} c={c} r={0.05} />
-      <Box p={[0, 1.75, 0.62]} s={[0.05, 3.2, 0.04]} c="#150f2b" shadow={false} />
-      <Box p={[-0.45, 1.75, 0.63]} s={[0.07, 0.5, 0.05]} c="#d9c48a" shadow={false} />
-      <Box p={[0.45, 1.75, 0.63]} s={[0.07, 0.5, 0.05]} c="#d9c48a" shadow={false} />
+      <Box p={[0, 1.75, -0.55]} s={[w, 3.5, 0.1]} c="#241c4a" />
+      <Box p={[-w / 2 + 0.05, 1.75, 0]} s={[0.1, 3.5, 1.2]} c={c} />
+      <Box p={[w / 2 - 0.05, 1.75, 0]} s={[0.1, 3.5, 1.2]} c={c} />
+      <Box p={[0, 3.45, 0]} s={[w, 0.1, 1.2]} c={c} />
+      <Box p={[0, 0.05, 0]} s={[w, 0.1, 1.2]} c={c} />
+      {/* hanging rail + clothes */}
+      <mesh position={[0, 3.05, 0]} rotation={[0, 0, Math.PI / 2]}><cylinderGeometry args={[0.03, 0.03, w - 0.2, 8]} /><meshStandardMaterial color="#b8bccb" metalness={0.8} roughness={0.3} /></mesh>
+      {Array.from({ length: n }).map((_, i) => {
+        const h = 1.1 + ((i * 7) % 4) * 0.22;
+        return <Box key={i} p={[-w / 2 + 0.3 + i * ((w - 0.6) / (n - 1)), 3.0 - h / 2, 0]} s={[0.09, h, 0.55]} c={CLOTHES[i % CLOTHES.length]} shadow={false} />;
+      })}
+      {/* shelf: folded stacks; floor: shoe boxes */}
+      <Box p={[0, 1.3, 0]} s={[w - 0.2, 0.06, 1.1]} c={c} shadow={false} />
+      {[-0.55, -0.1, 0.35].map((x, i) => (
+        <group key={x}>
+          {[0, 1, 2, 3].slice(0, 2 + (i % 3)).map(k => <Box key={k} p={[x * (w / 2), 1.37 + k * 0.12 + 0.06, 0.05]} s={[0.55, 0.1, 0.7]} c={CLOTHES[(i * 3 + k) % CLOTHES.length]} r={0.02} shadow={false} />)}
+        </group>
+      ))}
+      {[-0.5, 0.05, 0.55].map((x, i) => <Box key={i} p={[x * (w / 2), 0.28, 0.05]} s={[0.5, 0.3, 0.8]} c={['#c9a77a', '#e8e1ff', '#7a8cff'][i]} r={0.03} shadow={false} />)}
+      {door(-1)}
+      {door(1)}
     </group>
   );
 }

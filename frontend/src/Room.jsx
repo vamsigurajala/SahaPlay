@@ -1418,6 +1418,8 @@ const Room = () => {
   // unresponsive/slow — the server's own gamify_mode_changed broadcast still
   // arrives moments later and simply confirms (or, in a genuine race,
   // corrects) it, same as every other client in the room.
+  const [showVisitHouse, setShowVisitHouse] = useState(false); // Gamify front gate: "visit another house" picker
+  const [visitCode, setVisitCode] = useState('');
   const [gamifyMode, setGamifyMode] = useState(false);
   const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
   // True once the 3D scene has projected the TV screen at least once. While
@@ -12329,6 +12331,7 @@ const Room = () => {
                 knownAvatars={knownAvatars}
                 hostId={hostId}
                 onMove={(x, y, zone) => socket?.emit('avatar_move', { roomId, x, y, zone })}
+                onExitHouse={() => setShowVisitHouse(true)}
                 tvElementRef={playerWrapRef}
                 onTvReady={setGamifyTvReady}
               />
@@ -16032,6 +16035,49 @@ const Room = () => {
           </div>
         </>
       )}
+
+      {/* Gamify front gate: visit another house (another room). A full page
+          load into the target room is deliberate — it gives a clean socket
+          join and works the same in the web app, PWA and Capacitor shell. */}
+      {showVisitHouse && (() => {
+        const goTo = (code) => {
+          const id = String(code || '').trim().toLowerCase().replace(/^.*\/room\//, '').replace(/[^a-z0-9_-]/g, '');
+          if (!id || id === roomId) return;
+          setShowVisitHouse(false);
+          socket?.emit('leave_room', { roomId });
+          window.location.assign(`/room/${id}`);
+        };
+        const others = pinnedRooms.filter(r => r !== roomId);
+        const card = { background: isLight ? '#ffffff' : '#1a1025', color: isLight ? '#1f2937' : '#fff', border: isLight ? '1px solid #e2e8f0' : '1px solid rgba(255,255,255,0.12)' };
+        return (
+          <div className="room-modals-overlay" onClick={() => setShowVisitHouse(false)} style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ ...card, width: '100%', maxWidth: 420, borderRadius: 20, padding: 20, boxShadow: '0 25px 50px rgba(0,0,0,0.5)', maxHeight: '85vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div style={{ fontSize: 17, fontWeight: 800 }}>Visit another house</div>
+                <button onClick={() => setShowVisitHouse(false)} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', display: 'flex' }}><X size={18} /></button>
+              </div>
+              <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 14 }}>Step out the front gate and walk into someone else's room.</div>
+              <form onSubmit={e => { e.preventDefault(); goTo(visitCode); }} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                <input value={visitCode} onChange={e => setVisitCode(e.target.value)} placeholder="Room code or link" style={{ flex: 1, minWidth: 0, padding: '10px 12px', borderRadius: 10, border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.18)', background: isLight ? '#f8fafc' : 'rgba(255,255,255,0.06)', color: 'inherit', fontSize: 14 }} />
+                <button type="submit" className="btn" style={{ padding: '10px 16px', borderRadius: 10, fontWeight: 700 }}>Go</button>
+              </form>
+              {others.length > 0 && (
+                <>
+                  <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Pinned rooms</div>
+                  {others.map(r => (
+                    <button key={r} onClick={() => goTo(r)} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 12px', marginBottom: 6, borderRadius: 10, cursor: 'pointer', textAlign: 'left', color: 'inherit', fontSize: 14, fontWeight: 600, background: isLight ? '#f1f5f9' : 'rgba(255,255,255,0.06)', border: 'none' }}>
+                      <Pin size={15} /> Room {r}
+                    </button>
+                  ))}
+                </>
+              )}
+              <button onClick={() => { setShowVisitHouse(false); navigate('/public'); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 8, padding: '11px 12px', borderRadius: 10, cursor: 'pointer', color: 'inherit', fontSize: 14, fontWeight: 700, background: 'transparent', border: isLight ? '1px solid #cbd5e1' : '1px solid rgba(255,255,255,0.2)' }}>
+                <Globe size={16} /> Browse public rooms
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Report Message Modal */}
       {reportMsgTarget && (

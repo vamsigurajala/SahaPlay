@@ -1,48 +1,12 @@
-import { useRef, useContext } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { ViewContext, Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, Bookshelf, Arcade, WallWindow, WallPanel, Rug, Table, Sofa, Wardrobe } from './parts';
-import { StudyBase, LivingRoomBase, BedroomBase, KitchenBase, GameRoomBase, GardenBase } from './rooms';
+import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, Bookshelf, Arcade, WallWindow, WallPanel, Rug, Table, Sofa, Wardrobe } from './parts';
+import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
-import { FLOORPLAN_ZONES } from '../../data/gamifyZones';
+import { Cell } from './cell';
+import { Clock, Telescope, Foosball, ClawMachine, Jhula } from './props';
+import IndianKitchen from './indianKitchen';
 
 const PI = Math.PI;
-
-// Each room in rooms.jsx is authored in its own original 10-12 unit frame; every
-// room now sits in a much larger CELL_W x CELL_D cell. The original furniture is
-// anchored to the cell's back-left corner (so everything that hugs the back/left
-// walls still does), and the rest of the cell — open floor for a crowd of
-// avatars plus extra furniture — is filled by each room's extras below, authored
-// in cell-local (u, v) = (x from the left edge, z from the back edge).
-const OLD_ORIGIN = {
-  study: [-16, -10], hall: [-6, -10], bedroom: [6, -10],
-  kitchen: [-16, 0], gameroom: [-6, 0], lawn: [6, 0],
-};
-
-// Furniture in rooms that are not on screen is hidden (the floors and walls
-// stay), so the room you are in reads as one clean space filling the view. Other
-// rooms come back as you drag towards them or zoom out.
-function Cell({ id, base, children }) {
-  const view = useContext(ViewContext);
-  const gate = useRef();
-  const z = FLOORPLAN_ZONES[id];
-  const w = z.world;
-  const [ox, oz] = OLD_ORIGIN[id];
-  useFrame(() => {
-    const g = gate.current;
-    if (!g) return;
-    const v = view.current;
-    const lx = v.flip ? v.pz : v.px;
-    const lz = v.flip ? v.px : v.pz;
-    const show = v.focus === id || v.cur < 0.8 || Math.hypot(lx - z.center.x, lz - z.center.z) < 14.5;
-    if (g.visible !== show) g.visible = show;
-  });
-  return (
-    <group ref={gate} position={[w.x0, 0, w.z0]}>
-      <group position={[-ox, 0, -oz]}>{base}</group>
-      {children}
-    </group>
-  );
-}
+export { Terrace, FrontYard, Courtyard } from './outdoorRooms';
 
 function DeskSet({ p, mon, chair }) {
   const [x, , z] = p;
@@ -86,6 +50,8 @@ export function Study() {
       <Plant p={[1.0, 0, 14.8]} scale={1.2} />
       <Plant p={[17.2, 0, 15.0]} scale={1.1} color="#34b36a" />
       <Plant p={[11.0, 0, 6.8]} scale={1.0} />
+      <Clock p={[10.2, 3.6, 0.12]} />
+      <Telescope p={[16.4, 0, 6.0]} rot={-0.8} />
     </Cell>
   );
 }
@@ -110,6 +76,7 @@ export function LivingRoom() {
       <Plant p={[1.0, 0, 15.0]} scale={1.2} />
       <Plant p={[17.0, 0, 15.2]} scale={1.2} color="#38a86a" />
       <Plant p={[9.4, 0, 15.0]} scale={1.0} />
+      <Clock p={[9.0, 4.0, 0.12]} r={0.6} />
     </Cell>
   );
 }
@@ -117,8 +84,8 @@ export function LivingRoom() {
 export function Bedroom() {
   return (
     <Cell id="bedroom" base={<BedroomBase />}>
-      <Wardrobe p={[11.8, 0, 0.7]} />
-      <Wardrobe p={[14.0, 0, 0.7]} c="#33265a" />
+      <Wardrobe p={[11.8, 0, 0.7]} id="wd-b" />
+      <Wardrobe p={[14.0, 0, 0.7]} c="#33265a" id="wd-c" />
       <Box p={[16.7, 0.6, 0.8]} s={[1.9, 1.2, 1.2]} c="#33265a" r={0.05} />
       {[16.2, 17.2].map(x => <Box key={x} p={[x, 0.8, 1.42]} s={[0.5, 0.1, 0.04]} c="#d9c48a" shadow={false} />)}
       <Neon p={[16.7, 2.5, 0.12]} s={[1.6, 1.8, 0.06]} color="#d6ecff" halo={false} />
@@ -133,49 +100,18 @@ export function Bedroom() {
       <FloorLamp p={[10.6, 0, 10.8]} color="#ffb4e6" />
       <Plant p={[1.0, 0, 14.8]} scale={1.1} color="#3bbf74" />
       <Plant p={[17.1, 0, 14.8]} scale={1.2} />
+      <Bookshelf p={[0.45, 0, 12.5]} rot={PI / 2} w={3.2} h={2.8} d={0.7} />
+      <Clock p={[6.6, 4.25, 0.12]} r={0.5} />
+      <WallPanel p={[1.6, 3.2, 0.08]} color={NEON_AMBER} />
       <Plant p={[17.2, 0, 5.2]} scale={1.0} color="#34b36a" />
     </Cell>
   );
 }
 
 export function Kitchen() {
-  const counter = '#c9c0ea';
   return (
-    <Cell id="kitchen" base={<KitchenBase />}>
-      {/* back counter run along the divider */}
-      <Box p={[13.6, 0.5, 0.95]} s={[6.4, 1.0, 1.3]} c="#33265a" r={0.04} />
-      <Box p={[13.6, 1.03, 0.95]} s={[6.5, 0.07, 1.4]} c={counter} />
-      {[[-0.4, -0.3], [-0.4, 0.3], [0.2, -0.3], [0.2, 0.3]].map(([dx, dz], i) => (
-        <mesh key={i} position={[12.2 + dx * 0.7, 1.09, 0.95 + dz]} rotation={[-PI / 2, 0, 0]}>
-          <ringGeometry args={[0.1, 0.2, 20]} /><meshBasicMaterial color={NEON_AMBER} toneMapped={false} />
-        </mesh>
-      ))}
-      <Box p={[15.4, 1.0, 0.95]} s={[1.3, 0.12, 0.8]} c="#1b1632" shadow={false} />
-      <Box p={[17.3, 1.7, 1.0]} s={[1.1, 3.4, 1.4]} c="#d9d6e8" r={0.06} />
-      <Box p={[16.7, 2.4, 1.72]} s={[0.05, 1.3, 0.04]} c="#8f8aa8" shadow={false} />
-      {/* family dining */}
-      <Rug p={[13.4, 0, 7.4]} w={8.2} d={5.8} c="#6a5aa8" c2="#8678c4" />
-      <Table p={[13.4, 0, 7.4]} w={5.4} d={2.4} />
-      {[11.8, 13.4, 15.0].map(x => (
-        <group key={x}>
-          <Chair p={[x, 0, 5.6]} rot={0} c="#4f7fe0" />
-          <Chair p={[x, 0, 9.2]} rot={PI} c="#e0529f" />
-        </group>
-      ))}
-      {[12.2, 14.6].map(x => (
-        <group key={x}>
-          <mesh position={[x, 3.5, 7.4]}><cylinderGeometry args={[0.015, 0.015, 2.0, 6]} /><meshBasicMaterial color="#2a2140" /></mesh>
-          <mesh position={[x, 2.4, 7.4]}><sphereGeometry args={[0.32, 16, 12]} /><meshBasicMaterial color={NEON_AMBER} toneMapped={false} /></mesh>
-        </group>
-      ))}
-      {/* play corner */}
-      <Rug p={[5.0, 0, 13.4]} w={6.6} d={4.2} c="#8a7acb" c2="#a89be0" />
-      <BeanBag p={[3.6, 0, 13.0]} color="#e0529f" glow={NEON_PINK} />
-      <BeanBag p={[5.8, 0, 14.4]} color="#f0b73a" glow={NEON_AMBER} />
-      <Table p={[4.8, 0, 12.4]} w={1.6} d={1.2} h={0.5} />
-      <FloorLamp p={[1.2, 0, 11.4]} />
-      <Plant p={[1.0, 0, 14.8]} scale={1.2} />
-      <Plant p={[17.1, 0, 15.0]} scale={1.2} color="#3bbf74" />
+    <Cell id="kitchen">
+      <IndianKitchen />
     </Cell>
   );
 }
@@ -201,10 +137,12 @@ export function GameRoom() {
       <Neon p={[9.0, 1.25, 14.78]} s={[3.0, 0.05, 0.05]} color={NEON_PINK} />
       {[6.4, 11.6].map(x => <Box key={x} p={[x, 1.1, 15.2]} s={[1.0, 2.2, 1.0]} c="#120e26" r={0.05} />)}
       <mesh position={[9.0, 4.0, 13.4]}><sphereGeometry args={[0.45, 16, 12]} /><meshBasicMaterial color="#e8e1ff" toneMapped={false} /></mesh>
-      <BeanBag p={[16.6, 0, 15.0]} color="#e0529f" glow={NEON_PINK} />
+      <BeanBag p={[17.0, 0, 10.6]} color="#e0529f" glow={NEON_PINK} />
+      <Foosball p={[6.0, 0, 9.6]} />
+      <ClawMachine p={[17.0, 0, 3.2]} rot={-PI / 2} />
       <BeanBag p={[1.8, 0, 15.0]} color="#7a58d6" glow={NEON_VIOLET} />
-      <FloorLamp p={[17.0, 0, 9.8]} color="#8dd8ff" />
-      <Plant p={[17.1, 0, 4.2]} scale={1.1} color="#34b36a" />
+      <FloorLamp p={[1.0, 0, 11.0]} color="#8dd8ff" />
+      <Plant p={[17.1, 0, 5.4]} scale={1.1} color="#34b36a" />
       <Plant p={[10.4, 0, 9.6]} scale={1.0} />
     </Cell>
   );
@@ -225,7 +163,7 @@ export function Garden() {
       })}
       <Box p={[9.0, 0.5, 15.85]} s={[16.8, 0.06, 0.06]} c="#4a3a6e" shadow={false} />
       {/* fountain */}
-      <group position={[9.0, 0, 13.0]}>
+      <group position={[4.8, 0, 13.2]}>
         <mesh position={[0, 0.25, 0]} castShadow><cylinderGeometry args={[1.9, 2.0, 0.5, 28]} /><meshStandardMaterial color="#6f6a86" roughness={0.8} /></mesh>
         <mesh position={[0, 0.5, 0]}><cylinderGeometry args={[1.65, 1.65, 0.05, 28]} /><meshStandardMaterial color="#27b3ff" emissive="#27b3ff" emissiveIntensity={0.55} toneMapped={false} /></mesh>
         <mesh position={[0, 0.9, 0]}><cylinderGeometry args={[0.2, 0.3, 0.8, 12]} /><meshStandardMaterial color="#8a84a8" /></mesh>
@@ -242,7 +180,7 @@ export function Garden() {
         <BeanBag p={[1.2, 0, -1.2]} color="#ff7bc0" glow={NEON_PINK} />
         <Neon p={[0, 3.12, -2]} s={[4.4, 0.05, 0.05]} color={NEON_AMBER} halo={false} />
       </group>
-      <Bench p={[4.2, 0, 14.4]} rot={PI} />
+      <Jhula p={[10.4, 0, 6.2]} w={2.2} />
       <Bench p={[1.6, 0, 8.0]} rot={PI / 2} />
       {/* flower beds + trees */}
       <Box p={[13.0, 0.2, 4.4]} s={[3.2, 0.4, 1.2]} c="#5a3d2b" r={0.04} />

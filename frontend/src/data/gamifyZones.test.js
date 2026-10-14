@@ -19,9 +19,9 @@ describe('gamify zones', () => {
   });
 
   it('every doorway joins two rooms and gets a hotspot on each side landing in the other room', () => {
-    // 3x2 grid: 2 doors per row between columns + 3 between rows
-    expect(DOORWAYS).toHaveLength(7);
-    expect(DOOR_LINKS).toHaveLength(14);
+    // 3x3 grid: 2 doors per row between columns (6) + 3 per row boundary (6)
+    expect(DOORWAYS).toHaveLength(12);
+    expect(DOOR_LINKS).toHaveLength(24);
     const toVirtual = (p) => [(p.x / WORLD_W + 0.5) * FLOORPLAN_WIDTH, (p.z / WORLD_D + 0.5) * FLOORPLAN_HEIGHT];
     for (const l of DOOR_LINKS) {
       expect(zoneForPoint(...toVirtual(l.chip))).toBe(l.from);

@@ -12,7 +12,7 @@
 export const CELL_W = 18; // along x
 export const CELL_D = 16; // along z
 export const COLS = 3;
-export const ROWS = 2;
+export const ROWS = 3;
 export const WORLD_W = CELL_W * COLS;
 export const WORLD_D = CELL_D * ROWS;
 export const FLOORPLAN_WIDTH = 1000;
@@ -21,8 +21,8 @@ export const FLOORPLAN_HEIGHT = 600;
 // Where each doorway is cut, in cell-local units measured from the cell's
 // back (z) or left (x) edge. Chosen per door to keep clear of furniture on both
 // sides (rooms.jsx) — change them together.
-const V_DOOR_AT = [[5, 6.8], [12.5, 12.5]]; // [row][col] — doors between col c and c+1
-const H_DOOR_AT = [8.5, 6.6, 4.8]; // per column — doors between the back and front rows
+const V_DOOR_AT = [[5, 6.8], [12.5, 12.5], [8, 8]]; // [row][col] — doors between col c and c+1
+const H_DOOR_AT = [[8.5, 6.6, 4.8], [10.5, 15.6, 8.4]]; // [row boundary][col] — doors between row r and r+1
 
 const zone = (id, label, col, row) => {
   const x0 = -WORLD_W / 2 + col * CELL_W;
@@ -50,6 +50,9 @@ export const FLOORPLAN_ZONES = {
   kitchen: zone('kitchen', 'Kitchen', 0, 1),
   gameroom: zone('gameroom', 'Game Room', 1, 1),
   lawn: zone('lawn', 'Garden', 2, 1),
+  terrace: zone('terrace', 'Terrace', 0, 2),
+  frontyard: zone('frontyard', 'Front Yard', 1, 2),
+  courtyard: zone('courtyard', 'Courtyard', 2, 2),
 };
 
 export const ZONE_IDS = Object.keys(FLOORPLAN_ZONES);
@@ -67,10 +70,12 @@ for (let r = 0; r < ROWS; r++) {
     DOORWAYS.push({ axis: 'v', x: b.world.x0, z: a.world.z0 + V_DOOR_AT[r][c], a: a.id, b: b.id });
   }
 }
-for (let c = 0; c < COLS; c++) {
-  const a = byCell(c, 0);
-  const b = byCell(c, 1);
-  DOORWAYS.push({ axis: 'h', x: a.world.x0 + H_DOOR_AT[c], z: b.world.z0, a: a.id, b: b.id });
+for (let r = 0; r < ROWS - 1; r++) {
+  for (let c = 0; c < COLS; c++) {
+    const a = byCell(c, r);
+    const b = byCell(c, r + 1);
+    DOORWAYS.push({ axis: 'h', x: a.world.x0 + H_DOOR_AT[r][c], z: b.world.z0, a: a.id, b: b.id });
+  }
 }
 
 // One clickable "go to <room>" hotspot per side of each doorway. `chip` is where
