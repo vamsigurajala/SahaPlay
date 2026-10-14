@@ -33,6 +33,51 @@
         } catch (e) {}
       })();
     </script>
+    <!--
+      Boot watchdog — a problem App.jsx's own <ErrorBoundary> cannot catch,
+      because it only exists once React has actually started running. The
+      Capacitor app always loads this page fresh over the network (server.url
+      points at the live site rather than a bundled copy — see the Android
+      workflow's own comment on why), so on a flaky mobile connection the
+      module script below can sometimes fail to fetch/execute entirely —
+      reported live as "sometimes opens to a totally blank screen, stays
+      blank until I force-close and reopen the app." Nothing is running yet
+      at that point to retry it; <div id="root"> just stays empty forever.
+      This is a plain, framework-independent script: it starts a timer the
+      instant the parser reaches it, and if main.jsx hasn't confirmed it
+      actually got far enough to call createRoot().render() (window.__spBooted
+      — set at the very top of main.jsx, before anything that could itself
+      throw) within BOOT_TIMEOUT_MS, assumes the load genuinely failed and
+      reloads once. sessionStorage guards against a reload loop on a
+      genuinely offline device/down server; a second failure this session
+      shows a minimal manual-retry message instead of silently reloading
+      forever on a connection that was never going to recover on its own.
+    -->
+    <script>
+      (function () {
+        var BOOT_TIMEOUT_MS = 10000;
+        var GUARD_KEY = 'sp_boot_watchdog_reloaded';
+        setTimeout(function () {
+          if (window.__spBooted) return;
+          try {
+            if (!sessionStorage.getItem(GUARD_KEY)) {
+              sessionStorage.setItem(GUARD_KEY, '1');
+              window.location.reload();
+              return;
+            }
+          } catch (e) {}
+          var root = document.getElementById('root');
+          if (root && !root.hasChildNodes()) {
+            root.innerHTML =
+              '<div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#0b0c10;color:#fff;font-family:Outfit,-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif;text-align:center;padding:24px;">' +
+                '<h2 style="margin:0;">Couldn\'t load SahaPlay</h2>' +
+                '<p style="margin:0;color:#aaa;font-size:14px;max-width:320px;">Check your connection and try again.</p>' +
+                '<button onclick="window.location.reload()" style="background:#6366f1;color:#fff;border:none;padding:10px 24px;border-radius:8px;cursor:pointer;font-size:14px;">Retry</button>' +
+              '</div>';
+          }
+        }, BOOT_TIMEOUT_MS);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

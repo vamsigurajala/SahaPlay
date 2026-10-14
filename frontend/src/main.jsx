@@ -39,6 +39,17 @@ import { initNativeCallEndLink } from './lib/nativeCallBridge.js';
 import { initNativeChatOpenLink } from './lib/nativeChatOpenBridge.js';
 import { applyChatFontSize } from './lib/chatPreferences.js';
 
+// Tells index.html's boot watchdog this module actually loaded and started
+// executing — see that script's own comment for the "sometimes opens to a
+// blank screen, stuck until force-close" failure it exists to recover from.
+// Set as early as possible (right after the import block resolves, which is
+// the earliest point any code in this file can run at all) so a genuine
+// error partway through this file's OWN remaining setup still counts as
+// "booted" for the watchdog's purposes — that class of failure is already
+// handled separately by App.jsx's <ErrorBoundary> once React is running;
+// this flag only ever needs to rule out "the script never loaded/ran".
+window.__spBooted = true;
+
 // Must run before any back gesture happens — Capacitor's Android bridge
 // exits the app on every back press by default unless a 'backButton'
 // listener is registered (see nativeShell.js for why).
