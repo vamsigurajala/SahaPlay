@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, startTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -164,10 +164,18 @@ const Navbar = ({ showBackButton = false }) => {
   // Nav links close the drawer AND change route in the same click — tell the
   // hook to leave its history entry alone so it doesn't fight the router's
   // own navigation (see useBackIntercept's skipNextClose doc).
+  // setShowMobileMenu and the route change are batched into one
+  // startTransition so React keeps the drawer visible (instead of tearing
+  // it down immediately and exposing whatever's behind it) until the
+  // destination page — several of which are lazy-loaded — has actually
+  // rendered, then swaps both at once. See BottomNav.jsx's identical fix
+  // for the same "drawer closes, Home flashes, then the page opens" report.
   const navigateAndCloseMenu = useCallback((path) => {
     mobileMenuBack.skipNextClose();
-    navigate(path);
-    setShowMobileMenu(false);
+    startTransition(() => {
+      navigate(path);
+      setShowMobileMenu(false);
+    });
   }, [mobileMenuBack, navigate]);
 
   // Search dropdown is an overlay on whatever page hosts Navbar, not its own
@@ -1054,7 +1062,7 @@ const Navbar = ({ showBackButton = false }) => {
                     {showUserMenu && (
                       <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
                         <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
-                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                          <button onMouseDown={(e) => { e.preventDefault(); startTransition(() => { setShowUserMenu(false); navigate('/profile'); }); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.1)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
@@ -1063,7 +1071,7 @@ const Navbar = ({ showBackButton = false }) => {
                             </div>
                             {t('account', 'Account')}
                           </button>
-                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                          <button onMouseDown={(e) => { e.preventDefault(); startTransition(() => { setShowUserMenu(false); navigate('/app-settings'); }); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
@@ -1072,7 +1080,7 @@ const Navbar = ({ showBackButton = false }) => {
                             </div>
                             {t('app', 'App')}
                           </button>
-                          <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/chat-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                          <button onMouseDown={(e) => { e.preventDefault(); startTransition(() => { setShowUserMenu(false); navigate('/chat-settings'); }); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.1)'}
                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                           >
@@ -1143,7 +1151,7 @@ const Navbar = ({ showBackButton = false }) => {
                       {showUserMenu && (
                         <div style={{ position: 'absolute', top: '100%', right: 0, paddingTop: 8, zIndex: 9999 }}>
                           <div className="nav-dropdown" style={{ background: '#141418', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: 8, minWidth: 220, boxShadow: '0 16px 48px rgba(0,0,0,0.8)' }}>
-                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/profile'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                            <button onMouseDown={(e) => { e.preventDefault(); startTransition(() => { setShowUserMenu(false); navigate('/profile'); }); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(var(--brand-1-rgb),0.1)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                             >
@@ -1152,7 +1160,7 @@ const Navbar = ({ showBackButton = false }) => {
                               </div>
                               {t('account', 'Account')}
                             </button>
-                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/app-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                            <button onMouseDown={(e) => { e.preventDefault(); startTransition(() => { setShowUserMenu(false); navigate('/app-settings'); }); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                             >
@@ -1161,7 +1169,7 @@ const Navbar = ({ showBackButton = false }) => {
                               </div>
                               {t('app', 'App')}
                             </button>
-                            <button onMouseDown={(e) => { e.preventDefault(); setShowUserMenu(false); navigate('/chat-settings'); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
+                            <button onMouseDown={(e) => { e.preventDefault(); startTransition(() => { setShowUserMenu(false); navigate('/chat-settings'); }); }} style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: 'transparent', border: 'none', color: '#f1f1f1', cursor: 'pointer', borderRadius: 12, fontSize: 14, display: 'flex', alignItems: 'center', gap: 12, fontWeight: 500, transition: 'background 0.15s' }}
                               onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.1)'}
                               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                             >

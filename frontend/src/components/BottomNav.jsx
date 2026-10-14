@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, startTransition } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Home as HomeIcon, Globe, MessageSquare, Search as SearchIcon, User, X } from 'lucide-react';
@@ -421,12 +421,24 @@ export default function BottomNav() {
                 isGuest={isGuest}
                 isAdminRole={isAdminRole}
                 isDesktopApp={isDesktopApp}
-                onProfileClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/profile'); }}
-                onAppSettingsClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/app-settings'); }}
-                onChatSettingsClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/chat-settings'); }}
+                // The drawer close (setShowProfile) and the route change
+                // both go inside the SAME startTransition callback — React
+                // then keeps showing the current UI (drawer still open, Home
+                // dimmed behind it) instead of tearing the drawer down
+                // immediately and exposing Home underneath for whatever
+                // moment it takes the destination page (lazy-loaded) to
+                // actually be ready, then swaps both at once. Reported live
+                // as "right panel disappears and shows Home, then the
+                // settings page opens" — a plain (non-transition) navigate()
+                // lets React commit the drawer's removal the instant it's
+                // ready, well before Account/App/Chats Settings (or Admin)
+                // has necessarily finished rendering.
+                onProfileClick={() => { skipNextClose(); suppressNextPop(); startTransition(() => { setShowProfile(false); navigate('/profile'); }); }}
+                onAppSettingsClick={() => { skipNextClose(); suppressNextPop(); startTransition(() => { setShowProfile(false); navigate('/app-settings'); }); }}
+                onChatSettingsClick={() => { skipNextClose(); suppressNextPop(); startTransition(() => { setShowProfile(false); navigate('/chat-settings'); }); }}
                 onContactSupportClick={() => { setShowProfile(false); setShowSupportModal(true); }}
                 onGetDesktopAppClick={() => { setShowProfile(false); setShowDownloadAppModal(true); }}
-                onAdminClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/admin'); }}
+                onAdminClick={() => { skipNextClose(); suppressNextPop(); startTransition(() => { setShowProfile(false); navigate('/admin'); }); }}
                 onSignInClick={() => { skipNextClose(); suppressNextPop(); clearUserSession(); setShowProfile(false); navigate('/login'); }}
                 onSignUpClick={() => { skipNextClose(); suppressNextPop(); setShowProfile(false); navigate('/signup'); }}
                 onLogoutClick={() => { skipNextClose(); setShowProfile(false); handleLogout(); }}
