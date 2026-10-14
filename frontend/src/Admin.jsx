@@ -303,11 +303,14 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
 
   const dbRoomList = isDbRooms ? (data?.rooms || []) : [];
 
+  // Fixed, theme-independent colors — this used to borrow var(--brand-1) for
+  // Private, but --brand-1 is the user's chosen accent theme color, which can
+  // itself be green, making Public and Private visually indistinguishable.
   const roomBadge = (isPublic) => ({
     fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-    background: isPublic ? 'rgba(16,185,129,0.15)' : 'rgba(var(--brand-1-rgb),0.15)',
-    color: isPublic ? '#34d399' : 'var(--brand-1-light)',
-    border: `1px solid ${isPublic ? 'rgba(16,185,129,0.3)' : 'rgba(var(--brand-1-rgb),0.3)'}`,
+    background: isPublic ? 'rgba(16,185,129,0.15)' : 'rgba(129,140,248,0.15)',
+    color: isPublic ? '#34d399' : '#a5b4fc',
+    border: `1px solid ${isPublic ? 'rgba(16,185,129,0.3)' : 'rgba(129,140,248,0.3)'}`,
   });
 
   return (
