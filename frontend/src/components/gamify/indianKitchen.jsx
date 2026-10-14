@@ -1,4 +1,4 @@
-import { Box, Neon, Plant, Chair, Table, Rug, FloorLamp, WallWindow } from './parts';
+import { Box, Neon, Plant, Chair, Table, Rug, FloorLamp, WallWindow, useOpenProp } from './parts';
 import { NEON_AMBER, NEON_CYAN } from './constants';
 
 const PI = Math.PI;
@@ -31,6 +31,7 @@ const Flame = ({ p }) => (
 // grinder, microwave, double-door fridge, RO purifier, matka, chakla-belan board,
 // steel thali dining set and a jute mat.
 export default function IndianKitchen() {
+  const openFridge = useOpenProp('fridge');
   return (
     <group>
       {/* backsplash tiles behind both counter runs */}
@@ -102,12 +103,14 @@ export default function IndianKitchen() {
       <Neon p={[13.2, 2.5, 0.62]} s={[0.5, 0.05, 0.02]} color="#4fc3ff" halo={false} />
       <Box p={[11.2, 3.3, 0.45]} s={[1.6, 1.3, 0.7]} c={CREAM} r={0.03} />
       <Box p={[15.3, 3.3, 0.45]} s={[3.6, 1.3, 0.7]} c={CREAM} r={0.03} />
-      {/* double-door fridge */}
+      {/* double-door fridge — tap to look inside */}
+      <group {...openFridge}>
       <Box p={[17.1, 1.85, 1.0]} s={[1.3, 3.7, 1.4]} c="#dfe3ee" r={0.06} metal={0.3} rough={0.35} />
       <Box p={[17.1, 2.4, 1.72]} s={[1.28, 0.03, 0.04]} c="#8f95a8" shadow={false} />
       <Box p={[16.65, 2.9, 1.74]} s={[0.05, 0.9, 0.06]} c="#8f95a8" shadow={false} />
       <Box p={[16.65, 1.3, 1.74]} s={[0.05, 1.2, 0.06]} c="#8f95a8" shadow={false} />
       {['#ff6fb5', '#ffcf5a', '#4fa8ff'].map((col, i) => <Box key={col} p={[17.4 - i * 0.28, 3.1 + (i % 2) * 0.2, 1.73]} s={[0.14, 0.14, 0.03]} c={col} shadow={false} />)}
+      </group>
 
       {/* ── left wall: pantry, prep counter with chakla-belan, matka ── */}
       <WallWindow p={[0.1, 3.2, 9.5]} rot={PI / 2} w={3.0} h={1.5} color="#ffe3a8" />

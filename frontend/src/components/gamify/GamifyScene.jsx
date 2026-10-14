@@ -153,7 +153,7 @@ function DoorChip({ link, onGo }) {
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
-    const on = view.current.focus === link.from;
+    const on = view.current.focus === link.from && view.current.uiVisible !== false;
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });

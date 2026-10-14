@@ -13,6 +13,21 @@ export const ViewContext = createContext({ current: { cur: 1, flip: false } });
 // Rounded boxes with the same size/radius share one geometry — the scene has
 // hundreds of them, and building each separately dominated load time and memory
 // on phones.
+// Tap handlers that ask the Gamify container to open a full-screen viewer
+// (bookshelf / fridge). `delta` filters out a drag that merely ended on the prop.
+export function useOpenProp(kind) {
+  const view = useContext(ViewContext);
+  return {
+    onClick: (e) => {
+      if (e.delta > 6) return;
+      e.stopPropagation();
+      view.current.openProp?.(kind);
+    },
+    onPointerOver: () => { try { document.body.style.cursor = 'pointer'; } catch { /* non-browser */ } },
+    onPointerOut: () => { try { document.body.style.cursor = ''; } catch { /* non-browser */ } },
+  };
+}
+
 const boxGeoCache = new Map();
 function roundedGeo(s, r) {
   const key = `${s[0]}|${s[1]}|${s[2]}|${r}`;
@@ -173,8 +188,9 @@ const BOOK_COLORS = ['#ff6fb5', '#5ad1ff', '#ffcf5a', '#8dff9c', '#a56bff', '#ff
 export function Bookshelf({ p, rot = 0, w = 3, h = 3.4, d = 0.8 }) {
   const rows = 4;
   const gap = h / rows;
+  const open = useOpenProp('books');
   return (
-    <group position={p} rotation={[0, rot, 0]}>
+    <group position={p} rotation={[0, rot, 0]} {...open}>
       <Box p={[0, h / 2, -d / 2 + 0.05]} s={[w, h, 0.1]} c="#2a1f4d" />
       <Box p={[-w / 2 + 0.05, h / 2, 0]} s={[0.1, h, d]} c="#33265a" />
       <Box p={[w / 2 - 0.05, h / 2, 0]} s={[0.1, h, d]} c="#33265a" />
@@ -266,7 +282,7 @@ export function HotChip({ position, zone, label, icon, onClick }) {
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
-    const on = view.current.focus === zone;
+    const on = view.current.focus === zone && view.current.uiVisible !== false;
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });

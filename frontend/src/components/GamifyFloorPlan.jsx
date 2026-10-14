@@ -4,6 +4,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users } from 'lucide-react';
 import GamifyScene, { WALL_H } from './gamify/GamifyScene';
+const PropViewer = React.lazy(() => import('./gamify/PropViewers'));
 import Avatar3D from './gamify/Avatar3D';
 import { ViewContext } from './gamify/parts';
 import { TV, TV_H, TV_NATIVE_W, TV_NATIVE_H } from './gamify/constants';
@@ -283,12 +284,15 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   if (!viewRef.current) {
     const flip = readFlip();
     const t = roomCenterTarget(myZoneRef.current, flip);
-    viewRef.current = { zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, flip, focus: myZoneRef.current, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
+    viewRef.current = { uiVisible: true, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, flip, focus: myZoneRef.current, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
   }
   const dragLockRef = useRef(false);
   const [flipped, setFlipped] = useState(() => viewRef.current.flip);
   const [focus, setFocus] = useState(() => viewRef.current.focus);
   const [zoomedOut, setZoomedOut] = useState(false);
+  const [myZone, setMyZone] = useState(() => myZoneRef.current);
+  const [viewer, setViewer] = useState(null); // 'books' | 'fridge'
+  const [uiShown, setUiShown] = useState(true);
   // drei <Html> overlays (avatars, door buttons, signs) must not mount until the
   // canvas has rendered its first frame: mounted earlier, their DOM parent is
   // still changing, and the resulting unmount/remount race leaves some of them
@@ -298,6 +302,30 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   // drops further (no shadows, 1x pixels) if the frame rate is still poor.
   const coarse = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
   const [lowQ, setLowQ] = useState(false);
+
+  // In-room labels (door buttons, prop chips, the hint) fade out after a few idle
+  // seconds so they stop covering the scene, and come back on any pointer/touch/wheel.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return undefined;
+    let t;
+    const show = () => {
+      viewRef.current.uiVisible = true;
+      setUiShown(true);
+      clearTimeout(t);
+      t = setTimeout(() => { viewRef.current.uiVisible = false; setUiShown(false); }, 3500);
+    };
+    show();
+    const evs = ['pointermove', 'pointerdown', 'wheel', 'touchstart', 'keydown'];
+    evs.forEach(e => el.addEventListener(e, show, { passive: true }));
+    return () => { clearTimeout(t); evs.forEach(e => el.removeEventListener(e, show)); };
+  }, []);
+  // Scene props (bookshelf, fridge) open their full-screen viewer through this hook.
+  useEffect(() => {
+    const v = viewRef.current;
+    v.openProp = setViewer;
+    return () => { v.openProp = null; };
+  }, []);
 
   // Wheel zoom: multiplicative (each tick scales by a fixed ratio) so it feels
   // the same at any zoom level. Native non-passive listener — React's onWheel
@@ -326,7 +354,10 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     focusRoom(link.to);
     if (myZoneRef.current === link.from) viewRef.current.walk = { x: link.entry.x, z: link.entry.z };
   };
-  const handleMove = (x, y, zone) => { myZoneRef.current = zone; if (onMove) onMove(x, y, zone); };
+  const handleMove = (x, y, zone) => {
+    if (zone !== myZoneRef.current) { myZoneRef.current = zone; setMyZone(zone); } // keeps the room map's head-count live
+    if (onMove) onMove(x, y, zone);
+  };
   // Dropping your avatar into another room brings the camera along.
   const handleDrop = (zone) => { if (zone !== viewRef.current.focus) focusRoom(zone, viewRef.current.zoom); };
 
@@ -346,9 +377,10 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
 
   const counts = useMemo(() => {
     const c = {};
-    userList.forEach(u => { const z = avatarPositions?.[u.socketId]?.zone || DEFAULT_SPAWN.zone; c[z] = (c[z] || 0) + 1; });
+    // Your own moves are not echoed back through avatarPositions, so use the live local zone for you.
+    userList.forEach(u => { const z = u.socketId === mySocketId ? myZone : (avatarPositions?.[u.socketId]?.zone || DEFAULT_SPAWN.zone); c[z] = (c[z] || 0) + 1; });
     return c;
-  }, [userList, avatarPositions]);
+  }, [userList, avatarPositions, myZone, mySocketId]);
 
   const btn = { width: 34, height: 34, borderRadius: 9, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(12,10,24,0.72)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(6px)' };
   const glass = { background: 'rgba(12,10,24,0.72)', border: '1px solid rgba(255,255,255,0.16)', backdropFilter: 'blur(6px)', color: '#fff' };
@@ -397,8 +429,14 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       {/* current room + hint */}
       <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
         <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>{FLOORPLAN_ZONES[focus].label}</div>
-        <div className="stay-white" style={{ fontSize: 11, opacity: 0.7, textShadow: '0 1px 3px #000' }}>Drag to look around, tap a door to go through</div>
+        <div className="stay-white" style={{ transition: 'opacity .4s', fontSize: 11, opacity: uiShown ? 0.7 : 0, textShadow: '0 1px 3px #000' }}>Drag to look around, tap a door to go through</div>
       </div>
+
+      {viewer && (
+        <React.Suspense fallback={null}>
+          <PropViewer kind={viewer} onClose={() => setViewer(null)} />
+        </React.Suspense>
+      )}
 
       {/* room map */}
       <div className="stay-white" style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 60, display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 4, padding: 6, borderRadius: 12, ...glass }}>
