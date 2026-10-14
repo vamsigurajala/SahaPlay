@@ -105,6 +105,14 @@ export default function AvatarSprite({ username, avatarPath, isHost, x, y, isOwn
         zIndex: isOwn ? 50 : 10,
       }}
     >
+      {/* Grounding shadow, pinned to the same bottom edge this wrapper's
+          translate(-50%,-100%) anchors to the (x,y) floor position — without
+          it the avatar read as floating over the floor rather than standing
+          on it. */}
+      <div style={{
+        position: 'absolute', bottom: -2, left: '50%', width: 26, height: 8, marginLeft: -13,
+        borderRadius: '50%', background: 'rgba(0,0,0,0.45)', filter: 'blur(2px)', zIndex: -1,
+      }} />
       <Avatar
         avatarPath={avatarPath}
         username={username}

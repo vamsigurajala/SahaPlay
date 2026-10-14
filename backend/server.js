@@ -8442,6 +8442,26 @@ function checkChatRate(socketId) {
   return ok;
 }
 
+// Gamify Mode: avatar_move fires far more often than seek/play/pause
+// (continuous while dragging), so it gets its own, much more permissive rate
+// bucket rather than reusing checkMediaControlRate's 10-per-5s — that would
+// make a dragged avatar visibly stall for everyone else mid-drag. 20/sec
+// matches the client's own ~50ms throttle
+// (frontend/src/components/AvatarSprite.jsx) with headroom for two tabs/a
+// flaky retry, while still blocking a malicious per-frame flood. Declared at
+// module level (not inside io.on('connection', ...)) so it's one shared map
+// across all connections, same as mediaControlBuckets below — not a fresh,
+// throwaway Map allocated per socket connection.
+const avatarMoveBuckets = new Map(); // socketId -> { count, resetAt }
+function checkAvatarMoveRate(socketId) {
+  const now = Date.now();
+  let b = avatarMoveBuckets.get(socketId);
+  if (!b || now > b.resetAt) b = { count: 0, resetAt: now + 1000 };
+  b.count++;
+  avatarMoveBuckets.set(socketId, b);
+  return b.count <= 20;
+}
+
 // A7-F4: Socket-level media control rate limiter: 10 events per 5 seconds per socket (shared play/pause/seek bucket)
 const mediaControlBuckets = new Map(); // socketId -> { count, resetAt }
 function checkMediaControlRate(socketId) {
@@ -8753,6 +8773,7 @@ io.on('connection', (socket) => {
 
     chatRateBuckets.delete(socket.id);
     mediaControlBuckets.delete(socket.id);
+    avatarMoveBuckets.delete(socket.id);
     joinRateBuckets.delete(socket.id);
     lastTypingTime.delete(socket.id);
 
@@ -10841,23 +10862,6 @@ io.on('connection', (socket) => {
   });
 
   // ─── Gamify Mode ───
-  // avatar_move fires far more often than seek/play/pause (continuous while
-  // dragging), so it gets its own, much more permissive rate bucket rather
-  // than reusing checkMediaControlRate's 10-per-5s — that would make a
-  // dragged avatar visibly stall for everyone else mid-drag. 20/sec matches
-  // the client's own ~50ms throttle (frontend/src/components/AvatarSprite.jsx)
-  // with headroom for two tabs/a flaky retry, while still blocking a
-  // malicious per-frame flood.
-  const avatarMoveBuckets = new Map(); // socketId -> { count, resetAt }
-  function checkAvatarMoveRate(socketId) {
-    const now = Date.now();
-    let b = avatarMoveBuckets.get(socketId);
-    if (!b || now > b.resetAt) b = { count: 0, resetAt: now + 1000 };
-    b.count++;
-    avatarMoveBuckets.set(socketId, b);
-    return b.count <= 20;
-  }
-
   socket.on('avatar_move', ({ roomId: rawRoomId, x, y, zone }) => {
     try {
       const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
