@@ -1147,6 +1147,13 @@ const activeHyperbeamSessions = new Map();
 // roomId -> Set(socketId)
 const roomSpeakingUsers = new Map();
 
+// Gamify Mode: per-room avatar positions, purely in-memory/ephemeral like
+// everything else here — never persisted to Postgres, reset on reconnect,
+// deleted whenever the room itself is torn down (see the rooms.delete(...)
+// call sites below, each of which also clears this).
+// roomId -> Map(socketId -> { x, y, zone, username })
+const roomAvatarPositions = new Map();
+
 function detectMediaTypeServer(url) {
   if (!url) return null;
   if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
@@ -7088,6 +7095,7 @@ app.delete('/api/profile', authenticateToken, async (req, res) => {
         io.in(roomId).emit('kicked_out', { reason: 'room_deleted' });
         io.emit('room_permanently_deleted', { roomId });
         rooms.delete(roomId);
+        roomAvatarPositions.delete(roomId);
       } catch (e) {
         console.error('DELETE ACCOUNT ERROR (room kick):', e.message);
       }
@@ -7770,6 +7778,8 @@ function getSerializableRoom(room, roomId) {
     })(),
     roomTheme: room.roomTheme || 'default',
     timerState: room.timerState || null,
+    gamifyMode: !!room.gamifyMode,
+    avatarPositions: Object.fromEntries(roomAvatarPositions.get(roomId) || []),
     users: buildUserList(room)
   };
 }
@@ -9182,12 +9192,13 @@ io.on('connection', (socket) => {
           changeMedia: 'all', chat: 'all', cam: 'all', mic: 'all',
           allowLinks: true, allowMedia: true 
         },
-        settings: { 
+        settings: {
           audioDucking: false, webcamSync: true, playerCustomName: 'WatchTogether Player',
           lockRoom: false, onlyLoggedIn: false, newMembersAdmins: false,
           allUsersPlayerSettings: true,
           ...JSON.parse(row.settings || '{}')
-        }
+        },
+        gamifyMode: false, // in-memory only, see roomAvatarPositions above
       });
     }
     const room = rooms.get(roomId);
@@ -10829,6 +10840,57 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ─── Gamify Mode ───
+  // avatar_move fires far more often than seek/play/pause (continuous while
+  // dragging), so it gets its own, much more permissive rate bucket rather
+  // than reusing checkMediaControlRate's 10-per-5s — that would make a
+  // dragged avatar visibly stall for everyone else mid-drag. 20/sec matches
+  // the client's own ~50ms throttle (frontend/src/components/AvatarSprite.jsx)
+  // with headroom for two tabs/a flaky retry, while still blocking a
+  // malicious per-frame flood.
+  const avatarMoveBuckets = new Map(); // socketId -> { count, resetAt }
+  function checkAvatarMoveRate(socketId) {
+    const now = Date.now();
+    let b = avatarMoveBuckets.get(socketId);
+    if (!b || now > b.resetAt) b = { count: 0, resetAt: now + 1000 };
+    b.count++;
+    avatarMoveBuckets.set(socketId, b);
+    return b.count <= 20;
+  }
+
+  socket.on('avatar_move', ({ roomId: rawRoomId, x, y, zone }) => {
+    try {
+      const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId)) return;
+      if (!checkAvatarMoveRate(socket.id)) return;
+      if (typeof x !== 'number' || typeof y !== 'number' || !isFinite(x) || !isFinite(y)) return;
+      if (!['hall', 'bedroom', 'lawn'].includes(zone)) return;
+      const room = rooms.get(roomId);
+      if (!room.gamifyMode) return; // ignore stray moves if mode was turned off mid-drag
+      if (!roomAvatarPositions.has(roomId)) roomAvatarPositions.set(roomId, new Map());
+      roomAvatarPositions.get(roomId).set(socket.id, { x, y, zone, username: socket.username });
+      socket.to(roomId).emit('avatar_moved', { socketId: socket.id, x, y, zone });
+    } catch (err) {
+      console.error('[SOCKET] avatar_move error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  socket.on('set_gamify_mode', ({ roomId: rawRoomId, enabled }) => {
+    try {
+      const roomId = rawRoomId ? rawRoomId.toLowerCase() : null;
+      const room = rooms.get(roomId);
+      if (!room) return;
+      // Cosmetic, in-memory, instantly reversible — unlike change_room_theme
+      // (which persists to Postgres and is host/admin-gated), any room
+      // member can toggle this for everyone with no real risk.
+      room.gamifyMode = !!enabled;
+      if (!room.gamifyMode) roomAvatarPositions.delete(roomId); // re-enabling later starts everyone back at spawn
+      io.to(roomId).emit('gamify_mode_changed', { enabled: room.gamifyMode });
+    } catch (err) {
+      console.error('[SOCKET] set_gamify_mode error:', err.message, 'user:', socket.username);
+    }
+  });
+
   // ─── WebRTC Screenshare ───
   socket.on('webrtc_start_screenshare', (data) => {
     try {
@@ -11902,6 +11964,7 @@ io.on('connection', (socket) => {
           // 4. Cleanup memory
           if (rooms.has(roomId)) {
             rooms.delete(roomId);
+            roomAvatarPositions.delete(roomId);
             console.log(`[DELETE ROOM] Removed ${roomId} from memory`);
           }
 
@@ -12176,6 +12239,7 @@ io.on('connection', (socket) => {
 
         room.users = room.users.filter(u => u.socketId !== socket.id);
         delete room.publicKeys[socket.id];
+        roomAvatarPositions.get(socket.roomId)?.delete(socket.id);
 
         if (room.hostId === socket.id && room.users.length > 0) {
           // Find the first non-guest user to transfer host privileges
@@ -13796,6 +13860,7 @@ app.post('/api/admin/rooms/:roomId/force-close', authenticateToken, requireAdmin
   try {
     io.in(roomId).emit('kicked_out', { reason: 'room_closed_by_admin' });
     rooms.delete(roomId);
+    roomAvatarPositions.delete(roomId);
 
     await pool.query(
       `INSERT INTO admin_audit_logs (admin_user_id, admin_email, action, room_id, reason, details)
@@ -14377,6 +14442,7 @@ app.delete('/api/admin/rooms/:roomId', authenticateToken, requireAdmin, requireA
     if (liveRoom) {
       io.in(roomId).emit('kicked_out', { reason: 'room_closed_by_admin' });
       rooms.delete(roomId);
+      roomAvatarPositions.delete(roomId);
     }
 
     await pool.query(`DELETE FROM messages WHERE "roomId" = $1 AND type IN ('room', 'group')`, [roomId]);

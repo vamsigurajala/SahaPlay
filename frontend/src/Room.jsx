@@ -29,6 +29,7 @@ import GuidedShareModal from './components/GuidedShareModal';
 import BanConfirmModal from './components/BanConfirmModal';
 import StreamUploadProgress from './components/StreamUploadProgress';
 import SubtitleSettingsModal from './components/SubtitleSettingsModal';
+import GamifyFloorPlan from './components/GamifyFloorPlan';
 import { useVideoUpload } from './hooks/useVideoUpload';
 import { useVoiceActivityDetection } from './hooks/useVoiceActivityDetection';
 import { useBackIntercept } from './hooks/useBackIntercept';
@@ -1401,6 +1402,33 @@ const Room = () => {
   }, [roomId, room]);
   const [roomNotFound, setRoomNotFound] = useState(false);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  // ── Gamify Mode (Phase 1) ──
+  // Room-wide and server-authoritative, not a local per-viewer toggle — see
+  // the plan's reasoning: it relocates the SHARED player onto the in-scene
+  // TV, so every viewer must agree on the mode or "Select Media" would live
+  // in different places for different people watching the same stream.
+  // gamifyMode/avatarPositions are only ever set from server broadcasts
+  // (gamify_mode_changed / avatar_moved / room_state), never optimistically
+  // flipped locally, matching change_room_theme's host-path style.
+  const [gamifyMode, setGamifyMode] = useState(false);
+  const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
+  // The real player element's on-screen rect while gamify mode is on,
+  // reported by GamifyFloorPlan (it owns the TV prop's position/pan/zoom) —
+  // player-wrap is absolutely positioned to match this instead of being
+  // moved into a different parent, so playback/connection state is never
+  // disturbed by toggling the mode. Null means "render player-wrap normally".
+  const [gamifyTvRect, setGamifyTvRect] = useState(null);
+  // player-wrap renders at this fixed "native" size (matching the TV prop's
+  // own 140:90 aspect ratio in frontend/src/data/gamifyZones.js) and gets
+  // uniformly shrunk with a single CSS transform:scale() down to whatever
+  // size the TV currently is on screen, rather than actually resizing its
+  // real box to the TV's (possibly very small) literal pixel dimensions.
+  // This means ReactPlayer/Hyperbeam/the video element always see a normal,
+  // reasonably-sized box to lay out and measure against — ResizeObserver-
+  // driven logic (Hyperbeam's syncResize in particular) never has to deal
+  // with a container that's only, say, 90px tall.
+  const GAMIFY_TV_NATIVE_WIDTH = 420;
+  const GAMIFY_TV_NATIVE_HEIGHT = 270;
   const [showActivityMenu, setShowActivityMenu] = useState(false);
   const [showGameControls, setShowGameControls] = useState(true);
   const gameControlsTimerRef = useRef(null);
@@ -4288,6 +4316,11 @@ const Room = () => {
       }
 
       setRoom(state);
+      // Gamify Mode: bootstrap from room_state so a late joiner/reconnect/
+      // refresh sees the mode and everyone's CURRENT avatar positions right
+      // away, not just future moves (see getSerializableRoom() server-side).
+      setGamifyMode(!!state.gamifyMode);
+      setAvatarPositions(state.avatarPositions || {});
       if (!themeChangeInFlightRef.current) {
         const hostTheme = state.roomTheme || 'default';
         const personalTheme = localStorage.getItem(`wt-personal-theme-${roomId}`);
@@ -4757,6 +4790,20 @@ const Room = () => {
         toast.success(`${uname} joined`);
       }
     });
+
+    // ── Gamify Mode ──
+    sock.on('gamify_mode_changed', ({ enabled }) => {
+      setGamifyMode(!!enabled);
+      if (!enabled) setAvatarPositions({}); // mirrors the server clearing roomAvatarPositions on turn-off
+    });
+    sock.on('avatar_moved', ({ socketId, x, y, zone }) => {
+      // Snap, not lerp — see AvatarSprite.jsx's comment for why that's the
+      // right call for Phase 1. A departed user's entry here is harmless
+      // dead weight (GamifyFloorPlan only renders sprites for current
+      // userList members), so no cleanup is needed on user_left either.
+      setAvatarPositions(prev => ({ ...prev, [socketId]: { x, y, zone } }));
+    });
+
     sock.on('user_left', ({ username: uname }) => {
       if (notifSettingsRef.current.app && notifSettingsRef.current.leave && uname !== usernameRef.current && !muteRoomJoinLeaveRef.current) {
         toast(`${uname} left`, { icon: '👋' });
@@ -12215,7 +12262,51 @@ const Room = () => {
               <Paintbrush size={15} color="#fff" />
             </button>
           )}
+          {/* Gamify Mode floating button — room-wide/server-authoritative,
+              see the gamifyMode state declaration above for why. Same
+              gating as the paintbrush button (normal room view only, not
+              TV-cast/fullscreen/an active game-or-call activity). */}
+          {!isTvMode && !isFullscreen && !isGameOrActivity(mediaUrl) && (
+            <button
+              onClick={() => socket?.emit('set_gamify_mode', { roomId, enabled: !gamifyMode })}
+              title="Gamify Mode"
+              onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+              style={{
+                position: 'absolute',
+                top: 8, left: 50,
+                zIndex: 100, width: 34, height: 34, borderRadius: '50%',
+                background: gamifyMode ? 'rgba(var(--brand-2-rgb),0.55)' : 'rgba(0,0,0,0.45)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', backdropFilter: 'blur(8px)',
+                transition: 'all 0.2s',
+              }}
+            >
+              <LayoutGrid size={15} color="#fff" />
+            </button>
+          )}
           {/* ── OLD in-player game overlay REPLACED — game name is now in header ── */}
+
+          {/* Gamify Mode floor plan — a sibling of player-wrap, not a
+              replacement for it. player-wrap stays mounted and untouched
+              the whole time (see its style below); only the floor plan's
+              presence and player-wrap's own position/size change. This is
+              what guarantees toggling the mode never unmounts/remounts the
+              actual player (ReactPlayer/Hyperbeam/video element), which
+              would otherwise interrupt playback or drop a live Hyperbeam
+              session. */}
+          {gamifyMode && (
+            <GamifyFloorPlan
+              userList={userList}
+              mySocketId={socket?.id}
+              avatarPositions={avatarPositions}
+              knownAvatars={knownAvatars}
+              hostId={hostId}
+              onMove={(x, y, zone) => socket?.emit('avatar_move', { roomId, x, y, zone })}
+              onTvRectChange={setGamifyTvRect}
+            />
+          )}
 
           <div
             ref={playerWrapRef}
@@ -12237,7 +12328,7 @@ const Room = () => {
             // player's own toggleControlsVisibility.
             onTouchStart={() => { if (isGameOrActivity(mediaUrl)) toggleGameControlsVisibility(); }}
             style={{
-              flex: 1,
+              flex: gamifyMode ? 'none' : 1,
               // Video/screenshare content wants the usual black-letterbox look
               // when fullscreen — but a game/activity (Timer, Whiteboard, etc.)
               // has its own theme-aware background and forcing black behind it
@@ -12250,13 +12341,35 @@ const Room = () => {
               background: (isLight && !isTvMode && (!(isFullscreen || isMobileFsMode) || isGameOrActivity(mediaUrl))) ? '#fff' : '#000',
               borderRadius: (isFullscreen || isTvMode || isMobile) ? 0 : 16,
               border: (isLight && !isTvMode && (!(isFullscreen || isMobileFsMode) || isGameOrActivity(mediaUrl))) ? '1px solid #e2e8f0' : ((isFullscreen || isTvMode) ? 'none' : '1px solid rgba(255,255,255,0.07)'),
-              display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              overflow: 'hidden', 
-              position: 'relative',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              overflow: 'hidden',
+              position: gamifyMode ? 'absolute' : 'relative',
               boxShadow: (roomTheme !== 'default' && !isFullscreen && !isTvMode)
                 ? '0 24px 60px rgba(0,0,0,0.65)'
                 : ((isLight && !isFullscreen && !isTvMode) ? '0 8px 30px rgba(0,0,0,0.04)' : 'none'),
               transition: 'box-shadow 0.3s ease',
+              // Gamify Mode: player-wrap keeps rendering at its normal
+              // GAMIFY_TV_NATIVE_WIDTH/HEIGHT box (so ReactPlayer/Hyperbeam/
+              // the video element always see a reasonably-sized container
+              // to lay out and measure against) and gets uniformly shrunk
+              // with one CSS transform:scale() down to whatever size the TV
+              // prop is actually rendered at on screen — see
+              // GAMIFY_TV_NATIVE_WIDTH's declaration above for the full
+              // rationale. Hidden (opacity 0) until GamifyFloorPlan reports
+              // the TV's first measured rect, so it never flashes at the
+              // wrong position/size for a frame after the mode turns on.
+              ...(gamifyMode ? {
+                top: gamifyTvRect?.top ?? 0,
+                left: gamifyTvRect?.left ?? 0,
+                width: GAMIFY_TV_NATIVE_WIDTH,
+                height: GAMIFY_TV_NATIVE_HEIGHT,
+                transform: `scale(${gamifyTvRect ? gamifyTvRect.width / GAMIFY_TV_NATIVE_WIDTH : 1})`,
+                transformOrigin: 'top left',
+                zIndex: 20,
+                opacity: gamifyTvRect ? 1 : 0,
+                pointerEvents: gamifyTvRect ? 'auto' : 'none',
+                transition: 'opacity 0.2s',
+              } : {}),
             }}
           >
             {/* Active Game/Activity Top-Left Dropdown inside room screen */}
