@@ -10868,7 +10868,8 @@ io.on('connection', (socket) => {
       if (!roomId || !rooms.has(roomId)) return;
       if (!checkAvatarMoveRate(socket.id)) return;
       if (typeof x !== 'number' || typeof y !== 'number' || !isFinite(x) || !isFinite(y)) return;
-      if (!['hall', 'bedroom', 'lawn'].includes(zone)) return;
+      // Keep in sync with ZONE_IDS in frontend/src/data/gamifyZones.js.
+      if (!['study', 'hall', 'bedroom', 'kitchen', 'gameroom', 'lawn'].includes(zone)) return;
       const room = rooms.get(roomId);
       if (!room.gamifyMode) return; // ignore stray moves if mode was turned off mid-drag
       if (!roomAvatarPositions.has(roomId)) roomAvatarPositions.set(roomId, new Map());

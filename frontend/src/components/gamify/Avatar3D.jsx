@@ -1,22 +1,26 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, useContext } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
 import { Crown } from 'lucide-react';
 import Avatar from '../Avatar';
-import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, zoneForPoint } from '../../data/gamifyZones';
-import { WORLD_W, WORLD_D } from './GamifyScene';
+import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D, zoneForPoint } from '../../data/gamifyZones';
+import { ScaledHtml, ViewContext } from './parts';
 
 const toWorld = (vx, vy) => ({ x: (vx / FLOORPLAN_WIDTH - 0.5) * WORLD_W, z: (vy / FLOORPLAN_HEIGHT - 0.5) * WORLD_D });
 const toVirtual = (wx, wz) => ({ x: (wx / WORLD_W + 0.5) * FLOORPLAN_WIDTH, y: (wz / WORLD_D + 0.5) * FLOORPLAN_HEIGHT });
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const BOUND_X = WORLD_W / 2 - 0.7;
+const BOUND_Z = WORLD_D / 2 - 0.7;
 
-// One participant, standing on the floor of the 3D room. Only the viewer's own
-// avatar is draggable; dragging raycasts the pointer onto the floor plane (so
-// movement follows the isometric view correctly at any zoom/pan). Both own and
-// remote avatars glide toward their target each frame instead of teleporting.
+// One participant, standing on the floor of the 3D house. Only the viewer's own
+// avatar is draggable; dragging raycasts the pointer onto the floor plane so
+// movement follows the isometric view correctly at any zoom/pan. Avatars live
+// inside the (possibly mirrored) scene root, so positions here are always in
+// the un-mirrored local space — a flipped view only changes how they render,
+// never what's sent over the socket (everyone shares the same virtual coords).
 export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, onMove, dragLockRef }) {
   const group = useRef();
+  const view = useContext(ViewContext);
   const { camera, gl } = useThree();
   const draggingRef = useRef(false);
   const targetRef = useRef(toWorld(x, y));
@@ -40,11 +44,14 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
     g.position.z += (t.z - g.position.z) * k;
   });
 
+  // Pointer -> floor position in the scene root's LOCAL space (undoing the
+  // x<->z reflection when the view is flipped).
   const pointToGround = (cx, cy) => {
     const rect = gl.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -(((cy - rect.top) / rect.height) * 2 - 1));
     raycaster.setFromCamera(ndc, camera);
-    return raycaster.ray.intersectPlane(plane, hit) ? { x: hit.x, z: hit.z } : null;
+    if (!raycaster.ray.intersectPlane(plane, hit)) return null;
+    return view.current.flip ? { x: hit.z, z: hit.x } : { x: hit.x, z: hit.z };
   };
 
   const emit = (wx, wz) => {
@@ -79,8 +86,8 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
     const move = (ev) => {
       const p = pointToGround(ev.clientX, ev.clientY);
       if (!p) return;
-      const wx = clamp(p.x + off.x, -9.3, 9.3);
-      const wz = clamp(p.z + off.z, -5.3, 5.3);
+      const wx = clamp(p.x + off.x, -BOUND_X, BOUND_X);
+      const wz = clamp(p.z + off.z, -BOUND_Z, BOUND_Z);
       targetRef.current = { x: wx, z: wz };
       emitThrottled(wx, wz);
     };
@@ -103,7 +110,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
         <circleGeometry args={[0.55, 24]} />
         <meshBasicMaterial color="#000" transparent opacity={0.4} depthWrite={false} />
       </mesh>
-      <Html position={[0, 0.95, 0]} center zIndexRange={[40, 0]}>
+      <ScaledHtml position={[0, 0.95, 0]} zIndexRange={[40, 0]}>
         <div
           onPointerDown={onPointerDown}
           style={{
@@ -129,7 +136,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
             {username}
           </span>
         </div>
-      </Html>
+      </ScaledHtml>
     </group>
   );
 }
