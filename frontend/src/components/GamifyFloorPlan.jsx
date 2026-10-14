@@ -300,8 +300,8 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     return c;
   }, [userList, avatarPositions]);
 
-  const btn = { width: 34, height: 34, borderRadius: 9, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(8,6,20,0.65)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(6px)' };
-  const glass = { background: 'rgba(8,6,20,0.65)', border: '1px solid rgba(255,255,255,0.16)', backdropFilter: 'blur(6px)', color: '#fff' };
+  const btn = { width: 34, height: 34, borderRadius: 9, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(12,10,24,0.72)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(6px)' };
+  const glass = { background: 'rgba(12,10,24,0.72)', border: '1px solid rgba(255,255,255,0.16)', backdropFilter: 'blur(6px)', color: '#fff' };
 
   return (
     <div ref={containerRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#0b0a14', touchAction: 'none' }}>
@@ -345,15 +345,16 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
 
       {/* current room + hint */}
       <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
-        <div style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>{FLOORPLAN_ZONES[focus].label}</div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', textShadow: '0 1px 3px #000' }}>Drag to look around, tap a door to go through</div>
+        <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>{FLOORPLAN_ZONES[focus].label}</div>
+        <div className="stay-white" style={{ fontSize: 11, opacity: 0.7, textShadow: '0 1px 3px #000' }}>Drag to look around, tap a door to go through</div>
       </div>
 
       {/* room map */}
-      <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 60, display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 4, padding: 6, borderRadius: 12, ...glass }}>
+      <div className="stay-white" style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 60, display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 4, padding: 6, borderRadius: 12, ...glass }}>
         {ZONE_LIST.slice().sort((a, b) => a.row - b.row || a.col - b.col).map(z => (
           <button
             key={z.id}
+            className="stay-white"
             onClick={() => focusRoom(z.id)}
             title={`Go to ${z.label}`}
             style={{
@@ -364,7 +365,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
           >
             {z.label}
             {counts[z.id] > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 4, fontSize: 10, color: '#a7f3d0' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 4, fontSize: 10 }}>
                 <Users size={9} />{counts[z.id]}
               </span>
             )}
@@ -373,10 +374,10 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       </div>
 
       <div style={{ position: 'absolute', bottom: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 60 }}>
-        <button onClick={toggleFlip} title="Flip house left/right" style={{ ...btn, background: flipped ? 'rgba(139,92,255,0.75)' : btn.background }}><FlipHorizontal2 size={16} /></button>
-        <button onClick={resetView} title="Back to my room" style={btn}><Maximize2 size={16} /></button>
-        <button onClick={() => zoomBy(1.3)} title="Zoom in" style={btn}><ZoomIn size={16} /></button>
-        <button onClick={() => zoomBy(1 / 1.3)} title="Zoom out" style={btn}><ZoomOut size={16} /></button>
+        <button className="stay-white" onClick={toggleFlip} title="Flip house left/right" style={{ ...btn, background: flipped ? 'rgba(139,92,255,0.75)' : btn.background }}><FlipHorizontal2 size={16} /></button>
+        <button className="stay-white" onClick={resetView} title="Back to my room" style={btn}><Maximize2 size={16} /></button>
+        <button className="stay-white" onClick={() => zoomBy(1.3)} title="Zoom in" style={btn}><ZoomIn size={16} /></button>
+        <button className="stay-white" onClick={() => zoomBy(1 / 1.3)} title="Zoom out" style={btn}><ZoomOut size={16} /></button>
       </div>
     </div>
   );

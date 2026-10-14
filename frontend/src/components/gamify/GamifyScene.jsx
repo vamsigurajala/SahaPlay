@@ -137,8 +137,8 @@ function RoomSign({ z }) {
   useFrame(() => { if (ref.current) ref.current.style.opacity = view.current.cur < 0.8 ? '1' : '0'; });
   return (
     <ScaledHtml position={[z.center.x, 0.3, z.center.z]} pointerEvents="none">
-      <div ref={ref} style={{
-        padding: '3px 14px', borderRadius: 99, background: 'rgba(8,6,20,0.6)', color: 'rgba(255,255,255,0.9)',
+      <div ref={ref} className="stay-white" style={{
+        padding: '3px 14px', borderRadius: 99, background: 'rgba(12,10,24,0.72)', color: 'rgba(255,255,255,0.9)',
         fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
         border: '1px solid rgba(255,255,255,0.14)', backdropFilter: 'blur(3px)', userSelect: 'none', transition: 'opacity .25s',
       }}>{z.label}</div>
@@ -161,12 +161,13 @@ function DoorChip({ link, onGo }) {
     <ScaledHtml position={[link.chip.x, 2.3, link.chip.z]} zIndexRange={[35, 0]}>
       <div ref={ref} style={{ transition: 'opacity .25s' }}>
         <button
+          className="stay-white"
           onClick={() => onGo(link)}
           onPointerDown={e => e.stopPropagation()}
           title={`Go to ${dest.label}`}
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 99, cursor: 'pointer',
-            background: 'rgba(14,10,34,0.82)', color: '#fff', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
+            background: 'rgba(12,10,24,0.78)', color: '#fff', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
             border: '1px solid rgba(139,92,255,0.8)', boxShadow: '0 0 14px rgba(139,92,255,0.55)', backdropFilter: 'blur(4px)',
           }}
         >

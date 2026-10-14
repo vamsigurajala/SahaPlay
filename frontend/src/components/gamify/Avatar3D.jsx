@@ -139,9 +139,9 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
               boxShadow: isOwn ? '0 0 0 3px rgba(139,92,255,0.7), 0 6px 14px rgba(0,0,0,0.5)' : '0 6px 14px rgba(0,0,0,0.5)',
             }}
           />
-          <span style={{
-            display: 'flex', alignItems: 'center', gap: 3, padding: '1px 8px', borderRadius: 99,
-            background: 'rgba(8,6,20,0.7)', color: '#fff', fontSize: 11, fontWeight: 700,
+          <span className="stay-white" style={{
+            display: 'flex', alignItems: 'center', gap: 3, padding: '2px 9px', borderRadius: 99,
+            background: 'rgba(12,10,24,0.72)', backdropFilter: 'blur(4px)', color: '#fff', fontSize: 11, fontWeight: 700,
             whiteSpace: 'nowrap', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {isHost && <Crown size={11} color="#fbbf24" />}

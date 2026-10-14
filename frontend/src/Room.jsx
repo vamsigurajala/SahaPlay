@@ -16008,11 +16008,6 @@ const Room = () => {
               </button>
             )}
             {!isGameOrActivity(mediaUrl) && (
-              <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowCustomizeModal(true); }}>
-                <Paintbrush size={20} /> <span>{t('themes', 'Themes')}</span>
-              </button>
-            )}
-            {!isGameOrActivity(mediaUrl) && (
               <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); toggleGamify(); }} onTouchStart={preloadGamify}>
                 <LayoutGrid size={20} /> <span>{gamifyMode ? t('gamifyOff', 'Turn off Gamify Mode') : t('gamifyOn', 'Gamify Mode')}</span>
               </button>
