@@ -1403,13 +1403,15 @@ const Room = () => {
   const [roomNotFound, setRoomNotFound] = useState(false);
   const [showCustomizeModal, setShowCustomizeModal] = useState(false);
   // ── Gamify Mode (Phase 1) ──
-  // Room-wide and server-authoritative, not a local per-viewer toggle — see
-  // the plan's reasoning: it relocates the SHARED player onto the in-scene
-  // TV, so every viewer must agree on the mode or "Select Media" would live
-  // in different places for different people watching the same stream.
-  // gamifyMode/avatarPositions are only ever set from server broadcasts
-  // (gamify_mode_changed / avatar_moved / room_state), never optimistically
-  // flipped locally, matching change_room_theme's host-path style.
+  // Room-wide and server-authoritative — it relocates the SHARED player onto
+  // the in-scene TV, so every viewer must agree on the mode or "Select Media"
+  // would live in different places for different people watching the same
+  // stream. The button's onClick below flips this optimistically (instantly,
+  // before the server even replies) because waiting for a full round-trip
+  // just to flip a cosmetic on/off toggle read as the button being
+  // unresponsive/slow — the server's own gamify_mode_changed broadcast still
+  // arrives moments later and simply confirms (or, in a genuine race,
+  // corrects) it, same as every other client in the room.
   const [gamifyMode, setGamifyMode] = useState(false);
   const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
   // The real player element's on-screen rect while gamify mode is on,
@@ -12268,7 +12270,11 @@ const Room = () => {
               TV-cast/fullscreen/an active game-or-call activity). */}
           {!isTvMode && !isFullscreen && !isGameOrActivity(mediaUrl) && (
             <button
-              onClick={() => socket?.emit('set_gamify_mode', { roomId, enabled: !gamifyMode })}
+              onClick={() => {
+                const next = !gamifyMode;
+                setGamifyMode(next); // optimistic — see state declaration above for why
+                socket?.emit('set_gamify_mode', { roomId, enabled: next });
+              }}
               title="Gamify Mode"
               onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
               onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
