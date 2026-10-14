@@ -1696,6 +1696,16 @@ function ActiveRoomsPage() {
         return (
           <div key={room.roomId} style={{
             marginBottom: 10,
+            // The page root (admin-page-container, see its own JSX below) is
+            // a flex column with overflow-y:auto — without flexShrink:0,
+            // every one of these cards is itself a flex item in that column
+            // and flexbox's default shrink-to-fit kicks in BEFORE the
+            // overflow/scroll does: with 15+ rooms all competing for the
+            // same bounded height, each card gets squeezed down instead of
+            // the page scrolling past them. Reported live as "all rooms are
+            // shrinked" — every row rendered as a near-flat sliver with its
+            // own text clipped by this div's overflow:hidden below.
+            flexShrink: 0,
             background: isLight ? '#ffffff' : 'rgba(255,255,255,0.03)',
             borderRadius: 14,
             border: isLight ? '1px solid #e5e7eb' : '1px solid rgba(255,255,255,0.07)',
