@@ -3493,13 +3493,19 @@ const Room = () => {
   // 62vh the CSS resolves to; only governs live-drag math, not the idle
   // (non-dragging) size, which the CSS's own var(--peek-player-height, ...)
   // fallback already renders correctly on its own.
-  const getPeekBaseHeight = () => (isCallActivity(mediaUrl) ? Math.max(340, window.innerHeight * 0.62) : ROOM_PEEK_MIN_HEIGHT);
+  const hasMobileMedia = !!(mediaUrl || isScreensharing || isViewer);
+  // With nothing playing the player strip rests fully collapsed (0px — the chat
+  // fills the screen), and the same pull-down gesture grows it from nothing.
+  const getPeekBaseHeight = () => (isCallActivity(mediaUrl) ? Math.max(340, window.innerHeight * 0.62) : (hasMobileMedia ? ROOM_PEEK_MIN_HEIGHT : 0));
 
   // Calls used to be excluded from this gesture entirely (no drag handle
   // shown at all) — re-enabled per explicit request: the same drag-down/
   // swipe-up pattern users already have for regular media should also work
   // for the in-room call view, not just movies/games.
-  const canPeekGesture = isMobile && !isTvMode && !isMobileFsMode && (!!mediaUrl || isScreensharing || isViewer);
+  // Also available with nothing playing: pulling the chat down reveals the player
+  // area (its "Select media" empty state, or the Gamify house).
+  const canPeekGesture = isMobile && !isTvMode && !isMobileFsMode;
+  const peekOpenNoMedia = isMobile && !isTvMode && !hasMobileMedia && (isPeekDragging || isPeekExpanded);
 
   // The actual root cause of the whole keyboard family of bugs (composer
   // hidden behind the keyboard, header flashing on top of the game for a
@@ -3580,6 +3586,16 @@ const Room = () => {
       setIsPeekExpanded(settled);
       return settled ? 1 : 0;
     });
+  };
+  // Gamify Mode toggle, shared by the desktop in-player button and the mobile
+  // 3-dot menu. Optimistic local flip + server broadcast (see the gamifyMode
+  // state declaration). On mobile, turning it on also pulls the player area
+  // open so the house is actually on screen instead of hiding behind the chat.
+  const toggleGamify = () => {
+    const next = !gamifyMode;
+    setGamifyMode(next);
+    socket?.emit('set_gamify_mode', { roomId, enabled: next });
+    if (isMobile) { setIsPeekExpanded(next); setPeekProgress(next ? 1 : 0); }
   };
   // Real Fullscreen (the rotate-to-landscape feature) and this gesture are
   // mutually exclusive UI states — if the user reaches real fullscreen some
@@ -12224,7 +12240,7 @@ const Room = () => {
           media is very much still playing, so excluding it here made that
           "empty room" rule misfire during Fullscreen too — hiding the
           player and expanding the chat panel over it instead of the video. */}
-      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', padding: (isTvMode || isPeekExpanded) ? 0 : 12, gap: (isTvMode || isPeekExpanded) ? 0 : 12 }} className={`no-scrollbar room-main-layout${isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode ? ' mob-media-active' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
+      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', padding: (isTvMode || isPeekExpanded) ? 0 : 12, gap: (isTvMode || isPeekExpanded) ? 0 : 12 }} className={`no-scrollbar room-main-layout${(isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode) || peekOpenNoMedia ? ' mob-media-active' : ''}${peekOpenNoMedia ? ' mob-peek-nomedia' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
         {/* Player column — padded when a theme is active to let the background show */}
         <div
           style={{
@@ -12241,10 +12257,10 @@ const Room = () => {
             transition: isPeekDragging ? 'none' : 'height 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
           className="no-scrollbar room-player-col"
-          onTouchStart={isPeekExpanded ? startPeekDrag : undefined}
-          onTouchMove={isPeekExpanded ? movePeekDrag : undefined}
-          onTouchEnd={isPeekExpanded ? endPeekDrag : undefined}
-          onTouchCancel={isPeekExpanded ? endPeekDrag : undefined}
+          onTouchStart={isPeekExpanded && !gamifyMode ? startPeekDrag : undefined}
+          onTouchMove={isPeekExpanded && !gamifyMode ? movePeekDrag : undefined}
+          onTouchEnd={isPeekExpanded && !gamifyMode ? endPeekDrag : undefined}
+          onTouchCancel={isPeekExpanded && !gamifyMode ? endPeekDrag : undefined}
         >
           {/* Customize Room floating button */}
           {!isTvMode && !isFullscreen && !isGameOrActivity(mediaUrl) && (
@@ -12274,11 +12290,8 @@ const Room = () => {
               TV-cast/fullscreen/an active game-or-call activity). */}
           {!isTvMode && !isFullscreen && !isGameOrActivity(mediaUrl) && (
             <button
-              onClick={() => {
-                const next = !gamifyMode;
-                setGamifyMode(next); // optimistic — see state declaration above for why
-                socket?.emit('set_gamify_mode', { roomId, enabled: next });
-              }}
+              onClick={toggleGamify}
+              className="room-gamify-btn"
               title="Gamify Mode"
               onMouseEnter={e => { preloadGamify(); e.currentTarget.style.transform = 'scale(1.1)'; }}
               onTouchStart={preloadGamify}
@@ -12320,6 +12333,20 @@ const Room = () => {
                 onTvReady={setGamifyTvReady}
               />
             </React.Suspense>
+          )}
+          {/* Mobile + Gamify: the house owns touch drags, so the pull-up-to-close
+              gesture the video player uses would fight it — give it a handle. */}
+          {gamifyMode && isMobile && isPeekExpanded && (
+            <div
+              onTouchStart={startPeekDrag}
+              onTouchMove={movePeekDrag}
+              onTouchEnd={endPeekDrag}
+              onTouchCancel={endPeekDrag}
+              onClick={() => { setIsPeekExpanded(false); setPeekProgress(0); }}
+              style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 120, display: 'flex', justifyContent: 'center', padding: '14px 0 10px', touchAction: 'none', cursor: 'pointer' }}
+            >
+              <div style={{ width: 44, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.7)', boxShadow: '0 1px 4px rgba(0,0,0,0.6)' }} />
+            </div>
           )}
 
           <div
@@ -15980,9 +16007,14 @@ const Room = () => {
                 <Settings2 size={20} /> <span>{t('roomSettings', 'Room Settings')}</span>
               </button>
             )}
-            {isEffectiveHost && !isGameOrActivity(mediaUrl) && !isStandalonePWA() && (
+            {!isGameOrActivity(mediaUrl) && (
               <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowCustomizeModal(true); }}>
                 <Paintbrush size={20} /> <span>{t('themes', 'Themes')}</span>
+              </button>
+            )}
+            {!isGameOrActivity(mediaUrl) && (
+              <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); toggleGamify(); }} onTouchStart={preloadGamify}>
+                <LayoutGrid size={20} /> <span>{gamifyMode ? t('gamifyOff', 'Turn off Gamify Mode') : t('gamifyOn', 'Gamify Mode')}</span>
               </button>
             )}
             {!isEffectiveHost && (

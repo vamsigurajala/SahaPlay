@@ -1572,7 +1572,7 @@ html[data-theme='light'] .mobile-nav-divider {
   }
 
   /* Hide paintbrush / room-theme button on the video player */
-  .room-theme-btn { display: none !important; }
+  .room-theme-btn, .room-gamify-btn { display: none !important; } /* both live in the ⋮ menu on mobile */
 
   /* Player controls row: compact gap */
   .player-controls-row { gap: 3px !important; }
@@ -2019,6 +2019,13 @@ body.sp-mobile-fs-light-activity .room-player-col {
   .mob-media-active #room-chat-panel {
     border-radius: 0 !important;
     border-top: none !important;
+  }
+  /* Nothing playing: the player strip rests at 0 and the pull-down gesture
+     grows it from nothing (Room.jsx getPeekBaseHeight / peekOpenNoMedia). */
+  .mob-peek-nomedia .room-player-col {
+    height: var(--peek-player-height, 0px) !important;
+    min-height: var(--peek-player-height, 0px) !important;
+    max-height: var(--peek-player-height, 0px) !important;
   }
   /* Calls need much more room than the regular 260px video mini-player —
      the lobby (avatar + title + subtitle + Join/Exit buttons) doesn't fit
