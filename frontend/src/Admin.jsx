@@ -9,6 +9,7 @@ import {
   LogOut, Clock, Infinity as InfinityIcon, Activity, UserCheck, ExternalLink,
   Trash2, FileText, Crown, UserMinus, ChevronDown, ChevronUp,
   Inbox, UserCog, Mail, Paperclip, Calendar, Scale, Monitor, Plus,
+  Globe, Lock,
 } from 'lucide-react';
 import { getAvatarUrl } from './utils/avatarUtils';
 import MediaLightbox from './components/MediaLightbox';
@@ -223,6 +224,11 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
   const [dbPage, setDbPage] = useState(1);
   const [dbPages, setDbPages] = useState(1);
   const [dbTotal, setDbTotal] = useState(0);
+  // The "Total Rooms/Public/Private (DB)" overview cards all open this same
+  // drawer with a different starting `filter` — this local copy lets the
+  // admin flip between All/Public/Private from inside the drawer itself
+  // instead of closing it and clicking a different overview card each time.
+  const [dbFilter, setDbFilter] = useState(filter);
   const [banTarget, setBanTarget] = useState(null);
   const [terminateTarget, setTerminateTarget] = useState(null);
   const searchTimer = useRef(null);
@@ -242,9 +248,9 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
       .catch(e => { setError(e.message); setLoading(false); });
   }
 
-  function fetchDbRooms(s = '', p = 1) {
+  function fetchDbRooms(s = '', p = 1, f = dbFilter) {
     setLoading(true);
-    apiFetch(`/api/admin/db-rooms?filter=${filter}&search=${encodeURIComponent(s)}&page=${p}&limit=20`)
+    apiFetch(`/api/admin/db-rooms?filter=${f}&search=${encodeURIComponent(s)}&page=${p}&limit=20`)
       .then(d => { setData(d); setDbPage(d.page); setDbPages(d.pages || 1); setDbTotal(d.total); setLoading(false); })
       .catch(e => { setError(e.message); setLoading(false); });
   }
@@ -252,8 +258,9 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
   useEffect(() => {
     setSearch('');
     setDbPage(1);
+    setDbFilter(filter);
     if (isDbRooms) {
-      fetchDbRooms('', 1);
+      fetchDbRooms('', 1, filter);
     } else {
       fetchData();
       const intervalId = setInterval(() => {
@@ -273,9 +280,18 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
     if (isDbRooms) {
       setDbPage(1);
       clearTimeout(searchTimer.current);
-      searchTimer.current = setTimeout(() => fetchDbRooms(val, 1), 350);
+      searchTimer.current = setTimeout(() => fetchDbRooms(val, 1, dbFilter), 350);
     }
   }
+
+  function handleFilterChange(f) {
+    if (f === dbFilter) return;
+    setDbFilter(f);
+    setDbPage(1);
+    fetchDbRooms(search, 1, f);
+  }
+
+  const dbFilterTitle = dbFilter === 'public' ? 'All Public Rooms (DB)' : dbFilter === 'private' ? 'All Private Rooms (DB)' : 'All Rooms (DB)';
 
   const activeRoomList = (() => {
     if (type !== 'active-rooms') return [];
@@ -297,10 +313,10 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
   return (
     <>
       {banTarget && (
-        <BanModal user={banTarget} onClose={() => setBanTarget(null)} onBanned={() => isDbRooms ? fetchDbRooms(search, dbPage) : fetchData()} />
+        <BanModal user={banTarget} onClose={() => setBanTarget(null)} onBanned={() => isDbRooms ? fetchDbRooms(search, dbPage, dbFilter) : fetchData()} />
       )}
       {terminateTarget && (
-        <TerminateModal user={terminateTarget} onClose={() => setTerminateTarget(null)} onTerminated={() => isDbRooms ? fetchDbRooms(search, dbPage) : fetchData()} />
+        <TerminateModal user={terminateTarget} onClose={() => setTerminateTarget(null)} onTerminated={() => isDbRooms ? fetchDbRooms(search, dbPage, dbFilter) : fetchData()} />
       )}
 
       <div onClick={onClose} className="room-modals-overlay" style={{
@@ -323,7 +339,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
           borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.08)',
           flexShrink: 0
         }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>{title}</h2>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: isLight ? '#111827' : '#fff' }}>{isDbRooms ? dbFilterTitle : title}</h2>
           <button onClick={onClose} style={{
             background: 'none', border: 'none',
             color: isLight ? '#374151' : 'rgba(255,255,255,0.5)',
@@ -339,6 +355,35 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
             borderBottom: isLight ? '1px solid #f3f4f6' : '1px solid rgba(255,255,255,0.06)',
             flexShrink: 0
           }}>
+            {isDbRooms && (
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                {[
+                  { key: 'all', label: 'All', icon: LayoutDashboard },
+                  { key: 'public', label: 'Public', icon: Globe },
+                  { key: 'private', label: 'Private', icon: Lock },
+                ].map(({ key, label, icon: Icon }) => {
+                  const active = dbFilter === key;
+                  return (
+                    <button key={key} onClick={() => handleFilterChange(key)} style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                      cursor: 'pointer',
+                      border: active
+                        ? '1px solid var(--brand-1)'
+                        : (isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)'),
+                      background: active
+                        ? 'rgba(var(--brand-1-rgb),0.15)'
+                        : (isLight ? '#ffffff' : 'rgba(255,255,255,0.05)'),
+                      color: active
+                        ? 'var(--brand-1-light)'
+                        : (isLight ? '#374151' : 'rgba(255,255,255,0.6)'),
+                    }}>
+                      <Icon size={12} /> {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div style={{ position: 'relative' }}>
               <Search size={13} style={{
                 position: 'absolute', left: 10, top: '50%',
@@ -479,7 +524,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
               }
               {dbPages > 1 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16 }}>
-                  <button onClick={() => { const p = Math.max(1, dbPage - 1); setDbPage(p); fetchDbRooms(search, p); }} disabled={dbPage === 1}
+                  <button onClick={() => { const p = Math.max(1, dbPage - 1); setDbPage(p); fetchDbRooms(search, p, dbFilter); }} disabled={dbPage === 1}
                     style={{
                       padding: '5px 10px', borderRadius: 7,
                       border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
@@ -490,7 +535,7 @@ function DetailDrawer({ title, type, filter = 'all', onClose }) {
                     <ChevronLeft size={13} />
                   </button>
                   <span style={{ color: isLight ? '#4b5563' : 'rgba(255,255,255,0.45)', fontSize: 12 }}>Page {dbPage} of {dbPages}</span>
-                  <button onClick={() => { const p = Math.min(dbPages, dbPage + 1); setDbPage(p); fetchDbRooms(search, p); }} disabled={dbPage === dbPages}
+                  <button onClick={() => { const p = Math.min(dbPages, dbPage + 1); setDbPage(p); fetchDbRooms(search, p, dbFilter); }} disabled={dbPage === dbPages}
                     style={{
                       padding: '5px 10px', borderRadius: 7,
                       border: isLight ? '1px solid #d1d5db' : '1px solid rgba(255,255,255,0.1)',
@@ -670,9 +715,15 @@ function OverviewPage({ onNavigate }) {
             <StatCard label="Active Private" value={stats.activePrivateRooms.toLocaleString()} icon={LayoutDashboard} color="#f59e0b"
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to see active private rooms" : undefined}
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'active-rooms', title: 'Active Private Rooms', filter: 'private' }) : undefined} />
-            <StatCard label="Total Public Rooms (DB)" value={stats.totalPublicRooms.toLocaleString()} icon={LayoutDashboard} color="var(--brand-2)"
+            <StatCard label="Total Rooms (DB)" value={(stats.totalPublicRooms + stats.totalPrivateRooms).toLocaleString()} icon={LayoutDashboard} color="var(--brand-2)"
+              sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to browse all rooms" : undefined}
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'db-rooms', title: 'All Rooms (DB)', filter: 'all' }) : undefined} />
+            <StatCard label="Total Public Rooms (DB)" value={stats.totalPublicRooms.toLocaleString()} icon={Globe} color="#10b981"
               sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to browse all public rooms" : undefined}
               onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'db-rooms', title: 'All Public Rooms (DB)', filter: 'public' }) : undefined} />
+            <StatCard label="Total Private Rooms (DB)" value={stats.totalPrivateRooms.toLocaleString()} icon={Lock} color="#f59e0b"
+              sub={['super_admin', 'admin', 'moderator'].includes(watchRole) ? "Click to browse all private rooms" : undefined}
+              onClick={['super_admin', 'admin', 'moderator'].includes(watchRole) ? () => setDrawer({ type: 'db-rooms', title: 'All Private Rooms (DB)', filter: 'private' }) : undefined} />
           </div>
         </>
       ) : null}
