@@ -1,7 +1,7 @@
 import { useRef, useContext } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { ViewContext } from './parts';
-import { FLOORPLAN_ZONES } from '../../data/gamifyZones';
+import { ALL_ZONES } from '../../data/gamifyZones';
 
 // Each room in rooms.jsx is authored in its own original 10-12 unit frame; every
 // room now sits in a much larger CELL_W x CELL_D cell. The original furniture is
@@ -20,7 +20,7 @@ const OLD_ORIGIN = {
 export function Cell({ id, base, children }) {
   const view = useContext(ViewContext);
   const gate = useRef();
-  const z = FLOORPLAN_ZONES[id];
+  const z = ALL_ZONES[id];
   const w = z.world;
   const [ox, oz] = OLD_ORIGIN[id] || [0, 0];
   useFrame(() => {
@@ -29,7 +29,7 @@ export function Cell({ id, base, children }) {
     const v = view.current;
     const lx = v.flip ? v.pz : v.px;
     const lz = v.flip ? v.px : v.pz;
-    const show = v.focus === id || v.cur < 0.8 || Math.hypot(lx - z.center.x, lz - z.center.z) < 14.5;
+    const show = (z.floor === (v.floor || 0) || v.cur < 0.8) && (v.focus === id || v.cur < 0.8 || Math.hypot(lx - z.center.x, lz - z.center.z) < 14.5);
     if (g.visible !== show) g.visible = show;
   });
   return (

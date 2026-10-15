@@ -185,16 +185,16 @@ export function Monitor({ p, rot = 0, color = '#3ee8ff' }) {
 const BOOK_COLORS = ['#ff6fb5', '#5ad1ff', '#ffcf5a', '#8dff9c', '#a56bff', '#ff8a5a', '#e8e1ff'];
 
 // Front faces +z; rotate with `rot` to face another wall.
-export function Bookshelf({ p, rot = 0, w = 3, h = 3.4, d = 0.8, shelf }) {
+export function Bookshelf({ p, rot = 0, w = 3, h = 3.4, d = 0.8, shelf, wood }) {
   const rows = 4;
   const gap = h / rows;
   const open = useOpenProp('books', shelf);
   return (
     <group position={p} rotation={[0, rot, 0]} {...open}>
-      <Box p={[0, h / 2, -d / 2 + 0.05]} s={[w, h, 0.1]} c="#2a1f4d" />
-      <Box p={[-w / 2 + 0.05, h / 2, 0]} s={[0.1, h, d]} c="#33265a" />
-      <Box p={[w / 2 - 0.05, h / 2, 0]} s={[0.1, h, d]} c="#33265a" />
-      {Array.from({ length: rows + 1 }).map((_, i) => <Box key={i} p={[0, i * gap + 0.05, 0]} s={[w, 0.1, d]} c="#33265a" />)}
+      <Box p={[0, h / 2, -d / 2 + 0.05]} s={[w, h, 0.1]} c={wood || "#2a1f4d"} />
+      <Box p={[-w / 2 + 0.05, h / 2, 0]} s={[0.1, h, d]} c={wood || "#33265a"} />
+      <Box p={[w / 2 - 0.05, h / 2, 0]} s={[0.1, h, d]} c={wood || "#33265a"} />
+      {Array.from({ length: rows + 1 }).map((_, i) => <Box key={i} p={[0, i * gap + 0.05, 0]} s={[w, 0.1, d]} c={wood || "#33265a"} />)}
       {Array.from({ length: rows }).map((_, row) => {
         const n = Math.floor((w - 0.3) / 0.3);
         return Array.from({ length: n }).map((__, i) => {
@@ -222,13 +222,13 @@ export function Arcade({ p, rot = 0, color = NEON_CYAN }) {
   );
 }
 
-export function WallWindow({ p, rot = 0, w = 3, h = 1.8, color = '#8fd3ff' }) {
+export function WallWindow({ p, rot = 0, w = 3, h = 1.8, color = '#8fd3ff', frame = '#241c4a' }) {
   return (
     <group position={p} rotation={[0, rot, 0]}>
-      <Box p={[0, 0, 0]} s={[w + 0.3, h + 0.3, 0.12]} c="#241c4a" />
+      <Box p={[0, 0, 0]} s={[w + 0.3, h + 0.3, 0.12]} c={frame} />
       <mesh position={[0, 0, 0.07]}><planeGeometry args={[w, h]} /><meshBasicMaterial color={color} toneMapped={false} /></mesh>
-      <Box p={[0, 0, 0.09]} s={[0.07, h, 0.04]} c="#241c4a" shadow={false} />
-      <Box p={[0, 0, 0.09]} s={[w, 0.07, 0.04]} c="#241c4a" shadow={false} />
+      <Box p={[0, 0, 0.09]} s={[0.07, h, 0.04]} c={frame} shadow={false} />
+      <Box p={[0, 0, 0.09]} s={[w, 0.07, 0.04]} c={frame} shadow={false} />
     </group>
   );
 }

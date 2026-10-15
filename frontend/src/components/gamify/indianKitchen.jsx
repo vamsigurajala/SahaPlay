@@ -30,7 +30,7 @@ const Flame = ({ p }) => (
 // with chimney, LPG cylinder, masala dabba, tawa/kadhai/pressure cooker, mixer
 // grinder, microwave, double-door fridge, RO purifier, matka, chakla-belan board,
 // steel thali dining set and a jute mat.
-export default function IndianKitchen() {
+export default function IndianKitchen({ natural = false }) {
   const openFridge = useOpenProp('fridge');
   const openStove = useOpenProp('stove');
   const openOven = useOpenProp('oven');
@@ -73,7 +73,7 @@ export default function IndianKitchen() {
       {/* chimney */}
       <Box p={[2.2, 3.6, 0.7]} s={[1.9, 0.5, 1.1]} c={STEEL} metal={0.8} rough={0.3} r={0.04} />
       <Box p={[2.2, 4.3, 0.4]} s={[0.55, 1.2, 0.5]} c={STEEL} metal={0.8} rough={0.3} />
-      <Neon p={[2.2, 3.33, 0.9]} s={[1.5, 0.03, 0.03]} color={NEON_AMBER} halo={false} />
+      {!natural && <Neon p={[2.2, 3.33, 0.9]} s={[1.5, 0.03, 0.03]} color={NEON_AMBER} halo={false} />}
       {/* wall cabinets + spice shelf */}
       <Box p={[5.2, 3.2, 0.45]} s={[2.4, 1.3, 0.7]} c={CREAM} r={0.03} />
       <Box p={[0.9, 3.2, 0.45]} s={[0.8, 1.3, 0.7]} c={CREAM} r={0.03} />
@@ -99,14 +99,14 @@ export default function IndianKitchen() {
       <group {...openOven}>
       <Box p={[15.0, 1.4, 0.9]} s={[1.3, 0.7, 0.85]} c="#1c1a28" r={0.04} />
       <Box p={[14.85, 1.4, 1.33]} s={[0.85, 0.5, 0.03]} c="#1a2a45" emissive="#1a3a6a" ei={0.5} shadow={false} />
-      <Neon p={[15.5, 1.4, 1.34]} s={[0.12, 0.45, 0.02]} color={NEON_CYAN} halo={false} />
+      {!natural && <Neon p={[15.5, 1.4, 1.34]} s={[0.12, 0.45, 0.02]} color={NEON_CYAN} halo={false} />}
       </group>
       {/* mixer grinder */}
       <Steel p={[16.2, 1.25, 0.9]} args={[0.26, 0.3, 0.38, 16]} color="#c0392b" />
       <mesh position={[16.2, 1.7, 0.9]}><cylinderGeometry args={[0.24, 0.2, 0.55, 16]} /><meshStandardMaterial color="#d8f0ff" transparent opacity={0.55} /></mesh>
       {/* RO purifier on the wall */}
       <Box p={[13.2, 2.7, 0.4]} s={[0.9, 1.1, 0.4]} c="#f4f6ff" r={0.06} />
-      <Neon p={[13.2, 2.5, 0.62]} s={[0.5, 0.05, 0.02]} color="#4fc3ff" halo={false} />
+      {!natural && <Neon p={[13.2, 2.5, 0.62]} s={[0.5, 0.05, 0.02]} color="#4fc3ff" halo={false} />}
       <Box p={[11.2, 3.3, 0.45]} s={[1.6, 1.3, 0.7]} c={CREAM} r={0.03} />
       <Box p={[15.3, 3.3, 0.45]} s={[3.6, 1.3, 0.7]} c={CREAM} r={0.03} />
       {/* double-door fridge — tap to look inside */}

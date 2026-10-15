@@ -24,7 +24,10 @@ export const FLOORPLAN_HEIGHT = 600;
 const V_DOOR_AT = [[5, 6.8], [12.5, 12.5], [8, 8]]; // [row][col] — doors between col c and c+1
 const H_DOOR_AT = [[8.5, 6.6, 4.8], [10.5, 15.6, 8.4]]; // [row boundary][col] — doors between row r and r+1
 
-const zone = (id, label, col, row) => {
+// Second floor: sits FLOOR_Y above the ground floor, over the back two rows.
+export const FLOOR_Y = 5.8;
+
+const zone = (id, label, col, row, floor = 0) => {
   const x0 = -WORLD_W / 2 + col * CELL_W;
   const z0 = -WORLD_D / 2 + row * CELL_D;
   const x1 = x0 + CELL_W;
@@ -34,6 +37,7 @@ const zone = (id, label, col, row) => {
     label,
     col,
     row,
+    floor,
     world: { x0, x1, z0, z1 },
     center: { x: (x0 + x1) / 2, z: (z0 + z1) / 2 },
     x: ((x0 + WORLD_W / 2) / WORLD_W) * FLOORPLAN_WIDTH,
@@ -55,8 +59,21 @@ export const FLOORPLAN_ZONES = {
   courtyard: zone('courtyard', 'Courtyard', 2, 2),
 };
 
-export const ZONE_IDS = Object.keys(FLOORPLAN_ZONES);
+// Upstairs: two bedrooms, a living room, a kitchen and a balcony (the
+// remaining cell in the front row is open air). Same x/z grid as downstairs, so
+// avatar positions keep using the same virtual coordinates; only the zone id
+// says which floor you are on.
+export const FLOOR2_ZONES = {
+  f2bed1: zone('f2bed1', 'Master Bedroom', 0, 0, 1),
+  f2hall: zone('f2hall', 'Upstairs Hall', 1, 0, 1),
+  f2bed2: zone('f2bed2', 'Guest Bedroom', 2, 0, 1),
+  f2kitchen: zone('f2kitchen', 'Upstairs Kitchen', 0, 1, 1),
+  f2balcony: zone('f2balcony', 'Balcony', 1, 1, 1),
+};
+export const ALL_ZONES = { ...FLOORPLAN_ZONES, ...FLOOR2_ZONES };
+export const ZONE_IDS = Object.keys(ALL_ZONES);
 const ZONE_LIST = Object.values(FLOORPLAN_ZONES);
+const ZONE_LIST_2 = Object.values(FLOOR2_ZONES);
 const byCell = (c, r) => ZONE_LIST.find(z => z.col === c && z.row === r);
 
 // Every doorway between two neighbouring rooms. axis 'v' = a doorway cut into a
@@ -91,6 +108,37 @@ export const DOOR_LINKS = DOORWAYS.flatMap(d => (d.axis === 'v'
     { from: d.b, to: d.a, chip: { x: d.x, z: d.z + 2.2 }, entry: { x: d.x, z: d.z - 3.2 } },
   ]));
 
+// Upstairs doorways (cell-local offsets from the back / left edge) and links.
+const F2_DOORS = [
+  { axis: 'v', x: -9, z: -24 + 6, a: 'f2bed1', b: 'f2hall' },
+  { axis: 'v', x: 9, z: -24 + 6, a: 'f2hall', b: 'f2bed2' },
+  { axis: 'v', x: -9, z: -8 + 12.5, a: 'f2kitchen', b: 'f2balcony' },
+  { axis: 'h', x: -27 + 8.5, z: -8, a: 'f2bed1', b: 'f2kitchen' },
+  { axis: 'h', x: 0, z: -8, a: 'f2hall', b: 'f2balcony' },
+];
+export const DOORWAYS_F2 = F2_DOORS;
+const linksFor = (d) => (d.axis === 'v'
+  ? [
+    { from: d.a, to: d.b, chip: { x: d.x - 2.2, z: d.z }, entry: { x: d.x + 3.2, z: d.z } },
+    { from: d.b, to: d.a, chip: { x: d.x + 2.2, z: d.z }, entry: { x: d.x - 3.2, z: d.z } },
+  ]
+  : [
+    { from: d.a, to: d.b, chip: { x: d.x, z: d.z - 2.2 }, entry: { x: d.x, z: d.z + 3.2 } },
+    { from: d.b, to: d.a, chip: { x: d.x, z: d.z + 2.2 }, entry: { x: d.x, z: d.z - 3.2 } },
+  ]);
+export const DOOR_LINKS_F2 = F2_DOORS.flatMap(linksFor);
+
+// Stairs between floors: a chip in `from` that walks you to `entry` in `to`.
+const hallZ = FLOORPLAN_ZONES.hall.world;
+const f2hallZ = FLOOR2_ZONES.f2hall.world;
+const yardZ = FLOORPLAN_ZONES.frontyard;
+export const STAIR_LINKS = [
+  { from: 'hall', to: 'f2hall', label: 'Go upstairs', dir: 'up', chip: { x: hallZ.x0 + 3.2, z: hallZ.z0 + 12.5 }, entry: { x: f2hallZ.x0 + 4, z: f2hallZ.z0 + 13 } },
+  { from: 'frontyard', to: 'f2hall', label: 'Go to next floor', dir: 'up', chip: { x: yardZ.world.x0 + 13.4, z: yardZ.world.z1 - 2.6 }, entry: { x: f2hallZ.x0 + 4, z: f2hallZ.z0 + 13 } },
+  { from: 'f2hall', to: 'hall', label: 'Go downstairs', dir: 'down', chip: { x: f2hallZ.x0 + 3.2, z: f2hallZ.z0 + 12.5 }, entry: { x: hallZ.x0 + 4, z: hallZ.z0 + 13 } },
+];
+export const ALL_LINKS = [...DOOR_LINKS, ...DOOR_LINKS_F2, ...STAIR_LINKS];
+
 export const worldToVirtual = (wx, wz) => ({
   x: (wx / WORLD_W + 0.5) * FLOORPLAN_WIDTH,
   y: (wz / WORLD_D + 0.5) * FLOORPLAN_HEIGHT,
@@ -105,13 +153,14 @@ export const DEFAULT_SPAWN = { x: spawn.x, y: spawn.y, zone: 'hall' };
 // Which zone does a given virtual-space point fall inside? Falls back to
 // whichever zone is closest by center distance if the point is somehow
 // outside every zone rect — avatars should never end up with no zone at all.
-export function zoneForPoint(x, y) {
-  for (const z of ZONE_LIST) {
+export function zoneForPoint(x, y, floor = 0) {
+  const list = floor ? ZONE_LIST_2 : ZONE_LIST;
+  for (const z of list) {
     if (x >= z.x && x <= z.x + z.width && y >= z.y && y <= z.y + z.height) return z.id;
   }
-  let closest = ZONE_LIST[0];
+  let closest = list[0];
   let closestDist = Infinity;
-  for (const z of ZONE_LIST) {
+  for (const z of list) {
     const cx = z.x + z.width / 2;
     const cy = z.y + z.height / 2;
     const dist = (x - cx) ** 2 + (y - cy) ** 2;

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Crown } from 'lucide-react';
 import Avatar from '../Avatar';
-import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D, zoneForPoint } from '../../data/gamifyZones';
+import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D, FLOOR_Y, ALL_ZONES, zoneForPoint } from '../../data/gamifyZones';
 import { ScaledHtml, ViewContext } from './parts';
 
 const toWorld = (vx, vy) => ({ x: (vx / FLOORPLAN_WIDTH - 0.5) * WORLD_W, z: (vy / FLOORPLAN_HEIGHT - 0.5) * WORLD_D });
@@ -11,6 +11,8 @@ const toVirtual = (wx, wz) => ({ x: (wx / WORLD_W + 0.5) * FLOORPLAN_WIDTH, y: (
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const BOUND_X = WORLD_W / 2 - 0.7;
 const BOUND_Z = WORLD_D / 2 - 0.7;
+// Upstairs only covers the back two rows of the house.
+const BOUND_Z_UP = -WORLD_D / 2 + 2 * (WORLD_D / 3) - 0.7;
 
 // One participant, standing on the floor of the 3D house. Only the viewer's own
 // avatar is draggable; dragging raycasts the pointer onto the floor plane so
@@ -18,13 +20,18 @@ const BOUND_Z = WORLD_D / 2 - 0.7;
 // inside the (possibly mirrored) scene root, so positions here are always in
 // the un-mirrored local space — a flipped view only changes how they render,
 // never what's sent over the socket (everyone shares the same virtual coords).
-export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, onMove, onDrop, dragLockRef }) {
+export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zone, onMove, onDrop, dragLockRef }) {
   const group = useRef();
   const view = useContext(ViewContext);
   const { camera, gl } = useThree();
   const draggingRef = useRef(false);
+  const zoneFloor = ALL_ZONES[zone]?.floor || 0;
+  const floorRef = useRef(zoneFloor);
+  const labelRef = useRef();
+  // Remote avatars follow the floor their zone is on; your own changes only when you take the stairs.
+  if (!isOwn) floorRef.current = zoneFloor;
   const targetRef = useRef(toWorld(x, y));
-  const initialPos = useMemo(() => { const t = toWorld(x, y); return [t.x, 0, t.z]; }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const initialPos = useMemo(() => { const t = toWorld(x, y); return [t.x, zoneFloor * FLOOR_Y, t.z]; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const lastEmitRef = useRef(0);
   const pendingRef = useRef(null);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
@@ -42,9 +49,17 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
     const walk = isOwn ? view.current.walk : null;
     if (walk && !draggingRef.current) {
       view.current.walk = null;
+      if (walk.floor != null) floorRef.current = walk.floor;
       targetRef.current = { x: walk.x, z: walk.z };
+      if (walk.snap) { g.position.x = walk.x; g.position.z = walk.z; }
       emit(walk.x, walk.z);
     }
+    // Climb to the floor you are on, and only show people on a floor that is being drawn.
+    g.position.y += (floorRef.current * FLOOR_Y - g.position.y) * (1 - Math.exp(-dt * 5));
+    const vw = view.current;
+    const shown = floorRef.current === (vw.floor || 0) || vw.cur < 0.8;
+    if (g.visible !== shown) g.visible = shown;
+    if (labelRef.current) labelRef.current.style.display = shown ? 'flex' : 'none';
     const t = targetRef.current;
     // Frame-rate independent glide; a bit slower while the camera is gliding through a door so the walk is visible.
     const k = 1 - Math.exp(-dt * (draggingRef.current ? 48 : view.current.glide ? 6 : 13.4));
@@ -58,6 +73,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
     const rect = gl.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -(((cy - rect.top) / rect.height) * 2 - 1));
     raycaster.setFromCamera(ndc, camera);
+    plane.constant = -floorRef.current * FLOOR_Y;
     if (!raycaster.ray.intersectPlane(plane, hit)) return null;
     return view.current.flip ? { x: hit.z, z: hit.x } : { x: hit.x, z: hit.z };
   };
@@ -66,7 +82,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
     const v = toVirtual(wx, wz);
     const vx = clamp(v.x, 0, FLOORPLAN_WIDTH);
     const vy = clamp(v.y, 0, FLOORPLAN_HEIGHT);
-    onMove && onMove(vx, vy, zoneForPoint(vx, vy));
+    onMove && onMove(vx, vy, zoneForPoint(vx, vy, floorRef.current));
   };
 
   // ~20/sec to match the server's avatar_move rate bucket, always flushing the
@@ -95,7 +111,9 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
       const p = pointToGround(ev.clientX, ev.clientY);
       if (!p) return;
       const wx = clamp(p.x + off.x, -BOUND_X, BOUND_X);
-      const wz = clamp(p.z + off.z, -BOUND_Z, BOUND_Z);
+      let wz = clamp(p.z + off.z, -BOUND_Z, floorRef.current ? BOUND_Z_UP : BOUND_Z);
+      // the front-right cell upstairs is open air
+      if (floorRef.current && wx > WORLD_W / 6 - 0.3 && wz > -WORLD_D / 6 - 0.7) wz = -WORLD_D / 6 - 0.7;
       targetRef.current = { x: wx, z: wz };
       emitThrottled(wx, wz);
     };
@@ -105,7 +123,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
       if (pendingRef.current) { emit(pendingRef.current.wx, pendingRef.current.wz); pendingRef.current = null; }
       if (onDrop) {
         const v = toVirtual(targetRef.current.x, targetRef.current.z);
-        onDrop(zoneForPoint(clamp(v.x, 0, FLOORPLAN_WIDTH), clamp(v.y, 0, FLOORPLAN_HEIGHT)));
+        onDrop(zoneForPoint(clamp(v.x, 0, FLOORPLAN_WIDTH), clamp(v.y, 0, FLOORPLAN_HEIGHT), floorRef.current));
       }
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
@@ -124,6 +142,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, on
       </mesh>
       <ScaledHtml position={[0, 0.95, 0]} zIndexRange={[40, 0]}>
         <div
+          ref={labelRef}
           onPointerDown={onPointerDown}
           style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,

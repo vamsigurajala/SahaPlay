@@ -1,11 +1,13 @@
 import { useMemo, useRef, useContext, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { DoorOpen, LogOut, Shirt } from 'lucide-react';
+import { DoorOpen, LogOut, Shirt, ArrowUp, ArrowDown } from 'lucide-react';
 import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip } from './parts';
 import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden, Terrace, FrontYard, Courtyard } from './placedRooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
-import { WORLD_W, WORLD_D, CELL_W, CELL_D, COLS, ROWS, FLOORPLAN_ZONES, DOORWAYS, DOOR_LINKS } from '../../data/gamifyZones';
+import { WORLD_W, WORLD_D, CELL_W, CELL_D, COLS, ROWS, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, DOORWAYS, ALL_LINKS } from '../../data/gamifyZones';
+import Floor2 from './floor2';
+import { WEATHER, Ground, Clouds, Rain } from './environment';
 
 export const WALL_H = 4.8;
 const LOW_H = 0.9;
@@ -105,7 +107,7 @@ function Divider({ axis, at, from, to, gaps = [], color, tallForAt }) {
 
 // Directional light that follows the room being viewed, so the shadow map covers
 // only what's on screen (sharper shadows than one map stretched over the house).
-function FollowLight({ shadows, size }) {
+function FollowLight({ shadows, size, sun }) {
   const view = useContext(ViewContext);
   const light = useRef();
   const target = useMemo(() => new THREE.Object3D(), []);
@@ -116,13 +118,13 @@ function FollowLight({ shadows, size }) {
     // This light lives inside the (maybe mirrored) scene root: undo the mirror to get local coords.
     const lx = v.flip ? v.pz : v.px;
     const lz = v.flip ? v.px : v.pz;
-    target.position.set(lx, 0, lz);
-    l.position.set(lx + 14, 26, lz + 16);
+    target.position.set(lx, (v.floor || 0) * FLOOR_Y, lz);
+    l.position.set(lx + sun.pos[0], (v.floor || 0) * FLOOR_Y + sun.pos[1], lz + sun.pos[2]);
     target.updateMatrixWorld();
   });
   return (
     <>
-      <directionalLight ref={light} target={target} intensity={1.5} color="#ffe7ff" castShadow={shadows} shadow-mapSize={[size, size]}
+      <directionalLight ref={light} target={target} intensity={sun.int} color={sun.color} castShadow={shadows} shadow-mapSize={[size, size]}
         shadow-camera-left={-24} shadow-camera-right={24} shadow-camera-top={24} shadow-camera-bottom={-24} shadow-camera-near={1} shadow-camera-far={90} shadow-bias={-0.0004} />
       <primitive object={target} />
     </>
@@ -136,7 +138,7 @@ function RoomSign({ z }) {
   const ref = useRef();
   useFrame(() => { if (ref.current) ref.current.style.opacity = view.current.cur < 0.8 ? '1' : '0'; });
   return (
-    <ScaledHtml position={[z.center.x, 0.3, z.center.z]} pointerEvents="none">
+    <ScaledHtml position={[z.center.x, 0.3 + (z.floor || 0) * FLOOR_Y, z.center.z]} pointerEvents="none">
       <div ref={ref} className="stay-white" style={{
         padding: '3px 14px', borderRadius: 99, background: 'rgba(12,10,24,0.72)', color: 'rgba(255,255,255,0.9)',
         fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
@@ -149,7 +151,9 @@ function RoomSign({ z }) {
 function DoorChip({ link, onGo }) {
   const view = useContext(ViewContext);
   const ref = useRef();
-  const dest = FLOORPLAN_ZONES[link.to];
+  const dest = ALL_ZONES[link.to];
+  const stairs = !!link.dir;
+  const base = (ALL_ZONES[link.from].floor || 0) * FLOOR_Y;
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
@@ -158,21 +162,21 @@ function DoorChip({ link, onGo }) {
     el.style.pointerEvents = on ? 'auto' : 'none';
   });
   return (
-    <ScaledHtml position={[link.chip.x, 2.3, link.chip.z]} zIndexRange={[35, 0]}>
+    <ScaledHtml position={[link.chip.x, base + 2.3, link.chip.z]} zIndexRange={[35, 0]}>
       <div ref={ref} style={{ transition: 'opacity .18s' }}>
         <button
           className="stay-white"
           onClick={() => onGo(link)}
           onPointerDown={e => e.stopPropagation()}
-          title={`Go to ${dest.label}`}
+          title={link.label || `Go to ${dest.label}`}
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 99, cursor: 'pointer',
             background: 'rgba(12,10,24,0.78)', color: '#fff', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
             border: '1px solid rgba(139,92,255,0.8)', boxShadow: '0 0 14px rgba(139,92,255,0.55)', backdropFilter: 'blur(4px)',
           }}
         >
-          <DoorOpen size={14} />
-          {dest.label}
+          {stairs ? (link.dir === 'up' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <DoorOpen size={14} />}
+          {link.label || dest.label}
         </button>
       </div>
     </ScaledHtml>
@@ -212,7 +216,8 @@ function ExitChip({ onExit }) {
   );
 }
 
-export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse }) {
+export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, weather = 'night' }) {
+  const wx = WEATHER[weather];
   const textures = useMemo(() => ({
     hall: canvasTexture(512, (g, n) => {
       g.fillStyle = '#3b2a66'; g.fillRect(0, 0, n, n);
@@ -274,21 +279,19 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
 
   return (
     <group>
-      {/* ── Lighting ── */}
-      <ambientLight intensity={0.75} color="#b7a4ff" />
-      <hemisphereLight args={['#9c8cff', '#1a1030', 0.55]} />
-      <FollowLight shadows={!lowQ} size={coarse ? 1024 : 2048} />
+      {/* ── Lighting (tinted by the weather) ── */}
+      <ambientLight intensity={wx.ambient[1]} color={wx.ambient[0]} />
+      <hemisphereLight args={[wx.hemi[0], wx.hemi[1], wx.hemi[2]]} />
+      <FollowLight shadows={!lowQ} size={coarse ? 1024 : 2048} sun={wx.sun} />
       {roomLights.map(([id, color, y, intensity]) => {
         const z = FLOORPLAN_ZONES[id];
-        return <pointLight key={id} position={[z.center.x, y, z.center.z]} color={color} intensity={intensity} distance={26} decay={2} />;
+        return <pointLight key={id} position={[z.center.x, y, z.center.z]} color={color} intensity={intensity * wx.neon} distance={26} decay={2} />;
       })}
 
-      {/* ── Ground that carries on past the house (no floating-in-space look), slab, per-room floors ── */}
-      <mesh position={[0, -0.6, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[420, 420]} />
-        <meshStandardMaterial color="#0f0a20" roughness={1} />
-      </mesh>
-      <gridHelper args={[420, 210, '#1b1338', '#150f2e']} position={[0, -0.58, 0]} />
+      {/* ── Grass plot, trees, clouds and rain around the house, then the slab and per-room floors ── */}
+      <Ground weather={weather} />
+      <Clouds weather={weather} />
+      {wx.rain && <Rain />}
       <mesh position={[0, -0.25, 0]} receiveShadow>
         <boxGeometry args={[WORLD_W + 0.8, 0.5, WORLD_D + 0.8]} />
         <meshStandardMaterial color="#1b1430" roughness={0.9} />
@@ -333,12 +336,14 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       <Terrace />
       <FrontYard />
       <Courtyard />
+      <Floor2 />
 
       {/* ── Room signs + door hotspots ── */}
-      {zoomedOut && zones.map(z => <RoomSign key={z.id} z={z} />)}
+      {zoomedOut && zones.filter(z => z.row === 2).map(z => <RoomSign key={z.id} z={z} />)}
+      {zoomedOut && Object.values(ALL_ZONES).filter(z => z.floor === 1).map(z => <RoomSign key={z.id} z={z} />)}
       {focus === 'frontyard' && <ExitChip onExit={onExitHouse} />}
       {focus === 'bedroom' && <WardrobeChip />}
-      {DOOR_LINKS.filter(l => l.from === focus).map(l => <DoorChip key={`${l.from}-${l.to}`} link={l} onGo={onGoToRoom} />)}
+      {ALL_LINKS.filter(l => l.from === focus).map(l => <DoorChip key={`${l.from}-${l.to}`} link={l} onGo={onGoToRoom} />)}
     </group>
   );
 }

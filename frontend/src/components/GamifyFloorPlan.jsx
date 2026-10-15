@@ -2,13 +2,14 @@ import React, { useRef, useEffect, useMemo, useState, useContext } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers } from 'lucide-react';
 import GamifyScene, { WALL_H } from './gamify/GamifyScene';
 const PropViewer = React.lazy(() => import('./gamify/PropViewers'));
 import Avatar3D from './gamify/Avatar3D';
 import { ViewContext } from './gamify/parts';
 import { TV, TV_H, TV_NATIVE_W, TV_NATIVE_H } from './gamify/constants';
-import { DEFAULT_SPAWN, FLOORPLAN_ZONES, CELL_W, CELL_D, COLS, ROWS } from '../data/gamifyZones';
+import { DEFAULT_SPAWN, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, CELL_W, CELL_D, COLS, ROWS } from '../data/gamifyZones';
+import { SkyBackdrop, WEATHER, WEATHER_ORDER, autoWeather } from './gamify/environment';
 import { homographyMatrix3d } from '../lib/homography';
 
 const MIN_ZOOM = 0.36; // zoomed all the way out shows most of the house
@@ -24,13 +25,16 @@ const FIT_H = FIT_W * SIN_ELEV + WALL_H * COS_ELEV;
 // Aim a little above the floor so the room's walls + floor (not just the floor)
 // are centred on screen.
 const TARGET_Y = WALL_H / 2;
-const ZONE_LIST = Object.values(FLOORPLAN_ZONES);
-// Camera targets may roam over every room centre plus a margin. Mirrored (flipped)
-// view reflects the house across the x=z diagonal, so the two limits swap.
-const panLimits = (flip) => {
+const ZONES_BY_FLOOR = [Object.values(FLOORPLAN_ZONES), Object.values(ALL_ZONES).filter(z => z.floor === 1)];
+const WEATHER_KEY = 'sp_gamify_weather';
+// Camera targets may roam over every room centre plus a margin (upstairs only has
+// the back two rows). Mirrored (flipped) view reflects the house across the x=z
+// diagonal, so the two limits swap.
+const panLimits = (flip, floor = 0) => {
   const lx = ((COLS - 1) * CELL_W) / 2 + 4;
-  const lz = ((ROWS - 1) * CELL_D) / 2 + 4;
-  return flip ? { x: lz, z: lx } : { x: lx, z: lz };
+  const zmin = -(((ROWS - 1) * CELL_D) / 2 + 4);
+  const zmax = floor ? CELL_D / 2 - 4 : -zmin;
+  return flip ? { xmin: zmin, xmax: zmax, zmin: -lx, zmax: lx } : { xmin: -lx, xmax: lx, zmin, zmax };
 };
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -92,11 +96,11 @@ function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onReady }) {
       // camera's elevation angle.
       const k = 1 / Math.SQRT2;
       const up = dy / (z * SIN_ELEV);
-      const lim = panLimits(v.flip);
+      const lim = panLimits(v.flip, v.floor);
       const dwx = (-dx / z) * k - up * k;
       const dwz = (dx / z) * k - up * k;
-      v.tx = clamp(v.tx + dwx, -lim.x, lim.x);
-      v.tz = clamp(v.tz + dwz, -lim.z, lim.z);
+      v.tx = clamp(v.tx + dwx, lim.xmin, lim.xmax);
+      v.tz = clamp(v.tz + dwz, lim.zmin, lim.zmax);
       // blend into the running velocity estimate (units/sec)
       const a = 0.4;
       vel = { x: vel.x * (1 - a) + (dwx / dtMs) * 1000 * a, z: vel.z * (1 - a) + (dwz / dtMs) * 1000 * a };
@@ -131,9 +135,9 @@ function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onReady }) {
     v.cur += (v.zoom - v.cur) * kz;
     if (v.vel) {
       // fling: coast with friction, stopping at the pan limits
-      const lim = panLimits(v.flip);
-      v.tx = clamp(v.tx + v.vel.x * dt, -lim.x, lim.x);
-      v.tz = clamp(v.tz + v.vel.z * dt, -lim.z, lim.z);
+      const lim = panLimits(v.flip, v.floor);
+      v.tx = clamp(v.tx + v.vel.x * dt, lim.xmin, lim.xmax);
+      v.tz = clamp(v.tz + v.vel.z * dt, lim.zmin, lim.zmax);
       const f = Math.exp(-dt * 3.2);
       v.vel.x *= f; v.vel.z *= f;
       if (Math.hypot(v.vel.x, v.vel.z) < 0.4) v.vel = null;
@@ -149,7 +153,8 @@ function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onReady }) {
     }
     if (v.glide && Math.abs(v.tx - v.px) + Math.abs(v.tz - v.pz) < 0.05) v.glide = false;
     camera.zoom = Math.min(size.width / (FIT_W * 0.95), size.height / (FIT_H * 0.9)) * v.cur;
-    target.set(v.px, TARGET_Y, v.pz);
+    v.py += (v.floor * FLOOR_Y - v.py) * (1 - Math.exp(-dt * 5));
+    target.set(v.px, TARGET_Y + v.py, v.pz);
     camera.position.copy(target).add(CAM_OFFSET);
     camera.lookAt(target);
     camera.updateProjectionMatrix();
@@ -162,7 +167,7 @@ function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onReady }) {
     const lz = v.flip ? v.px : v.pz;
     let best = v.focus;
     let bestD = Infinity;
-    for (const z of ZONE_LIST) {
+    for (const z of ZONES_BY_FLOOR[v.floor]) {
       const d = (z.center.x - lx) ** 2 + (z.center.z - lz) ** 2;
       if (d < bestD) { bestD = d; best = z.id; }
     }
@@ -269,7 +274,7 @@ function readFlip() {
 }
 
 const roomCenterTarget = (id, flip) => {
-  const c = FLOORPLAN_ZONES[id].center;
+  const c = ALL_ZONES[id].center;
   return flip ? { x: c.z, z: c.x } : { x: c.x, z: c.z };
 };
 
@@ -284,12 +289,18 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   if (!viewRef.current) {
     const flip = readFlip();
     const t = roomCenterTarget(myZoneRef.current, flip);
-    viewRef.current = { uiVisible: true, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, flip, focus: myZoneRef.current, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
+    const floor0 = ALL_ZONES[myZoneRef.current]?.floor || 0;
+    viewRef.current = { uiVisible: true, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, floor: floor0, py: floor0 * FLOOR_Y, flip, focus: myZoneRef.current, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
   }
   const dragLockRef = useRef(false);
   const [flipped, setFlipped] = useState(() => viewRef.current.flip);
   const [focus, setFocus] = useState(() => viewRef.current.focus);
   const [zoomedOut, setZoomedOut] = useState(false);
+  const [floor, setFloor] = useState(() => viewRef.current.floor);
+  const [weatherPref, setWeatherPref] = useState(() => { try { return localStorage.getItem(WEATHER_KEY) || 'auto'; } catch { return 'auto'; } });
+  const [autoWx, setAutoWx] = useState(() => autoWeather());
+  const [wxOpen, setWxOpen] = useState(false);
+  const weather = weatherPref === 'auto' || !WEATHER[weatherPref] ? autoWx : weatherPref;
   const [myZone, setMyZone] = useState(() => myZoneRef.current);
   const [viewer, setViewer] = useState(null); // { kind: 'books'|'fridge'|'oven'|'stove', arg }
   const [uiShown, setUiShown] = useState(true);
@@ -320,6 +331,8 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     evs.forEach(e => el.addEventListener(e, show, { passive: true }));
     return () => { clearTimeout(t); evs.forEach(e => el.removeEventListener(e, show)); };
   }, []);
+  useEffect(() => { const t = setInterval(() => setAutoWx(autoWeather()), 60000); return () => clearInterval(t); }, []);
+  const pickWeather = (k) => { setWeatherPref(k); setWxOpen(false); try { localStorage.setItem(WEATHER_KEY, k); } catch { /* private mode */ } };
   // Scene props (bookshelf, fridge) open their full-screen viewer through this hook.
   useEffect(() => {
     const v = viewRef.current;
@@ -347,12 +360,17 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const focusRoom = (id, zoom = 1) => {
     const v = viewRef.current;
     const t = roomCenterTarget(id, v.flip);
+    const f = ALL_ZONES[id].floor || 0;
+    if (f !== v.floor) { v.floor = f; setFloor(f); }
     v.tx = t.x; v.tz = t.z; v.zoom = zoom; v.glide = true;
   };
   // A door: glide into the next room and, if that is where you were standing, walk through it.
   const goThroughDoor = (link) => {
     focusRoom(link.to);
-    if (myZoneRef.current === link.from) viewRef.current.walk = { x: link.entry.x, z: link.entry.z };
+    if (myZoneRef.current === link.from) {
+      const f = ALL_ZONES[link.to].floor || 0;
+      viewRef.current.walk = { x: link.entry.x, z: link.entry.z, floor: f, snap: f !== (ALL_ZONES[link.from].floor || 0) };
+    }
   };
   const handleMove = (x, y, zone) => {
     if (zone !== myZoneRef.current) { myZoneRef.current = zone; setMyZone(zone); } // keeps the room map's head-count live
@@ -387,21 +405,21 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
 
   return (
     <div ref={containerRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#0b0a14', touchAction: 'none' }}>
+      <SkyBackdrop weather={weather} />
       <WebGLBoundary>
         <Canvas
           orthographic
           shadows={!lowQ}
           dpr={lowQ ? 1 : [1, coarse ? 1.25 : 1.5]}
           camera={{ position: [18, 15.5, 18], zoom: 30, near: -120, far: 320 }}
-          gl={{ antialias: true }}
+          gl={{ antialias: true, alpha: true }}
           style={{ position: 'absolute', inset: 0 }}
         >
-          <color attach="background" args={['#0b0a14']} />
           <ViewContext.Provider value={viewRef}>
             <PerformanceMonitor onDecline={() => setLowQ(true)} flipflops={2} />
             <Rig viewRef={viewRef} dragLockRef={dragLockRef} onFocusChange={setFocus} onOutChange={setZoomedOut} onReady={() => setReady(true)} />
             <MirrorRoot>
-              <GamifyScene onGoToRoom={goThroughDoor} onExitHouse={onExitHouse} focus={ready ? focus : null} zoomedOut={ready && zoomedOut} lowQ={lowQ} coarse={coarse} />
+              <GamifyScene onGoToRoom={goThroughDoor} onExitHouse={onExitHouse} focus={ready ? focus : null} zoomedOut={ready && zoomedOut} lowQ={lowQ} coarse={coarse} weather={weather} />
               {ready && userList.map(user => {
                 const pos = avatarPositions?.[user.socketId] || DEFAULT_SPAWN;
                 const own = user.socketId === mySocketId;
@@ -414,6 +432,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
                     isOwn={own}
                     x={pos.x}
                     y={pos.y}
+                    zone={own ? myZone : pos.zone}
                     onMove={own ? handleMove : undefined}
                     onDrop={own ? handleDrop : undefined}
                     dragLockRef={dragLockRef}
@@ -428,7 +447,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
 
       {/* current room + hint */}
       <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
-        <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>{FLOORPLAN_ZONES[focus].label}</div>
+        <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>{ALL_ZONES[focus].label}</div>
         <div className="stay-white" style={{ transition: 'opacity .2s', fontSize: 11, opacity: uiShown ? 0.7 : 0, textShadow: '0 1px 3px #000' }}>Drag to look around, tap a door to go through</div>
       </div>
 
@@ -438,31 +457,58 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         </React.Suspense>
       )}
 
-      {/* room map */}
-      <div className="stay-white" style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 60, display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 4, padding: 6, borderRadius: 12, ...glass }}>
-        {ZONE_LIST.slice().sort((a, b) => a.row - b.row || a.col - b.col).map(z => (
-          <button
-            key={z.id}
-            className="stay-white"
-            onClick={() => focusRoom(z.id)}
-            title={`Go to ${z.label}`}
-            style={{
-              minWidth: 62, padding: '6px 6px 5px', borderRadius: 8, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#fff',
-              background: z.id === focus ? 'rgba(139,92,255,0.8)' : 'rgba(255,255,255,0.07)',
-              border: z.id === focus ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.12)',
-            }}
-          >
-            {z.label}
-            {counts[z.id] > 0 && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 4, fontSize: 10 }}>
-                <Users size={9} />{counts[z.id]}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* floors + room map */}
+      <div className="stay-white" style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 60, padding: 6, borderRadius: 12, ...glass }}>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 5 }}>
+          {[['Ground floor', 0], ['Upstairs', 1]].map(([label, f]) => (
+            <button
+              key={f}
+              className="stay-white"
+              onClick={() => focusRoom(f ? 'f2hall' : 'hall')}
+              style={{ flex: 1, padding: '5px 6px', borderRadius: 8, cursor: 'pointer', fontSize: 10, fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, background: floor === f ? 'rgba(255,255,255,0.22)' : 'transparent', border: '1px solid rgba(255,255,255,0.14)' }}
+            ><Layers size={10} />{label}</button>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 4 }}>
+          {ZONES_BY_FLOOR[floor].slice().sort((a, b) => a.row - b.row || a.col - b.col).map(z => (
+            <button
+              key={z.id}
+              className="stay-white"
+              onClick={() => focusRoom(z.id)}
+              title={`Go to ${z.label}`}
+              style={{
+                gridColumn: z.col + 1, gridRow: z.row + 1,
+                minWidth: 62, padding: '6px 6px 5px', borderRadius: 8, cursor: 'pointer', fontSize: 10, fontWeight: 700, color: '#fff',
+                background: z.id === focus ? 'rgba(139,92,255,0.8)' : 'rgba(255,255,255,0.07)',
+                border: z.id === focus ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.12)',
+              }}
+            >
+              {z.label}
+              {counts[z.id] > 0 && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 4, fontSize: 10 }}>
+                  <Users size={9} />{counts[z.id]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {wxOpen && (
+        <div className="stay-white" style={{ position: 'absolute', bottom: 12, right: 54, zIndex: 61, display: 'flex', flexDirection: 'column', gap: 3, padding: 6, borderRadius: 12, ...glass }}>
+          {['auto', ...WEATHER_ORDER].map(k => (
+            <button
+              key={k}
+              className="stay-white"
+              onClick={() => pickWeather(k)}
+              style={{ padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#fff', textAlign: 'left', background: weatherPref === k ? 'rgba(139,92,255,0.8)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
+            >{k === 'auto' ? `Auto (${WEATHER[autoWx].label})` : WEATHER[k].label}</button>
+          ))}
+        </div>
+      )}
+
       <div style={{ position: 'absolute', bottom: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 60 }}>
+        <button className="stay-white" onClick={() => setWxOpen(o => !o)} title={`Weather: ${WEATHER[weather].label}`} style={{ ...btn, background: wxOpen ? 'rgba(139,92,255,0.75)' : btn.background }}><CloudSun size={16} /></button>
         <button className="stay-white" onClick={toggleFlip} title="Flip house left/right" style={{ ...btn, background: flipped ? 'rgba(139,92,255,0.75)' : btn.background }}><FlipHorizontal2 size={16} /></button>
         <button className="stay-white" onClick={resetView} title="Back to my room" style={btn}><Maximize2 size={16} /></button>
         <button className="stay-white" onClick={() => zoomBy(1.3)} title="Zoom in" style={btn}><ZoomIn size={16} /></button>

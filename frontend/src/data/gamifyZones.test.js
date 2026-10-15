@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FLOORPLAN_ZONES, ZONE_IDS, DEFAULT_SPAWN, DOORWAYS, DOOR_LINKS, zoneForPoint, FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D } from './gamifyZones';
+import { FLOORPLAN_ZONES, ZONE_IDS, DEFAULT_SPAWN, DOORWAYS, DOOR_LINKS, DOOR_LINKS_F2, STAIR_LINKS, FLOOR2_ZONES, zoneForPoint, FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D } from './gamifyZones';
 
 describe('gamify zones', () => {
   it('every zone center resolves back to its own zone', () => {
@@ -26,6 +26,18 @@ describe('gamify zones', () => {
     for (const l of DOOR_LINKS) {
       expect(zoneForPoint(...toVirtual(l.chip))).toBe(l.from);
       expect(zoneForPoint(...toVirtual(l.entry))).toBe(l.to);
+    }
+  });
+
+  it('upstairs rooms resolve on floor 1 and every link lands in its destination room', () => {
+    const toVirtual = (p) => [(p.x / WORLD_W + 0.5) * FLOORPLAN_WIDTH, (p.z / WORLD_D + 0.5) * FLOORPLAN_HEIGHT];
+    for (const z of Object.values(FLOOR2_ZONES)) {
+      expect(zoneForPoint(z.x + z.width / 2, z.y + z.height / 2, 1)).toBe(z.id);
+    }
+    for (const l of [...DOOR_LINKS_F2, ...STAIR_LINKS]) {
+      const floor = (id) => (id.startsWith('f2') ? 1 : 0);
+      expect(zoneForPoint(...toVirtual(l.entry), floor(l.to))).toBe(l.to);
+      expect(zoneForPoint(...toVirtual(l.chip), floor(l.from))).toBe(l.from);
     }
   });
 });
