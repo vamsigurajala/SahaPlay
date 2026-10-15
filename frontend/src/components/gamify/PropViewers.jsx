@@ -6,14 +6,15 @@ import {
   Globe, ExternalLink, ArrowRight, Search, Trophy,
   Brain, Compass, Flame, Gamepad2, Heart, Sparkles,
   HelpCircle, Check, Clock, RefreshCw, Shuffle, Lightbulb,
-  Maximize2, Laptop, Home, Lock, Eye, ZoomIn, Info, Layers
+  Maximize2, Laptop, Home, Lock, Eye, ZoomIn, Info, Layers,
+  CheckCircle2, AlertCircle, Utensils, UtensilsCrossed, ShieldAlert, Award, Play, Filter, Target
 } from 'lucide-react';
 import { GENRES, SHELVES, FRIDGE_SHELVES, FRIDGE_SHELVES_UP, DISHES, DISHES_UP, OVEN_ITEMS, OVEN_ITEMS_UP } from '../../data/gamifyBooks';
 import { WARDROBES, COSMETICS, GARDEN } from '../../data/gamifyItems';
 import { useBookCover, preloadImage, coverUrl } from '../../data/bookCovers';
 import { useWikiImage } from '../../data/wikiImages';
 import { FOOD_WIKI } from '../../data/foodWiki';
-import { WARDROBE_PHOTOS, COSMETICS_PHOTOS, GARDEN_PHOTOS } from '../../data/gamifyManifest';
+import { WARDROBE_PHOTOS, COSMETICS_PHOTOS, GARDEN_PHOTOS, FOOD_PHOTOS } from '../../data/gamifyManifest';
 
 const SpaceViewer = lazy(() => import('./SpaceViewer'));
 import { ClothArt, BeautyArt, PlantArt } from './viewerArt';
@@ -49,6 +50,8 @@ const CSS = `
 @keyframes gp-pop { 0% { transform: scale(.6); opacity: 0 } 70% { transform: scale(1.08) } 100% { transform: scale(1); opacity: 1 } }
 @keyframes gp-sizzle { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-1px) } 75% { transform: translateX(1px) } }
 @keyframes gp-pulse { 0%, 100% { transform: scale(1); opacity: 0.95; } 50% { transform: scale(1.38); opacity: 0.35; } }
+@keyframes gp-radar { 0% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); } 70% { box-shadow: 0 0 0 16px rgba(255, 215, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0); } }
+@keyframes gp-puff { 0% { transform: scale(0.95); } 50% { transform: scale(1.15); } 100% { transform: scale(1.06); } }
 `;
 
 function useEscape(onClose) {
@@ -247,9 +250,11 @@ function ItemArt({ kind, color, accent, label }) {
 
 // A real photograph (curated self-hosted with Wikipedia fallback) when one is found, otherwise the drawing.
 function FoodPhoto({ title, fallback, label }) {
-  const url = useWikiImage(title, label);
-  const [ok, setOk] = useState(false);
-  useEffect(() => { setOk(false); }, [url]);
+  const localUrl = label ? FOOD_PHOTOS[label] : null;
+  const wikiUrl = useWikiImage(title, label);
+  const url = localUrl || wikiUrl;
+  const [ok, setOk] = useState(Boolean(localUrl));
+  useEffect(() => { setOk(Boolean(localUrl)); }, [localUrl, url]);
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div style={{ position: 'absolute', inset: 0, opacity: ok ? 0 : 1, transition: 'opacity .3s' }}>{fallback}</div>
@@ -267,45 +272,392 @@ function FoodPhoto({ title, fallback, label }) {
 
 function FridgeView({ set }) {
   const SHELVES_IN = set === 'up' ? FRIDGE_SHELVES_UP : FRIDGE_SHELVES;
+  const allItems = useMemo(() => SHELVES_IN.flat(), [SHELVES_IN]);
+
   const [open, setOpen] = useState(false);
-  const [pinned, setPinned] = useState(null);
-  const [hover, setHover] = useState(null);
-  useEffect(() => { const t = setTimeout(() => setOpen(true), 60); return () => clearTimeout(t); }, []);
-  const shown = hover || pinned;
+  const [caseNumber, setCaseNumber] = useState(101);
+  const [targets, setTargets] = useState(() => {
+    const pool = [...allItems];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, 6);
+  });
+  const [found, setFound] = useState([]);
+  const [clueItem, setClueItem] = useState(null);
+  const [inspectMessage, setInspectMessage] = useState('Click any suspect item hidden in the messy fridge to secure evidence!');
+  const [hovered, setHovered] = useState(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setOpen(true), 60);
+    return () => clearTimeout(t);
+  }, []);
+
+  const startNewCase = () => {
+    const pool = [...allItems];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    setTargets(pool.slice(0, 6));
+    setFound([]);
+    setClueItem(null);
+    setCaseNumber(c => c + 1);
+    setInspectMessage('New case file opened! Locate the 6 suspect items from the messy fridge.');
+  };
+
+  const triggerClue = () => {
+    const unfound = targets.find(t => !found.includes(t.name));
+    if (!unfound) {
+      setInspectMessage('All evidence in this case has already been secured!');
+      return;
+    }
+    setClueItem(unfound.name);
+    setInspectMessage(`Detective clue: Check carefully for "${unfound.name}" inside the fridge shelves!`);
+    setTimeout(() => setClueItem(null), 4000);
+  };
+
+  const handleItemClick = (it) => {
+    const isTarget = targets.some(t => t.name === it.name);
+    if (isTarget) {
+      if (found.includes(it.name)) {
+        setInspectMessage(`Evidence Already Secured: "${it.name}" is catalogued in Case File #${caseNumber}.`);
+      } else {
+        const nextFound = [...found, it.name];
+        setFound(nextFound);
+        if (nextFound.length >= targets.length) {
+          setInspectMessage(`Case Solved! All 6 suspect evidence items secured!`);
+        } else {
+          setInspectMessage(`Evidence Secured: "${it.name}" moved to completed findings! (${nextFound.length}/${targets.length})`);
+        }
+      }
+    } else {
+      setInspectMessage(`Inspected "${it.name}" — Item cleared, not listed on current suspect warrant.`);
+    }
+  };
+
+  const isCaseSolved = targets.length > 0 && found.length >= targets.length;
+
+  // Staggered offsets for messy natural kitchen placement
+  const messyOffsets = [
+    { rot: -5, dx: -4, dy: 3, z: 2 },
+    { rot: 4, dx: 6, dy: -2, z: 3 },
+    { rot: -3, dx: -2, dy: 5, z: 1 },
+    { rot: 6, dx: 4, dy: -4, z: 4 },
+    { rot: -2, dx: 0, dy: 2, z: 2 },
+  ];
+
   return (
-    <div style={{ width: '100%', maxWidth: 460, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-      <div className="stay-white" style={{ fontSize: 22, fontWeight: 800 }}>Fridge</div>
-      <div className="stay-white" style={{ ...pill, minHeight: 36, padding: '7px 20px', margin: '10px 0 14px', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-        {shown || 'Hover or tap an item'}
-      </div>
-      <div style={{ position: 'relative', width: '100%', perspective: 1400 }}>
-        <div style={{ background: 'linear-gradient(180deg,#f2f8ff,#d3e5f6)', borderRadius: 16, padding: '14px 14px 10px', boxShadow: '0 30px 70px rgba(0,0,0,0.65), inset 0 0 0 6px #dfe3ee, inset 0 0 50px rgba(120,180,255,0.45)' }}>
-          {SHELVES_IN.map((shelf, si) => (
-            <div key={si} style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', height: 112, borderBottom: '6px solid rgba(255,255,255,0.95)', boxShadow: '0 7px 9px -6px rgba(0,0,0,0.3)', marginBottom: 8 }}>
-              {shelf.map(it => (
-                <div
-                  key={it.name}
-                  onMouseEnter={() => setHover(it.name)}
-                  onMouseLeave={() => setHover(null)}
-                  onClick={() => setPinned(p => (p === it.name ? null : it.name))}
-                  style={{ width: '17.5%', height: it.kind === 'block' || it.kind === 'eggs' ? '78%' : '96%', cursor: 'pointer', transition: 'transform .15s', transform: shown === it.name ? 'translateY(-7px) scale(1.1)' : 'none', filter: shown === it.name ? 'drop-shadow(0 8px 8px rgba(0,0,0,0.4))' : 'none' }}
-                >
-                  <FoodPhoto title={FOOD_WIKI[it.name]} label={it.name} fallback={<ItemArt kind={it.kind} color={it.color} accent={it.accent} label={it.label} />} />
-                </div>
-              ))}
+    <div style={{ width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      {/* ── CRIMINAL INVESTIGATION HEADER ── */}
+      <div style={{ width: '100%', background: 'linear-gradient(135deg, rgba(20,16,36,0.95), rgba(36,20,60,0.92))', border: '1px solid rgba(255,215,120,0.3)', borderRadius: 16, padding: '14px 18px', boxShadow: '0 12px 30px rgba(0,0,0,0.5)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: 10, marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg, #f59e0b, #d97706)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#111', boxShadow: '0 0 14px rgba(245,158,11,0.5)' }}>
+              <Search size={20} strokeWidth={2.5} />
             </div>
-          ))}
+            <div>
+              <div className="stay-white" style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                Fridge Crime Scene Investigation
+              </div>
+              <div style={{ fontSize: 11, color: '#fbbf24', fontWeight: 600 }}>
+                Case File #{caseNumber} • Forensic Food Evidence Recovery
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ background: isCaseSolved ? 'rgba(34,197,94,0.25)' : 'rgba(245,158,11,0.2)', border: isCaseSolved ? '1px solid #22c55e' : '1px solid #f59e0b', borderRadius: 99, padding: '5px 14px', fontSize: 12.5, fontWeight: 800, color: isCaseSolved ? '#4ade80' : '#fbbf24', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {isCaseSolved ? <CheckCircle2 size={14} /> : <Target size={14} />}
+              <span>{isCaseSolved ? 'CASE SOLVED' : `FOUND: ${found.length} / ${targets.length}`}</span>
+            </div>
+
+            <button onClick={triggerClue} className="stay-white" style={{ ...btnPill, padding: '6px 12px', fontSize: 12, background: 'rgba(255,255,255,0.12)' }} title="Reveal detective clue">
+              <Lightbulb size={14} color="#fcd34d" /> Clue Hint
+            </button>
+            <button onClick={startNewCase} className="stay-white" style={{ ...btnPill, padding: '6px 12px', fontSize: 12, background: 'rgba(255,255,255,0.12)' }} title="Generate new investigation case">
+              <Shuffle size={14} /> New Case
+            </button>
+          </div>
         </div>
+
+        {/* ── TOP EVIDENCE CHECKLIST: TARGETS TO FIND & COMPLETED FINDING ── */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.8)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Suspect Evidence Targets (Click items inside fridge to complete finding):
+            </span>
+            <span style={{ fontSize: 11, color: '#93c5fd', fontWeight: 700 }}>
+              {found.length} of {targets.length} Secured
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8 }}>
+            {targets.map((tgt) => {
+              const isFound = found.includes(tgt.name);
+              return (
+                <div
+                  key={tgt.name}
+                  style={{
+                    background: isFound ? 'linear-gradient(135deg, rgba(34,197,94,0.25), rgba(16,185,129,0.15))' : 'rgba(255,255,255,0.06)',
+                    border: isFound ? '1.5px solid #22c55e' : '1px dashed rgba(255,215,120,0.4)',
+                    borderRadius: 12,
+                    padding: '8px 6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 4,
+                    transition: 'all .3s ease',
+                    boxShadow: isFound ? '0 4px 12px rgba(34,197,94,0.3)' : 'none',
+                    transform: isFound ? 'scale(1.02)' : 'scale(1)',
+                  }}
+                >
+                  <div style={{ width: 42, height: 42, borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.2)', position: 'relative' }}>
+                    <FoodPhoto title={FOOD_WIKI[tgt.name]} label={tgt.name} fallback={<ItemArt kind={tgt.kind} color={tgt.color} accent={tgt.accent} label={tgt.label} />} />
+                    {isFound && (
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(34,197,94,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Check size={20} color="#fff" strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="stay-white" style={{ fontSize: 11, fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                    {tgt.name}
+                  </div>
+                  <div style={{
+                    fontSize: 9,
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    padding: '2px 6px',
+                    borderRadius: 99,
+                    background: isFound ? '#22c55e' : 'rgba(245,158,11,0.2)',
+                    color: isFound ? '#ffffff' : '#fbbf24',
+                    border: isFound ? 'none' : '1px solid rgba(245,158,11,0.5)',
+                  }}>
+                    {isFound ? 'COMPLETED' : 'TO FIND'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── TICKER MESSAGE ── */}
+        <div style={{ marginTop: 10, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '7px 12px', fontSize: 12, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Info size={15} color="#60a5fa" flex="none" />
+          <span style={{ fontWeight: 600 }}>{inspectMessage}</span>
+        </div>
+      </div>
+
+      {/* ── REALISTIC MESSY FRIDGE INTERIOR ── */}
+      <div style={{ position: 'relative', width: '100%', perspective: 1400 }}>
+        <div style={{
+          background: 'linear-gradient(180deg, #f2f7fc 0%, #d8e8f8 60%, #c4dcf2 100%)',
+          borderRadius: 20,
+          padding: '16px 16px 12px',
+          boxShadow: '0 30px 80px rgba(0,0,0,0.7), inset 0 0 0 6px #cfd8e5, inset 0 0 60px rgba(100,165,245,0.4)',
+          border: '2px solid rgba(255,255,255,0.8)',
+        }}>
+          {/* Top internal chiller light */}
+          <div style={{ height: 6, width: '40%', margin: '0 auto 12px', borderRadius: 4, background: '#a5d8ff', boxShadow: '0 0 16px #38bdf8' }} />
+
+          {SHELVES_IN.map((shelf, si) => {
+            const shelfTitles = ['Chiller & Dairy Shelf', 'Beverages & Delights', 'Pickles, Sauces & Leftovers', 'Crisper Drawer Produce'];
+            return (
+              <div key={si} style={{ marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 6px 4px' }}>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', color: '#475569', letterSpacing: '0.08em' }}>
+                    {shelfTitles[si] || `Shelf ${si + 1}`}
+                  </span>
+                  <span style={{ fontSize: 9, color: '#64748b' }}>packed messy</span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  justifyContent: 'space-around',
+                  height: 116,
+                  borderBottom: '6px solid rgba(255,255,255,0.95)',
+                  boxShadow: '0 8px 12px -6px rgba(0,0,0,0.3)',
+                  padding: '4px 6px',
+                  background: 'linear-gradient(180deg, rgba(255,255,255,0.4), rgba(240,248,255,0.85))',
+                  borderRadius: 8,
+                  position: 'relative',
+                  overflow: 'visible',
+                }}>
+                  {shelf.map((it, idx) => {
+                    const offset = messyOffsets[idx % messyOffsets.length];
+                    const isTarget = targets.some(t => t.name === it.name);
+                    const isFound = found.includes(it.name);
+                    const isClue = clueItem === it.name;
+                    const isHovered = hovered === it.name;
+
+                    return (
+                      <div
+                        key={it.name}
+                        onMouseEnter={() => setHovered(it.name)}
+                        onMouseLeave={() => setHovered(null)}
+                        onClick={() => handleItemClick(it)}
+                        style={{
+                          width: it.kind === 'block' || it.kind === 'eggs' ? '17%' : '19%',
+                          height: it.kind === 'block' || it.kind === 'eggs' ? '82%' : '98%',
+                          cursor: 'pointer',
+                          position: 'relative',
+                          zIndex: isHovered ? 30 : offset.z,
+                          transform: isHovered
+                            ? 'translateY(-12px) scale(1.16) rotate(0deg)'
+                            : `translate(${offset.dx}px, ${offset.dy}px) rotate(${offset.rot}deg)`,
+                          transition: 'transform .18s cubic-bezier(0.2, 0.8, 0.4, 1), box-shadow .18s ease',
+                          filter: isHovered ? 'drop-shadow(0 12px 14px rgba(0,0,0,0.45))' : 'drop-shadow(0 4px 6px rgba(0,0,0,0.25))',
+                          borderRadius: 10,
+                          animation: isClue ? 'gp-radar 1.2s infinite' : 'none',
+                        }}
+                      >
+                        <FoodPhoto
+                          title={FOOD_WIKI[it.name]}
+                          label={it.name}
+                          fallback={<ItemArt kind={it.kind} color={it.color} accent={it.accent} label={it.label} />}
+                        />
+
+                        {/* Detective Target Badge or Found checkmark */}
+                        {isFound && (
+                          <div style={{
+                            position: 'absolute',
+                            top: -4,
+                            right: -4,
+                            width: 22,
+                            height: 22,
+                            borderRadius: '50%',
+                            background: '#22c55e',
+                            color: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+                            border: '1.5px solid #fff',
+                            zIndex: 10,
+                          }}>
+                            <Check size={13} strokeWidth={3} />
+                          </div>
+                        )}
+
+                        {isTarget && !isFound && (
+                          <div style={{
+                            position: 'absolute',
+                            top: -4,
+                            left: -4,
+                            width: 20,
+                            height: 20,
+                            borderRadius: '50%',
+                            background: '#f59e0b',
+                            color: '#111',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                            border: '1.5px solid #fff',
+                            zIndex: 10,
+                          }}>
+                            <Target size={12} strokeWidth={3} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Fridge Doors Opening Animation */}
         {[['left', -1], ['right', 1]].map(([side, dir]) => (
           <div key={side} style={{
             position: 'absolute', top: 0, bottom: 0, [side]: 0, width: '50%', transformOrigin: `${side} center`,
-            transform: open ? `rotateY(${dir * -105}deg)` : 'rotateY(0)', background: 'linear-gradient(135deg,#eef0f6,#c9cde0)', borderRadius: 16, boxShadow: '0 0 0 2px #aab0c6',
+            transform: open ? `rotateY(${dir * -105}deg)` : 'rotateY(0)', background: 'linear-gradient(135deg,#eef0f6,#c9cde0)', borderRadius: 20, boxShadow: '0 0 0 2px #aab0c6',
             pointerEvents: 'none', opacity: open ? 0 : 1, transitionProperty: 'transform, opacity', transitionDuration: '.9s, .5s', transitionDelay: '0s, .55s', transitionTimingFunction: 'cubic-bezier(.22,1,.36,1)',
           }}>
             <div style={{ position: 'absolute', top: '30%', [dir > 0 ? 'left' : 'right']: 10, width: 8, height: '30%', borderRadius: 4, background: '#8f95a8' }} />
           </div>
         ))}
       </div>
+
+      {/* ── CASE SOLVED CELEBRATION MODAL OVERLAY ── */}
+      {isCaseSolved && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(10,8,22,0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 100001,
+          animation: 'gp-fade .3s ease-out',
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg, #1f1a3a, #131024)',
+            border: '2px solid #22c55e',
+            borderRadius: 24,
+            padding: '30px 26px',
+            maxWidth: 480,
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(34,197,94,0.4)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 14,
+          }}>
+            <div style={{
+              width: 70,
+              height: 70,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+              boxShadow: '0 0 28px rgba(34,197,94,0.6)',
+            }}>
+              <Trophy size={36} />
+            </div>
+
+            <div className="stay-white" style={{ fontSize: 24, fontWeight: 900, letterSpacing: '0.04em' }}>
+              CASE CLOSED • EVIDENCE SECURED!
+            </div>
+            <div style={{ fontSize: 14, color: '#86efac', fontWeight: 600, lineHeight: 1.45 }}>
+              Magnificent detective investigation! You located all 6 suspect food items hidden across the messy fridge shelves.
+            </div>
+
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', margin: '8px 0' }}>
+              {targets.map(t => (
+                <span key={t.name} style={{ background: 'rgba(34,197,94,0.2)', border: '1px solid #22c55e', borderRadius: 99, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: '#86efac' }}>
+                  {t.name}
+                </span>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+              <button
+                onClick={startNewCase}
+                className="stay-white"
+                style={{
+                  ...btnPill,
+                  padding: '12px 24px',
+                  fontSize: 14,
+                  background: 'linear-gradient(135deg, #22c55e, #15803d)',
+                  border: 'none',
+                  boxShadow: '0 6px 18px rgba(34,197,94,0.4)',
+                }}
+              >
+                <Shuffle size={16} /> Investigate Next Case
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -477,73 +829,1405 @@ function ServedPlate({ dish }) {
   );
 }
 
+// ── MULTI-CUISINE STOVE DISHES CATALOG ──
+const ALL_STOVE_DISHES = [
+  // ── INDIAN ──
+  {
+    id: 'chai',
+    name: 'Masala chai',
+    cuisine: 'Indian',
+    vessel: 'pot',
+    plate: 'cup',
+    time: '6m',
+    spicy: 'Mild',
+    desc: 'Spiced Indian milk tea brewed with fresh crushed ginger, fragrant green cardamom & Assam CTC leaves.',
+    img: '/images/gamify/foods/masala-chai.jpg',
+    steps: ['Boil water with crushed ginger and green cardamom', 'Add Assam CTC tea leaves and let steep', 'Pour fresh whole milk and simmer until rich golden', 'Strain through fine mesh into clay kulhad']
+  },
+  {
+    id: 'dal',
+    name: 'Dal tadka',
+    cuisine: 'Indian',
+    vessel: 'pot',
+    plate: 'bowl',
+    time: '12m',
+    spicy: 'Medium',
+    desc: 'Velvety yellow lentils tempered with hot desi ghee, cumin seeds, garlic, dried red chillies and coriander.',
+    img: '/images/gamify/foods/dal-tadka.jpg',
+    steps: ['Boil toor dal with turmeric and pink salt', 'Heat pure desi ghee in tadka pan', 'Splutter cumin, dried red chillies and garlic', 'Pour sizzling tadka over dal and garnish with coriander']
+  },
+  {
+    id: 'paneer_butter',
+    name: 'Paneer butter masala',
+    cuisine: 'Indian',
+    vessel: 'pan',
+    plate: 'bowl',
+    time: '15m',
+    spicy: 'Medium',
+    desc: 'Soft cottage cheese cubes simmered in a luscious rich satin gravy of tomatoes, butter, cashew and cream.',
+    img: '/images/gamify/foods/paneer-butter-masala.jpg',
+    steps: ['Sauté pureed vine tomatoes with ginger-garlic paste in butter', 'Add Kashmiri red chilli, garam masala and cream', 'Slide in fresh soft paneer cubes', 'Finish with crushed kasuri methi and butter drizzle']
+  },
+  {
+    id: 'veg_biryani',
+    name: 'Veg biryani',
+    cuisine: 'Indian',
+    vessel: 'pot',
+    plate: 'bowl',
+    time: '20m',
+    spicy: 'Rich',
+    desc: 'Fragrant aged basmati rice layered with spiced vegetables, saffron strands, caramelized onions and mint.',
+    img: '/images/gamify/foods/veg-biryani.jpg',
+    steps: ['Parboil aged basmati rice with whole spices', 'Layer with saffron milk, mint, and spiced vegetables', 'Seal the pot rim with dough for dum', 'Slow-cook until every grain is fluffy and fragrant']
+  },
+  {
+    id: 'aloo_paratha',
+    name: 'Aloo paratha',
+    cuisine: 'Indian',
+    vessel: 'tawa',
+    plate: 'roti',
+    time: '10m',
+    spicy: 'Medium',
+    desc: 'Golden crisp flatbread stuffed with spiced mashed potatoes, roasted on a heavy iron tawa with white butter.',
+    img: '/images/gamify/foods/aloo-paratha.jpg',
+    steps: ['Stuff whole wheat dough with spiced mashed potato filling', 'Roll out gently with wooden belan', 'Roast on hot cast iron tawa with pure ghee', 'Flip until golden-crisp with brown speckles']
+  },
+  {
+    id: 'masala_dosa',
+    name: 'Masala dosa',
+    cuisine: 'Indian',
+    vessel: 'tawa',
+    plate: 'flat',
+    time: '8m',
+    spicy: 'Medium',
+    desc: 'Crispy fermented rice and lentil crepe rolled with aromatic spiced mustard potato masala.',
+    img: '/images/gamify/foods/masala-dosa.jpg',
+    steps: ['Spread fermented batter thin on smoking tawa', 'Drizzle sesame oil around the crispy edges', 'Spoon spiced potato filling in the centre', 'Fold into a crisp roll and serve with chutney']
+  },
+  {
+    id: 'pav_bhaji',
+    name: 'Pav bhaji',
+    cuisine: 'Indian',
+    vessel: 'pan',
+    plate: 'bowl',
+    time: '14m',
+    spicy: 'Zesty',
+    desc: 'Spicy mashed vegetable curry topped with a generous dollop of butter, served with butter-toasted ladi pav.',
+    img: '/images/gamify/foods/pav-bhaji.jpg',
+    steps: ['Boil and mash potatoes, cauliflower, peas and tomatoes', 'Sauté with onions, garlic and special pav bhaji masala', 'Simmer into thick gravy with a mountain of butter', 'Serve sizzling with butter-toasted pav and lemon']
+  },
+  {
+    id: 'chole',
+    name: 'Chole bhature',
+    cuisine: 'Indian',
+    vessel: 'pot',
+    plate: 'bowl',
+    time: '18m',
+    spicy: 'Spicy',
+    desc: 'Tangy dark spiced chickpea curry infused with anardana, amla and roasted spices.',
+    img: '/images/gamify/foods/chole.jpg',
+    steps: ['Simmer chickpeas with black tea leaves and dried amla', 'Prepare dark onion-tomato gravy with anardana', 'Add chickpeas and crushed roasted spices', 'Garnish with ginger juliennes and green chillies']
+  },
+
+  // ── ITALIAN ──
+  {
+    id: 'pizza_margherita',
+    name: 'Margherita Pizza',
+    cuisine: 'Italian',
+    vessel: 'pan',
+    plate: 'flat',
+    time: '12m',
+    spicy: 'Mild',
+    desc: 'Classic Neapolitan pizza with crushed San Marzano tomatoes, fresh torn mozzarella, and aromatic basil.',
+    img: '/images/gamify/foods/pizza.jpg',
+    steps: ['Stretch fermented pizza dough into a thin disc', 'Spread crushed San Marzano tomato sauce and sea salt', 'Tear fresh buffalo mozzarella over the sauce', 'Bake at blistering heat until crust blisters and cheese bubbles']
+  },
+  {
+    id: 'fettuccine_alfredo',
+    name: 'Creamy Fettuccine Alfredo',
+    cuisine: 'Italian',
+    vessel: 'pan',
+    plate: 'bowl',
+    time: '10m',
+    spicy: 'Mild',
+    desc: 'Silky bronze-cut ribbon pasta tossed in European butter, sweet cream and freshly grated Parmigiano-Reggiano.',
+    img: '/images/gamify/foods/creamy-pasta.jpg',
+    steps: ['Boil bronze-die fettuccine in salted water until al dente', 'Melt sweet butter in wide sauté skillet with cracked pepper', 'Toss pasta with warm cream and grated Parmigiano', 'Whisk in starchy pasta water until emulsified and velvety']
+  },
+  {
+    id: 'penne_arrabbiata',
+    name: 'Penne all\'Arrabbiata',
+    cuisine: 'Italian',
+    vessel: 'pan',
+    plate: 'bowl',
+    time: '11m',
+    spicy: 'Fiery',
+    desc: 'Al dente tubular penne pasta tossed in a fiery Roman garlic, extra virgin olive oil, and crushed chili tomato sauce.',
+    img: 'https://images.unsplash.com/photo-1621996346565-e3d5d62817ee?w=600&auto=format&fit=crop&q=80',
+    steps: ['Sauté sliced garlic and red pepper flakes in cold-pressed olive oil', 'Pour in crushed Italian plum tomatoes and simmer until sweet', 'Toss al dente penne directly into the bubbling fiery sauce', 'Finish with torn fresh basil and aged Pecorino Romano']
+  },
+  {
+    id: 'mushroom_risotto',
+    name: 'Wild Mushroom Risotto',
+    cuisine: 'Italian',
+    vessel: 'pot',
+    plate: 'bowl',
+    time: '16m',
+    spicy: 'Mild',
+    desc: 'Creamy slow-stirred Carnaroli rice with sauteed porcini and cremini mushrooms, white wine, and aged parmesan.',
+    img: 'https://images.unsplash.com/photo-1633964913295-ceb43826e7c9?w=600&auto=format&fit=crop&q=80',
+    steps: ['Toast Carnaroli rice in olive oil and minced shallots', 'Deglaze with a splash of dry white wine', 'Ladle warm vegetable broth gradually while stirring constantly', 'Mantecatura: vigorously beat in cold butter, sautéed porcini and parmesan']
+  },
+  {
+    id: 'four_cheese_lasagna',
+    name: 'Four-Cheese Lasagna',
+    cuisine: 'Italian',
+    vessel: 'pan',
+    plate: 'flat',
+    time: '18m',
+    spicy: 'Mild',
+    desc: 'Layered fresh egg pasta sheets with silken béchamel, rich marinara, ricotta, fontina and melted mozzarella.',
+    img: 'https://images.unsplash.com/photo-1574894709920-11b28e7367e3?w=600&auto=format&fit=crop&q=80',
+    steps: ['Layer egg pasta sheets with creamy béchamel and marinara', 'Scatter fresh ricotta, mozzarella, fontina and provolone', 'Build multi-tiered savory pasta layers', 'Bake until the top crown is golden, bubbly and caramelized']
+  },
+  {
+    id: 'tomato_bruschetta',
+    name: 'Tomato Basil Bruschetta',
+    cuisine: 'Italian',
+    vessel: 'tawa',
+    plate: 'flat',
+    time: '7m',
+    spicy: 'Mild',
+    desc: 'Grilled rustic artisan country bread rubbed with fresh garlic, topped with vine-ripened tomatoes and basil.',
+    img: '/images/gamify/foods/garlic-bread.jpg',
+    steps: ['Slice crusty sourdough bread and toast on tawa until crisp', 'Rub hot bread surface with raw garlic clove for aroma', 'Mound diced ripe tomatoes tossed with extra virgin olive oil and basil', 'Drizzle aged Modena balsamic glaze and sea salt flakes']
+  },
+
+  // ── CONTINENTAL ──
+  {
+    id: 'grilled_sizzler',
+    name: 'Grilled Vegetable Sizzler',
+    cuisine: 'Continental',
+    vessel: 'tawa',
+    plate: 'flat',
+    time: '15m',
+    spicy: 'Zesty',
+    desc: 'Smoking cast iron platter with rosemary grilled zucchini, bell peppers, baby corn, butter rice and pepper sauce.',
+    img: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600&auto=format&fit=crop&q=80',
+    steps: ['Marinate vegetables in olive oil, crushed garlic and fresh herbs', 'Sear on smoking cast iron grill for authentic char lines', 'Heat heavy iron sizzler plate over open flame until smoking', 'Assemble over shredded cabbage and pour sizzling pepper sauce']
+  },
+  {
+    id: 'mushroom_soup',
+    name: 'Cream of Mushroom Soup',
+    cuisine: 'Continental',
+    vessel: 'pot',
+    plate: 'cup',
+    time: '12m',
+    spicy: 'Mild',
+    desc: 'Rich velvety bisque crafted with sautéed button and wild forest mushrooms, shallots, thyme and heavy cream.',
+    img: 'https://images.unsplash.com/photo-1547592166-23ac45744acd?w=600&auto=format&fit=crop&q=80',
+    steps: ['Sauté sliced mushrooms with shallots and fresh thyme in butter', 'Whisk in warm vegetable stock and simmer gently', 'Blend to a velvety smooth consistency', 'Swirl in heavy cream and finish with garlic herb croutons']
+  },
+  {
+    id: 'jacket_potato',
+    name: 'Baked Stuffed Jacket Potato',
+    cuisine: 'Continental',
+    vessel: 'pan',
+    plate: 'flat',
+    time: '14m',
+    spicy: 'Mild',
+    desc: 'Crisp sea-salted potato jackets filled with fluffy mashed potato, sour cream, chives, sweetcorn and cheddar.',
+    img: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=600&auto=format&fit=crop&q=80',
+    steps: ['Roast russet potatoes until skins are crisp and flesh is tender', 'Scoop interior and mash with sweet butter, sour cream and chives', 'Fold in sweetcorn kernels and sharp cheddar cheese', 'Broil until cheese melts into a golden toasted crust']
+  },
+  {
+    id: 'garlic_crostini',
+    name: 'Garlic Butter Crostini',
+    cuisine: 'Continental',
+    vessel: 'tawa',
+    plate: 'flat',
+    time: '6m',
+    spicy: 'Mild',
+    desc: 'Toasted baguette rounds slathered with roasted garlic butter, fresh parsley and flaky Maldon salt.',
+    img: '/images/gamify/foods/garlic-bread.jpg',
+    steps: ['Whip sweet butter with slow-roasted garlic and chopped parsley', 'Spread generously over artisan baguette rounds', 'Toast on tawa until golden-brown and fragrant', 'Serve warm with flaky sea salt garnish']
+  },
+  {
+    id: 'greek_salad',
+    name: 'Mediterranean Greek Salad',
+    cuisine: 'Continental',
+    vessel: 'pan',
+    plate: 'bowl',
+    time: '6m',
+    spicy: 'Zesty',
+    desc: 'Crisp Persian cucumbers, vine tomatoes, red onion rings, Kalamata olives, and a slab of barrel-aged feta cheese.',
+    img: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600&auto=format&fit=crop&q=80',
+    steps: ['Chop crisp cucumbers, sweet bell peppers and heirloom tomatoes', 'Toss with sliced red onions and pitted Kalamata olives', 'Dress with Greek extra virgin olive oil, lemon juice and wild oregano', 'Crown with a generous slab of barrel-aged sheep feta cheese']
+  },
+
+  // ── CHINESE ──
+  {
+    id: 'hakka_noodles',
+    name: 'Hakka Street Noodles',
+    cuisine: 'Chinese',
+    vessel: 'pan',
+    plate: 'bowl',
+    time: '9m',
+    spicy: 'Zesty',
+    desc: 'High-heat wok-tossed thin noodles with crunchy shredded cabbage, capsicum, carrots, dark soy and spring onion.',
+    img: '/images/gamify/foods/masala-noodles.jpg',
+    steps: ['Boil wheat noodles al dente and toss with sesame oil', 'Heat seasoned iron wok over roaring flame until smoking', 'Flash fry julienned vegetables for crisp texture', 'Toss noodles with dark soy, chilli vinegar and spring onions']
+  },
+  {
+    id: 'veg_manchurian',
+    name: 'Veg Manchurian Gravy',
+    cuisine: 'Chinese',
+    vessel: 'pan',
+    plate: 'bowl',
+    time: '13m',
+    spicy: 'Spicy',
+    desc: 'Golden crispy minced vegetable balls simmered in a glossy, savory ginger-garlic dark soy Manchurian sauce.',
+    img: 'https://images.unsplash.com/photo-1585032226651-759b368d7246?w=600&auto=format&fit=crop&q=80',
+    steps: ['Form vegetable mince into dumplings and fry until crisp', 'Sauté minced ginger, garlic and green chillies in wok', 'Simmer dark soy sauce, chilli sauce and broth', 'Thicken with cornstarch slurry and coat crispy dumplings']
+  },
+  {
+    id: 'schezwan_fried_rice',
+    name: 'Schezwan Fried Rice',
+    cuisine: 'Chinese',
+    vessel: 'pan',
+    plate: 'bowl',
+    time: '11m',
+    spicy: 'Fiery',
+    desc: 'Wok-charred fragrant rice tossed with pungent red Schezwan chili paste, crunchy celery, and bell peppers.',
+    img: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&auto=format&fit=crop&q=80',
+    steps: ['Steam aged long-grain rice and chill thoroughly', 'Heat wok with spicy Sichuan pepper and garlic chili paste', 'Stir-fry diced vegetables over smoking flame', 'Toss cold rice vigorously for distinct smoky wok hei flavor']
+  },
+  {
+    id: 'chilli_paneer',
+    name: 'Chilli Garlic Paneer',
+    cuisine: 'Chinese',
+    vessel: 'pan',
+    plate: 'bowl',
+    time: '10m',
+    spicy: 'Spicy',
+    desc: 'Crispy batter-fried paneer cubes tossed in high-heat wok with onions, capsicum, garlic and sweet chili sauce.',
+    img: '/images/gamify/foods/schezwan-sauce.jpg',
+    steps: ['Dust fresh paneer with cornstarch and sear till crisp', 'Sauté cubed onions, green peppers and sliced garlic', 'Add soy sauce, red chili paste and rice vinegar', 'Toss paneer swiftly so exterior stays crunchy']
+  },
+  {
+    id: 'steamed_dimsum',
+    name: 'Steamed Dim Sum Dumplings',
+    cuisine: 'Chinese',
+    vessel: 'pot',
+    plate: 'bowl',
+    time: '8m',
+    spicy: 'Mild',
+    desc: 'Delicate translucent wheat-starch parcels filled with water chestnuts, mushrooms, and ginger, steamed in bamboo.',
+    img: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=600&auto=format&fit=crop&q=80',
+    steps: ['Roll translucent dumpling dough paper-thin', 'Spoon in seasoned filling of mushrooms and water chestnuts', 'Pleat edges into delicate floral crescent folds', 'Steam inside bamboo steamer basket over boiling water for 6m']
+  },
+  {
+    id: 'spring_rolls',
+    name: 'Crispy Spring Rolls',
+    cuisine: 'Chinese',
+    vessel: 'pan',
+    plate: 'flat',
+    time: '10m',
+    spicy: 'Medium',
+    desc: 'Golden shatteringly-crisp pastry rolls stuffed with wok-tossed seasoned vegetables, served with sweet chili dip.',
+    img: 'https://images.unsplash.com/photo-1548943487-a2e4e43b4853?w=600&auto=format&fit=crop&q=80',
+    steps: ['Stir-fry julienned cabbage, carrots and glass noodles with white pepper', 'Wrap tightly in thin wheat pastry skins and seal edges', 'Deep fry in smoking oil until bubbly and amber-gold', 'Slice on bias and serve with tangy plum sweet chili sauce']
+  }
+];
+
 function StoveView({ set }) {
-  const MENU = set === 'up' ? DISHES_UP : DISHES;
+  const [cuisineFilter, setCuisineFilter] = useState('All');
   const [dish, setDish] = useState(null);
   const [stage, setStage] = useState(0);
   const [tick, setTick] = useState(0);
-  const photo = useWikiImage(dish ? FOOD_WIKI[dish.name] : null, dish?.name);
+
+  const filteredDishes = useMemo(() => {
+    if (cuisineFilter === 'All') return ALL_STOVE_DISHES;
+    return ALL_STOVE_DISHES.filter(d => d.cuisine === cuisineFilter);
+  }, [cuisineFilter]);
+
   useEffect(() => {
     if (!dish) return undefined;
-    setStage(0); setTick(0);
+    setStage(0);
+    setTick(0);
     const t = setInterval(() => setTick(x => x + 1), 600);
     return () => clearInterval(t);
   }, [dish]);
-  useEffect(() => { if (dish) setStage(Math.min(dish.steps.length, Math.floor(tick / 3))); }, [tick, dish]);
+
+  useEffect(() => {
+    if (dish) setStage(Math.min(dish.steps.length, Math.floor(tick / 3)));
+  }, [tick, dish]);
+
+  const cuisineTabs = ['All', 'Indian', 'Italian', 'Continental', 'Chinese'];
+
   if (!dish) {
     return (
-      <div style={{ width: '100%', maxWidth: 640 }}>
-        <div className="stay-white" style={{ textAlign: 'center', fontSize: 22, fontWeight: 800 }}>Stove</div>
-        <div className="stay-white" style={{ textAlign: 'center', fontSize: 13, opacity: 0.7, margin: '2px 0 16px' }}>What shall we cook?</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-          {MENU.map(d => (
-            <button key={d.id} onClick={() => setDish(d)} className="stay-white" style={{ ...pill, borderRadius: 14, padding: '14px 12px', cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <span style={{ width: 34, height: 34, borderRadius: '50%', background: `radial-gradient(circle at 35% 30%, ${shade(d.done, 40)}, ${shade(d.done, -40)})`, boxShadow: '0 3px 6px rgba(0,0,0,0.5)' }} />
-              <span style={{ fontSize: 14, fontWeight: 800 }}>{d.name}</span>
-              <span style={{ fontSize: 11, opacity: 0.65, textTransform: 'capitalize' }}>{d.vessel === 'tawa' ? 'On the tawa' : d.vessel === 'pan' ? 'In the kadhai' : 'In the pot'}</span>
-            </button>
-          ))}
+      <div style={{ width: '100%', maxWidth: 880, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="stay-white" style={{ fontSize: 24, fontWeight: 900, letterSpacing: '0.02em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <Flame size={24} color="#ff8a4a" /> Master Chef Stove
+          </div>
+          <div className="stay-white" style={{ fontSize: 13, opacity: 0.75, marginTop: 4 }}>
+            Choose an authentic dish with original photos to cook on the stove burner
+          </div>
+        </div>
+
+        {/* ── CUISINE TABS ── */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', margin: '4px 0 8px' }}>
+          {cuisineTabs.map(c => {
+            const active = cuisineFilter === c;
+            return (
+              <button
+                key={c}
+                onClick={() => setCuisineFilter(c)}
+                className="stay-white"
+                style={{
+                  ...pill,
+                  padding: '7px 18px',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  background: active ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(255,255,255,0.08)',
+                  color: active ? '#111' : '#fff',
+                  border: active ? 'none' : '1px solid rgba(255,255,255,0.18)',
+                  boxShadow: active ? '0 4px 14px rgba(245,158,11,0.4)' : 'none',
+                  transition: 'all .16s ease',
+                }}
+              >
+                {c} {c !== 'All' ? `(${ALL_STOVE_DISHES.filter(d => d.cuisine === c).length})` : `(${ALL_STOVE_DISHES.length})`}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── DISHES GRID WITH REAL ORIGINAL PHOTOGRAPHY ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))',
+          gap: 14,
+          width: '100%',
+        }}>
+          {filteredDishes.map(d => {
+            const photoUrl = d.img || FOOD_PHOTOS[d.name] || null;
+            return (
+              <button
+                key={d.id}
+                onClick={() => setDish(d)}
+                className="stay-white"
+                style={{
+                  background: 'linear-gradient(145deg, rgba(28,24,48,0.92), rgba(16,14,28,0.95))',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  borderRadius: 16,
+                  padding: 0,
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'transform .18s ease, box-shadow .18s ease, border-color .18s ease',
+                  boxShadow: '0 8px 20px rgba(0,0,0,0.45)',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'translateY(-6px)';
+                  e.currentTarget.style.borderColor = '#f59e0b';
+                  e.currentTarget.style.boxShadow = '0 14px 28px rgba(245,158,11,0.25)';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'none';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+                  e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.45)';
+                }}
+              >
+                {/* Real Dish Photo Container */}
+                <div style={{ width: '100%', height: 125, position: 'relative', overflow: 'hidden', background: '#181426' }}>
+                  {photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt={d.name}
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform .3s ease' }}
+                    />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Utensils size={32} color="#f59e0b" />
+                    </div>
+                  )}
+
+                  {/* Badges on photo */}
+                  <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(12,10,24,0.85)', backdropFilter: 'blur(4px)', padding: '2px 8px', borderRadius: 99, fontSize: 10, fontWeight: 800, color: '#fcd34d', border: '1px solid rgba(255,215,120,0.3)' }}>
+                    {d.cuisine}
+                  </div>
+                  <div style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(12,10,24,0.85)', backdropFilter: 'blur(4px)', padding: '2px 7px', borderRadius: 99, fontSize: 10, fontWeight: 700, color: '#e2e8f0', display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <Clock size={10} /> {d.time}
+                  </div>
+                </div>
+
+                {/* Card Info */}
+                <div style={{ padding: '12px 12px 14px', display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 800, color: '#ffffff', lineHeight: 1.25 }}>
+                    {d.name}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {d.desc}
+                  </div>
+                  <div style={{ marginTop: 'auto', paddingTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fbbf24', textTransform: 'capitalize' }}>
+                      {d.vessel === 'tawa' ? 'Cast Iron Tawa' : d.vessel === 'pan' ? 'Sauté Pan / Wok' : 'Boiling Pot'}
+                    </span>
+                    <span style={{ fontSize: 10, color: '#a7f3d0', fontWeight: 700, background: 'rgba(16,185,129,0.15)', padding: '1px 6px', borderRadius: 4 }}>
+                      {d.spicy}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     );
   }
+
   const done = stage >= dish.steps.length;
   const prog = Math.min(1, tick / (dish.steps.length * 3));
-  const reveal = photo && (
-    <div style={{ width: done ? 260 : 200, height: done ? 260 : 200, borderRadius: '50%', overflow: 'hidden', border: '8px solid #f4f1e8', boxShadow: '0 16px 34px rgba(0,0,0,0.6)', position: 'relative', flex: 'none', animation: done ? 'gp-pop .5s ease-out' : 'none' }}>
-      <img src={photo} alt={dish.name} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: done ? 'scale(1)' : `scale(${1.2 - prog * 0.2})`, filter: done ? 'none' : `blur(${(1 - prog) * 12}px) grayscale(${(1 - prog) * 0.9}) brightness(${0.6 + prog * 0.4})`, transition: 'filter .6s linear, transform .6s linear' }} />
-      {[0, 1, 2].map(i => <span key={i} style={{ position: 'absolute', top: 10, left: `${30 + i * 18}%`, width: 14, height: 36, borderRadius: 14, background: 'rgba(255,255,255,0.35)', filter: 'blur(5px)', animation: `gp-steam 2.6s ease-in ${i * 0.7}s infinite` }} />)}
-    </div>
-  );
+  const photoUrl = dish.img || FOOD_PHOTOS[dish.name] || null;
+
   return (
-    <div style={{ width: '100%', maxWidth: 560, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-      <button onClick={() => setDish(null)} className="stay-white" style={{ ...btnPill, alignSelf: 'flex-start' }}><ArrowLeft size={15} /> Choose another dish</button>
-      <div className="stay-white" style={{ fontSize: 22, fontWeight: 800 }}>{dish.name}</div>
-      <div style={{ width: '100%', borderRadius: 18, padding: '18px 12px 10px', background: 'linear-gradient(180deg,#2a2840,#14121f)', boxShadow: '0 30px 70px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'center', minHeight: 190, alignItems: 'center' }}>
-        {done ? (reveal || <ServedPlate dish={dish} />) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
-            <div style={{ flex: '1 1 220px', maxWidth: 300 }}><Vessel dish={dish} stage={stage} done={false} /></div>
-            {reveal}
-          </div>
-        )}
+    <div style={{ width: '100%', maxWidth: 620, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+      <button onClick={() => setDish(null)} className="stay-white" style={{ ...btnPill, alignSelf: 'flex-start' }}>
+        <ArrowLeft size={15} /> Select Another Dish
+      </button>
+
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ display: 'inline-block', background: 'rgba(245,158,11,0.2)', border: '1px solid #f59e0b', borderRadius: 99, padding: '3px 12px', fontSize: 11, fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', marginBottom: 4 }}>
+          {dish.cuisine} Cuisine • {dish.time} Cook Time
+        </div>
+        <div className="stay-white" style={{ fontSize: 24, fontWeight: 900 }}>{dish.name}</div>
+        <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', maxWidth: 440, margin: '2px auto 0' }}>
+          {dish.desc}
+        </div>
       </div>
-      <div style={{ width: '100%', height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.15)', overflow: 'hidden' }}>
-        <div style={{ width: `${Math.min(100, prog * 100)}%`, height: '100%', background: 'linear-gradient(90deg,#ffb347,#ff5a1a)', transition: 'width .6s linear' }} />
+
+      {/* ── INTERACTIVE STOVE VESSEL & SIZZLING REAL DISH PREVIEW ── */}
+      <div style={{
+        width: '100%',
+        borderRadius: 20,
+        padding: '20px 16px',
+        background: 'linear-gradient(180deg, #242038, #12101e)',
+        boxShadow: '0 30px 70px rgba(0,0,0,0.65), inset 0 0 0 2px rgba(255,255,255,0.1)',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: 220,
+      }}>
+        {/* Real photo reveal */}
+        <div style={{
+          width: done ? 210 : 170,
+          height: done ? 210 : 170,
+          borderRadius: 20,
+          overflow: 'hidden',
+          border: '4px solid #f59e0b',
+          boxShadow: '0 16px 36px rgba(0,0,0,0.6)',
+          position: 'relative',
+          flex: 'none',
+          animation: done ? 'gp-pop .5s ease-out' : 'none',
+          transition: 'all .4s ease',
+        }}>
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt={dish.name}
+              referrerPolicy="no-referrer"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                filter: done ? 'none' : `blur(${(1 - prog) * 8}px) grayscale(${(1 - prog) * 0.75}) brightness(${0.7 + prog * 0.3})`,
+                transition: 'filter .5s linear',
+              }}
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c192b' }}>
+              <Utensils size={40} color="#f59e0b" />
+            </div>
+          )}
+          {!done && [0, 1, 2].map(i => (
+            <span key={i} style={{ position: 'absolute', top: 10, left: `${30 + i * 18}%`, width: 14, height: 36, borderRadius: 14, background: 'rgba(255,255,255,0.35)', filter: 'blur(5px)', animation: `gp-steam 2.6s ease-in ${i * 0.7}s infinite` }} />
+          ))}
+          {done && (
+            <div style={{ position: 'absolute', bottom: 8, left: 8, right: 8, background: 'rgba(16,185,129,0.92)', borderRadius: 8, padding: '4px 8px', fontSize: 11, fontWeight: 800, color: '#fff', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+              <CheckCircle2 size={13} /> Sizzling & Ready!
+            </div>
+          )}
+        </div>
+
+        {/* Dynamic cooking vessel on burner flame */}
+        <div style={{ flex: '1 1 200px', maxWidth: 280 }}>
+          <Vessel dish={{ ...dish, fill: '#e07a2a', bubble: '#ffbe76' }} stage={stage} done={done} />
+        </div>
       </div>
+
+      {/* Progress Bar */}
+      <div style={{ width: '100%', height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.12)', overflow: 'hidden' }}>
+        <div style={{ width: `${Math.min(100, prog * 100)}%`, height: '100%', background: 'linear-gradient(90deg, #f59e0b, #ef4444)', transition: 'width .6s linear' }} />
+      </div>
+
+      {/* Cooking Steps Checklist */}
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {dish.steps.map((s, i) => (
-          <div key={s} className="stay-white" style={{ ...pill, borderRadius: 12, padding: '8px 14px', fontSize: 14, fontWeight: 600, opacity: i < stage ? 0.55 : i === stage ? 1 : 0.35, border: i === stage && !done ? '1px solid #ffb347' : pill.border, display: 'flex', gap: 10, alignItems: 'center' }}>
-            <span style={{ width: 22, height: 22, borderRadius: '50%', background: i < stage ? '#34b36a' : 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flex: 'none' }}>{i + 1}</span>
+          <div
+            key={s}
+            className="stay-white"
+            style={{
+              ...pill,
+              borderRadius: 12,
+              padding: '10px 14px',
+              fontSize: 13.5,
+              fontWeight: 600,
+              opacity: i < stage ? 0.6 : i === stage ? 1 : 0.35,
+              border: i === stage && !done ? '1.5px solid #f59e0b' : pill.border,
+              display: 'flex',
+              gap: 12,
+              alignItems: 'center',
+            }}
+          >
+            <span style={{
+              width: 24,
+              height: 24,
+              borderRadius: '50%',
+              background: i < stage ? '#22c55e' : i === stage ? '#f59e0b' : 'rgba(255,255,255,0.15)',
+              color: i === stage ? '#111' : '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 12,
+              fontWeight: 800,
+              flex: 'none',
+            }}>
+              {i < stage ? <Check size={14} strokeWidth={3} /> : i + 1}
+            </span>
             {s}
           </div>
         ))}
       </div>
+
       {done && (
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span className="stay-white" style={{ fontWeight: 800, fontSize: 16 }}>{dish.name} is ready</span>
-          <button onClick={() => { setDish(null); }} className="stay-white" style={btnPill}><RotateCcw size={14} /> Cook something else</button>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 4 }}>
+          <button onClick={() => { setDish(null); }} className="stay-white" style={{ ...btnPill, background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', color: '#111', boxShadow: '0 4px 14px rgba(245,158,11,0.4)' }}>
+            <RotateCcw size={14} /> Cook Another Dish
+          </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── INDIAN UTENSILS CUPBOARD MODAL VIEW ──
+const INDIAN_UTENSILS = [
+  {
+    id: 'chakla_belan',
+    name: 'Chakla & Belan',
+    hindi: 'चकला बेलन',
+    category: 'Cookware',
+    material: 'Makrana Marble & Sheesham Wood',
+    desc: 'Circular marble rolling board and tapered wooden rolling pin. Designed with weighted balance to roll paper-thin rotis, puris and parathas without sticking.',
+    uses: 'Roti, Phulka, Puri, Paratha rolling',
+    tip: 'Dust marble chakla lightly with whole wheat flour (palethan) before rolling for smooth gliding.',
+    img: '/images/gamify/foods/roti-on-the-tawa.jpg',
+  },
+  {
+    id: 'loha_tawa',
+    name: 'Loha Roti Tawa',
+    hindi: 'लोहा तवा',
+    category: 'Cookware',
+    material: 'Hand-Forged Cast Iron with Wood Handle',
+    desc: 'Heavy concave black iron griddle that holds intense, even heat. The porous iron seasons over generations to impart authentic charred aroma to rotis.',
+    uses: 'Phulkas, Chapatis, Stuffed Parathas',
+    tip: 'Never wash with harsh soaps; wipe with warm water and rub a drop of mustard oil to keep seasoned.',
+    img: '/images/gamify/foods/aloo-paratha.jpg',
+  },
+  {
+    id: 'pital_kadhai',
+    name: 'Pital & Loha Kadhai',
+    hindi: 'पीतल व लोहा कड़ाही',
+    category: 'Cookware',
+    material: 'Heavy Brass with Kalai (Tin) Lining or Cast Iron',
+    desc: 'Deep round-bottomed Indian wok with dual brass loop handles. Perfect for deep-frying puris and samosas, or slow-braising rich curries over high heat.',
+    uses: 'Deep frying, Sabzi, Halwa, Gravies',
+    tip: 'The steep curved sides retain heat and reduce oil needed for deep frying.',
+    img: '/images/gamify/foods/pakora.jpg',
+  },
+  {
+    id: 'mitti_handi',
+    name: 'Mitti & Tamba Handi',
+    hindi: 'मिट्टी की हाँडी',
+    category: 'Heritage Tools',
+    material: 'Terracotta Clay & Hammered Copper',
+    desc: 'Spherical pot with a wide belly and narrow rim. Traps steam naturally, allowing juices to condense and drip back for aromatic Awadhi Dum cooking.',
+    uses: 'Dum Biryani, Dal Makhani, Champaran Stew',
+    tip: 'Seal rim with whole wheat dough to create a natural pressure lock that preserves volatile aromas.',
+    img: '/images/gamify/foods/veg-biryani.jpg',
+  },
+  {
+    id: 'chimta',
+    name: 'Roti Chimta',
+    hindi: 'रोटी चिमटा',
+    category: 'Cookware',
+    material: 'Heavy-gauge Stainless Steel',
+    desc: 'Spring-loaded culinary tongs with flattened, serrated tips. Safely flips hot rotis on the tawa and holds them directly over open flames to puff into balloons.',
+    uses: 'Flipping and puffing rotis over direct gas flame',
+    tip: 'Grip near the rim gently to avoid puncturing the expanding air pocket in the phulka.',
+    img: '/images/gamify/foods/roti-on-the-tawa.jpg',
+  },
+  {
+    id: 'tadka_pan',
+    name: 'Tadka Pan (Vagharia)',
+    hindi: 'तड़का पैन (वघारिया)',
+    category: 'Cookware',
+    material: 'Cast Iron or Pure Brass',
+    desc: 'Miniature deep ladle-shaped pan with an extended heat-resistant handle. Concentrates heat to sizzle whole spices in hot desi ghee in seconds.',
+    uses: 'Tempering dal, sambar, rasam, and raita',
+    tip: 'Add cumin and mustard seeds first, then ginger and hing at the very end to prevent burning.',
+    img: '/images/gamify/foods/dal-tadka.jpg',
+  },
+  {
+    id: 'masala_dabba',
+    name: 'Pital Masala Dabba',
+    hindi: 'पीतल मसाला दानी',
+    category: 'Dining & Storage',
+    material: 'Solid Brass with 7 Inner Cups & Spoon',
+    desc: 'Heritage circular brass spice box containing the seven sacred daily Indian spices: Haldi, Lal Mirch, Dhaniya, Jeera, Rai, Garam Masala, and Amchur.',
+    uses: 'Instant access to core spices while cooking',
+    tip: 'Brass naturally keeps ground spices dry, aromatic, and shielded from humidity.',
+    img: '/images/gamify/foods/garam-masala.jpg',
+  },
+  {
+    id: 'pressure_cooker',
+    name: 'Pressure Cooker',
+    hindi: 'प्रेशर कुकर',
+    category: 'Cookware',
+    material: 'Heavy Tri-Ply Stainless Steel / Hard Anodised',
+    desc: 'The iconic rhythmic heartbeat of Indian households. Cooks lentils, chickpeas, and fragrant rice in minutes under 15 PSI steam pressure.',
+    uses: 'Dals, Khichdi, Chole, Pulao, Steaming',
+    tip: 'Listen for the whistle count; let pressure release naturally for velvety soft lentils.',
+    img: '/images/gamify/foods/khichdi.jpg',
+  },
+  {
+    id: 'sil_batta',
+    name: 'Sil Batta',
+    hindi: 'सिल बट्टा',
+    category: 'Heritage Tools',
+    material: 'Rough-Hewn Black Granite Stone',
+    desc: 'Ancient Indian flat grinding slab and cylindrical muller stone. Stone-crushes garlic, chillies, mint, and spices without friction heat, preserving pure flavor.',
+    uses: 'Fresh wet chutney, Garam masala paste, Thandai',
+    tip: 'Sprinkle few drops of water while rolling back and forth for silky smooth chutneys.',
+    img: '/images/gamify/foods/mint-chutney.jpg',
+  },
+  {
+    id: 'idli_steamer',
+    name: 'Idli & Dhokla Steamer',
+    hindi: 'इडली व ढोकला स्टीमर',
+    category: 'Cookware',
+    material: 'Mirror-Polished Stainless Steel',
+    desc: 'Tiered steaming vessel with perforated circular cavity plates. Circulates gentle steam to cook soft, pillowy fermented South Indian idlis.',
+    uses: 'Steamed Idlis, Gujarati Dhokla, Muthia',
+    tip: 'Lightly grease idli plates with sesame or coconut oil before pouring fermented batter.',
+    img: '/images/gamify/foods/idli.jpg',
+  },
+  {
+    id: 'dosa_palta',
+    name: 'Dosa Palta / Khunti',
+    hindi: 'डोसा पलटा (खुंटी)',
+    category: 'Cookware',
+    material: 'Ultra-Thin Flexible Stainless Steel',
+    desc: 'Flat spatula with beveled razor-thin edge. Slips effortlessly beneath paper-thin crispy dosas and parathas without tearing or wrinkling.',
+    uses: 'Flipping dosas, uttapams, cheelas, parathas',
+    tip: 'Slide the edge under the rim once the dosa edges naturally pull away from the tawa.',
+    img: '/images/gamify/foods/masala-dosa.jpg',
+  },
+  {
+    id: 'kansa_thali',
+    name: 'Kansa Dining Thali Set',
+    hindi: 'काँसा थाली सेट',
+    category: 'Dining & Storage',
+    material: 'Pure Bell Metal (78% Copper, 22% Tin)',
+    desc: 'Ancient Ayurvedic bronze dinnerware comprising a rimmed thali, katoris for dal and subzi, sweet bowl, and brass tumbler. Revered for balancing Pitta and promoting gut health.',
+    uses: 'Traditional Indian family feasting & Ayurvedic dining',
+    tip: 'Eating from pure Kansa alkalizes food and enhances digestion.',
+    img: '/images/gamify/foods/paneer-butter-masala.jpg',
+  }
+];
+
+function IndianUtensilsCupboardView({ onClose }) {
+  const [activeTab, setActiveTab] = useState('All');
+  const [selectedUtensil, setSelectedUtensil] = useState(null);
+
+  const categories = ['All', 'Cookware', 'Heritage Tools', 'Dining & Storage'];
+
+  const filtered = useMemo(() => {
+    if (activeTab === 'All') return INDIAN_UTENSILS;
+    return INDIAN_UTENSILS.filter(u => u.category === activeTab);
+  }, [activeTab]);
+
+  return (
+    <div style={{ width: '100%', maxWidth: 860, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+      <div style={{ textAlign: 'center' }}>
+        <div className="stay-white" style={{ fontSize: 24, fontWeight: 900, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <UtensilsCrossed size={24} color="#f59e0b" /> Traditional Indian Kitchen Cupboard
+        </div>
+        <div style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600, marginTop: 4 }}>
+          भारतीय बर्तन • Authentic Cookware, Brass Vessels & Heritage Indian Utensils
+        </div>
+      </div>
+
+      {/* ── CATEGORY TABS ── */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+        {categories.map(cat => {
+          const active = activeTab === cat;
+          return (
+            <button
+              key={cat}
+              onClick={() => setActiveTab(cat)}
+              className="stay-white"
+              style={{
+                ...pill,
+                padding: '7px 18px',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: 'pointer',
+                background: active ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(255,255,255,0.08)',
+                color: active ? '#111' : '#fff',
+                border: active ? 'none' : '1px solid rgba(255,255,255,0.18)',
+                boxShadow: active ? '0 4px 14px rgba(245,158,11,0.4)' : 'none',
+              }}
+            >
+              {cat}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── UTENSILS SHOWCASE GRID ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+        gap: 14,
+        width: '100%',
+      }}>
+        {filtered.map(item => (
+          <div
+            key={item.id}
+            onClick={() => setSelectedUtensil(item)}
+            style={{
+              background: 'linear-gradient(145deg, rgba(28,24,46,0.95), rgba(16,14,26,0.98))',
+              border: selectedUtensil?.id === item.id ? '2px solid #f59e0b' : '1px solid rgba(255,215,120,0.22)',
+              borderRadius: 16,
+              padding: 14,
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+              transition: 'transform .18s ease, box-shadow .18s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+          >
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{ width: 56, height: 56, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,215,120,0.3)', flex: 'none', background: '#1c192b' }}>
+                <img src={item.img} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <div>
+                <div className="stay-white" style={{ fontSize: 15, fontWeight: 800 }}>{item.name}</div>
+                <div style={{ fontSize: 12, color: '#fbbf24', fontWeight: 700 }}>{item.hindi}</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', marginTop: 2 }}>{item.material}</div>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', lineHeight: 1.45 }}>
+              {item.desc}
+            </div>
+
+            <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: '#6ee7b7' }}>Primary: {item.uses}</span>
+              <span style={{ fontSize: 10, color: '#fbbf24', fontWeight: 800 }}>Inspect</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── DETAIL INSPECTION DRAWER ── */}
+      {selectedUtensil && (
+        <div style={{
+          width: '100%',
+          background: 'linear-gradient(135deg, rgba(24,20,40,0.95), rgba(36,26,56,0.95))',
+          border: '1.5px solid rgba(245,158,11,0.5)',
+          borderRadius: 18,
+          padding: '16px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          boxShadow: '0 12px 30px rgba(0,0,0,0.6)',
+          animation: 'gp-pop .25s ease-out',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>{selectedUtensil.name} ({selectedUtensil.hindi})</span>
+              <span style={{ background: '#f59e0b', color: '#111', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 99 }}>{selectedUtensil.category}</span>
+            </div>
+            <button onClick={() => setSelectedUtensil(null)} className="stay-white" style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}>
+              <X size={18} />
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#fcd34d', fontWeight: 700, textTransform: 'uppercase' }}>Authentic Material</div>
+              <div style={{ fontSize: 13, color: '#fff', fontWeight: 600 }}>{selectedUtensil.material}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: '#fcd34d', fontWeight: 700, textTransform: 'uppercase' }}>Culinary Uses</div>
+              <div style={{ fontSize: 13, color: '#fff', fontWeight: 600 }}>{selectedUtensil.uses}</div>
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <div style={{ fontSize: 11, color: '#fcd34d', fontWeight: 700, textTransform: 'uppercase' }}>Heritage Kitchen Tip</div>
+              <div style={{ fontSize: 12.5, color: '#86efac', fontWeight: 600, lineHeight: 1.4 }}>{selectedUtensil.tip}</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ROTI STICK (CHAKLA-BELAN) INTERACTIVE GAME ──
+function RotiMakerGame({ onClose }) {
+  // Stages: 0: Peda Prep, 1: Rolling with Belan, 2: Tawa Sizzle & Flip, 3: Direct Flame Balloon Puff, 4: Ghee & Plating
+  const [stage, setStage] = useState(0);
+  const [flourDusted, setFlourDusted] = useState(false);
+  const [rollsCount, setRollsCount] = useState(0);
+  const [diameter, setDiameter] = useState(6); // cm
+  const [roundness, setRoundness] = useState(88); // %
+  const [tawaSide, setTawaSide] = useState(1);
+  const [tawaSecs, setTawaSecs] = useState(0);
+  const [puffProgress, setPuffProgress] = useState(0);
+  const [gheeApplied, setGheeApplied] = useState(false);
+  const [isRolling, setIsRolling] = useState(false);
+
+  // Timer on Tawa
+  useEffect(() => {
+    if (stage !== 2) return undefined;
+    const t = setInterval(() => setTawaSecs(s => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [stage, tawaSide]);
+
+  // Rolling Belan Action
+  const rollBelan = () => {
+    if (stage !== 1) return;
+    setIsRolling(true);
+    setRollsCount(r => r + 1);
+    setDiameter(d => Math.min(18, +(d + 1.2).toFixed(1)));
+    setRoundness(r => Math.min(98, r + Math.floor(Math.random() * 2) + 1));
+    setTimeout(() => setIsRolling(false), 300);
+  };
+
+  const handleDustFlour = () => {
+    setFlourDusted(true);
+  };
+
+  const startRolling = () => {
+    setStage(1);
+  };
+
+  const transferToTawa = () => {
+    setStage(2);
+    setTawaSide(1);
+    setTawaSecs(0);
+  };
+
+  const flipWithChimta = () => {
+    setTawaSide(2);
+    setTawaSecs(0);
+  };
+
+  const moveToFlame = () => {
+    setStage(3);
+    setPuffProgress(0);
+    const interval = setInterval(() => {
+      setPuffProgress(p => {
+        if (p >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return p + 25;
+      });
+    }, 400);
+  };
+
+  const applyDesiGhee = () => {
+    setGheeApplied(true);
+    setStage(4);
+  };
+
+  const resetGame = () => {
+    setStage(0);
+    setFlourDusted(false);
+    setRollsCount(0);
+    setDiameter(6);
+    setRoundness(88);
+    setTawaSide(1);
+    setTawaSecs(0);
+    setPuffProgress(0);
+    setGheeApplied(false);
+  };
+
+  return (
+    <div style={{ width: '100%', maxWidth: 660, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+      {/* ── HEADER ── */}
+      <div style={{ textAlign: 'center' }}>
+        <div className="stay-white" style={{ fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <Sparkles size={24} color="#f59e0b" /> Ghar Ki Roti • Master Roti Maker
+        </div>
+        <div style={{ fontSize: 13, color: '#fbbf24', fontWeight: 600, marginTop: 4 }}>
+          Experience the art of dough peda, wooden belan rolling, and flame balloon puffing!
+        </div>
+      </div>
+
+      {/* ── GAME STAGES STEPPER ── */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
+        {[
+          { id: 0, label: '1. Peda & Flour' },
+          { id: 1, label: '2. Belan Rolling' },
+          { id: 2, label: '3. Tawa Sizzle' },
+          { id: 3, label: '4. Flame Balloon' },
+          { id: 4, label: '5. Desi Ghee & Plate' },
+        ].map(st => (
+          <div
+            key={st.id}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 99,
+              fontSize: 11,
+              fontWeight: 800,
+              background: stage === st.id ? 'linear-gradient(135deg, #f59e0b, #d97706)' : stage > st.id ? 'rgba(34,197,94,0.2)' : 'rgba(255,255,255,0.08)',
+              color: stage === st.id ? '#111' : stage > st.id ? '#86efac' : 'rgba(255,255,255,0.6)',
+              border: stage === st.id ? 'none' : stage > st.id ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            {stage > st.id && <Check size={12} strokeWidth={3} />}
+            <span>{st.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── INTERACTIVE WORKSPACE ARENA ── */}
+      <div style={{
+        width: '100%',
+        minHeight: 330,
+        background: 'linear-gradient(180deg, #1f1b34, #120f22)',
+        border: '2px solid rgba(255,215,120,0.3)',
+        borderRadius: 24,
+        padding: '24px 20px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+        overflow: 'hidden',
+        boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+      }}>
+        {/* ── STAGE 0: PEDA & FLOUR DUSTING ── */}
+        {stage === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>
+              Step 1: Whole wheat atta dough ball (Peda) is ready!
+            </div>
+
+            {/* Dough Ball visual on marble chakla */}
+            <div style={{ position: 'relative', width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, #f3ede2, #d5c8b5)', border: '8px solid #b8a692', boxShadow: '0 12px 28px rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{
+                width: 70,
+                height: 70,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 35% 30%, #fef3c7, #d97706)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.35)',
+                border: flourDusted ? '3px dashed #fff' : 'none',
+                transition: 'all .3s ease',
+              }} />
+              {flourDusted && (
+                <div style={{ position: 'absolute', top: 20, right: 20, background: '#22c55e', color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 99 }}>
+                  Dusted with Flour
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              {!flourDusted ? (
+                <button
+                  onClick={handleDustFlour}
+                  className="stay-white"
+                  style={{
+                    ...btnPill,
+                    padding: '10px 20px',
+                    fontSize: 13,
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#111',
+                    border: 'none',
+                    boxShadow: '0 4px 14px rgba(245,158,11,0.4)',
+                  }}
+                >
+                  <Sparkles size={15} /> Dust with Dry Flour (Palethan)
+                </button>
+              ) : (
+                <button
+                  onClick={startRolling}
+                  className="stay-white"
+                  style={{
+                    ...btnPill,
+                    padding: '10px 22px',
+                    fontSize: 14,
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    border: 'none',
+                    boxShadow: '0 4px 14px rgba(34,197,94,0.4)',
+                  }}
+                >
+                  Start Rolling with Belan <ArrowRight size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── STAGE 1: BELAN ROLLING ON MARBLE CHAKLA ── */}
+        {stage === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: '100%' }}>
+            {/* Live gauges */}
+            <div style={{ display: 'flex', gap: 20, justifyContent: 'center' }}>
+              <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '6px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>DIAMETER</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: diameter >= 17 ? '#4ade80' : '#f59e0b' }}>{diameter} cm / 18 cm</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '6px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>ROUNDNESS</div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: '#38bdf8' }}>{roundness}%</div>
+              </div>
+            </div>
+
+            {/* Marble Chakla + Expanding Roti + Belan */}
+            <div style={{
+              position: 'relative',
+              width: 250,
+              height: 250,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, #f5f0e8, #c8bba8)',
+              border: '10px solid #9c8a74',
+              boxShadow: '0 16px 36px rgba(0,0,0,0.55)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }} onClick={rollBelan}>
+              {/* Expanding Roti Disc */}
+              <div style={{
+                width: `${(diameter / 18) * 200}px`,
+                height: `${(diameter / 18) * 200}px`,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 45% 45%, #fef3c7, #fde68a 70%, #d97706 100%)',
+                boxShadow: 'inset 0 0 10px rgba(180,120,40,0.3), 0 4px 10px rgba(0,0,0,0.2)',
+                transition: 'width .2s ease, height .2s ease',
+              }} />
+
+              {/* Wooden Belan (Rolling Pin) overlay */}
+              <div style={{
+                position: 'absolute',
+                width: 230,
+                height: 18,
+                borderRadius: 9,
+                background: 'linear-gradient(180deg, #8b5a2b, #5c3a1e 60%, #3e2714)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.6)',
+                transform: isRolling ? 'rotate(15deg) translateY(-8px)' : 'rotate(-10deg)',
+                transition: 'transform .18s ease',
+                pointerEvents: 'none',
+              }}>
+                {/* Belan Handles */}
+                <div style={{ position: 'absolute', left: 4, top: 4, width: 28, height: 10, borderRadius: 5, background: '#a06a38' }} />
+                <div style={{ position: 'absolute', right: 4, top: 4, width: 28, height: 10, borderRadius: 5, background: '#a06a38' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button
+                onClick={rollBelan}
+                className="stay-white"
+                style={{
+                  ...btnPill,
+                  padding: '11px 24px',
+                  fontSize: 14,
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  color: '#111',
+                  border: 'none',
+                  boxShadow: '0 4px 14px rgba(245,158,11,0.4)',
+                }}
+              >
+                <RotateCcw size={16} /> Roll Belan Pin ({rollsCount} rolls)
+              </button>
+
+              {diameter >= 17 && (
+                <button
+                  onClick={transferToTawa}
+                  className="stay-white"
+                  style={{
+                    ...btnPill,
+                    padding: '11px 24px',
+                    fontSize: 14,
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    border: 'none',
+                    boxShadow: '0 4px 14px rgba(34,197,94,0.4)',
+                  }}
+                >
+                  Place on Hot Tawa <ArrowRight size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── STAGE 2: HOT CAST IRON TAWA SIZZLE ── */}
+        {stage === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', textAlign: 'center' }}>
+              {tawaSide === 1 ? 'Side 1 cooking: Watch for small steam bubbles...' : 'Side 2 cooking: Faint golden speckles formed!'}
+            </div>
+
+            {/* Black Cast Iron Tawa on burner */}
+            <div style={{
+              position: 'relative',
+              width: 250,
+              height: 250,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, #2d2f3d, #12131a)',
+              border: '10px solid #1c1d24',
+              boxShadow: '0 16px 40px rgba(0,0,0,0.7)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              {/* Roti on tawa with bubbles */}
+              <div style={{
+                width: 190,
+                height: 190,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 45% 45%, #fde68a, #d97706 85%)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                position: 'relative',
+              }}>
+                {/* Chitthi / Golden roasted brown dots on Side 2 */}
+                {tawaSide === 2 && (
+                  <>
+                    <div style={{ position: 'absolute', top: 40, left: 60, width: 14, height: 10, borderRadius: '50%', background: '#78350f' }} />
+                    <div style={{ position: 'absolute', top: 80, right: 50, width: 18, height: 12, borderRadius: '50%', background: '#78350f' }} />
+                    <div style={{ position: 'absolute', bottom: 50, left: 80, width: 16, height: 14, borderRadius: '50%', background: '#78350f' }} />
+                    <div style={{ position: 'absolute', bottom: 70, right: 70, width: 12, height: 8, borderRadius: '50%', background: '#78350f' }} />
+                  </>
+                )}
+                {/* Steam wisps */}
+                {[0, 1, 2].map(i => (
+                  <span key={i} style={{ position: 'absolute', top: 20, left: `${30 + i * 20}%`, width: 12, height: 32, borderRadius: 12, background: 'rgba(255,255,255,0.4)', filter: 'blur(4px)', animation: `gp-steam 2.2s ease-in ${i * 0.6}s infinite` }} />
+                ))}
+              </div>
+
+              {/* Tawa Handle */}
+              <div style={{ position: 'absolute', right: -36, top: '46%', width: 44, height: 18, borderRadius: 6, background: '#3e2714' }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              {tawaSide === 1 ? (
+                <button
+                  onClick={flipWithChimta}
+                  className="stay-white"
+                  style={{
+                    ...btnPill,
+                    padding: '10px 22px',
+                    fontSize: 14,
+                    background: tawaSecs >= 3 ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'rgba(255,255,255,0.15)',
+                    color: tawaSecs >= 3 ? '#111' : '#fff',
+                    border: 'none',
+                    boxShadow: tawaSecs >= 3 ? '0 4px 16px rgba(245,158,11,0.5)' : 'none',
+                  }}
+                >
+                  <RotateCcw size={15} /> Flip with Chimta Tongs ({tawaSecs}s)
+                </button>
+              ) : (
+                <button
+                  onClick={moveToFlame}
+                  className="stay-white"
+                  style={{
+                    ...btnPill,
+                    padding: '10px 24px',
+                    fontSize: 14,
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    border: 'none',
+                    boxShadow: '0 4px 18px rgba(239,68,68,0.5)',
+                  }}
+                >
+                  <Flame size={16} /> Puff on Open Gas Flame <ArrowRight size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── STAGE 3: DIRECT GAS FLAME BALLOON PUFF ── */}
+        {stage === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#fef08a', textAlign: 'center' }}>
+              Step 4: Held over glowing flame — Phulka is ballooning up!
+            </div>
+
+            {/* Glowing gas stove burner with blue flames */}
+            <div style={{ position: 'relative', width: 230, height: 230, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {/* Blue gas flames underneath */}
+              <div style={{ position: 'absolute', bottom: 30, width: 140, height: 20, display: 'flex', justifyContent: 'space-around' }}>
+                {[0, 1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} style={{ width: 8, height: 22, borderRadius: '50% 50% 20% 20%', background: 'linear-gradient(180deg, #60a5fa, #2563eb)', animation: 'gp-flame .4s infinite alternate' }} />
+                ))}
+              </div>
+
+              {/* Ballooning Phulka */}
+              <div style={{
+                width: 170 + (puffProgress / 100) * 40,
+                height: 170 + (puffProgress / 100) * 40,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 40% 35%, #fffbeb 0%, #fde68a 50%, #d97706 90%)',
+                boxShadow: '0 0 35px rgba(245,158,11,0.6), inset 0 0 20px rgba(217,119,6,0.5)',
+                transition: 'all .4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid rgba(255,255,255,0.6)',
+              }}>
+                {/* Chitthi charred spots */}
+                <div style={{ position: 'absolute', top: 30, left: 50, width: 16, height: 10, borderRadius: '50%', background: '#78350f' }} />
+                <div style={{ position: 'absolute', top: 70, right: 40, width: 18, height: 14, borderRadius: '50%', background: '#78350f' }} />
+                <div style={{ position: 'absolute', bottom: 40, left: 70, width: 14, height: 10, borderRadius: '50%', background: '#78350f' }} />
+              </div>
+
+              {/* Rising steam */}
+              {[0, 1, 2].map(i => (
+                <span key={i} style={{ position: 'absolute', top: 10, left: `${30 + i * 20}%`, width: 14, height: 40, borderRadius: 14, background: 'rgba(255,255,255,0.45)', filter: 'blur(5px)', animation: `gp-steam 2s ease-in ${i * 0.5}s infinite` }} />
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={applyDesiGhee}
+                className="stay-white"
+                style={{
+                  ...btnPill,
+                  padding: '11px 26px',
+                  fontSize: 14,
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  color: '#111',
+                  border: 'none',
+                  boxShadow: '0 4px 18px rgba(245,158,11,0.5)',
+                }}
+              >
+                <Sparkles size={16} /> Brush Desi Ghee & Plate
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── STAGE 4: DESI GHEE & ROYAL THALI PLATING ── */}
+        {stage === 4 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, width: '100%', animation: 'gp-pop .4s ease-out' }}>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#4ade80', textAlign: 'center', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CheckCircle2 size={22} /> Perfectly Puffed Balloon Phulka Ready!
+            </div>
+
+            {/* Gleaming Indian Steel Thali with Dal, Subzi & Phulka */}
+            <div style={{
+              position: 'relative',
+              width: 260,
+              height: 260,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, #e2e8f0, #94a3b8)',
+              border: '10px solid #cbd5e1',
+              boxShadow: '0 20px 48px rgba(0,0,0,0.6)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              {/* Golden Butter Phulka */}
+              <div style={{
+                width: 170,
+                height: 170,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 40% 40%, #fef3c7, #fde68a 60%, #d97706 90%)',
+                boxShadow: '0 6px 16px rgba(0,0,0,0.4)',
+                border: '2px solid rgba(255,255,255,0.7)',
+                position: 'relative',
+              }}>
+                {/* Desi Ghee Golden Glaze */}
+                <div style={{ position: 'absolute', top: 35, left: 35, right: 35, bottom: 35, borderRadius: '50%', background: 'radial-gradient(circle, rgba(253,224,71,0.7), transparent 70%)' }} />
+                {/* Chitthi spots */}
+                <div style={{ position: 'absolute', top: 35, left: 55, width: 14, height: 10, borderRadius: '50%', background: '#78350f' }} />
+                <div style={{ position: 'absolute', top: 75, right: 45, width: 16, height: 12, borderRadius: '50%', background: '#78350f' }} />
+                <div style={{ position: 'absolute', bottom: 45, left: 70, width: 14, height: 10, borderRadius: '50%', background: '#78350f' }} />
+              </div>
+
+              {/* Little Dal Katori on side */}
+              <div style={{ position: 'absolute', top: 10, right: 10, width: 62, height: 62, borderRadius: '50%', background: '#f59e0b', border: '4px solid #cbd5e1', boxShadow: '0 4px 10px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e' }} />
+              </div>
+            </div>
+
+            {/* Scorecard */}
+            <div style={{ display: 'flex', gap: 14, justifyContent: 'center' }}>
+              <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '8px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>ROUNDNESS</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#4ade80' }}>{roundness}% (Circle Master)</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '8px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>BALLOON PUFF</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#fbbf24' }}>100% Full Air Phulka</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '8px 16px', textAlign: 'center' }}>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 700 }}>CHEF RATING</div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: '#fcd34d' }}>5 Stars (Master Roti Ustad)</div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+              <button
+                onClick={resetGame}
+                className="stay-white"
+                style={{
+                  ...btnPill,
+                  padding: '10px 22px',
+                  fontSize: 14,
+                  background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                  color: '#111',
+                  border: 'none',
+                  boxShadow: '0 4px 14px rgba(245,158,11,0.4)',
+                }}
+              >
+                <RotateCcw size={15} /> Make Another Roti
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -2478,6 +4162,8 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'fridge' && <FridgeView set={arg} />}
         {kind === 'oven' && <OvenView set={arg} />}
         {kind === 'stove' && <StoveView set={arg} />}
+        {kind === 'cupboard' && <IndianUtensilsCupboardView onClose={onClose} />}
+        {kind === 'roti' && <RotiMakerGame onClose={onClose} />}
         {kind === 'wardrobe' && <WardrobeView id={arg} />}
         {kind === 'cosmetics' && <CosmeticsView />}
         {kind === 'telescope' && <ViewerBoundary><Suspense fallback={<div className="stay-white" style={{ marginTop: 120, fontWeight: 700 }}>Pointing the telescope...</div>}><SpaceViewer /></Suspense></ViewerBoundary>}

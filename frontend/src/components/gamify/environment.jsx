@@ -162,7 +162,7 @@ export function Ground({ weather }) {
 const CLOUD_SPOTS = Array.from({ length: 16 }).map((_, i) => {
   const a = (i / 16) * Math.PI * 2 + (i % 3) * 0.2;
   const r = 58 + (i % 4) * 11;
-  return { x: Math.cos(a) * r, z: Math.sin(a) * r, y: 4 + (i % 5) * 3, s: 1.4 + (i % 3) * 0.7, v: 0.25 + (i % 4) * 0.12 };
+  return { x: Math.cos(a) * r, z: Math.sin(a) * r, y: 20 + (i % 5) * 3, s: 1.4 + (i % 3) * 0.7, v: 0.25 + (i % 4) * 0.12 };
 });
 
 function Cloud({ spot, color, opacity }) {

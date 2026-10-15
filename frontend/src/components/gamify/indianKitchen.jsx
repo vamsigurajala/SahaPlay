@@ -34,6 +34,8 @@ export default function IndianKitchen({ natural = false, set = 'ground' }) {
   const openFridge = useOpenProp('fridge', set);
   const openStove = useOpenProp('stove', set);
   const openOven = useOpenProp('oven', set);
+  const openCupboard = useOpenProp('cupboard');
+  const openRoti = useOpenProp('roti');
   return (
     <group>
       {/* backsplash tiles behind both counter runs */}
@@ -75,11 +77,14 @@ export default function IndianKitchen({ natural = false, set = 'ground' }) {
       <Box p={[2.2, 3.6, 0.7]} s={[1.9, 0.5, 1.1]} c={STEEL} metal={0.8} rough={0.3} r={0.04} />
       <Box p={[2.2, 4.3, 0.4]} s={[0.55, 1.2, 0.5]} c={STEEL} metal={0.8} rough={0.3} />
       {!natural && <Neon p={[2.2, 3.33, 0.9]} s={[1.5, 0.03, 0.03]} color={NEON_AMBER} halo={false} />}
-      {/* wall cabinets + spice shelf */}
-      <Box p={[5.2, 3.2, 0.45]} s={[2.4, 1.3, 0.7]} c={CREAM} r={0.03} />
-      <Box p={[0.9, 3.2, 0.45]} s={[0.8, 1.3, 0.7]} c={CREAM} r={0.03} />
-      <Box p={[3.4, 2.4, 0.3]} s={[2.0, 0.06, 0.4]} c={WOOD} shadow={false} />
-      {[2.6, 2.95, 3.3, 3.65, 4.0].map((x, i) => <Steel key={x} p={[x - 0.4, 2.54, 0.3]} args={[0.1, 0.1, 0.22, 10]} color={['#d04a2a', '#e0b020', '#7a4a1a', '#2f8f4a', '#c0a060'][i]} />)}
+      {/* wall cabinets + spice shelf with interactive Indian utensils modal */}
+      <group {...openCupboard}>
+        <PropDot position={[5.2, 3.9, 0.45]} kind="cupboard" />
+        <Box p={[5.2, 3.2, 0.45]} s={[2.4, 1.3, 0.7]} c={CREAM} r={0.03} />
+        <Box p={[0.9, 3.2, 0.45]} s={[0.8, 1.3, 0.7]} c={CREAM} r={0.03} />
+        <Box p={[3.4, 2.4, 0.3]} s={[2.0, 0.06, 0.4]} c={WOOD} shadow={false} />
+        {[2.6, 2.95, 3.3, 3.65, 4.0].map((x, i) => <Steel key={x} p={[x - 0.4, 2.54, 0.3]} args={[0.1, 0.1, 0.22, 10]} color={['#d04a2a', '#e0b020', '#7a4a1a', '#2f8f4a', '#c0a060'][i]} />)}
+      </group>
       {/* LPG cylinder */}
       <mesh position={[6.2, 0.5, 2.6]} castShadow><cylinderGeometry args={[0.34, 0.34, 1.0, 16]} /><meshStandardMaterial color="#c0392b" roughness={0.5} /></mesh>
       <mesh position={[6.2, 1.07, 2.6]}><sphereGeometry args={[0.34, 16, 8, 0, PI * 2, 0, PI / 2]} /><meshStandardMaterial color="#c0392b" roughness={0.5} /></mesh>
@@ -109,8 +114,11 @@ export default function IndianKitchen({ natural = false, set = 'ground' }) {
       {/* RO purifier on the wall */}
       <Box p={[13.2, 2.7, 0.4]} s={[0.9, 1.1, 0.4]} c="#f4f6ff" r={0.06} />
       {!natural && <Neon p={[13.2, 2.5, 0.62]} s={[0.5, 0.05, 0.02]} color="#4fc3ff" halo={false} />}
-      <Box p={[11.2, 3.3, 0.45]} s={[1.6, 1.3, 0.7]} c={CREAM} r={0.03} />
-      <Box p={[15.3, 3.3, 0.45]} s={[3.6, 1.3, 0.7]} c={CREAM} r={0.03} />
+      <group {...openCupboard}>
+        <PropDot position={[13.2, 4.0, 0.45]} kind="cupboard" />
+        <Box p={[11.2, 3.3, 0.45]} s={[1.6, 1.3, 0.7]} c={CREAM} r={0.03} />
+        <Box p={[15.3, 3.3, 0.45]} s={[3.6, 1.3, 0.7]} c={CREAM} r={0.03} />
+      </group>
       {/* double-door fridge — tap to look inside */}
       <group {...openFridge}>
       <PropDot position={[17.1, 4.3, 1.0]} kind="fridge" arg={set} />
@@ -128,10 +136,29 @@ export default function IndianKitchen({ natural = false, set = 'ground' }) {
       {[0.8, 1.9, 3.0].map(y => <Box key={y} p={[1.57, y + 0.4, 4.0]} s={[0.04, 0.15, 0.6]} c="#c9b48a" shadow={false} />)}
       <Box p={[0.9, 0.5, 7.4]} s={[1.3, 1.0, 3.2]} c={CREAM} r={0.03} />
       <Box p={[0.9, 1.04, 7.4]} s={[1.4, 0.08, 3.3]} c={GRANITE} rough={0.25} metal={0.2} />
-      <mesh position={[1.0, 1.1, 7.0]} castShadow><cylinderGeometry args={[0.5, 0.5, 0.04, 22]} /><meshStandardMaterial color="#b88a5a" roughness={0.8} /></mesh>
-      <mesh position={[1.0, 1.17, 7.0]} rotation={[0, 0, PI / 2]}><cylinderGeometry args={[0.035, 0.035, 0.6, 8]} /><meshStandardMaterial color="#6b4a2f" /></mesh>
+
+      {/* Chakla-Belan (Roti rolling board and pin) — tap to play Roti Maker game */}
+      <group {...openRoti}>
+        <PropDot position={[1.0, 1.55, 7.0]} kind="roti" />
+        <mesh position={[1.0, 1.1, 7.0]} castShadow>
+          <cylinderGeometry args={[0.5, 0.5, 0.04, 22]} />
+          <meshStandardMaterial color="#c49a6c" roughness={0.6} />
+        </mesh>
+        {/* Belan (rolling pin with handles) */}
+        <mesh position={[1.0, 1.16, 7.0]} rotation={[0, 0, PI / 2]}>
+          <cylinderGeometry args={[0.04, 0.04, 0.62, 12]} />
+          <meshStandardMaterial color="#6b4a2f" roughness={0.5} />
+        </mesh>
+        {/* Dough ball (atta peda) */}
+        <mesh position={[1.0, 1.13, 7.35]}>
+          <sphereGeometry args={[0.12, 12, 10]} />
+          <meshStandardMaterial color="#f0d5a3" roughness={0.8} />
+        </mesh>
+      </group>
+
       <Steel p={[1.0, 1.2, 8.3]} args={[0.3, 0.2, 0.22, 16]} />
       <mesh position={[1.0, 1.28, 8.3]}><sphereGeometry args={[0.24, 12, 8, 0, PI * 2, 0, PI / 2]} /><meshStandardMaterial color="#f4ecd8" /></mesh>
+
       {/* matka (clay water pot) on a stand */}
       <group position={[1.0, 0, 11.6]}>
         {[[-0.4, -0.4], [0.4, -0.4], [-0.4, 0.4], [0.4, 0.4]].map(([x, z], i) => <Box key={i} p={[x, 0.55, z]} s={[0.08, 1.1, 0.08]} c="#2a2140" />)}
@@ -141,34 +168,64 @@ export default function IndianKitchen({ natural = false, set = 'ground' }) {
         <Steel p={[0.4, 1.4, 0]} args={[0.03, 0.03, 0.2, 6]} rot={[0, 0, PI / 2]} />
       </group>
 
-      {/* ── dining: wooden table, steel thalis, jute mat ── */}
-      <Rug p={[9.2, 0, 8.4]} w={6.8} d={4.8} c="#a9875a" c2="#c6a577" />
-      <Table p={[9.2, 0, 8.4]} w={4.4} d={2.2} c={WOOD} leg="#4a2f1a" />
-      {[-1.4, -0.45, 0.5, 1.4].map((dx, i) => (
-        <group key={i}>
-          <Steel p={[9.2 + dx, 1.08, i % 2 ? 7.8 : 9.0]} args={[0.32, 0.32, 0.03, 20]} />
-          <Steel p={[9.2 + dx + 0.12, 1.15, i % 2 ? 7.8 : 9.0]} args={[0.1, 0.08, 0.08, 10]} />
-          <Steel p={[9.2 + dx - 0.12, 1.15, i % 2 ? 7.8 : 9.0]} args={[0.1, 0.08, 0.08, 10]} />
+      {/* ── EXPANDED GRAND DINING: Large table with 10 chairs for family members ── */}
+      <Rug p={[9.4, 0, 8.4]} w={9.4} d={5.6} c="#a9875a" c2="#c6a577" />
+      <Table p={[9.4, 0, 8.4]} w={6.8} d={2.8} c={WOOD} leg="#4a2f1a" />
+
+      {/* 4 North Chairs (teal velvet cushions) */}
+      {[6.8, 8.4, 10.0, 11.6].map(x => (
+        <Chair key={'n-' + x} p={[x, 0, 6.5]} rot={0} c="#2f8f9d" />
+      ))}
+
+      {/* 4 South Chairs (terracotta velvet cushions) */}
+      {[6.8, 8.4, 10.0, 11.6].map(x => (
+        <Chair key={'s-' + x} p={[x, 0, 10.3]} rot={PI} c="#d0592a" />
+      ))}
+
+      {/* 2 Head of Table Chairs (warm amber cushions) */}
+      <Chair p={[5.3, 0, 8.4]} rot={PI / 2} c="#e09f3e" />
+      <Chair p={[13.5, 0, 8.4]} rot={-PI / 2} c="#e09f3e" />
+
+      {/* Complete Individual Steel Thali Place Settings for all Family Members */}
+      {[6.8, 8.4, 10.0, 11.6].map((x, i) => (
+        <group key={'thali-' + i}>
+          {/* North row thalis */}
+          <Steel p={[x, 1.08, 7.6]} args={[0.32, 0.32, 0.03, 20]} />
+          <Steel p={[x + 0.12, 1.15, 7.6]} args={[0.09, 0.08, 0.08, 10]} />
+          <Steel p={[x - 0.12, 1.15, 7.6]} args={[0.09, 0.08, 0.08, 10]} />
+          {/* South row thalis */}
+          <Steel p={[x, 1.08, 9.2]} args={[0.32, 0.32, 0.03, 20]} />
+          <Steel p={[x + 0.12, 1.15, 9.2]} args={[0.09, 0.08, 0.08, 10]} />
+          <Steel p={[x - 0.12, 1.15, 9.2]} args={[0.09, 0.08, 0.08, 10]} />
         </group>
       ))}
-      <Steel p={[9.2, 1.4, 8.4]} args={[0.15, 0.15, 0.6, 12]} />
-      <Steel p={[8.4, 1.25, 8.4]} args={[0.14, 0.12, 0.3, 12]} />
-      {[7.6, 9.2].map(x => (
-        <group key={x}>
-          <Chair p={[x - 0.8, 0, 6.6]} rot={0} c="#2f8f9d" />
-          <Chair p={[x - 0.8, 0, 10.2]} rot={PI} c="#d0592a" />
+
+      {/* Head place settings */}
+      <Steel p={[6.3, 1.08, 8.4]} args={[0.32, 0.32, 0.03, 20]} />
+      <Steel p={[12.5, 1.08, 8.4]} args={[0.32, 0.32, 0.03, 20]} />
+
+      {/* Centerpiece copper water jugs, condiment bowls & roti basket */}
+      <Steel p={[9.4, 1.45, 8.4]} args={[0.18, 0.18, 0.65, 14]} color="#d4824e" />
+      <Steel p={[8.4, 1.25, 8.4]} args={[0.16, 0.14, 0.32, 12]} />
+      <Steel p={[10.4, 1.25, 8.4]} args={[0.16, 0.14, 0.32, 12]} />
+
+      {/* Triple hanging warm brass pendant lights over family dining table */}
+      {[-1.8, 0, 1.8].map((dx, i) => (
+        <group key={'pend-' + i} position={[9.4 + dx, 3.8, 8.4]}>
+          <mesh><cylinderGeometry args={[0.015, 0.015, 1.2, 8]} /><meshStandardMaterial color="#222" /></mesh>
+          <mesh position={[0, -0.6, 0]}>
+            <cylinderGeometry args={[0.16, 0.32, 0.26, 16]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.85} roughness={0.2} />
+          </mesh>
         </group>
       ))}
-      <Box p={[12.3, 0.4, 8.4]} s={[0.9, 0.8, 0.9]} c={WOOD} r={0.04} />
-      {[0, 1, 2].map(i => <Steel key={i} p={[12.3, 0.88 + i * 0.1, 8.4]} args={[0.28 - i * 0.03, 0.28 - i * 0.03, 0.1, 14]} />)}
-      {/* peeda stools + vegetable crate */}
-      {[[4.0, 10.6], [5.2, 11.4]].map(([x, z], i) => <Steel key={i} p={[x, 0.22, z]} args={[0.3, 0.3, 0.44, 12]} color="#b0773f" />)}
-      <Box p={[3.4, 0.25, 14.0]} s={[1.3, 0.5, 0.9]} c="#a9875a" r={0.04} />
-      {[[-0.4, '#d0392b'], [0, '#3aa862'], [0.4, '#f0a020']].map(([dx, col], i) => (
-        <mesh key={i} position={[3.4 + dx, 0.6, 14.0]}><sphereGeometry args={[0.22, 10, 8]} /><meshStandardMaterial color={col} roughness={0.6} /></mesh>
-      ))}
-      <Plant p={[1.0, 0, 14.8]} scale={1.1} pot="#c46a3a" color="#3aa862" />
-      <Plant p={[17.2, 0, 15.0]} scale={1.2} color="#3bbf74" />
+      <pointLight position={[9.4, 2.9, 8.4]} intensity={50} distance={10} color="#ffe8c0" decay={2} />
+
+      {/* Side side-table with steel storage dabbas */}
+      <Box p={[14.2, 0.4, 8.4]} s={[0.9, 0.8, 0.9]} c={WOOD} r={0.04} />
+      {[0, 1, 2].map(i => <Steel key={i} p={[14.2, 0.88 + i * 0.1, 8.4]} args={[0.28 - i * 0.03, 0.28 - i * 0.03, 0.1, 14]} />)}
+
+      {/* Warm floor lamp near the passage */}
       <FloorLamp p={[6.6, 0, 14.8]} />
     </group>
   );
