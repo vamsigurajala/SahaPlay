@@ -2,6 +2,7 @@ import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, 
 import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Cell } from './cell';
+import { Playable, PoolTable, PingPongTable, MiniBar, DjStation, ConsoleCorner, ScoreBoard, TrophyShelf, GameSign } from './gameRoom';
 import { Clock, RealTimeClock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity, RomanticChaiseLounge, ChampagneTable, RomanticFireplace, VelvetPouf, RomanticLantern, ReadingArmchair, ReadingLamp, LoungeTableItems, PuzzleTableSet } from './props';
 
 const ROSES = ['#d0183a', '#ff4f8a', '#ff9ac0', '#fff0f6'];
@@ -183,34 +184,48 @@ export function Kitchen() {
   );
 }
 
+// The Game Room: every table, cabinet and screen opens a game you can play against the
+// computer (see ./games). Coordinates are cell-local (x from the left wall, z from the back wall).
+const ARCADES = [
+  [1.4, NEON_CYAN, 'snake'], [2.8, NEON_PINK, 'breakout'], [4.2, NEON_AMBER, 'tetris'],
+  [9.0, NEON_VIOLET, 'invaders'], [10.2, '#8dff9c', 'flappy'], [11.4, NEON_CYAN, 'g2048'],
+  [13.4, NEON_PINK, 'whack'], [15.0, NEON_CYAN, 'mines'], [16.6, NEON_AMBER, 'connect4'],
+];
+
 export function GameRoom() {
   return (
     <Cell id="gameroom" base={<GameRoomBase />}>
-      {[[13.4, NEON_PINK], [15.0, NEON_CYAN], [16.6, NEON_AMBER]].map(([x, col], i) => (
-        <Arcade key={i} p={[x, 0, 0.95]} color={col} />
+      {ARCADES.map(([x, col, game]) => (
+        <Playable key={game} game={game} dot={[x, 3.15, 0.95]}>
+          <Arcade p={[x, 0, 0.95]} color={col} />
+        </Playable>
       ))}
-      {/* ping-pong table */}
-      <group position={[14.6, 0, 7.2]}>
-        <Box p={[0, 0.95, 0]} s={[4.0, 0.1, 2.2]} c="#1f6aa8" rough={0.5} />
-        <Box p={[0, 1.12, 0]} s={[0.05, 0.3, 2.2]} c="#fff" shadow={false} />
-        {[[-1.8, -0.9], [1.8, -0.9], [-1.8, 0.9], [1.8, 0.9]].map(([x, z], i) => <Box key={i} p={[x, 0.45, z]} s={[0.14, 0.9, 0.14]} c="#2a2140" />)}
-        <Neon p={[0, 1.0, 0]} s={[3.9, 0.02, 0.05]} color="#fff" halo={false} />
-      </group>
-      {/* dance floor + DJ booth */}
-      <Box p={[9.0, 0.04, 13.4]} s={[6.4, 0.06, 3.6]} c="#2a1f6a" rough={0.3} shadow={false} />
+      <GameSign p={[6.6, 3.55, 0.12]} />
+      <FairyLights from={0.6} to={17.4} y={4.15} z={0.3} count={22} sag={0.4} />
+      <Neon p={[9.0, 0.12, 0.14]} s={[17.6, 0.05, 0.05]} color="#ffb86b" halo={false} />
+      <PoolTable p={[6.2, 0, 5.6]} />
+      <mesh position={[6.2, 0.04, 5.6]} rotation={[-PI / 2, 0, 0]}><ringGeometry args={[3.6, 3.8, 48]} /><meshBasicMaterial color={NEON_PINK} transparent opacity={0.45} toneMapped={false} /></mesh>
+      <PingPongTable p={[14.6, 0, 7.2]} />
+      <Playable game="foosball" dot={[6.0, 2.3, 9.6]}><Foosball p={[6.0, 0, 9.6]} /></Playable>
+      <Playable game="claw" dot={[17.0, 4.0, 3.2]}><ClawMachine p={[17.0, 0, 3.2]} rot={-PI / 2} /></Playable>
+      <MiniBar p={[10.6, 0, 8.4]} />
+      <ConsoleCorner />
+      <ScoreBoard p={[0.14, 2.7, 3.7]} />
+      <TrophyShelf p={[17.86, 2.5, 10.0]} />
+      {/* dance floor + DJ */}
+      <Box p={[9.0, 0.04, 13.2]} s={[6.4, 0.06, 3.4]} c="#2a1f6a" rough={0.3} shadow={false} />
       <Neon p={[9.0, 0.09, 11.6]} s={[6.4, 0.04, 0.06]} color={NEON_PINK} />
-      <Neon p={[9.0, 0.09, 15.2]} s={[6.4, 0.04, 0.06]} color={NEON_CYAN} />
-      <Box p={[9.0, 0.6, 15.3]} s={[3.2, 1.2, 1.0]} c="#1a1530" r={0.05} />
-      <Neon p={[9.0, 1.25, 14.78]} s={[3.0, 0.05, 0.05]} color={NEON_PINK} />
-      {[6.4, 11.6].map(x => <Box key={x} p={[x, 1.1, 15.2]} s={[1.0, 2.2, 1.0]} c="#120e26" r={0.05} />)}
-      <mesh position={[9.0, 4.0, 13.4]}><sphereGeometry args={[0.45, 16, 12]} /><meshBasicMaterial color="#e8e1ff" toneMapped={false} /></mesh>
-      <BeanBag p={[17.0, 0, 10.6]} color="#e0529f" glow={NEON_PINK} />
-      <Foosball p={[6.0, 0, 9.6]} />
-      <ClawMachine p={[17.0, 0, 3.2]} rot={-PI / 2} />
-      <BeanBag p={[1.8, 0, 15.0]} color="#7a58d6" glow={NEON_VIOLET} />
-      <FloorLamp p={[1.0, 0, 11.0]} color="#8dd8ff" />
-      <Plant p={[17.1, 0, 5.4]} scale={1.1} color="#34b36a" />
-      <Plant p={[10.4, 0, 9.6]} scale={1.0} />
+      <Neon p={[9.0, 0.09, 14.8]} s={[6.4, 0.04, 0.06]} color={NEON_CYAN} />
+      <DjStation p={[9.0, 0, 15.3]} />
+      <mesh position={[9.0, 4.6, 13.2]}><cylinderGeometry args={[0.012, 0.012, 1.6, 4]} /><meshBasicMaterial color="#9a96b8" /></mesh>
+      <mesh position={[9.0, 3.7, 13.2]}><icosahedronGeometry args={[0.36, 1]} /><meshBasicMaterial color="#e8e1ff" toneMapped={false} /></mesh>
+      <BeanBag p={[17.0, 0, 10.8]} color="#e0529f" glow={NEON_PINK} />
+      <BeanBag p={[1.8, 0, 14.6]} color="#7a58d6" glow={NEON_VIOLET} />
+      <FloorLamp p={[1.0, 0, 11.2]} color="#ffb86b" />
+      <FloorLamp p={[17.2, 0, 14.6]} color="#ffb86b" />
+      <Plant p={[17.1, 0, 5.8]} scale={1.1} color="#34b36a" />
+      <Plant p={[0.9, 0, 3.4]} scale={1.0} />
+      <Plant p={[12.4, 0, 1.2]} scale={0.9} />
     </Cell>
   );
 }

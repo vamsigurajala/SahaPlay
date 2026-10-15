@@ -188,44 +188,9 @@ export function KitchenBase() {
 }
 
 // ── GAME ROOM (x -6..6, z 0..10) ────────────────────────────────────────────
+// The Game Room furniture lives in placedRooms.jsx / gameRoom.jsx (everything there is playable).
 export function GameRoomBase() {
-  return (
-    <group>
-      {/* arcade row */}
-      {[[-4.6, NEON_CYAN], [-3.2, NEON_PINK], [-1.8, NEON_AMBER], [3.0, NEON_VIOLET], [4.2, '#8dff9c'], [5.4, NEON_CYAN]].map(([x, col], i) => (
-        <Arcade key={i} p={[x, 0, 0.95]} color={col} />
-      ))}
-      {/* pool table */}
-      <group position={[0.2, 0, 5.6]}>
-        <Box p={[0, 0.85, 0]} s={[4.6, 0.3, 2.6]} c="#3b2a1f" r={0.06} />
-        <Box p={[0, 1.02, 0]} s={[4.1, 0.06, 2.1]} c="#1f8a5a" rough={1} />
-        {[[-1.2, -0.5], [0.2, 0.3], [0.5, -0.4], [1.2, 0.5], [-0.3, -0.1]].map(([x, z], i) => (
-          <mesh key={i} position={[x, 1.12, z]} castShadow>
-            <sphereGeometry args={[0.1, 12, 10]} />
-            <meshStandardMaterial color={['#ff4f4f', '#ffd24f', '#4f9bff', '#fff', '#b04fff'][i]} roughness={0.3} />
-          </mesh>
-        ))}
-        {[[-2.0, -1.0], [2.0, -1.0], [-2.0, 1.0], [2.0, 1.0]].map(([x, z], i) => <Box key={i} p={[x, 0.4, z]} s={[0.25, 0.8, 0.25]} c="#2a1c14" />)}
-        <Neon p={[0, 0.72, 1.32]} s={[4.4, 0.04, 0.04]} color={NEON_CYAN} halo={false} />
-      </group>
-      <mesh position={[0.2, 0.04, 5.6]} rotation={[-PI / 2, 0, 0]}><ringGeometry args={[3.6, 3.8, 48]} /><meshBasicMaterial color={NEON_PINK} transparent opacity={0.55} toneMapped={false} /></mesh>
-      {/* chill corner with a screen */}
-      <Box p={[-5.2, 0.4, 5.0]} s={[1.0, 0.8, 3.4]} c="#4a3c9e" r={0.18} />
-      <BeanBag p={[-3.8, 0, 3.6]} color="#7a58d6" glow={NEON_VIOLET} />
-      <BeanBag p={[-3.8, 0, 6.8]} color="#e0529f" glow={NEON_PINK} />
-      <Box p={[-5.9, 2.3, 7.8]} s={[0.1, 1.6, 2.8]} c="#0e0c1c" />
-      <Neon p={[-5.84, 2.3, 7.8]} s={[0.02, 1.4, 2.6]} color="#7fe9ff" halo={false} />
-      {/* mini bar */}
-      <Box p={[4.6, 0.6, 7.6]} s={[1.3, 1.2, 4.0]} c="#2f2358" r={0.06} />
-      <Box p={[4.6, 1.24, 7.6]} s={[1.5, 0.08, 4.2]} c="#3a2d66" />
-      {[6.0, 7.6, 9.2].map(z => <Stool key={z} p={[3.2, 0, z]} c="#3ee8ff" />)}
-      {[[5.0, '#ff6fb5'], [5.5, '#5ad1ff'], [6.0, '#ffcf5a']].map(([x, col], i) => (
-        <mesh key={i} position={[4.9, 1.6, 6.4 + i * 0.5]}><cylinderGeometry args={[0.1, 0.1, 0.5, 8]} /><meshBasicMaterial color={col} toneMapped={false} /></mesh>
-      ))}
-      <Neon p={[5.9, 0.12, 5.0]} s={[0.05, 0.05, 9.6]} color={NEON_VIOLET} />
-      <Plant p={[-5.2, 0, 9.0]} scale={1.1} />
-    </group>
-  );
+  return <group />;
 }
 
 // ── GARDEN + POOL (x 6..16, z 0..10) ────────────────────────────────────────

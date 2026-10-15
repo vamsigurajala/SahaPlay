@@ -17,6 +17,7 @@ import { FOOD_WIKI } from '../../data/foodWiki';
 import { WARDROBE_PHOTOS, COSMETICS_PHOTOS, GARDEN_PHOTOS, FOOD_PHOTOS } from '../../data/gamifyManifest';
 
 const SpaceViewer = lazy(() => import('./SpaceViewer'));
+const GameViewer = lazy(() => import('./games'));
 import { ClothArt, BeautyArt, PlantArt } from './viewerArt';
 import { MONA_LISA_IMG } from './props';
 
@@ -4168,6 +4169,7 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'cosmetics' && <CosmeticsView />}
         {kind === 'telescope' && <ViewerBoundary><Suspense fallback={<div className="stay-white" style={{ marginTop: 120, fontWeight: 700 }}>Pointing the telescope...</div>}><SpaceViewer /></Suspense></ViewerBoundary>}
         {kind === 'garden' && <GardenView arg={arg} />}
+        {kind === 'game' && <ViewerBoundary><Suspense fallback={<div className="stay-white" style={{ marginTop: 120, fontWeight: 700 }}>Loading...</div>}><GameViewer id={arg} /></Suspense></ViewerBoundary>}
         {kind === 'monitor' && <MonitorBrowserView onClose={onClose} />}
         {kind === 'puzzles' && <PuzzleGameView />}
         {kind === 'clock' && <LuxuryClockView />}
