@@ -5,7 +5,7 @@ import {
   Globe, ExternalLink, ArrowRight, Search, Trophy,
   Brain, Compass, Flame, Gamepad2, Heart, Sparkles,
   HelpCircle, Check, Clock, RefreshCw, Shuffle, Lightbulb,
-  Maximize2, Laptop, Home, Lock
+  Maximize2, Laptop, Home, Lock, Eye, ZoomIn, Info, Layers
 } from 'lucide-react';
 import { GENRES, SHELVES, FRIDGE_SHELVES, FRIDGE_SHELVES_UP, DISHES, DISHES_UP, OVEN_ITEMS, OVEN_ITEMS_UP } from '../../data/gamifyBooks';
 import { WARDROBES, COSMETICS, GARDEN } from '../../data/gamifyItems';
@@ -46,6 +46,7 @@ const CSS = `
 @keyframes gp-spin { to { transform: rotate(360deg) } }
 @keyframes gp-pop { 0% { transform: scale(.6); opacity: 0 } 70% { transform: scale(1.08) } 100% { transform: scale(1); opacity: 1 } }
 @keyframes gp-sizzle { 0%,100% { transform: translateX(0) } 25% { transform: translateX(-1px) } 75% { transform: translateX(1px) } }
+@keyframes gp-pulse { 0%, 100% { transform: scale(1); opacity: 0.95; } 50% { transform: scale(1.38); opacity: 0.35; } }
 `;
 
 function useEscape(onClose) {
@@ -736,23 +737,42 @@ function MonitorBrowserView({ onClose }) {
 
   const presets = [
     { label: 'Wikipedia', url: 'https://en.m.wikipedia.org', desc: 'Free encyclopedia' },
+    { label: 'DuckDuckGo', url: 'https://lite.duckduckgo.com/lite/', desc: 'Web search engine' },
     { label: '2048 Game', url: 'https://gabrielecirulli.github.io/2048/', desc: 'Play 2048 in screen' },
     { label: 'Hacker News', url: 'https://news.ycombinator.com', desc: 'Tech & Discussions' },
     { label: 'Open Library', url: 'https://openlibrary.org', desc: 'Millions of free books' },
-    { label: 'DuckDuckGo', url: 'https://lite.duckduckgo.com/lite/', desc: 'Web search engine' },
   ];
 
-  const navigateTo = (urlToLoad) => {
-    let clean = (urlToLoad || inputUrl).trim();
-    if (!clean) return;
-    if (!/^https?:\/\//i.test(clean)) {
-      clean = 'https://' + clean;
+  const resolveTarget = (raw) => {
+    let clean = (raw || '').trim();
+    if (!clean) return null;
+
+    if (/^https?:\/\//i.test(clean)) {
+      return { url: clean, display: clean, isSearch: false };
     }
-    setInputUrl(clean);
-    setActiveUrl(clean);
+
+    const hasSpace = /\s/.test(clean);
+    const isDomain = !hasSpace && /^[a-zA-Z0-9-]+(\.[a-zA-Z]{2,})+(\/.*)?$/i.test(clean);
+
+    if (isDomain) {
+      return { url: 'https://' + clean, display: 'https://' + clean, isSearch: false };
+    }
+
+    // Treat as web search query (e.g. "william hope", "mona lisa", etc.)
+    const searchUrl = `https://en.m.wikipedia.org/w/index.php?search=${encodeURIComponent(clean)}`;
+    return { url: searchUrl, display: `Search: ${clean}`, isSearch: true, query: clean };
+  };
+
+  const navigateTo = (urlToLoad) => {
+    const raw = (urlToLoad || inputUrl);
+    const target = resolveTarget(raw);
+    if (!target) return;
+
+    setInputUrl(target.url);
+    setActiveUrl(target.url);
     setFrameKey(k => k + 1);
     setLoading(true);
-    setHistory(prev => [...prev.slice(0, histIndex + 1), clean]);
+    setHistory(prev => [...prev.slice(0, histIndex + 1), target.url]);
     setHistIndex(prev => prev + 1);
   };
 
@@ -790,9 +810,15 @@ function MonitorBrowserView({ onClose }) {
   const getDomain = (raw) => {
     try {
       const u = new URL(raw);
+      if (u.searchParams.has('search')) {
+        return `Wiki: "${u.searchParams.get('search')}"`;
+      }
+      if (u.searchParams.has('q')) {
+        return `Search: "${u.searchParams.get('q')}"`;
+      }
       return u.hostname.replace('www.', '');
     } catch {
-      return 'Web Browser';
+      return raw || 'Web Browser';
     }
   };
 
@@ -928,7 +954,7 @@ function MonitorBrowserView({ onClose }) {
                 value={inputUrl}
                 onChange={e => setInputUrl(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && navigateTo()}
-                placeholder="Type any URL (e.g. wikipedia.org)..."
+                placeholder="Search web or type URL (e.g. william hope, wikipedia.org)..."
                 style={{
                   width: '100%',
                   background: 'transparent',
@@ -1728,6 +1754,159 @@ function PuzzleGameView() {
   );
 }
 
+// ── luxury live analog clock component ──────────────────────────────────────
+function LuxuryAnalogClock({ time }) {
+  const sec = time.getSeconds();
+  const min = time.getMinutes();
+  const hr = time.getHours();
+
+  const secAngle = sec * 6;
+  const minAngle = min * 6 + (sec / 60) * 6;
+  const hrAngle = (hr % 12) * 30 + (min / 60) * 30;
+
+  const romanNumerals = [
+    { num: 'XII', angle: 0 },
+    { num: 'I', angle: 30 },
+    { num: 'II', angle: 60 },
+    { num: 'III', angle: 90 },
+    { num: 'IV', angle: 120 },
+    { num: 'V', angle: 150 },
+    { num: 'VI', angle: 180 },
+    { num: 'VII', angle: 210 },
+    { num: 'VIII', angle: 240 },
+    { num: 'IX', angle: 270 },
+    { num: 'X', angle: 300 },
+    { num: 'XI', angle: 330 },
+  ];
+
+  const size = 250;
+  const radius = size / 2;
+  const center = radius;
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, margin: '4px 0 10px' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
+        <defs>
+          <radialGradient id="clockDialGrad" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#241b3e" />
+            <stop offset="65%" stopColor="#141026" />
+            <stop offset="100%" stopColor="#0a0815" />
+          </radialGradient>
+          <linearGradient id="clockGoldBezel" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#fde047" />
+            <stop offset="25%" stopColor="#d97706" />
+            <stop offset="50%" stopColor="#fef08a" />
+            <stop offset="75%" stopColor="#b45309" />
+            <stop offset="100%" stopColor="#fde047" />
+          </linearGradient>
+          <linearGradient id="clockHandGold" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#fde047" />
+            <stop offset="50%" stopColor="#fef08a" />
+            <stop offset="100%" stopColor="#ca8a04" />
+          </linearGradient>
+          <filter id="clockDropShadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="8" stdDeviation="10" floodColor="#000" floodOpacity="0.75" />
+          </filter>
+        </defs>
+
+        {/* Outer casing */}
+        <circle cx={center} cy={center} r={radius - 4} fill="url(#clockDialGrad)" stroke="url(#clockGoldBezel)" strokeWidth="7" filter="url(#clockDropShadow)" />
+        <circle cx={center} cy={center} r={radius - 11} fill="none" stroke="rgba(255, 215, 120, 0.45)" strokeWidth="1" strokeDasharray="3,3" />
+
+        {/* 60 Minute tick marks */}
+        {Array.from({ length: 60 }).map((_, i) => {
+          const isMajor = i % 5 === 0;
+          const a = (i * 6) * Math.PI / 180;
+          const r1 = radius - 14;
+          const r2 = radius - (isMajor ? 26 : 19);
+          const x1 = center + r1 * Math.sin(a);
+          const y1 = center - r1 * Math.cos(a);
+          const x2 = center + r2 * Math.sin(a);
+          const y2 = center - r2 * Math.cos(a);
+          return (
+            <line
+              key={i}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke={isMajor ? '#fcd34d' : 'rgba(255,255,255,0.28)'}
+              strokeWidth={isMajor ? 2.2 : 1}
+            />
+          );
+        })}
+
+        {/* 12 Roman Numerals */}
+        {romanNumerals.map(({ num, angle }) => {
+          const a = (angle * Math.PI) / 180;
+          const numR = radius - 41;
+          const nx = center + numR * Math.sin(a);
+          const ny = center - numR * Math.cos(a) + 4.5;
+          return (
+            <text
+              key={num}
+              x={nx}
+              y={ny}
+              textAnchor="middle"
+              fill="#fef08a"
+              fontSize={num === 'XII' || num === 'VI' ? 13.5 : 11.5}
+              fontWeight="800"
+              fontFamily="Georgia, 'Times New Roman', serif"
+              letterSpacing="0.05em"
+              style={{ textShadow: '0 0 4px rgba(253,224,71,0.4)' }}
+            >
+              {num}
+            </text>
+          );
+        })}
+
+        {/* Inscription text */}
+        <text x={center} y={center - 30} textAnchor="middle" fill="rgba(255,215,120,0.85)" fontSize="9" fontWeight="800" letterSpacing="0.18em">
+          SAHAPLAY
+        </text>
+        <text x={center} y={center - 20} textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="7" fontWeight="700" letterSpacing="0.14em">
+          CHRONOMETER
+        </text>
+
+        {/* Hour Hand */}
+        <g transform={`rotate(${hrAngle}, ${center}, ${center})`}>
+          <polygon
+            points={`${center - 4},${center + 12} ${center - 3},${center - 55} ${center},${center - 65} ${center + 3},${center - 55} ${center + 4},${center + 12}`}
+            fill="url(#clockHandGold)"
+            stroke="#92400e"
+            strokeWidth="0.8"
+            filter="drop-shadow(0 2px 4px rgba(0,0,0,0.6))"
+          />
+          <line x1={center} y1={center - 15} x2={center} y2={center - 50} stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+
+        {/* Minute Hand */}
+        <g transform={`rotate(${minAngle}, ${center}, ${center})`}>
+          <polygon
+            points={`${center - 3},${center + 15} ${center - 2.5},${center - 78} ${center},${center - 90} ${center + 2.5},${center - 78} ${center + 3},${center + 15}`}
+            fill="url(#clockHandGold)"
+            stroke="#92400e"
+            strokeWidth="0.8"
+            filter="drop-shadow(0 3px 6px rgba(0,0,0,0.7))"
+          />
+          <line x1={center} y1={center - 20} x2={center} y2={center - 72} stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+
+        {/* Second Hand */}
+        <g transform={`rotate(${secAngle}, ${center}, ${center})`}>
+          <line x1={center} y1={center + 24} x2={center} y2={center - 98} stroke="#ef4444" strokeWidth="1.6" filter="drop-shadow(0 2px 4px rgba(239,68,68,0.5))" />
+          <circle cx={center} cy={center + 15} r="4" fill="#ef4444" />
+          <circle cx={center} cy={center - 72} r="2.5" fill="#ef4444" />
+        </g>
+
+        {/* Center Pinion Jewel Cap */}
+        <circle cx={center} cy={center} r={6.5} fill="url(#clockHandGold)" stroke="#92400e" strokeWidth="1" />
+        <circle cx={center} cy={center} r={2.5} fill="#ef4444" />
+      </svg>
+    </div>
+  );
+}
+
 // ── luxury live clock view ───────────────────────────────────────────────────
 function LuxuryClockView() {
   const [time, setTime] = useState(new Date());
@@ -1767,8 +1946,8 @@ function LuxuryClockView() {
         border: '1px solid rgba(255, 215, 120, 0.4)',
         borderRadius: 24,
         boxShadow: '0 30px 80px rgba(0,0,0,0.8), 0 0 50px rgba(255, 215, 120, 0.15)',
-        padding: '30px 24px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18,
+        padding: '24px 22px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
         backdropFilter: 'blur(20px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fcd34d' }}>
@@ -1778,43 +1957,563 @@ function LuxuryClockView() {
           </span>
         </div>
 
+        {/* Analog Clock Dial */}
+        <LuxuryAnalogClock time={time} />
+
         {/* Digital display */}
         <div style={{
           background: 'rgba(0, 0, 0, 0.65)',
           border: '1.5px solid rgba(255, 215, 120, 0.5)',
           borderRadius: 18,
-          padding: '16px 36px',
+          padding: '12px 32px',
           display: 'flex', alignItems: 'baseline', gap: 12,
           boxShadow: 'inset 0 0 25px rgba(255, 215, 120, 0.15)',
         }}>
-          <span style={{ fontSize: 52, fontWeight: 900, color: '#ffffff', fontFamily: 'monospace', letterSpacing: '0.04em' }}>
+          <span style={{ fontSize: 44, fontWeight: 900, color: '#ffffff', fontFamily: 'monospace', letterSpacing: '0.04em' }}>
             {pad(displayHours)}:{pad(minutes)}:{pad(seconds)}
           </span>
-          <span style={{ fontSize: 20, fontWeight: 800, color: '#fcd34d' }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: '#fcd34d' }}>
             {ampm}
           </span>
         </div>
 
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)' }}>
+        <div style={{ fontSize: 14.5, fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)' }}>
           {dateStr}
         </div>
 
         {/* World Time zones */}
-        <div style={{ width: '100%', marginTop: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, textAlign: 'center' }}>
+        <div style={{ width: '100%', marginTop: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, textAlign: 'center' }}>
             Global Reference Clocks
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
             {worldCities.map(({ city, tz }) => {
               const cityTime = time.toLocaleTimeString(undefined, { timeZone: tz, hour: '2-digit', minute: '2-digit' });
               return (
-                <div key={city} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{city}</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: '#fcd34d', fontFamily: 'monospace' }}>{cityTime}</span>
+                <div key={city} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '9px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{city}</span>
+                  <span style={{ fontSize: 13.5, fontWeight: 800, color: '#fcd34d', fontFamily: 'monospace' }}>{cityTime}</span>
                 </div>
               );
             })}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Mona Lisa Masterpiece Detail & Secrets Viewer ───────────────────────────
+const MONA_LISA_SECRETS = [
+  {
+    id: 'smile',
+    num: 1,
+    title: 'The Elusive Sfumato Smile',
+    subtitle: 'Optical Neuroscience & 30 Micro-Glazes',
+    hotspot: { x: 50, y: 35 },
+    side: 'left',
+    targetY: 85,
+    curator: 'Why the smile appears and vanishes as you gaze across her face',
+    details: [
+      'Leonardo pioneered his revolutionary "sfumato" technique (from Italian sfumare, "to evaporate like smoke"), fusing shades without sharp lines or perceptible brushstrokes.',
+      'He painted with up to 30 ultrathin micro-layers of tinted oil glaze, each less than 2 micrometers thick—one-fiftieth the thickness of a human hair.',
+      'Harvard neurobiologist Prof. Margaret Livingstone proved her smile engages human peripheral vision: looking straight at her mouth activates central foveal sharpness where lips look serene; glancing at her eyes triggers peripheral low-frequency shadow vision, causing the smile to dramatically broaden!'
+    ],
+    discovery: 'Louvre High-Resolution Multispectral Analysis & Harvard Medical School'
+  },
+  {
+    id: 'eyebrows',
+    num: 2,
+    title: 'The Vanished Eyebrows & Lashes',
+    subtitle: 'Florentine Aristocratic Trend & 240MP Scans',
+    hotspot: { x: 48, y: 28 },
+    side: 'left',
+    targetY: 230,
+    curator: '16th-century high fashion and 500 years of gentle conservation',
+    details: [
+      'In high Renaissance Florence, aristocratic noblewomen plucked their eyebrows and upper hairlines to accentuate high, curved foreheads—the supreme symbol of spiritual elegance.',
+      'In 2007, French optical engineer Pascal Cotte conducted 240-megapixel multispectral scans across 13 light frequencies at the Louvre, discovering microscopic strokes of a single eyebrow hair.',
+      'This proved Leonardo did initially paint fine eyebrows and eyelashes, but 500 years of gentle varnish cleanings gradually dissolved the delicate top surface glaze.'
+    ],
+    discovery: 'Pascal Cotte 240MP Multispectral Camera Investigation (2007)'
+  },
+  {
+    id: 'veil',
+    num: 3,
+    title: 'The Maternity "Guarnello" Veil',
+    subtitle: 'Lisa Gherardini\'s Postpartum Secret',
+    hotspot: { x: 37, y: 20 },
+    side: 'left',
+    targetY: 375,
+    curator: 'Costume evidence confirming portrait timing and sitter identity',
+    details: [
+      'Draped delicately across her dark curled hair is an ethereal, nearly transparent silk gauze veil known in Renaissance Italy as a "guarnello".',
+      'Historical costume researchers confirmed that a guarnello was worn exclusively by Italian Renaissance mothers during pregnancy or shortly after giving birth.',
+      'This crucial detail confirmed archival records in Florence: wealthy silk merchant Francesco del Giocondo commissioned Leonardo to paint his wife Lisa Gherardini to celebrate the birth of their second son, Andrea, in December 1502.'
+    ],
+    discovery: 'Archivio di Stato di Firenze & NRC Canada 3D Laser Scanning'
+  },
+  {
+    id: 'horizon',
+    num: 4,
+    title: 'The Asymmetric Tuscan Horizon',
+    subtitle: 'Optical Forced Depth & Ponte Buriano',
+    hotspot: { x: 77, y: 44 },
+    side: 'right',
+    targetY: 85,
+    curator: 'Intentional horizon mismatch that creates monumental presence',
+    details: [
+      'Look closely at the background horizon: the landscape on the left is positioned noticeably lower than the rocky landscape on the right.',
+      'Leonardo intentionally engineered this horizon mismatch: because human eyes scan horizontally, the forced perspective discrepancy tricks the brain into perceiving continuous motion, making Mona Lisa appear taller and more commanding.',
+      'Art historians and Tuscan geologists identified the medieval stone bridge over her left shoulder as Ponte Buriano, built across the River Arno near Arezzo in 1277.'
+    ],
+    discovery: 'Tuscan Landscape Topography & Geological Field Studies'
+  },
+  {
+    id: 'initials',
+    num: 5,
+    title: 'Microscopic Letters in the Eyes',
+    subtitle: 'Da Vinci\'s Clandestine Micro-Signatures',
+    hotspot: { x: 53, y: 30 },
+    side: 'right',
+    targetY: 230,
+    curator: 'Secret alphanumeric codes hidden inside her dark pupils',
+    details: [
+      'In 2010, Italy\'s National Committee for Cultural Heritage discovered tiny alphanumeric characters painted into Mona Lisa\'s pupils under 50x magnification.',
+      'Inside her right pupil, researchers identified the distinct letters "LV"—Leonardo da Vinci\'s personal signature initials.',
+      'Inside her left pupil are faint symbols resembling "CE" or "B", alongside the number "72" painted beneath an arch of the background bridge.'
+    ],
+    discovery: 'Italian National Committee for Cultural Heritage Microscope Analysis (2010)'
+  },
+  {
+    id: 'hands',
+    num: 6,
+    title: 'The Golden Pyramidal Hands',
+    subtitle: 'Pozzetto Armchair & Renaissance Harmony',
+    hotspot: { x: 52, y: 77 },
+    side: 'right',
+    targetY: 375,
+    curator: 'The supreme standard of classical portrait composition',
+    details: [
+      'Mona Lisa\'s folded hands rest upon the wooden arm of a "pozzetto" chair, forming the solid base of Leonardo\'s Golden Ratio pyramidal triangle (Φ ≈ 1.618).',
+      'Her right hand gently rests atop her left wrist—a gesture praised by Giorgio Vasari in 1550 as "more divine than human," embodying serenity, fidelity, and timeless grace.',
+      'Raphael was so captivated when visiting Leonardo\'s workshop that he sketched her hands, establishing this pose as the gold standard for European portraiture for centuries.'
+    ],
+    discovery: 'Louvre Structural Analysis & Giorgio Vasari "Lives of the Artists" (1550)'
+  }
+];
+
+function MonaLisaDetailViewer({ onClose }) {
+  const [activeSecret, setActiveSecret] = useState('smile');
+  const [showAllLines, setShowAllLines] = useState(true);
+
+  const pw = 340;
+  const ph = 460;
+
+  return (
+    <div style={{ width: '100%', maxWidth: 1160, display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', padding: '10px 0 30px' }}>
+      {/* ── MUSEUM HEADER ── */}
+      <div style={{
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        background: 'linear-gradient(90deg, rgba(22, 16, 40, 0.95), rgba(42, 28, 66, 0.95))',
+        border: '1.5px solid rgba(255, 215, 120, 0.4)',
+        borderRadius: 20,
+        padding: '14px 24px',
+        marginBottom: 18,
+        boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+        flexWrap: 'wrap',
+        gap: 12
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12,
+            background: 'linear-gradient(135deg, #d4af37, #b45309)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#120e24', boxShadow: '0 4px 14px rgba(212,175,55,0.4)'
+          }}>
+            <Sparkles size={24} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: '#fcd34d', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                Musée du Louvre • Paris • Salle des États
+              </span>
+            </div>
+            <h2 style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 900, color: '#ffffff', letterSpacing: '0.02em' }}>
+              La Gioconda — The Mona Lisa
+            </h2>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>
+              Leonardo di ser Piero da Vinci (c. 1503–1519) • Interactive Masterpiece Inspection
+            </div>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setShowAllLines(!showAllLines)}
+            style={{
+              background: showAllLines ? 'linear-gradient(135deg, #d4af37, #92400e)' : 'rgba(255,255,255,0.08)',
+              border: showAllLines ? '1px solid #fef08a' : '1px solid rgba(255,255,255,0.18)',
+              color: '#ffffff',
+              borderRadius: 10,
+              padding: '7px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              transition: 'all .2s'
+            }}
+          >
+            <Compass size={14} />
+            <span>{showAllLines ? 'All Pointer Lines Visible' : 'Show All Pointer Lines'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── 3-COLUMN EXHIBITION STAGE ── */}
+      <div style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'stretch',
+        justifyContent: 'center',
+        gap: 18,
+        flexWrap: 'wrap'
+      }}>
+        {/* Left Secrets Column (1, 2, 3) */}
+        <div style={{ flex: '1 1 320px', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {MONA_LISA_SECRETS.filter(s => s.side === 'left').map(s => {
+            const isSelected = activeSecret === s.id;
+            return (
+              <div
+                key={s.id}
+                onClick={() => setActiveSecret(s.id)}
+                style={{
+                  background: isSelected ? 'linear-gradient(135deg, rgba(62,40,94,0.95), rgba(28,18,48,0.98))' : 'rgba(20, 16, 34, 0.75)',
+                  border: isSelected ? '1.5px solid #fcd34d' : '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 16,
+                  padding: '14px 16px',
+                  cursor: 'pointer',
+                  boxShadow: isSelected ? '0 10px 30px rgba(0,0,0,0.6), 0 0 20px rgba(252,211,77,0.2)' : '0 4px 14px rgba(0,0,0,0.4)',
+                  transition: 'all .25s ease',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: 6,
+                      background: isSelected ? '#fcd34d' : 'rgba(255,255,255,0.1)',
+                      color: isSelected ? '#120e24' : '#fff',
+                      fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      {s.num}
+                    </span>
+                    <span style={{ fontSize: 13.5, fontWeight: 800, color: isSelected ? '#fcd34d' : '#ffffff' }}>
+                      {s.title}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 11.5, color: isSelected ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)', fontWeight: 600, marginBottom: 8 }}>
+                  {s.subtitle}
+                </div>
+
+                {isSelected ? (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,215,120,0.2)' }}>
+                    <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.85)', fontSize: 12, lineHeight: 1.55 }}>
+                      {s.details.map((d, i) => (
+                        <li key={i} style={{ marginBottom: 6 }}>{d}</li>
+                      ))}
+                    </ul>
+                    <div style={{ marginTop: 8, fontSize: 10.5, fontWeight: 700, color: '#fcd34d', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Check size={12} />
+                      <span>{s.discovery}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic' }}>
+                    {s.curator}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Center Framed Canvas with SVG Leader Lines */}
+        <div style={{
+          position: 'relative',
+          width: pw,
+          height: ph,
+          flexShrink: 0,
+          background: '#0d0914',
+          borderRadius: 14,
+          boxShadow: '0 25px 60px rgba(0,0,0,0.9), 0 0 40px rgba(212,175,55,0.25)',
+          border: '10px solid #b8860b',
+          outline: '3px solid #1a120c'
+        }}>
+          {/* Baroque Gilded Frame Inset */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            boxShadow: 'inset 0 0 25px rgba(0,0,0,0.85), inset 0 0 6px rgba(255,215,120,0.5)',
+            border: '2px solid rgba(255,215,120,0.6)',
+            pointerEvents: 'none',
+            zIndex: 15
+          }} />
+
+          {/* Mona Lisa Renaissance Canvas (SVG Render) */}
+          <svg width={pw} height={ph} viewBox={`0 0 ${pw} ${ph}`} style={{ width: '100%', height: '100%', display: 'block' }}>
+            <defs>
+              <linearGradient id="skyHaze" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#4a5a54" />
+                <stop offset="50%" stopColor="#687e74" />
+                <stop offset="100%" stopColor="#3d4d42" />
+              </linearGradient>
+              <linearGradient id="skinShade" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#e2c8a8" />
+                <stop offset="60%" stopColor="#caa480" />
+                <stop offset="100%" stopColor="#9a7452" />
+              </linearGradient>
+              <linearGradient id="dressOchre" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#2c2219" />
+                <stop offset="60%" stopColor="#19130d" />
+                <stop offset="100%" stopColor="#0f0b08" />
+              </linearGradient>
+              <radialGradient id="sfumatoFace" cx="50%" cy="40%" r="50%">
+                <stop offset="0%" stopColor="#ebd3b5" />
+                <stop offset="65%" stopColor="#c5a17d" />
+                <stop offset="100%" stopColor="#8d6849" />
+              </radialGradient>
+            </defs>
+
+            {/* Background Italian Sky */}
+            <rect x="0" y="0" width={pw} height={ph * 0.45} fill="url(#skyHaze)" />
+
+            {/* Distant crags & mountains (Left and Right - showing asymmetry) */}
+            <path d={`M 0,${ph * 0.38} Q 40,${ph * 0.28} 80,${ph * 0.35} T 140,${ph * 0.32} L 140,${ph * 0.55} L 0,${ph * 0.55} Z`} fill="#34433a" />
+            <path d={`M ${pw * 0.65},${ph * 0.24} Q ${pw * 0.78},${ph * 0.18} ${pw * 0.88},${ph * 0.26} T ${pw},${ph * 0.22} L ${pw},${ph * 0.55} L ${pw * 0.65},${ph * 0.55} Z`} fill="#2d3b33" />
+
+            {/* Winding River Arno & Ponte Buriano bridge on right */}
+            <path d={`M ${pw * 0.68},${ph * 0.38} Q ${pw * 0.78},${ph * 0.34} ${pw * 0.92},${ph * 0.42} L ${pw},${ph * 0.44}`} fill="none" stroke="#5a7062" strokeWidth="12" />
+            <path d={`M ${pw * 0.72},${ph * 0.43} L ${pw * 0.88},${ph * 0.43}`} stroke="#87755b" strokeWidth="5" strokeDasharray="3,2" />
+
+            {/* Sinuous winding road on left */}
+            <path d={`M 20,${ph * 0.48} Q 60,${ph * 0.42} 40,${ph * 0.36}`} fill="none" stroke="#7a7056" strokeWidth="8" />
+
+            {/* Sitter Torso & Dark Dress */}
+            <path d={`M 50,${ph} C 70,${ph * 0.5} 120,${ph * 0.42} ${pw / 2},${ph * 0.42} C ${pw - 120},${ph * 0.42} ${pw - 70},${ph * 0.5} ${pw - 50},${ph} Z`} fill="url(#dressOchre)" />
+
+            {/* Gold embroidered bodice border */}
+            <path d={`M ${pw * 0.38},${ph * 0.48} Q ${pw * 0.5},${ph * 0.55} ${pw * 0.62},${ph * 0.48}`} fill="none" stroke="#bfa054" strokeWidth="3" />
+
+            {/* Neck & Decolletage */}
+            <path d={`M ${pw * 0.42},${ph * 0.38} C ${pw * 0.44},${ph * 0.46} ${pw * 0.56},${ph * 0.46} ${pw * 0.58},${ph * 0.38} Z`} fill="url(#skinShade)" />
+
+            {/* Head & Sfumato Face */}
+            <ellipse cx={pw * 0.5} cy={ph * 0.3} rx={42} ry={52} fill="url(#sfumatoFace)" />
+
+            {/* Translucent Guarnello Veil & Dark Curls */}
+            <path d={`M ${pw * 0.34},${ph * 0.28} C ${pw * 0.36},${ph * 0.16} ${pw * 0.64},${ph * 0.16} ${pw * 0.66},${ph * 0.28} C ${pw * 0.68},${ph * 0.45} ${pw * 0.6},${ph * 0.52} ${pw * 0.58},${ph * 0.52} C ${pw * 0.56},${ph * 0.35} ${pw * 0.44},${ph * 0.35} ${pw * 0.42},${ph * 0.52} C ${pw * 0.4},${ph * 0.52} ${pw * 0.32},${ph * 0.45} ${pw * 0.34},${ph * 0.28} Z`} fill="#15110d" />
+
+            {/* Eyes */}
+            <ellipse cx={pw * 0.45} cy={ph * 0.29} rx={5.5} ry={2.5} fill="#2c2219" />
+            <ellipse cx={pw * 0.55} cy={ph * 0.29} rx={5.5} ry={2.5} fill="#2c2219" />
+            {/* Eye shading */}
+            <path d={`M ${pw * 0.42},${ph * 0.28} Q ${pw * 0.45},${ph * 0.265} ${pw * 0.48},${ph * 0.28}`} fill="none" stroke="#684f38" strokeWidth="1.5" />
+            <path d={`M ${pw * 0.52},${ph * 0.28} Q ${pw * 0.55},${ph * 0.265} ${pw * 0.58},${ph * 0.28}`} fill="none" stroke="#684f38" strokeWidth="1.5" />
+            {/* Soft nose shadow */}
+            <path d={`M ${pw * 0.49},${ph * 0.29} L ${pw * 0.49},${ph * 0.33} L ${pw * 0.51},${ph * 0.335}`} fill="none" stroke="#876547" strokeWidth="1.8" strokeLinecap="round" />
+            {/* Iconic Sfumato Smile */}
+            <path d={`M ${pw * 0.46},${ph * 0.355} Q ${pw * 0.5},${ph * 0.368} ${pw * 0.54},${ph * 0.355}`} fill="none" stroke="#5a3d28" strokeWidth="2.2" strokeLinecap="round" />
+            {/* Shadow under lower lip */}
+            <path d={`M ${pw * 0.48},${ph * 0.37} Q ${pw * 0.5},${ph * 0.376} ${pw * 0.52},${ph * 0.37}`} fill="none" stroke="#7a5538" strokeWidth="1.2" />
+
+            {/* Folded Hands in foreground */}
+            <g transform={`translate(${pw * 0.36}, ${ph * 0.72})`}>
+              <rect x="-30" y="32" width="160" height="14" rx="6" fill="#422e1d" />
+              <ellipse cx="48" cy="24" rx="34" ry="16" fill="url(#skinShade)" transform="rotate(-6, 48, 24)" />
+              <ellipse cx="36" cy="18" rx="32" ry="14" fill="url(#skinShade)" transform="rotate(12, 36, 18)" />
+              <path d="M 45,18 Q 65,18 78,22" fill="none" stroke="#8c6a48" strokeWidth="1.8" />
+              <path d="M 45,23 Q 62,23 74,27" fill="none" stroke="#8c6a48" strokeWidth="1.8" />
+            </g>
+          </svg>
+
+          {/* ── SVG DYNAMIC LEADER LINES ── */}
+          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 12 }}>
+            <defs>
+              <filter id="leaderGlow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            {MONA_LISA_SECRETS.map(s => {
+              const isSelected = activeSecret === s.id;
+              const isVisible = showAllLines || isSelected;
+              if (!isVisible) return null;
+
+              const px = (s.hotspot.x / 100) * pw;
+              const py = (s.hotspot.y / 100) * ph;
+              const edgeX = s.side === 'left' ? 0 : pw;
+              const edgeY = s.targetY;
+              const midX = s.side === 'left' ? px - 35 : px + 35;
+
+              return (
+                <g key={`line-${s.id}`}>
+                  <path
+                    d={`M ${px} ${py} Q ${midX} ${edgeY} ${edgeX} ${edgeY}`}
+                    fill="none"
+                    stroke={isSelected ? '#fcd34d' : 'rgba(255, 215, 120, 0.45)'}
+                    strokeWidth={isSelected ? 3.0 : 1.6}
+                    strokeDasharray={isSelected ? 'none' : '4,3'}
+                    filter={isSelected ? 'url(#leaderGlow)' : 'none'}
+                  />
+                  <circle cx={edgeX} cy={edgeY} r={isSelected ? 5 : 3.5} fill="#fcd34d" stroke="#120e24" strokeWidth="1.5" />
+                </g>
+              );
+            })}
+          </svg>
+
+          {/* ── INTERACTIVE HOTSPOT PINS ── */}
+          {MONA_LISA_SECRETS.map(s => {
+            const isSelected = activeSecret === s.id;
+            return (
+              <div
+                key={`pin-${s.id}`}
+                onClick={() => setActiveSecret(s.id)}
+                style={{
+                  position: 'absolute',
+                  left: `${s.hotspot.x}%`,
+                  top: `${s.hotspot.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 20,
+                  cursor: 'pointer'
+                }}
+                title={s.title}
+              >
+                <div style={{
+                  position: 'absolute', inset: -7, borderRadius: '50%',
+                  background: isSelected ? 'rgba(253, 224, 71, 0.45)' : 'rgba(255, 255, 255, 0.22)',
+                  animation: 'gp-pulse 1.8s infinite ease-out'
+                }} />
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%',
+                  background: isSelected ? 'linear-gradient(135deg, #fef08a, #d97706)' : 'rgba(18, 14, 36, 0.92)',
+                  border: isSelected ? '2px solid #ffffff' : '1.5px solid #fcd34d',
+                  color: isSelected ? '#120e24' : '#fcd34d',
+                  fontSize: 11, fontWeight: 900,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: isSelected ? '0 0 14px #fcd34d' : '0 2px 6px rgba(0,0,0,0.6)',
+                  transition: 'all .2s'
+                }}>
+                  {s.num}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Right Secrets Column (4, 5, 6) */}
+        <div style={{ flex: '1 1 320px', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {MONA_LISA_SECRETS.filter(s => s.side === 'right').map(s => {
+            const isSelected = activeSecret === s.id;
+            return (
+              <div
+                key={s.id}
+                onClick={() => setActiveSecret(s.id)}
+                style={{
+                  background: isSelected ? 'linear-gradient(135deg, rgba(62,40,94,0.95), rgba(28,18,48,0.98))' : 'rgba(20, 16, 34, 0.75)',
+                  border: isSelected ? '1.5px solid #fcd34d' : '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 16,
+                  padding: '14px 16px',
+                  cursor: 'pointer',
+                  boxShadow: isSelected ? '0 10px 30px rgba(0,0,0,0.6), 0 0 20px rgba(252,211,77,0.2)' : '0 4px 14px rgba(0,0,0,0.4)',
+                  transition: 'all .25s ease',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      width: 22, height: 22, borderRadius: 6,
+                      background: isSelected ? '#fcd34d' : 'rgba(255,255,255,0.1)',
+                      color: isSelected ? '#120e24' : '#fff',
+                      fontSize: 11, fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      {s.num}
+                    </span>
+                    <span style={{ fontSize: 13.5, fontWeight: 800, color: isSelected ? '#fcd34d' : '#ffffff' }}>
+                      {s.title}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 11.5, color: isSelected ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)', fontWeight: 600, marginBottom: 8 }}>
+                  {s.subtitle}
+                </div>
+
+                {isSelected ? (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,215,120,0.2)' }}>
+                    <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.85)', fontSize: 12, lineHeight: 1.55 }}>
+                      {s.details.map((d, i) => (
+                        <li key={i} style={{ marginBottom: 6 }}>{d}</li>
+                      ))}
+                    </ul>
+                    <div style={{ marginTop: 8, fontSize: 10.5, fontWeight: 700, color: '#fcd34d', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Check size={12} />
+                      <span>{s.discovery}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic' }}>
+                    {s.curator}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── LOUVRE OFFICIAL DOSSIER BAR ── */}
+      <div style={{
+        width: '100%',
+        maxWidth: 1060,
+        marginTop: 20,
+        background: 'rgba(15, 12, 26, 0.85)',
+        border: '1px solid rgba(255, 215, 120, 0.25)',
+        borderRadius: 16,
+        padding: '12px 20px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: 12,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Artwork Medium</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>Oil on Poplar Wood Panel</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Physical Dimensions</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>77 cm × 53 cm (30 in × 21 in)</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Louvre Accession</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>INV. 779 • Salle des États (Room 711)</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Historical Commission</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>Francesco del Giocondo (Florence, 1503)</span>
         </div>
       </div>
     </div>
@@ -1851,6 +2550,7 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'monitor' && <MonitorBrowserView onClose={onClose} />}
         {kind === 'puzzles' && <PuzzleGameView />}
         {kind === 'clock' && <LuxuryClockView />}
+        {kind === 'monalisa' && <MonaLisaDetailViewer onClose={onClose} />}
       </div>
     </div>,
     document.body,

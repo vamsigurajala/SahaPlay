@@ -79,8 +79,8 @@ export function LivingRoomBase({ weather = 'night' }) {
       {/* Mona Lisa Painting on the TV wall (replaces the black/green screen) */}
       <MonaLisaPainting p={[-4.3, 2.9, -9.9]} w={2.2} h={2.4} />
 
-      {/* Floor Lamp moved beside the left speaker near the wall */}
-      <FloorLamp p={[-3.9, 0, -9.0]} color="#ffe0a0" />
+      {/* Floor Lamp positioned elegantly in front of the Mona Lisa painting, moved somewhat forward */}
+      <FloorLamp p={[-4.4, 0, -7.8]} color="#ffe0a0" />
 
       {/* Warm ambient light over sectional couch near the study opening */}
       <pointLight position={[-4.8, 2.4, -4.5]} intensity={45} distance={9} color="#ffe2b0" decay={2} />

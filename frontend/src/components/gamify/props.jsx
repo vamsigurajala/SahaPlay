@@ -956,20 +956,10 @@ export function RealTimeClock({ p, rot = 0, r = 0.85 }) {
         <cylinderGeometry args={[r + 0.06, r + 0.06, 0.06, 36]} />
         <meshStandardMaterial color="#d4af37" metalness={0.85} roughness={0.15} />
       </mesh>
-      {/* Glowing gold/amber halo rim so the clock pops on dark walls */}
-      <mesh position={[0, 0, 0.015]} rotation={[-PI / 2, 0, 0]}>
-        <ringGeometry args={[r + 0.05, r + 0.12, 36]} />
-        <meshBasicMaterial color="#ffcf5a" toneMapped={false} />
-      </mesh>
       {/* High-contrast crisp ivory/porcelain dial face */}
       <mesh position={[0, 0, 0.035]} rotation={[PI / 2, 0, 0]}>
         <cylinderGeometry args={[r, r, 0.015, 36]} />
         <meshStandardMaterial color="#f8f5ee" roughness={0.2} metalness={0.1} />
-      </mesh>
-      {/* Inner subtle gold dial ring */}
-      <mesh position={[0, 0, 0.045]} rotation={[-PI / 2, 0, 0]}>
-        <ringGeometry args={[r * 0.75, r * 0.77, 36]} />
-        <meshStandardMaterial color="#d4af37" metalness={0.8} />
       </mesh>
 
       {/* 12 Hour tick markers in bold dark purple-black & gold */}
@@ -1816,8 +1806,10 @@ export function CuteTreeVase({ p, potColor = '#4ecdc4', leavesColor = '#2ecc71' 
 }
 
 export function MonaLisaPainting({ p, w = 2.4, h = 2.6 }) {
+  const open = useOpenProp('monalisa');
   return (
-    <group position={p}>
+    <group position={p} {...open}>
+      <PropDot position={[0, h / 2 + 0.35, 0.1]} kind="monalisa" />
       {/* Outer dark wood frame backboard */}
       <mesh position={[0, 0, 0]}>
         <boxGeometry args={[w + 0.35, h + 0.35, 0.08]} />
