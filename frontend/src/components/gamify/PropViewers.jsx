@@ -734,7 +734,7 @@ export default function PropViewer({ kind, arg, onClose }) {
   const [book, setBook] = useState(null);
   useEscape(onClose);
   return createPortal(
-    <div style={overlay} onClick={onClose}>
+    <div className="gcw-force-dark" style={overlay} onClick={onClose}>
       <style>{CSS}</style>
       <button onClick={onClose} className="stay-white" style={closeBtn} title="Close"><X size={20} /></button>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
