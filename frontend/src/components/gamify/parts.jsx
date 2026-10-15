@@ -1,7 +1,8 @@
-import { createContext, useContext, useRef } from 'react';
+import { createContext, useContext, useRef, useMemo, useLayoutEffect } from 'react';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
 import { RoundedBoxGeometry } from 'three-stdlib';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useFrame } from '@react-three/fiber';
 import { NEON_CYAN } from './constants';
 
@@ -10,11 +11,32 @@ import { NEON_CYAN } from './constants';
 // triggers a React re-render while panning or zooming.
 export const ViewContext = createContext({ current: { cur: 1, flip: false } });
 
+// Material pool cache: dramatically cuts shader program switches, uniform buffer
+// updates, and WebGL state thrashing during camera panning and zooming.
+const matCache = new Map();
+export function getStandardMaterial(c, rough = 0.75, metal = 0, emissive, ei = 1, opacity) {
+  const isTransparent = opacity != null && opacity < 1;
+  const key = `${c}_${rough}_${metal}_${emissive || ''}_${ei}_${opacity ?? 1}`;
+  let m = matCache.get(key);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({
+      color: c,
+      roughness: rough,
+      metalness: metal,
+      emissive: emissive || '#000000',
+      emissiveIntensity: emissive ? ei : 0,
+      transparent: isTransparent,
+      opacity: opacity ?? 1,
+      toneMapped: !emissive,
+    });
+    matCache.set(key, m);
+  }
+  return m;
+}
+
 // Rounded boxes with the same size/radius share one geometry — the scene has
 // hundreds of them, and building each separately dominated load time and memory
 // on phones.
-// Tap handlers that ask the Gamify container to open a full-screen viewer
-// (bookshelf / fridge). `delta` filters out a drag that merely ended on the prop.
 export function useOpenProp(kind, arg) {
   const view = useContext(ViewContext);
   return {
@@ -44,23 +66,20 @@ function plainGeo(s) {
 }
 
 export function Box({ p, s, c, r = 0, emissive, ei = 1, rough = 0.75, shadow = true, rot = 0, opacity, metal = 0, onClick, onPointerOver, onPointerOut }) {
-  const material = (
-    <meshStandardMaterial
-      color={c}
-      roughness={rough}
-      metalness={metal}
-      emissive={emissive || '#000'}
-      emissiveIntensity={emissive ? ei : 0}
-      transparent={opacity != null}
-      opacity={opacity ?? 1}
-      toneMapped={!emissive}
-    />
-  );
+  const material = getStandardMaterial(c, rough, metal, emissive, ei, opacity);
   const geometry = r > 0.001 ? roundedGeo(s, Math.min(r, Math.min(...s) / 2 - 0.001)) : plainGeo(s);
   return (
-    <mesh geometry={geometry} position={p} rotation={[0, rot, 0]} castShadow={shadow} receiveShadow onClick={onClick} onPointerOver={onPointerOver} onPointerOut={onPointerOut}>
-      {material}
-    </mesh>
+    <mesh
+      geometry={geometry}
+      material={material}
+      position={p}
+      rotation={[0, rot, 0]}
+      castShadow={shadow}
+      receiveShadow
+      onClick={onClick}
+      onPointerOver={onPointerOver}
+      onPointerOut={onPointerOut}
+    />
   );
 }
 
@@ -82,37 +101,84 @@ export function Neon({ p, s, color, halo = true }) {
   );
 }
 
+// Merged static foliage geometry for plants (reduces 6 draw calls to 2) with LOD
+const plantLeavesGeoCache = new Map();
+function getPlantLeavesGeo() {
+  let g = plantLeavesGeoCache.get('default');
+  if (!g) {
+    const leaves = [
+      [0, 1.0, 0, 0.5],
+      [0.28, 0.8, 0.1, 0.38],
+      [-0.3, 0.75, -0.1, 0.4],
+      [0.05, 1.35, 0.05, 0.32],
+      [-0.1, 0.55, 0.3, 0.3],
+    ];
+    const geos = leaves.map(([x, y, z, r]) => {
+      const geo = new THREE.IcosahedronGeometry(r, 1);
+      geo.scale(1, 1.15, 1);
+      geo.translate(x, y, z);
+      return geo;
+    });
+    g = mergeGeometries(geos, false);
+    plantLeavesGeoCache.set('default', g);
+  }
+  return g;
+}
+
 export function Plant({ p, scale = 1, color = '#2f9e5a', pot = '#6e4bb8' }) {
-  const leaves = [[0, 1.0, 0, 0.5], [0.28, 0.8, 0.1, 0.38], [-0.3, 0.75, -0.1, 0.4], [0.05, 1.35, 0.05, 0.32], [-0.1, 0.55, 0.3, 0.3]];
+  const view = useContext(ViewContext);
+  const isFar = (view?.current?.cur || 1) < 0.65;
+  const leavesGeo = useMemo(() => getPlantLeavesGeo(), []);
+  const leavesMat = useMemo(() => getStandardMaterial(color, 0.8), [color]);
+  const potMat = useMemo(() => getStandardMaterial(pot, 0.6), [pot]);
+
   return (
     <group position={p} scale={scale}>
-      <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
+      <mesh position={[0, 0.3, 0]} castShadow receiveShadow material={potMat}>
         <cylinderGeometry args={[0.34, 0.26, 0.6, 14]} />
-        <meshStandardMaterial color={pot} roughness={0.6} />
       </mesh>
-      {leaves.map(([x, y, z, r], i) => (
-        <mesh key={i} position={[x, y, z]} scale={[1, 1.15, 1]} castShadow>
-          <icosahedronGeometry args={[r, 1]} />
-          <meshStandardMaterial color={color} roughness={0.8} flatShading />
+      {isFar ? (
+        <mesh position={[0, 0.9, 0]} scale={[1, 1.3, 1]} castShadow material={leavesMat}>
+          <icosahedronGeometry args={[0.6, 1]} />
         </mesh>
-      ))}
+      ) : (
+        <mesh geometry={leavesGeo} material={leavesMat} castShadow />
+      )}
     </group>
   );
 }
 
+// Merged static canopy geometry for trees (reduces 4 draw calls to 2)
+const treeCanopyCache = new Map();
+function getTreeCanopyGeo() {
+  let g = treeCanopyCache.get('default');
+  if (!g) {
+    const geos = [
+      [0, 2.5, 0, 1.3],
+      [0.6, 2.1, 0.3, 0.9],
+      [-0.6, 2.2, -0.2, 0.95],
+    ].map(([x, y, z, r]) => {
+      const geo = new THREE.IcosahedronGeometry(r, 1);
+      geo.translate(x, y, z);
+      return geo;
+    });
+    g = mergeGeometries(geos, false);
+    treeCanopyCache.set('default', g);
+  }
+  return g;
+}
+
 export function Tree({ p, scale = 1 }) {
+  const canopyGeo = useMemo(() => getTreeCanopyGeo(), []);
+  const trunkMat = useMemo(() => getStandardMaterial('#6b4a2f', 1), []);
+  const canopyMat = useMemo(() => getStandardMaterial('#3aa862', 0.85), []);
+
   return (
     <group position={p} scale={scale}>
-      <mesh position={[0, 0.9, 0]} castShadow>
+      <mesh position={[0, 0.9, 0]} castShadow material={trunkMat}>
         <cylinderGeometry args={[0.2, 0.3, 1.8, 10]} />
-        <meshStandardMaterial color="#6b4a2f" roughness={1} />
       </mesh>
-      {[[0, 2.5, 0, 1.3], [0.6, 2.1, 0.3, 0.9], [-0.6, 2.2, -0.2, 0.95]].map(([x, y, z, r], i) => (
-        <mesh key={i} position={[x, y, z]} castShadow>
-          <icosahedronGeometry args={[r, 1]} />
-          <meshStandardMaterial color={i === 0 ? '#3aa862' : '#2f9456'} roughness={0.85} flatShading />
-        </mesh>
-      ))}
+      <mesh geometry={canopyGeo} material={canopyMat} castShadow />
     </group>
   );
 }
@@ -151,11 +217,28 @@ export function TableLamp({ p, color = '#ffd36b' }) {
   );
 }
 
+// Merged static cushions for chairs
+const chairCushionCache = new Map();
+function getChairCushionGeo() {
+  let g = chairCushionCache.get('default');
+  if (!g) {
+    const seat = new THREE.BoxGeometry(0.9, 0.18, 0.9);
+    seat.translate(0, 0.5, 0);
+    const back = new THREE.BoxGeometry(0.9, 0.9, 0.14);
+    back.translate(0, 1.0, -0.4);
+    g = mergeGeometries([seat, back], false);
+    chairCushionCache.set('default', g);
+  }
+  return g;
+}
+
 export function Chair({ p, rot = 0, c = '#6d4fd0' }) {
+  const cushionGeo = useMemo(() => getChairCushionGeo(), []);
+  const cushionMat = useMemo(() => getStandardMaterial(c, 0.75), [c]);
+
   return (
     <group position={p} rotation={[0, rot, 0]}>
-      <Box p={[0, 0.5, 0]} s={[0.9, 0.18, 0.9]} c={c} r={0.07} />
-      <Box p={[0, 1.0, -0.4]} s={[0.9, 0.9, 0.14]} c={c} r={0.07} />
+      <mesh geometry={cushionGeo} material={cushionMat} castShadow receiveShadow />
       <Box p={[0, 0.25, 0]} s={[0.14, 0.5, 0.14]} c="#2a2140" />
     </group>
   );
@@ -261,26 +344,113 @@ export function DoorLeaves({ along, doorKey, color, handle = '#d9c48a' }) {
 
 const BOOK_COLORS = ['#ff6fb5', '#5ad1ff', '#ffcf5a', '#8dff9c', '#a56bff', '#ff8a5a', '#e8e1ff'];
 
+// Bookshelf frame geometry merged into a single mesh (reduces 8 draw calls to 1)
+const shelfFrameCache = new Map();
+function getBookshelfFrameGeo(w, h, d, rows) {
+  const key = `${w}|${h}|${d}|${rows}`;
+  let g = shelfFrameCache.get(key);
+  if (!g) {
+    const geos = [];
+    const gap = h / rows;
+    const back = new THREE.BoxGeometry(w, h, 0.1);
+    back.translate(0, h / 2, -d / 2 + 0.05);
+    geos.push(back);
+    const left = new THREE.BoxGeometry(0.1, h, d);
+    left.translate(-w / 2 + 0.05, h / 2, 0);
+    geos.push(left);
+    const right = new THREE.BoxGeometry(0.1, h, d);
+    right.translate(w / 2 - 0.05, h / 2, 0);
+    geos.push(right);
+    for (let i = 0; i <= rows; i++) {
+      const shelf = new THREE.BoxGeometry(w, 0.1, d);
+      shelf.translate(0, i * gap + 0.05, 0);
+      geos.push(shelf);
+    }
+    g = mergeGeometries(geos, false);
+    shelfFrameCache.set(key, g);
+  }
+  return g;
+}
+
+// Instanced books: renders all 36 books in a SINGLE draw call instead of 36 separate meshes.
+// When zoomed out to full house overview (LOD), renders simplified colored blocks.
+function InstancedBooks({ rows, gap, w, d }) {
+  const view = useContext(ViewContext);
+  const meshRef = useRef();
+  const isFar = (view?.current?.cur || 1) < 0.65;
+
+  const bookPlacements = useMemo(() => {
+    const list = [];
+    for (let row = 0; row < rows; row++) {
+      const n = Math.floor((w - 0.3) / 0.3);
+      for (let i = 0; i < n; i++) {
+        const seed = row * 31 + i * 17;
+        const bh = 0.5 + ((seed * 7) % 5) * 0.08;
+        const x = -w / 2 + 0.3 + i * 0.3;
+        const y = row * gap + 0.1 + bh / 2;
+        const z = 0;
+        const color = BOOK_COLORS[seed % BOOK_COLORS.length];
+        list.push({ x, y, z, bh, color });
+      }
+    }
+    return list;
+  }, [rows, gap, w, d]);
+
+  useLayoutEffect(() => {
+    if (isFar) return;
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const mat = new THREE.Matrix4();
+    const col = new THREE.Color();
+    bookPlacements.forEach((b, i) => {
+      mat.makeScale(0.22, b.bh, d * 0.6);
+      mat.setPosition(b.x, b.y, b.z);
+      mesh.setMatrixAt(i, mat);
+      col.set(b.color);
+      mesh.setColorAt(i, col);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [bookPlacements, d, isFar]);
+
+  if (isFar) {
+    return (
+      <group>
+        {Array.from({ length: rows }).map((_, row) => (
+          <Box
+            key={row}
+            p={[0, row * gap + 0.35, 0]}
+            s={[w - 0.4, 0.52, d * 0.58]}
+            c="#6366f1"
+            shadow={false}
+          />
+        ))}
+      </group>
+    );
+  }
+
+  return (
+    <instancedMesh
+      ref={meshRef}
+      args={[plainGeo([1, 1, 1]), getStandardMaterial('#ffffff', 0.8), bookPlacements.length]}
+      shadow={false}
+    />
+  );
+}
+
 // Front faces +z; rotate with `rot` to face another wall.
 export function Bookshelf({ p, rot = 0, w = 3, h = 3.4, d = 0.8, shelf, wood }) {
   const rows = 4;
   const gap = h / rows;
   const open = useOpenProp('books', shelf);
+  const frameGeo = useMemo(() => getBookshelfFrameGeo(w, h, d, rows), [w, h, d, rows]);
+  const frameMat = useMemo(() => getStandardMaterial(wood || '#33265a', 0.8), [wood]);
+
   return (
     <group position={p} rotation={[0, rot, 0]} {...open}>
       <PropDot position={[0, h + 0.3, 0.2]} kind="books" arg={shelf} />
-      <Box p={[0, h / 2, -d / 2 + 0.05]} s={[w, h, 0.1]} c={wood || "#2a1f4d"} />
-      <Box p={[-w / 2 + 0.05, h / 2, 0]} s={[0.1, h, d]} c={wood || "#33265a"} />
-      <Box p={[w / 2 - 0.05, h / 2, 0]} s={[0.1, h, d]} c={wood || "#33265a"} />
-      {Array.from({ length: rows + 1 }).map((_, i) => <Box key={i} p={[0, i * gap + 0.05, 0]} s={[w, 0.1, d]} c={wood || "#33265a"} />)}
-      {Array.from({ length: rows }).map((_, row) => {
-        const n = Math.floor((w - 0.3) / 0.3);
-        return Array.from({ length: n }).map((__, i) => {
-          const seed = row * 31 + i * 17;
-          const bh = 0.5 + ((seed * 7) % 5) * 0.08;
-          return <Box key={`${row}-${i}`} p={[-w / 2 + 0.3 + i * 0.3, row * gap + 0.1 + bh / 2, 0]} s={[0.22, bh, d * 0.6]} c={BOOK_COLORS[seed % BOOK_COLORS.length]} shadow={false} />;
-        });
-      })}
+      <mesh geometry={frameGeo} material={frameMat} castShadow receiveShadow />
+      <InstancedBooks rows={rows} gap={gap} w={w} d={d} />
     </group>
   );
 }
@@ -329,25 +499,65 @@ export function Rug({ p, w, d, c = '#43357f', c2 = '#5846a0' }) {
   );
 }
 
+// Merged static table legs geometry (reduces 5 draw calls to 2)
+const tableLegsCache = new Map();
+function getTableLegsGeo(w, d, h) {
+  const key = `${w}|${d}|${h}`;
+  let g = tableLegsCache.get(key);
+  if (!g) {
+    const geos = [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => {
+      const leg = new THREE.BoxGeometry(0.14, h, 0.14);
+      leg.translate(sx * (w / 2 - 0.2), h / 2, sz * (d / 2 - 0.2));
+      return leg;
+    });
+    g = mergeGeometries(geos, false);
+    tableLegsCache.set(key, g);
+  }
+  return g;
+}
+
 export function Table({ p, w = 3, d = 1.6, h = 1, c = '#3a2d66', leg = '#241c4a', rot = 0 }) {
+  const legsGeo = useMemo(() => getTableLegsGeo(w, d, h), [w, d, h]);
+  const legMat = useMemo(() => getStandardMaterial(leg, 0.75), [leg]);
+
   return (
     <group position={p} rotation={[0, rot, 0]}>
       <Box p={[0, h, 0]} s={[w, 0.12, d]} c={c} r={0.04} />
-      {[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz], i) => (
-        <Box key={i} p={[sx * (w / 2 - 0.2), h / 2, sz * (d / 2 - 0.2)]} s={[0.14, h, 0.14]} c={leg} />
-      ))}
+      <mesh geometry={legsGeo} material={legMat} castShadow receiveShadow />
     </group>
   );
 }
 
+// Merged static sofa frame (back + armrests, reduces 4 draw calls to 2)
+const sofaFrameCache = new Map();
+function getSofaFrameGeo(w) {
+  let g = sofaFrameCache.get(w);
+  if (!g) {
+    const geos = [];
+    const back = new THREE.BoxGeometry(w, 1.4, 0.4);
+    back.translate(0, 1.2, -0.6);
+    geos.push(back);
+    const left = new THREE.BoxGeometry(0.4, 0.9, 1.5);
+    left.translate(-w / 2 + 0.2, 0.85, 0);
+    geos.push(left);
+    const right = new THREE.BoxGeometry(0.4, 0.9, 1.5);
+    right.translate(w / 2 - 0.2, 0.85, 0);
+    geos.push(right);
+    g = mergeGeometries(geos, false);
+    sofaFrameCache.set(w, g);
+  }
+  return g;
+}
+
 // Faces +z (back at -z); rotate with `rot`.
 export function Sofa({ p, rot = 0, w = 3.6, c = '#5a4bb5', back = '#4a3c9e' }) {
+  const frameGeo = useMemo(() => getSofaFrameGeo(w), [w]);
+  const frameMat = useMemo(() => getStandardMaterial(back, 0.75), [back]);
+
   return (
     <group position={p} rotation={[0, rot, 0]}>
       <Box p={[0, 0.45, 0]} s={[w, 0.9, 1.5]} c={c} r={0.2} />
-      <Box p={[0, 1.2, -0.6]} s={[w, 1.4, 0.4]} c={back} r={0.18} />
-      <Box p={[-w / 2 + 0.2, 0.85, 0]} s={[0.4, 0.9, 1.5]} c={back} r={0.16} />
-      <Box p={[w / 2 - 0.2, 0.85, 0]} s={[0.4, 0.9, 1.5]} c={back} r={0.16} />
+      <mesh geometry={frameGeo} material={frameMat} castShadow receiveShadow />
     </group>
   );
 }
