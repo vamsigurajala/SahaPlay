@@ -203,7 +203,7 @@ function PropDotInner({ position, kind, arg, onClick }) {
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
-    const on = view.current.uiVisible !== false && !view.current.out;
+    const on = (view.current.alwaysDots || view.current.uiVisible !== false) && !view.current.out;
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });
@@ -360,7 +360,7 @@ export function HotChip({ position, zone, label, icon, onClick }) {
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
-    const on = view.current.focus === zone && view.current.uiVisible !== false;
+    const on = view.current.focus === zone && (view.current.alwaysDots || view.current.uiVisible !== false);
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });

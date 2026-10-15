@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useMemo, useState, useContext } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { House, ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown } from 'lucide-react';
+import { House, ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, Eye } from 'lucide-react';
 import GamifyScene, { WALL_H } from './gamify/GamifyScene';
 const PropViewer = React.lazy(() => import('./gamify/PropViewers'));
 import Avatar3D from './gamify/Avatar3D';
@@ -323,7 +323,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     const flip = readFlip();
     const t = roomCenterTarget(myZoneRef.current, flip);
     const floor0 = ALL_ZONES[myZoneRef.current]?.floor || 0;
-    viewRef.current = { uiVisible: true, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, floor: floor0, py: floor0 * FLOOR_Y, flip, focus: myZoneRef.current, doors: {}, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
+    viewRef.current = { uiVisible: true, alwaysDots: false, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, floor: floor0, py: floor0 * FLOOR_Y, flip, focus: myZoneRef.current, doors: {}, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
   }
   const dragLockRef = useRef(false);
   const [flipped, setFlipped] = useState(() => viewRef.current.flip);
@@ -338,6 +338,13 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const [myZone, setMyZone] = useState(() => myZoneRef.current);
   const [viewer, setViewer] = useState(null); // { kind: 'books'|'fridge'|'oven'|'stove', arg }
   const [uiShown, setUiShown] = useState(true);
+  const [alwaysDots, setAlwaysDots] = useState(() => {
+    try {
+      return localStorage.getItem('sp_gamify_always_dots') === 'true';
+    } catch {
+      return false;
+    }
+  });
   // drei <Html> overlays (avatars, door buttons, signs) must not mount until the
   // canvas has rendered its first frame: mounted earlier, their DOM parent is
   // still changing, and the resulting unmount/remount race leaves some of them
@@ -348,8 +355,31 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const coarse = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
   const [lowQ, setLowQ] = useState(false);
 
-  // In-room labels (door buttons, prop chips, the hint) fade out after a few idle
-  // seconds so they stop covering the scene, and come back on any pointer/touch/wheel.
+  // Sync alwaysDots to viewRef
+  useEffect(() => {
+    if (viewRef.current) {
+      viewRef.current.alwaysDots = alwaysDots;
+      if (alwaysDots) {
+        viewRef.current.uiVisible = true;
+        setUiShown(true);
+      }
+    }
+  }, [alwaysDots]);
+
+  const toggleAlwaysDots = () => {
+    setAlwaysDots((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sp_gamify_always_dots', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // In-room labels (door buttons, prop chips, interactive dots) fade out after idle
+  // seconds so they stop covering the scene. On phones / touch, tap anywhere reveals
+  // them for 4.5 seconds so users can comfortably locate and tap them. An optional
+  // always-on toggle keeps them permanently visible.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return undefined;
@@ -358,13 +388,21 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       viewRef.current.uiVisible = true;
       setUiShown(true);
       clearTimeout(t);
-      t = setTimeout(() => { viewRef.current.uiVisible = false; setUiShown(false); }, 1600);
+      if (!viewRef.current.alwaysDots) {
+        const dur = coarse ? 4500 : 3200;
+        t = setTimeout(() => {
+          if (!viewRef.current.alwaysDots) {
+            viewRef.current.uiVisible = false;
+            setUiShown(false);
+          }
+        }, dur);
+      }
     };
     show();
-    const evs = ['pointermove', 'pointerdown', 'wheel', 'touchstart', 'keydown'];
+    const evs = ['pointermove', 'pointerdown', 'wheel', 'touchstart', 'touchend', 'keydown'];
     evs.forEach(e => el.addEventListener(e, show, { passive: true }));
     return () => { clearTimeout(t); evs.forEach(e => el.removeEventListener(e, show)); };
-  }, []);
+  }, [coarse, alwaysDots]);
   useEffect(() => { const t = setInterval(() => setAutoWx(autoWeather()), 60000); return () => clearInterval(t); }, []);
   const pickWeather = (k) => { setWeatherPref(k); setWxOpen(false); try { localStorage.setItem(WEATHER_KEY, k); } catch { /* private mode */ } };
   // Scene props (bookshelf, fridge) open their full-screen viewer through this hook.
@@ -580,6 +618,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       <div style={{ position: 'absolute', bottom: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 60 }}>
         <button className="stay-white" onClick={() => setWxOpen(o => !o)} title={`Weather: ${WEATHER[weather].label}`} style={{ ...btn, background: wxOpen ? 'rgba(139,92,255,0.75)' : btn.background }}><CloudSun size={16} /></button>
         <button className="stay-white" onClick={toggleFlip} title="Flip house left/right" style={{ ...btn, background: flipped ? 'rgba(139,92,255,0.75)' : btn.background }}><FlipHorizontal2 size={16} /></button>
+        <button className="stay-white" onClick={toggleAlwaysDots} title={alwaysDots ? 'Interactive dots: Always on (click to auto-fade)' : 'Interactive dots: Tap to reveal (click for always on)'} style={{ ...btn, background: alwaysDots ? 'rgba(139,92,255,0.85)' : btn.background }}><Eye size={16} /></button>
         <button className="stay-white" onClick={resetView} title="Back to my room" style={btn}><Maximize2 size={16} /></button>
         <button className="stay-white" onClick={() => zoomBy(1.3)} title="Zoom in" style={btn}><ZoomIn size={16} /></button>
         <button className="stay-white" onClick={() => zoomBy(1 / 1.3)} title="Zoom out" style={btn}><ZoomOut size={16} /></button>
