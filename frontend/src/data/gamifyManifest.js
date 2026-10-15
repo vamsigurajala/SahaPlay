@@ -399,6 +399,22 @@ export const GAMIFY_MANIFEST = {
     "Lemongrass": "/images/gamify/garden/lemongrass.jpg",
     "Fenugreek": "/images/gamify/garden/fenugreek.jpg",
     "Ginger": "/images/gamify/garden/ginger.jpg"
+  },
+  "space": {
+    "sun": "/images/gamify/space/sun.jpg",
+    "mercury": "/images/gamify/space/mercury.jpg",
+    "venus": "/images/gamify/space/venus.jpg",
+    "earth": "/images/gamify/space/earth.jpg",
+    "moon": "/images/gamify/space/moon.jpg",
+    "mars": "/images/gamify/space/mars.jpg",
+    "jupiter": "/images/gamify/space/jupiter.jpg",
+    "saturn": "/images/gamify/space/saturn.jpg",
+    "saturn_ring": "/images/gamify/space/saturn_ring.png",
+    "uranus": "/images/gamify/space/uranus.jpg",
+    "neptune": "/images/gamify/space/neptune.jpg",
+    "milkyway": "/images/gamify/space/milkyway.jpg",
+    "stars": "/images/gamify/space/stars.json",
+    "constellations": "/images/gamify/space/constellations.json"
   }
 };
 
@@ -407,3 +423,5 @@ export const FOOD_PHOTOS = GAMIFY_MANIFEST.foods;
 export const WARDROBE_PHOTOS = GAMIFY_MANIFEST.wardrobe;
 export const COSMETICS_PHOTOS = GAMIFY_MANIFEST.cosmetics;
 export const GARDEN_PHOTOS = GAMIFY_MANIFEST.garden;
+export const SPACE_MANIFEST = GAMIFY_MANIFEST.space;
+
