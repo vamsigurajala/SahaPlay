@@ -44,6 +44,51 @@ export function autoWeather(d = new Date()) {
   return 'night';
 }
 
+// Maps WMO weather interpretation codes to our 6 3D weather presets
+export function mapWmoToPreset(code, isDay, cloudCover = 0, precip = 0) {
+  if (precip > 0.1 || [51, 53, 55, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code)) {
+    return 'rain';
+  }
+  if ([71, 73, 75, 77, 85, 86].includes(code)) {
+    return 'rain';
+  }
+  if ([45, 48, 3].includes(code) || cloudCover > 70) {
+    return 'cloudy';
+  }
+  if (!isDay) {
+    return 'night';
+  }
+  const d = new Date();
+  const h = d.getHours() + d.getMinutes() / 60;
+  if (h >= 5 && h < 8) return 'sunrise';
+  if (h >= 17 && h < 19.5) return 'sunset';
+  return 'day';
+}
+
+// Fetches real live weather for user's location via Open-Meteo (free, no API key required)
+export async function fetchLiveWeather(lat, lon) {
+  try {
+    const res = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=weather_code,is_day,precipitation,cloud_cover`,
+      { signal: AbortSignal.timeout(6000) },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const curr = data?.current;
+    if (!curr) return null;
+    const preset = mapWmoToPreset(curr.weather_code, curr.is_day, curr.cloud_cover, curr.precipitation);
+    return {
+      preset,
+      wmo: curr.weather_code,
+      isDay: curr.is_day,
+      cloudCover: curr.cloud_cover,
+      precip: curr.precipitation,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 const STARS = Array.from({ length: 70 }).map((_, i) => ({ x: (i * 53.7) % 100, y: (i * 31.3) % 62, s: 1 + (i % 3) * 0.6, o: 0.4 + (i % 5) * 0.12 }));
 
 // CSS sky behind the transparent canvas: gradient, sun / moon disc, stars.

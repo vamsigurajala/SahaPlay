@@ -9,7 +9,7 @@ import Avatar3D from './gamify/Avatar3D';
 import { ViewContext } from './gamify/parts';
 import { TV, TV_H, TV_UP, TV_UP_H, TV_NATIVE_W, TV_NATIVE_H } from './gamify/constants';
 import { DEFAULT_SPAWN, FLOORPLAN_ZONES, ALL_ZONES, STAIR_LINKS, FLOOR_Y, CELL_W, CELL_D, COLS, ROWS } from '../data/gamifyZones';
-import { SkyBackdrop, WEATHER, WEATHER_ORDER, autoWeather } from './gamify/environment';
+import { SkyBackdrop, WEATHER, WEATHER_ORDER, autoWeather, fetchLiveWeather } from './gamify/environment';
 import { homographyMatrix3d } from '../lib/homography';
 
 const MIN_ZOOM = 0.36; // zoomed all the way out shows most of the house
@@ -333,8 +333,12 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const [floor, setFloor] = useState(() => viewRef.current.floor);
   const [weatherPref, setWeatherPref] = useState(() => { try { return localStorage.getItem(WEATHER_KEY) || 'auto'; } catch { return 'auto'; } });
   const [autoWx, setAutoWx] = useState(() => autoWeather());
+  const [realWx, setRealWx] = useState(null);
+  const [realWxLoading, setRealWxLoading] = useState(false);
   const [wxOpen, setWxOpen] = useState(false);
-  const weather = weatherPref === 'auto' || !WEATHER[weatherPref] ? autoWx : weatherPref;
+  const weather = weatherPref === 'real'
+    ? (realWx || autoWx)
+    : (weatherPref === 'auto' || !WEATHER[weatherPref] ? autoWx : weatherPref);
   const [myZone, setMyZone] = useState(() => myZoneRef.current);
   const [viewer, setViewer] = useState(null); // { kind: 'books'|'fridge'|'oven'|'stove', arg }
   const [uiShown, setUiShown] = useState(true);
@@ -404,6 +408,53 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     return () => { clearTimeout(t); evs.forEach(e => el.removeEventListener(e, show)); };
   }, [coarse, alwaysDots]);
   useEffect(() => { const t = setInterval(() => setAutoWx(autoWeather()), 60000); return () => clearInterval(t); }, []);
+
+  // Fetch optional real weather for the user's location via Open-Meteo
+  useEffect(() => {
+    if (weatherPref !== 'real') return;
+    let active = true;
+    const loadReal = async () => {
+      setRealWxLoading(true);
+      let lat = 20;
+      let lon = clamp(-new Date().getTimezoneOffset() / 4, -180, 180);
+      try {
+        const saved = JSON.parse(localStorage.getItem('sp_gamify_space_geo'));
+        if (saved && typeof saved.lat === 'number') {
+          lat = saved.lat;
+          lon = saved.lon;
+        }
+      } catch {}
+
+      if (navigator.geolocation && !localStorage.getItem('sp_gamify_space_geo')) {
+        try {
+          await new Promise((resolve) => {
+            navigator.geolocation.getCurrentPosition(
+              (p) => {
+                lat = Math.round(p.coords.latitude * 100) / 100;
+                lon = Math.round(p.coords.longitude * 100) / 100;
+                try { localStorage.setItem('sp_gamify_space_geo', JSON.stringify({ lat, lon })); } catch {}
+                resolve();
+              },
+              () => resolve(),
+              { timeout: 5000 },
+            );
+          });
+        } catch {}
+      }
+
+      const res = await fetchLiveWeather(lat, lon);
+      if (active) {
+        setRealWxLoading(false);
+        if (res?.preset) {
+          setRealWx(res.preset);
+        }
+      }
+    };
+    loadReal();
+    const interval = setInterval(loadReal, 15 * 60 * 1000); // update every 15m
+    return () => { active = false; clearInterval(interval); };
+  }, [weatherPref]);
+
   const pickWeather = (k) => { setWeatherPref(k); setWxOpen(false); try { localStorage.setItem(WEATHER_KEY, k); } catch { /* private mode */ } };
   // Scene props (bookshelf, fridge) open their full-screen viewer through this hook.
   useEffect(() => {
@@ -604,13 +655,19 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
 
       {wxOpen && (
         <div className="stay-white" style={{ position: 'absolute', bottom: 12, right: 54, zIndex: 61, display: 'flex', flexDirection: 'column', gap: 3, padding: 6, borderRadius: 12, ...glass }}>
-          {['auto', ...WEATHER_ORDER].map(k => (
+          {['auto', 'real', ...WEATHER_ORDER].map(k => (
             <button
               key={k}
               className="stay-white"
               onClick={() => pickWeather(k)}
               style={{ padding: '6px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#fff', textAlign: 'left', background: weatherPref === k ? 'rgba(139,92,255,0.8)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}
-            >{k === 'auto' ? `Auto (${WEATHER[autoWx].label})` : WEATHER[k].label}</button>
+            >
+              {k === 'auto'
+                ? `Auto (${WEATHER[autoWx].label})`
+                : k === 'real'
+                ? `Real weather${realWx ? ` (${WEATHER[realWx].label})` : realWxLoading ? ' (fetching...)' : ''}`
+                : WEATHER[k].label}
+            </button>
           ))}
         </div>
       )}
