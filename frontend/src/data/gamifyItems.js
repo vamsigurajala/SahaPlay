@@ -57,6 +57,41 @@ export const WARDROBES = {
   },
 };
 
+WARDROBES['wd-d'] = {
+  title: 'Master wardrobe',
+  sections: [
+    { label: 'Hanging', items: [
+      C('Business suit', 'jacket', '#2a2f45', '#6a7088'), C('Nehru jacket', 'jacket', '#6a4a2a', '#d9c48a'), C('Silk shirt', 'shirt', '#7a5ac2', '#e8dcff'),
+      C('Pathani suit', 'kurta', '#5a5a48', '#d9c48a'), C('Banarasi saree', 'saree', '#a02a5a', '#f0c860'), C('Evening gown', 'dress', '#1f3a6a', '#c0c6d8'),
+    ] },
+    { label: 'Folded', items: [
+      C('Formal trousers', 'pants', '#3a3f55', '#20243a'), C('Chinos', 'pants', '#c9b08a', '#8a7048'), C('Night suit', 'pants', '#6a8ac2', '#3a5a9a'),
+      C('Gym shorts', 'shorts', '#2a2a38', '#e0392b'), C('Silk blouse', 'tshirt', '#e8c9a0', '#8a5a20'), C('Bathrobe', 'jacket', '#f2f4fa', '#c9d0e4'),
+    ] },
+    { label: 'Footwear and extras', items: [
+      C('Oxford shoes', 'shoe', '#3a2418', '#1a0c06'), C('Loafers', 'shoe', '#8a5a34', '#3a2210'), C('Slippers', 'sandal', '#c24a3a', '#7a2218'),
+      C('Silk tie', 'scarf', '#a02a3a', '#f0c860'), C('Wrist watch', 'watch', '#b8860b', '#f6efd8'), C('Leather wallet', 'bag', '#5a3a24', '#d9c48a'), C('Aviators', 'glasses', '#2a2a22', '#d9c48a'),
+    ] },
+  ],
+};
+WARDROBES['wd-e'] = {
+  title: 'Festive and travel wardrobe',
+  sections: [
+    { label: 'Hanging', items: [
+      C('Wedding sherwani', 'kurta', '#c9a060', '#7a4a10'), C('Bridal lehenga', 'dress', '#b0182a', '#f0c860'), C('Kanjivaram saree', 'saree', '#1f6a3a', '#f0c860'),
+      C('Festive kurta', 'kurta', '#e0a020', '#8a1a10'), C('Silk dupatta', 'scarf', '#c85ae0', '#f0c860'), C('Cocktail dress', 'dress', '#2a2f55', '#c0c6d8'),
+    ] },
+    { label: 'Folded', items: [
+      C('Kids party wear', 'tshirt', '#4fa8ff', '#ffffff'), C('School uniform', 'shirt', '#f2f4fa', '#2a4a8a'), C('School shorts', 'shorts', '#2a3a6a', '#1a2448'),
+      C('Beach shorts', 'shorts', '#2fb8c2', '#f0c030'), C('Rain jacket', 'jacket', '#f0a020', '#c27a10'), C('Woollen socks', 'sock', '#a56bff', '#ffffff'),
+    ] },
+    { label: 'Bags and shoes', items: [
+      C('Cabin suitcase', 'bag', '#c24a3a', '#6a1a10'), C('Trekking backpack', 'bag', '#3a6a4a', '#1a3a24'), C('Flip-flops', 'sandal', '#4fa8ff', '#1a5a9a'),
+      C('Canvas shoes', 'shoe', '#e8dcc0', '#a02a3a'), C('Sun hat', 'cap', '#e8c9a0', '#c24a3a'), C('Travel umbrella', 'umbrella', '#2a6ac2', '#1a2a4a'),
+    ] },
+  ],
+};
+
 export const COSMETICS = {
   title: 'Dressing table',
   sections: [

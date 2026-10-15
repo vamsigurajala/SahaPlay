@@ -2,13 +2,13 @@ import React, { useRef, useEffect, useMemo, useState, useContext } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown } from 'lucide-react';
 import GamifyScene, { WALL_H } from './gamify/GamifyScene';
 const PropViewer = React.lazy(() => import('./gamify/PropViewers'));
 import Avatar3D from './gamify/Avatar3D';
 import { ViewContext } from './gamify/parts';
-import { TV, TV_H, TV_NATIVE_W, TV_NATIVE_H } from './gamify/constants';
-import { DEFAULT_SPAWN, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, CELL_W, CELL_D, COLS, ROWS } from '../data/gamifyZones';
+import { TV, TV_H, TV_UP, TV_UP_H, TV_NATIVE_W, TV_NATIVE_H } from './gamify/constants';
+import { DEFAULT_SPAWN, FLOORPLAN_ZONES, ALL_ZONES, STAIR_LINKS, FLOOR_Y, CELL_W, CELL_D, COLS, ROWS } from '../data/gamifyZones';
 import { SkyBackdrop, WEATHER, WEATHER_ORDER, autoWeather } from './gamify/environment';
 import { homographyMatrix3d } from '../lib/homography';
 
@@ -129,8 +129,32 @@ function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onReady }) {
     };
   }, [camera, gl, dragLockRef, viewRef]);
 
+  // Shadows are the single biggest per-frame cost when the whole house is on
+  // screen, and the scene barely moves: refresh them every few frames (less often
+  // while panning or zooming) instead of every frame, and render at 1x pixel
+  // density during a pan/zoom, restoring full sharpness once the view settles.
+  const perf = useRef({ n: 0, reduced: false, base: 1, calmAt: 0 });
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = false;
+    gl.shadowMap.needsUpdate = true;
+    const st = perf.current;
+    return () => { gl.shadowMap.autoUpdate = true; if (st.reduced) gl.setPixelRatio(st.base); };
+  }, [gl]);
   useFrame((_, dt) => {
     const v = viewRef.current;
+    const st = perf.current;
+    const moving = v.dragging || !!v.vel || v.glide || Math.abs(v.zoom - v.cur) > 0.004;
+    st.n++;
+    if (st.n % (moving ? 8 : 3) === 0) gl.shadowMap.needsUpdate = true;
+    const now = performance.now();
+    if (moving) {
+      st.calmAt = now + 280;
+      if (!st.reduced && gl.getPixelRatio() > 1.01) { st.base = gl.getPixelRatio(); gl.setPixelRatio(1); st.reduced = true; }
+    } else if (st.reduced && now > st.calmAt) {
+      gl.setPixelRatio(st.base);
+      st.reduced = false;
+      gl.shadowMap.needsUpdate = true;
+    }
     const kz = 1 - Math.exp(-dt * 11);
     v.cur += (v.zoom - v.cur) * kz;
     if (v.vel) {
@@ -219,15 +243,22 @@ function TvProjector({ tvElementRef, onTvReady }) {
   useFrame(() => {
     const el = tvElementRef.current;
     if (!el) return;
-    const hw = TV.w / 2;
-    const hh = TV_H / 2;
+    // Upstairs the video moves to the upstairs hall's TV; zoomed out from the ground
+    // floor the roof hides the living room, so the picture is hidden (it keeps playing).
+    const up = view.current.floor === 1;
+    const T = up ? TV_UP : TV;
+    const hw = T.w / 2;
+    const hh = (up ? TV_UP_H : TV_H) / 2;
+    const covered = !up && view.current.cur < 0.8;
+    const vis = covered ? '0' : '1';
+    if (el.dataset.gpVis !== vis) { el.dataset.gpVis = vis; el.style.opacity = vis; el.style.pointerEvents = covered ? 'none' : ''; }
     // Mirrored view: the scene is reflected across x=z, so a local point
     // (x, y, z) lands at world (z, y, x), and the video's left edge belongs on
     // the mirror image of the screen's original right edge.
     const flip = view.current.flip;
     const corners = [[-hw, hh], [hw, hh], [hw, -hh], [-hw, -hh]].map(([dx, dy]) => {
-      const lx = flip ? TV.cx - dx : TV.cx + dx;
-      if (flip) v.set(TV.z, TV.cy + dy, lx); else v.set(lx, TV.cy + dy, TV.z);
+      const lx = flip ? T.cx - dx : T.cx + dx;
+      if (flip) v.set(T.z, T.cy + dy, lx); else v.set(lx, T.cy + dy, T.z);
       v.project(camera);
       return [(v.x * 0.5 + 0.5) * size.width, (-v.y * 0.5 + 0.5) * size.height];
     });
@@ -246,7 +277,7 @@ function TvProjector({ tvElementRef, onTvReady }) {
 
   useEffect(() => () => {
     const el = tvElementRef.current;
-    if (el) { el.style.transform = ''; el.style.transformOrigin = ''; }
+    if (el) { el.style.transform = ''; el.style.transformOrigin = ''; el.style.opacity = ''; el.style.pointerEvents = ''; delete el.dataset.gpVis; }
     onTvReady && onTvReady(false);
   }, [tvElementRef, onTvReady]);
 
@@ -379,6 +410,15 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   // Dropping your avatar into another room brings the camera along.
   const handleDrop = (zone) => { if (zone !== viewRef.current.focus) focusRoom(zone, viewRef.current.zoom); };
 
+  // Take the stairs from anywhere: camera and your avatar go to the other floor.
+  const changeFloor = () => {
+    const v = viewRef.current;
+    const up = v.floor === 0;
+    const link = STAIR_LINKS.find(l => (up ? l.from === 'hall' : l.from === 'f2hall'));
+    focusRoom(link.to);
+    v.walk = { x: link.entry.x, z: link.entry.z, floor: up ? 1 : 0, snap: true };
+  };
+  viewRef.current.changeFloor = changeFloor;
   const zoomBy = (ratio) => { const v = viewRef.current; v.zoom = clamp(v.zoom * ratio, MIN_ZOOM, MAX_ZOOM); };
   const resetView = () => focusRoom(myZoneRef.current);
   const toggleFlip = () => {
@@ -449,6 +489,9 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
         <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>{ALL_ZONES[focus].label}</div>
         <div className="stay-white" style={{ transition: 'opacity .2s', fontSize: 11, opacity: uiShown ? 0.7 : 0, textShadow: '0 1px 3px #000' }}>Drag to look around, tap a door to go through</div>
+        <button className="stay-white" onClick={changeFloor} title={floor === 0 ? 'Take the stairs up' : 'Take the stairs down'} style={{ ...glass, pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: 'pointer', marginTop: 2 }}>
+          {floor === 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}{floor === 0 ? 'Go upstairs' : 'Go downstairs'}
+        </button>
       </div>
 
       {viewer && (

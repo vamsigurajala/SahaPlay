@@ -128,13 +128,13 @@ function Cloud({ spot, color, opacity }) {
     g.position.x += spot.v * dt;
     if (g.position.x > 100) g.position.x = -100;
   });
-  const puffs = [[0, 0, 0, 3.2], [3, -0.4, 0.8, 2.6], [-3, -0.3, -0.6, 2.5], [1.2, 1, 0.2, 2.4], [-1.4, 0.9, 0.5, 2.1]];
+  const puffs = [[0, 0, 0, 3.2], [3, -0.4, 0.8, 2.5], [-3, -0.3, -0.6, 2.4]];
   return (
     <group ref={ref} position={[spot.x, spot.y, spot.z]} scale={spot.s}>
       {puffs.map(([x, y, z, r], i) => (
         <mesh key={i} position={[x, y, z]} scale={[1, 0.6, 1]}>
-          <sphereGeometry args={[r, 10, 8]} />
-          <meshStandardMaterial color={color} roughness={1} transparent opacity={opacity} />
+          <sphereGeometry args={[r, 8, 6]} />
+          <meshLambertMaterial color={color} />
         </mesh>
       ))}
     </group>
@@ -147,7 +147,7 @@ export function Clouds({ weather }) {
   const w = WEATHER[weather];
   return (
     <group>
-      {CLOUD_SPOTS.slice(0, w.cloud.count).map((s, i) => <Cloud key={i} spot={s} color={w.cloud.color} opacity={w.cloud.op} />)}
+      {CLOUD_SPOTS.slice(0, Math.min(12, w.cloud.count)).map((s, i) => <Cloud key={i} spot={s} color={w.cloud.color} opacity={w.cloud.op} />)}
     </group>
   );
 }

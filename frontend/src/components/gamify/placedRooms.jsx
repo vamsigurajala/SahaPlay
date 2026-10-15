@@ -2,7 +2,7 @@ import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, 
 import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Cell } from './cell';
-import { Clock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity } from './props';
+import { Clock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity } from './props';
 
 const ROSES = ['#d0183a', '#ff4f8a', '#ff9ac0', '#fff0f6'];
 const MIXED = ['#ff6fb5', '#ffcf5a', '#a56bff', '#ff8a5a', '#ffffff', '#4fa8ff'];
@@ -74,11 +74,9 @@ export function LivingRoom() {
       <BeanBag p={[16.4, 0, 13.8]} color="#e0529f" glow={NEON_PINK} />
       <Box p={[17.1, 0.4, 9.6]} s={[0.9, 0.8, 0.9]} c="#2f2358" r={0.08} />
       <TableLamp p={[17.1, 0.8, 9.6]} />
-      <BeanBag p={[1.6, 0, 12.6]} color="#4fa8ff" glow={NEON_CYAN} />
-      <BeanBag p={[2.6, 0, 14.4]} color="#f0b73a" glow={NEON_AMBER} />
-      <FloorLamp p={[1.0, 0, 10.8]} color="#ff9ad8" />
       <FloorLamp p={[17.0, 0, 2.6]} />
-      <Plant p={[1.0, 0, 15.0]} scale={1.2} />
+      <Stairs p={[1.5, 0, 15.7]} rot={PI / 2} c="#5a4590" dark="#3a2d66" />
+      <Plant p={[4.4, 0, 15.2]} scale={1.1} />
       <Plant p={[17.0, 0, 15.2]} scale={1.2} color="#38a86a" />
       <Plant p={[9.4, 0, 15.0]} scale={1.0} />
       <Clock p={[9.0, 4.0, 0.12]} r={0.6} />

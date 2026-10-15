@@ -89,6 +89,33 @@ export const BOOKS = [
   B('ozymandias', 'poetry', 'Ozymandias', 'Percy Bysshe Shelley', 'I met a traveller from an antique land,\nWho said--"Two vast and trunkless legs of stone\nStand in the desert....Near them, on the sand,\nHalf sunk a shatter\'d visage lies."', 'What is left of a king who said, look on my works.'),
   B('daffodils', 'poetry', 'I Wandered Lonely as a Cloud', 'William Wordsworth', 'I wandered lonely as a cloud\nThat floats on high o\'er vales and hills,\nWhen all at once I saw a crowd,\nA host, of golden daffodils.', 'A walk in the Lake District and a field of flowers.'),
   B('if', 'poetry', 'If--', 'Rudyard Kipling', 'If you can keep your head when all about you\nAre losing theirs and blaming it on you,\nIf you can trust yourself when all men doubt you,\nBut make allowance for their doubting too.', 'Advice from a father to a son.'),
+  // ── upstairs shelves ──
+  B('secretgarden', 'classic', 'The Secret Garden', 'Frances Hodgson Burnett', "When Mary Lennox was sent to Misselthwaite Manor to live with her uncle everybody said she was the most disagreeable-looking child ever seen.", 'A lonely girl finds a locked garden on a Yorkshire estate and brings it, and two other people, back to life.'),
+  B('anne', 'classic', 'Anne of Green Gables', 'L. M. Montgomery', "Mrs. Rachel Lynde lived just where the Avonlea main road dipped down into a little hollow, fringed with alders and ladies' eardrops and traversed by a brook.", 'An imaginative orphan arrives at a Prince Edward Island farm by mistake and changes everyone there.'),
+  B('callwild', 'adventure', 'The Call of the Wild', 'Jack London', "Buck did not read the newspapers, or he would have known that trouble was brewing, not alone for himself, but for every tide-water dog, strong of muscle and with warm, long hair, from Puget Sound to San Diego.", 'A pampered dog is stolen and sold into the Klondike gold rush, where he must become something wilder.'),
+  B('whitefang', 'adventure', 'White Fang', 'Jack London', "Dark spruce forest frowned on either side the frozen waterway.", 'A wolf cub born in the wild learns the harsh law of fang and club, then something about trust.'),
+  B('kidnapped', 'adventure', 'Kidnapped', 'R. L. Stevenson', "I will begin the story of my adventures with a certain morning early in the month of June, the year of grace 1751, when I took the key for the last time out of the door of my father's house.", 'Tricked and shipped away by his own uncle, young David Balfour crosses the Highlands with a reckless Jacobite.'),
+  B('solomon', 'adventure', "King Solomon's Mines", 'H. Rider Haggard', "It is a curious thing that at my age--fifty-five last birthday--I should find myself taking up a pen to try to write a history.", 'Allan Quatermain leads an expedition into unmapped Africa in search of a lost brother and a legendary treasure.'),
+  B('journey', 'scifi', 'Journey to the Centre of the Earth', 'Jules Verne', "On the 24th of May, 1863, a Sunday, my uncle, Professor Liedenbrock, rushed back to his little house, No. 19 Konigstrasse, one of the oldest streets in the oldest portion of the city of Hamburg.", 'A professor, his nephew and a guide descend an Icelandic volcano towards the middle of the world.'),
+  B('invisible', 'scifi', 'The Invisible Man', 'H. G. Wells', "The stranger came early in February, one wintry day, through a biting wind and a driving snow, the last snowfall of the year, over the down, walking from Bramblehurst railway station, and carrying in his gloved hand a little black portmanteau.", 'A bandaged stranger takes a room at a village inn, and his secret is far stranger than his manners.'),
+  B('moreau', 'scifi', 'The Island of Doctor Moreau', 'H. G. Wells', "On February the 1st, 1887, the Lady Vain was lost by collision with a derelict when ten days out from Callao.", 'A shipwrecked man is taken in by a doctor whose island holds experiments that should never have been tried.'),
+  B('lostworld', 'scifi', 'The Lost World', 'Arthur Conan Doyle', "Mr. Hungerton, her father, really was the most tactless person upon earth--a fluffy, goodhumoured, tender-hearted creature, an infant in simplicity, and yet with a touch of the bully in him.", 'A journalist joins a fiery professor to prove that dinosaurs survive on a plateau in South America.'),
+  B('wallpaper', 'horror', 'The Yellow Wallpaper', 'Charlotte Perkins Gilman', "It is very seldom that mere ordinary people like John and myself secure ancestral halls for the summer.", 'A woman ordered to rest in a rented house begins to see something moving behind the pattern on the wall.'),
+  B('sleepy', 'horror', 'The Legend of Sleepy Hollow', 'Washington Irving', "In the bosom of one of those spacious coves which indent the eastern shore of the Hudson, at that broad expansion of the river denominated by the ancient Dutch navigators the Tappan Zee, there lies a small market town or rural port.", 'A superstitious schoolmaster meets a headless horseman on a dark road home.'),
+  B('zenda', 'thriller', 'The Prisoner of Zenda', 'Anthony Hope', "\"I wonder when in the world you are going to do anything, Rudolf?\" said my brother's wife.", 'An English gentleman who looks exactly like a foreign king is pulled into a plot to keep a throne.'),
+  B('scarletletter', 'classic', 'The Scarlet Letter', 'Nathaniel Hawthorne', "A throng of bearded men, in sad-coloured garments and grey steeple-crowned hats, intermixed with women, some wearing hoods, and others bareheaded, was assembled in front of a wooden edifice, the door of which was heavily timbered with oak.", 'In Puritan Boston a woman is made to wear a letter on her dress and refuses to name the father of her child.'),
+  B('quixote', 'classic', 'Don Quixote', 'Miguel de Cervantes', "In a village of La Mancha, the name of which I have no desire to call to mind, there lived not long since one of those gentlemen that keep a lance in the lance-rack, an old buckler, a lean hack, and a greyhound for coursing.", 'A gentleman reads so many tales of chivalry that he sets out as a knight, with a farmer for a squire.'),
+  B('middlemarch', 'romance', 'Middlemarch', 'George Eliot', "Miss Brooke had that kind of beauty which seems to be thrown into relief by poor dress.", 'Idealistic Dorothea Brooke chooses a husband badly while a young doctor tries to change the town.'),
+  B('magi', 'romance', 'The Gift of the Magi', 'O. Henry', "One dollar and eighty-seven cents. That was all.", 'A poor young couple each sell their most treasured possession to buy the other a Christmas gift.'),
+  B('earnest', 'classic', 'The Importance of Being Earnest', 'Oscar Wilde', "ALGERNON. Did you hear what I was playing, Lane?\nLANE. I didn't think it polite to listen, sir.", 'A comedy of two friends, two invented identities and a handbag.'),
+  B('threemen', 'adventure', 'Three Men in a Boat', 'Jerome K. Jerome', "There were four of us--George, and William Samuel Harris, and myself, and Montmorency.", 'Three friends and a dog row up the Thames for a rest and discover how little rest there is in it.'),
+  B('heidi', 'classic', 'Heidi', 'Johanna Spyri', "From the old and pleasantly situated town of Mayenfeld, a footpath leads through green, well-timbered meadows to the foot of the heights, which look down imposingly upon the valley.", 'An orphan girl goes to live with her grandfather on an Alpine mountain and thrives there.'),
+  B('prince', 'philosophy', 'The Prince', 'Niccolo Machiavelli', "All the states and dominions that have had and have empire over men have been and are either republics or principalities.", 'A sixteenth-century handbook on how rulers win power and keep it, still argued over.'),
+  B('leaves', 'poetry', 'Leaves of Grass', 'Walt Whitman', "I celebrate myself, and sing myself,\nAnd what I assume you shall assume,\nFor every atom belonging to me as good belongs to you.", 'A poet sings of himself, the crowd and the whole of America in free verse.'),
+  B('roadnot', 'poetry', 'The Road Not Taken', 'Robert Frost', "Two roads diverged in a yellow wood,\nAnd sorry I could not travel both\nAnd be one traveler, long I stood\nAnd looked down one as far as I could\nTo where it bent in the undergrowth;", 'A walker in an autumn wood chooses between two paths and wonders about the other.'),
+  B('dickinson', 'poetry', 'Because I could not stop for Death', 'Emily Dickinson', "Because I could not stop for Death --\nHe kindly stopped for me --\nThe Carriage held but just Ourselves --\nAnd Immortality.", 'A calm carriage ride with an unexpected driver, in one of Dickinson\'s best-known poems.'),
+  B('vikram', 'indian', 'Vikram and Betaal (retold)', 'Traditional tales', "King Vikramaditya had promised the sage to carry a corpse from the old tree to the burning ground, and he was determined to keep his word. But the spirit that lived in the corpse, Betaal, began a story on the way, and ended it with a question the king dared not leave unanswered.", 'A king, a ghost on his shoulder and a riddle at the end of every story. Retold here in our own words.'),
+  B('jataka', 'indian', 'The Monkey and the Crocodile (retold)', 'Jataka tales', "A monkey lived in a rose-apple tree on the bank of a river, and every day he threw the sweetest fruit down to a crocodile who had become his friend. The crocodile's wife, hearing how sweet the fruit was, said she would like to taste the monkey's heart.", 'A well-loved Jataka story about a quick mind and a false friend. Retold here in our own words.'),
 ];
 
 const byId = Object.fromEntries(BOOKS.map(b => [b.id, b]));
@@ -153,4 +180,56 @@ export const OVEN_ITEMS = [
   { id: 'cake', name: 'Chocolate cake', kind: 'cake', temp: 180, minutes: 35 },
   { id: 'pizza', name: 'Pizza', kind: 'pizza', temp: 220, minutes: 12 },
   { id: 'cookies', name: 'Cookies', kind: 'cookies', temp: 170, minutes: 14 },
+];
+
+// Upstairs: different shelves, fridge, dishes and oven bakes from the ground floor.
+SHELVES['up-hall'] = { title: 'Upstairs library', books: pick(['secretgarden', 'anne', 'heidi', 'scarletletter', 'quixote', 'middlemarch', 'magi', 'earnest', 'prince', 'leaves', 'roadnot', 'dickinson', 'zenda', 'wallpaper', 'sleepy', 'vikram']) };
+SHELVES['up-guest'] = { title: 'Guest room shelf', books: pick(['callwild', 'whitefang', 'kidnapped', 'solomon', 'journey', 'invisible', 'moreau', 'lostworld', 'threemen', 'jataka']) };
+
+export const FRIDGE_SHELVES_UP = [
+  [
+    { name: 'Orange juice', kind: 'carton', color: '#ffa733', accent: '#e07a10', label: 'ORANGE' },
+    { name: 'Soy milk', kind: 'carton', color: '#f6efd8', accent: '#6a9a3a', label: 'SOY' },
+    { name: 'Cheese slices', kind: 'block', color: '#f7c948', accent: '#e0a020', label: 'CHEESE' },
+    { name: 'Greek yoghurt', kind: 'tub', color: '#f4f8ff', accent: '#4a7ac2', label: 'YOGHURT' },
+    { name: 'Cream', kind: 'carton', color: '#fffaf0', accent: '#c9a77a', label: 'CREAM' },
+  ],
+  [
+    { name: 'Rasgulla', kind: 'tub', color: '#fff6e8', accent: '#e0a0a0', label: 'RASGULLA' },
+    { name: 'Gulab jamun', kind: 'tub', color: '#b8561f', accent: '#7a2a10', label: 'JAMUN' },
+    { name: 'Ice cream', kind: 'tub', color: '#ffd1e0', accent: '#d0527a', label: 'ICE CREAM' },
+    { name: 'Idli batter', kind: 'tub', color: '#f6f0e0', accent: '#8a8a6a', label: 'BATTER' },
+    { name: 'Pastry', kind: 'cake', color: '#f4d8a8', accent: '#d0392b' },
+  ],
+  [
+    { name: 'Mayonnaise', kind: 'jar', color: '#fff6d8', accent: '#e0b83a', label: 'MAYO' },
+    { name: 'Schezwan sauce', kind: 'jar', color: '#b8301a', accent: '#5a1008', label: 'SCHEZ' },
+    { name: 'Honey', kind: 'jar', color: '#e0a020', accent: '#7a5a10', label: 'HONEY' },
+    { name: 'Peanut butter', kind: 'jar', color: '#b8793a', accent: '#5a3a14', label: 'PEANUT' },
+    { name: 'Lemon soda', kind: 'can', color: '#a8e03a', accent: '#3a6a10', label: 'LEMON' },
+  ],
+  [
+    { name: 'Capsicum', kind: 'veg', color: '#3aa83a', accent: '#1f6a2a' },
+    { name: 'Grapes', kind: 'veg', color: '#7a3a9a', accent: '#2f8f4a' },
+    { name: 'Spring onions', kind: 'leaf', color: '#4aa83a', accent: '#6ad84a' },
+    { name: 'Lemons', kind: 'veg', color: '#f0d030', accent: '#2f8f4a' },
+    { name: 'Sparkling water', kind: 'bottle', color: '#d8f0ff', accent: '#2f8fe0', label: 'SPARKLE' },
+  ],
+];
+
+export const DISHES_UP = [
+  { id: 'upma', name: 'Rava upma', vessel: 'pan', fill: '#e8d090', bubble: '#f6e6b0', plate: 'bowl', done: '#e8d090', steps: ['Roast the rava until fragrant', 'Splutter mustard and curry leaves', 'Add onion, chilli and water', 'Stir in the rava and cover'] },
+  { id: 'poha', name: 'Kanda poha', vessel: 'pan', fill: '#f2d640', bubble: '#fff0a0', plate: 'bowl', done: '#f2d640', steps: ['Rinse the flattened rice', 'Fry mustard, peanuts and onion', 'Add turmeric and the poha', 'Finish with lemon and coriander'] },
+  { id: 'biryani', name: 'Veg biryani', vessel: 'pot', fill: '#e0a040', bubble: '#f4d080', plate: 'bowl', done: '#e0a040', steps: ['Fry onions until golden', 'Layer rice with spiced vegetables', 'Add saffron milk and mint', 'Seal the pot and cook on dum'] },
+  { id: 'rajma', name: 'Rajma masala', vessel: 'pot', fill: '#9a2a1a', bubble: '#c0503a', plate: 'bowl', done: '#9a2a1a', steps: ['Pressure-cook the soaked beans', 'Cook onion, tomato and ginger', 'Add the beans and masalas', 'Simmer until thick'] },
+  { id: 'chole', name: 'Chole', vessel: 'pot', fill: '#c0782a', bubble: '#e0a860', plate: 'bowl', done: '#c0782a', steps: ['Boil chickpeas with tea leaves', 'Make a tangy onion-tomato masala', 'Add the chickpeas and anardana', 'Garnish with ginger'] },
+  { id: 'paratha', name: 'Aloo paratha', vessel: 'tawa', fill: '#d9a050', bubble: '#f4d090', plate: 'roti', done: '#d9a050', steps: ['Stuff the dough with spiced potato', 'Roll it out gently', 'Cook on the tawa with ghee', 'Flip until golden on both sides'] },
+  { id: 'dosa', name: 'Masala dosa', vessel: 'tawa', fill: '#e8b860', bubble: '#f8dc9a', plate: 'flat', done: '#e8b860', steps: ['Spread the batter thin on the tawa', 'Drizzle oil around the edges', 'Spoon in the potato filling', 'Fold and serve crisp'] },
+  { id: 'pasta', name: 'Creamy pasta', vessel: 'pan', fill: '#f0d8b0', bubble: '#fff0d0', plate: 'bowl', done: '#f0d8b0', steps: ['Boil the pasta in salted water', 'Saute garlic and vegetables', 'Pour in cream and herbs', 'Toss the pasta through'] },
+];
+
+export const OVEN_ITEMS_UP = [
+  { id: 'bread', name: 'Garlic bread', kind: 'bread', temp: 200, minutes: 10 },
+  { id: 'brownies', name: 'Brownies', kind: 'brownies', temp: 175, minutes: 25 },
+  { id: 'naan', name: 'Butter naan', kind: 'naan', temp: 250, minutes: 6 },
 ];

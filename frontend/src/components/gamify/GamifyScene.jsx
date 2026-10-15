@@ -216,6 +216,51 @@ function ExitChip({ onExit }) {
   );
 }
 
+// A fixed handful of point lights that glide to the rooms nearest the view. Every
+// point light costs every pixel, so 14 static ones (one per room) were far too
+// many; this keeps the glow of the rooms you can see at a fraction of the cost.
+const POOL = 5;
+function LightPool({ lights, neon }) {
+  const view = useContext(ViewContext);
+  const refs = useRef([]);
+  const slots = useRef(Array.from({ length: POOL }, (_, i) => ({ id: lights[i].id })));
+  const tmp = useMemo(() => new THREE.Color(), []);
+  useFrame((_, dt) => {
+    const v = view.current;
+    const lx = v.flip ? v.pz : v.px;
+    const lz = v.flip ? v.px : v.pz;
+    const fl = v.floor || 0;
+    const ranked = lights
+      .map(l => ({ l, d: Math.hypot(l.x - lx, l.z - lz) + (l.floor === fl ? 0 : 14) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, POOL)
+      .map(r => r.l);
+    const want = new Set(ranked.map(l => l.id));
+    const have = new Set(slots.current.map(s => s.id));
+    const missing = ranked.filter(l => !have.has(l.id));
+    slots.current.forEach(s => { if (!want.has(s.id) && missing.length) s.id = missing.shift().id; });
+    const k = 1 - Math.exp(-dt * 5);
+    slots.current.forEach((s, i) => {
+      const light = refs.current[i];
+      const t = lights.find(l => l.id === s.id);
+      if (!light || !t) return;
+      light.position.x += (t.x - light.position.x) * k;
+      light.position.y += (t.y - light.position.y) * k;
+      light.position.z += (t.z - light.position.z) * k;
+      light.color.lerp(tmp.set(t.color), k);
+      light.intensity += (t.intensity * neon - light.intensity) * k;
+    });
+  });
+  return (
+    <>
+      {slots.current.map((s, i) => {
+        const t = lights.find(l => l.id === s.id);
+        return <pointLight key={i} ref={el => { refs.current[i] = el; }} position={[t.x, t.y, t.z]} color={t.color} intensity={t.intensity * neon} distance={26} decay={2} />;
+      })}
+    </>
+  );
+}
+
 export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, weather = 'night' }) {
   const wx = WEATHER[weather];
   const textures = useMemo(() => ({
@@ -272,6 +317,10 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
     ['study', NEON_CYAN, 3.4, 44], ['hall', NEON_PINK, 3.6, 60], ['bedroom', NEON_VIOLET, 3.4, 48],
     ['kitchen', '#ffd9a0', 3.4, 40], ['gameroom', NEON_CYAN, 3.2, 52], ['lawn', NEON_AMBER, 2.2, 30], ['terrace', '#ffb98a', 3.0, 34], ['frontyard', '#ffe0a0', 3.4, 36], ['courtyard', NEON_AMBER, 2.6, 38],
   ];
+  const allLights = [
+    ...roomLights.map(([id, color, y, intensity]) => ({ id, color, y, intensity, x: FLOORPLAN_ZONES[id].center.x, z: FLOORPLAN_ZONES[id].center.z, floor: 0 })),
+    ...Object.values(ALL_ZONES).filter(z => z.floor === 1).map(z => ({ id: z.id, color: '#ffe8c4', y: FLOOR_Y + 3.4, intensity: 26, x: z.center.x, z: z.center.z, floor: 1 })),
+  ];
   const vLines = [];
   for (let c = 1; c < COLS; c++) vLines.push(-halfW + c * CELL_W);
   const hLines = [];
@@ -283,10 +332,7 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       <ambientLight intensity={wx.ambient[1]} color={wx.ambient[0]} />
       <hemisphereLight args={[wx.hemi[0], wx.hemi[1], wx.hemi[2]]} />
       <FollowLight shadows={!lowQ} size={coarse ? 1024 : 2048} sun={wx.sun} />
-      {roomLights.map(([id, color, y, intensity]) => {
-        const z = FLOORPLAN_ZONES[id];
-        return <pointLight key={id} position={[z.center.x, y, z.center.z]} color={color} intensity={intensity * wx.neon} distance={26} decay={2} />;
-      })}
+      <LightPool lights={allLights} neon={wx.neon} />
 
       {/* ── Grass plot, trees, clouds and rain around the house, then the slab and per-room floors ── */}
       <Ground weather={weather} />

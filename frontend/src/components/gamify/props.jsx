@@ -1,6 +1,6 @@
-import { useLayoutEffect, useMemo, useRef } from 'react';
+import { useContext, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Box, Neon, Plant, useOpenProp } from './parts';
+import { Box, Neon, Plant, useOpenProp, ViewContext } from './parts';
 import { NEON_CYAN, NEON_AMBER } from './constants';
 
 const PI = Math.PI;
@@ -312,7 +312,7 @@ function Instances({ items, geo, castShadow = false, rough = 0.8 }) {
     if (m.instanceColor) m.instanceColor.needsUpdate = true;
   }, [items]);
   return (
-    <instancedMesh ref={ref} args={[null, null, items.length]} castShadow={castShadow} frustumCulled={false}>
+    <instancedMesh ref={ref} args={[null, null, items.length]} castShadow={castShadow}>
       {geo}
       <meshStandardMaterial roughness={rough} />
     </instancedMesh>
@@ -492,6 +492,41 @@ export function Vanity({ p, rot = 0 }) {
       {/* stool */}
       <mesh position={[0, 0.55, 1.15]} castShadow><cylinderGeometry args={[0.42, 0.42, 0.12, 14]} /><meshStandardMaterial color="#e0529f" roughness={0.8} /></mesh>
       <mesh position={[0, 0.27, 1.15]}><cylinderGeometry args={[0.07, 0.07, 0.5, 8]} /><meshStandardMaterial color="#d9c48a" /></mesh>
+    </group>
+  );
+}
+
+// Staircase. 'up' climbs (along +x before rotation) to a landing; 'down' is a
+// railed stairwell opening. Tap it to change floor.
+export function Stairs({ p, rot = 0, dir = 'up', steps = 9, c = '#a98260', dark = '#6e4f33' }) {
+  const view = useContext(ViewContext);
+  const go = {
+    onClick: (e) => { if (e.delta > 6) return; e.stopPropagation(); view.current.changeFloor?.(); },
+    onPointerOver: () => { try { document.body.style.cursor = 'pointer'; } catch { /* non-browser */ } },
+    onPointerOut: () => { try { document.body.style.cursor = ''; } catch { /* non-browser */ } },
+  };
+  const run = 0.62;
+  const rise = 0.4;
+  if (dir === 'down') {
+    return (
+      <group position={p} rotation={[0, rot, 0]} {...go}>
+        <Box p={[2.2, 0.03, 0]} s={[4.6, 0.06, 2.2]} c="#1c1612" shadow={false} />
+        {[0, 1, 2, 3, 4, 5].map(i => <Box key={i} p={[0.4 + i * 0.7, 0.07 + 0.001 * i, 0]} s={[0.55, 0.02, 1.8]} c={i % 2 ? '#2a211a' : '#33281f'} shadow={false} />)}
+        <Box p={[2.2, 0.5, 1.15]} s={[4.7, 0.1, 0.1]} c={dark} shadow={false} />
+        <Box p={[2.2, 0.5, -1.15]} s={[4.7, 0.1, 0.1]} c={dark} shadow={false} />
+        {[0, 1.2, 2.4, 3.6, 4.5].map(x => [1.15, -1.15].map(z => <Box key={`${x}${z}`} p={[x, 0.25, z]} s={[0.1, 0.5, 0.1]} c={dark} shadow={false} />))}
+      </group>
+    );
+  }
+  return (
+    <group position={p} rotation={[0, rot, 0]} {...go}>
+      {Array.from({ length: steps }).map((_, i) => <Box key={i} p={[i * run + run / 2, (rise * (i + 1)) / 2, 0]} s={[run, rise * (i + 1), 2]} c={c} />)}
+      {[1.05, -1.05].map(z => <Box key={z} p={[(steps * run) / 2, (rise * steps) / 2 + 0.2, z]} s={[steps * run, 0.1, 0.1]} c={dark} rot={0} shadow={false} />)}
+      {[1.05, -1.05].map(z => Array.from({ length: 4 }).map((_, k) => {
+        const x = 0.3 + (k * (steps * run - 0.6)) / 3;
+        const h = rise * (x / run) + 0.5;
+        return <Box key={`${z}${k}`} p={[x, h / 2 + 0.3, z]} s={[0.09, h * 0.5 + 0.2, 0.09]} c={dark} shadow={false} />;
+      }))}
     </group>
   );
 }

@@ -76,3 +76,31 @@ export function useBookCover(book, size = 'M') {
   }, [book, none]);
   return !none && id ? `https://covers.openlibrary.org/b/id/${id}-${size}.jpg` : null;
 }
+
+const keep = [];
+const preloaded = new Set();
+export function preloadImage(url) {
+  if (!url || preloaded.has(url)) return;
+  preloaded.add(url);
+  const im = new Image();
+  im.decoding = 'async';
+  im.src = url;
+  keep.push(im);
+}
+export const coverUrl = (id, size = 'M') => `https://covers.openlibrary.org/b/id/${id}-${size}.jpg`;
+
+// Warm everything in the background (cover ids first, then the images), so the
+// shelves open with covers already there. Called once when a room is entered.
+let warmed = false;
+export async function prefetchBookCovers() {
+  if (warmed) return;
+  warmed = true;
+  try {
+    if (navigator.connection?.saveData) return;
+    const { BOOKS } = await import('./gamifyBooks');
+    BOOKS.forEach((b) => {
+      if (NO_COVER.has(b.id)) return;
+      lookup(b).then((id) => { if (id) preloadImage(coverUrl(id, 'M')); });
+    });
+  } catch { /* offline etc: the shelves load covers on demand instead */ }
+}

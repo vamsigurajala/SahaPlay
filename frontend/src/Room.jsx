@@ -1422,6 +1422,16 @@ const Room = () => {
   const [visitCode, setVisitCode] = useState('');
   const [gamifyMode, setGamifyMode] = useState(false);
   const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
+  // Warm things Gamify Mode needs once the room has settled: book covers (images and
+  // lookups) and the 3D house code, so toggling it on feels instant. Idle-time only.
+  useEffect(() => {
+    const run = () => {
+      import('./data/bookCovers').then(m => m.prefetchBookCovers()).catch(() => {});
+      if (!navigator.connection?.saveData) gamifyChunk().catch(() => {});
+    };
+    const t = setTimeout(() => { if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 4000 }); else run(); }, 3000);
+    return () => clearTimeout(t);
+  }, []);
   // True once the 3D scene has projected the TV screen at least once. While
   // gamify mode is on, player-wrap is laid out at a fixed "native" size and
   // GamifyFloorPlan's TvProjector writes a CSS matrix3d straight onto its DOM

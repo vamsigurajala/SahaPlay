@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Box, Plant, Chair, Table, Rug, Sofa, TableLamp, FloorLamp, Monitor, Bookshelf, Wardrobe, WallWindow, ViewContext } from './parts';
 import { Cell } from './cell';
-import { Telescope, Jhula, Vanity, FairyLights, Curtain, FlowerPatch, Teddy } from './props';
+import { Telescope, Jhula, Vanity, FairyLights, Curtain, FlowerPatch, Teddy, Stairs } from './props';
 import IndianKitchen from './indianKitchen';
 import { FLOOR_Y, CELL_W, CELL_D, FLOOR2_ZONES, DOORWAYS_F2 } from '../../data/gamifyZones';
 
@@ -171,8 +171,6 @@ function PictureFrame({ p, w = 1.0, h = 1.3, tint = '#d8c39a' }) {
   );
 }
 
-const roomLight = (z, color = '#ffe8c4', y = 3.4, i = 26) => <pointLight key={z.id} position={[z.center.x, y, z.center.z]} color={color} intensity={i} distance={24} decay={2} />;
-
 function MasterBedroom() {
   return (
     <Cell id="f2bed1">
@@ -216,7 +214,7 @@ function GuestBedroom() {
       <Box p={[1.5, 0.45, 11.8]} s={[1.3, 0.9, 0.14]} c={DARK_WOOD} />
       <Monitor p={[1.4, 1.0, 10.4]} rot={PI / 2} color="#d8ecff" />
       <Chair p={[3.2, 0, 10.4]} rot={-PI / 2} c="#b59470" />
-      <Bookshelf p={[17.55, 0, 9.6]} rot={-PI / 2} w={3.4} h={3.0} d={0.7} shelf="default" wood="#a07850" />
+      <Bookshelf p={[17.55, 0, 9.6]} rot={-PI / 2} w={3.4} h={3.0} d={0.7} shelf="up-guest" wood="#a07850" />
       <Box p={[15.2, 0.4, 14.4]} s={[2.0, 0.8, 1.0]} c={WOOD} r={0.06} />
       <Plant p={[16.8, 0, 14.8]} scale={1.1} pot={POT} />
       <Plant p={[1.2, 0, 15.0]} scale={1.0} pot={POT} />
@@ -235,13 +233,13 @@ function UpstairsHall() {
       <Rug p={[9, 0, 7.4]} w={8.6} d={6.4} c="#d8c8a6" c2="#c9b48a" />
       <Sofa p={[9, 0, 11.0]} rot={PI} w={5.6} c="#d9c9a9" back="#c9b690" />
       <Table p={[9, 0, 7.4]} w={2.6} d={1.4} h={0.5} c={WOOD} leg={DARK_WOOD} />
-      <Bookshelf p={[0.45, 0, 2.4]} rot={PI / 2} w={3.0} h={3.2} d={0.7} shelf="hall" wood="#a07850" />
+      <Bookshelf p={[0.45, 0, 2.4]} rot={PI / 2} w={3.0} h={3.2} d={0.7} shelf="up-hall" wood="#a07850" />
       {/* dining set */}
       <Table p={[4.8, 0, 13.0]} w={3.2} d={1.8} h={0.95} c={WOOD} leg={DARK_WOOD} />
       {[3.8, 5.8].map(x => <Chair key={x} p={[x, 0, 11.7]} rot={0} c="#c9b08a" />)}
       {[3.8, 5.8].map(x => <Chair key={`b${x}`} p={[x, 0, 14.3]} rot={PI} c="#c9b08a" />)}
       <Plant p={[16.8, 0, 1.4]} scale={1.2} pot={POT} />
-      <Plant p={[16.8, 0, 14.4]} scale={1.1} pot={POT} />
+      <Stairs p={[12.8, 0, 14.2]} dir="down" />
       <Plant p={[1.2, 0, 15.0]} scale={1.0} pot={POT} />
       <FloorLamp p={[14.6, 0, 9.6]} color="#ffe2b0" />
       <PictureFrame p={[3.4, 3.1, 0.09]} w={1.3} h={1.0} tint="#c9b8a0" />
@@ -253,7 +251,7 @@ function UpstairsHall() {
 function UpstairsKitchen() {
   return (
     <Cell id="f2kitchen">
-      <IndianKitchen natural />
+      <IndianKitchen natural set="up" />
     </Cell>
   );
 }
@@ -320,7 +318,6 @@ export default function Floor2() {
             <planeGeometry args={[CELL_W, CELL_D]} />
             <meshStandardMaterial map={textures[r.id]} roughness={r.id === 'f2kitchen' ? 0.4 : 0.8} />
           </mesh>
-          {roomLight(r)}
         </group>
       ))}
 

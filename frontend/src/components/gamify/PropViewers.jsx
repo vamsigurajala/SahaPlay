@@ -1,9 +1,9 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, ArrowLeft, RotateCcw } from 'lucide-react';
-import { GENRES, SHELVES, FRIDGE_SHELVES, DISHES, OVEN_ITEMS } from '../../data/gamifyBooks';
+import { GENRES, SHELVES, FRIDGE_SHELVES, FRIDGE_SHELVES_UP, DISHES, DISHES_UP, OVEN_ITEMS, OVEN_ITEMS_UP } from '../../data/gamifyBooks';
 import { WARDROBES, COSMETICS, GARDEN } from '../../data/gamifyItems';
-import { useBookCover } from '../../data/bookCovers';
+import { useBookCover, preloadImage, coverUrl } from '../../data/bookCovers';
 import { ClothArt, BeautyArt, PlantArt } from './viewerArt';
 
 // Full-screen "look closer" views for props in the Gamify house: bookshelf (tap a
@@ -102,7 +102,7 @@ function BookCard({ book, onPick }) {
       onClick={() => onPick(book)}
       title={`${book.title} - ${book.author}`}
       style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#fff', textAlign: 'center', transition: 'transform .16s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-6px)'; try { const id = JSON.parse(localStorage.getItem('sahaplay-book-covers-v1') || '{}')[book.id]; if (id) preloadImage(coverUrl(id, 'L')); } catch { /* storage blocked */ } }}
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
     >
       <div style={{ width: '100%', aspectRatio: '2 / 3', boxShadow: '0 8px 14px rgba(0,0,0,0.6)' }}><BookCover book={book} /></div>
@@ -231,7 +231,8 @@ function ItemArt({ kind, color, accent, label }) {
   );
 }
 
-function FridgeView() {
+function FridgeView({ set }) {
+  const SHELVES_IN = set === 'up' ? FRIDGE_SHELVES_UP : FRIDGE_SHELVES;
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(null);
   const [hover, setHover] = useState(null);
@@ -245,7 +246,7 @@ function FridgeView() {
       </div>
       <div style={{ position: 'relative', width: '100%', perspective: 1400 }}>
         <div style={{ background: 'linear-gradient(180deg,#f2f8ff,#d3e5f6)', borderRadius: 16, padding: '14px 14px 10px', boxShadow: '0 30px 70px rgba(0,0,0,0.65), inset 0 0 0 6px #dfe3ee, inset 0 0 50px rgba(120,180,255,0.45)' }}>
-          {FRIDGE_SHELVES.map((shelf, si) => (
+          {SHELVES_IN.map((shelf, si) => (
             <div key={si} style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', height: 112, borderBottom: '6px solid rgba(255,255,255,0.95)', boxShadow: '0 7px 9px -6px rgba(0,0,0,0.3)', marginBottom: 8 }}>
               {shelf.map(it => (
                 <div
@@ -296,6 +297,29 @@ function OvenFood({ kind, done }) {
           {[[66, 60], [88, 58], [78, 64]].map(([x, y], i) => <ellipse key={i} cx={x} cy={y} rx="3" ry="1.4" fill="#2f8f4a" />)}
         </g>
       )}
+      {kind === 'bread' && (
+        <g>
+          <rect x="30" y="52" width="100" height="26" rx="12" fill="#c98a3a" />
+          <rect x="34" y="50" width="92" height="14" rx="7" fill="#e0a850" />
+          {[48, 66, 84, 102].map(x => <path key={x} d={`M${x} 52 l8 10`} stroke="#8a5a1a" strokeWidth="2" />)}
+          {[[46, 56], [70, 58], [92, 56], [112, 60]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r="2" fill="#6a9a3a" />)}
+        </g>
+      )}
+      {kind === 'brownies' && (
+        <g>
+          {[0, 1, 2].map(i => (
+            <g key={i}><rect x={34 + i * 32} y="56" width="28" height="22" rx="3" fill="#4a2a18" /><rect x={34 + i * 32} y="56" width="28" height="7" rx="3" fill="#6a3e24" /><circle cx={42 + i * 32} cy="68" r="2" fill="#8a5a3a" /><circle cx={52 + i * 32} cy="72" r="1.6" fill="#8a5a3a" /></g>
+          ))}
+        </g>
+      )}
+      {kind === 'naan' && (
+        <g>
+          <path d="M28 66 Q40 38 82 40 Q124 42 132 68 Q110 82 70 80 Q40 80 28 66Z" fill="#e8c080" />
+          <path d="M28 66 Q40 38 82 40" fill="none" stroke="#c09050" strokeWidth="2" />
+          {[[56, 56], [78, 52], [100, 58], [70, 68], [96, 70], [48, 68]].map(([x, y], i) => <ellipse key={i} cx={x} cy={y} rx="5" ry="3" fill="#a8683a" opacity="0.8" />)}
+          <ellipse cx="82" cy="60" rx="14" ry="5" fill="#fff0b0" opacity="0.55" />
+        </g>
+      )}
       {kind === 'cookies' && (
         <g>
           {[[40, 66], [76, 60], [112, 66], [58, 74], [96, 74]].map(([x, y], i) => (
@@ -308,8 +332,9 @@ function OvenFood({ kind, done }) {
   );
 }
 
-function OvenView() {
-  const [item, setItem] = useState(OVEN_ITEMS[0]);
+function OvenView({ set }) {
+  const ITEMS = set === 'up' ? OVEN_ITEMS_UP : OVEN_ITEMS;
+  const [item, setItem] = useState(ITEMS[0]);
   const [elapsed, setElapsed] = useState(0); // seconds of the fast-forwarded bake (24s total)
   useEffect(() => { setElapsed(0); }, [item]);
   useEffect(() => {
@@ -345,7 +370,7 @@ function OvenView() {
         <div style={{ height: 10, margin: '14px 40px 0', borderRadius: 6, background: 'linear-gradient(180deg,#d8dce8,#7a7f94)' }} />
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-        {OVEN_ITEMS.map(o => (
+        {ITEMS.map(o => (
           <button key={o.id} onClick={() => setItem(o)} className="stay-white" style={{ ...btnPill, background: o.id === item.id ? 'rgba(139,92,255,0.85)' : pill.background }}>{o.name}</button>
         ))}
       </div>
@@ -413,7 +438,8 @@ function ServedPlate({ dish }) {
   );
 }
 
-function StoveView() {
+function StoveView({ set }) {
+  const MENU = set === 'up' ? DISHES_UP : DISHES;
   const [dish, setDish] = useState(null);
   const [stage, setStage] = useState(0);
   const [tick, setTick] = useState(0);
@@ -430,7 +456,7 @@ function StoveView() {
         <div className="stay-white" style={{ textAlign: 'center', fontSize: 22, fontWeight: 800 }}>Stove</div>
         <div className="stay-white" style={{ textAlign: 'center', fontSize: 13, opacity: 0.7, margin: '2px 0 16px' }}>What shall we cook?</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
-          {DISHES.map(d => (
+          {MENU.map(d => (
             <button key={d.id} onClick={() => setDish(d)} className="stay-white" style={{ ...pill, borderRadius: 14, padding: '14px 12px', cursor: 'pointer', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <span style={{ width: 34, height: 34, borderRadius: '50%', background: `radial-gradient(circle at 35% 30%, ${shade(d.done, 40)}, ${shade(d.done, -40)})`, boxShadow: '0 3px 6px rgba(0,0,0,0.5)' }} />
               <span style={{ fontSize: 14, fontWeight: 800 }}>{d.name}</span>
@@ -597,9 +623,9 @@ export default function PropViewer({ kind, arg, onClose }) {
       <button onClick={onClose} className="stay-white" style={closeBtn} title="Close"><X size={20} /></button>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
         {kind === 'books' && (book ? <BookReader book={book} onBack={() => setBook(null)} /> : <BookshelfView shelfId={arg} onPick={setBook} />)}
-        {kind === 'fridge' && <FridgeView />}
-        {kind === 'oven' && <OvenView />}
-        {kind === 'stove' && <StoveView />}
+        {kind === 'fridge' && <FridgeView set={arg} />}
+        {kind === 'oven' && <OvenView set={arg} />}
+        {kind === 'stove' && <StoveView set={arg} />}
         {kind === 'wardrobe' && <WardrobeView id={arg} />}
         {kind === 'cosmetics' && <CosmeticsView />}
         {kind === 'garden' && <GardenView arg={arg} />}

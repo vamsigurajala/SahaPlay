@@ -30,10 +30,10 @@ const Flame = ({ p }) => (
 // with chimney, LPG cylinder, masala dabba, tawa/kadhai/pressure cooker, mixer
 // grinder, microwave, double-door fridge, RO purifier, matka, chakla-belan board,
 // steel thali dining set and a jute mat.
-export default function IndianKitchen({ natural = false }) {
-  const openFridge = useOpenProp('fridge');
-  const openStove = useOpenProp('stove');
-  const openOven = useOpenProp('oven');
+export default function IndianKitchen({ natural = false, set = 'ground' }) {
+  const openFridge = useOpenProp('fridge', set);
+  const openStove = useOpenProp('stove', set);
+  const openOven = useOpenProp('oven', set);
   return (
     <group>
       {/* backsplash tiles behind both counter runs */}
