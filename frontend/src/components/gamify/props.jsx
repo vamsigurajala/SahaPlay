@@ -1,7 +1,9 @@
 import { useContext, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
 import { Box, Neon, Plant, useOpenProp, ViewContext, PropDot } from './parts';
 import { NEON_CYAN, NEON_AMBER } from './constants';
+import { autoWeather } from './environment';
 
 const PI = Math.PI;
 const ROPE = ['#d0592a', '#2f8f9d', '#f0b020', '#d0592a', '#2f8f9d', '#f0b020', '#d0592a'];
@@ -913,4 +915,501 @@ export function RomanticLantern({ p }) {
     </group>
   );
 }
+
+// ── Living Room Upgrades (Speakers, Clock, Window, Snacks, Reading Nook) ───
+
+export function RealTimeClock({ p, rot = 0, r = 0.65 }) {
+  const hrRef = useRef();
+  const minRef = useRef();
+  const secRef = useRef();
+
+  useFrame(() => {
+    const d = new Date();
+    const sec = d.getSeconds() + d.getMilliseconds() / 1000;
+    const min = d.getMinutes() + sec / 60;
+    const hr = (d.getHours() % 12) + min / 60;
+
+    if (secRef.current) secRef.current.rotation.z = -sec * (PI * 2 / 60);
+    if (minRef.current) minRef.current.rotation.z = -min * (PI * 2 / 60);
+    if (hrRef.current) hrRef.current.rotation.z = -hr * (PI * 2 / 12);
+  });
+
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      {/* Outer brushed brass / gold bezel */}
+      <mesh><cylinderGeometry args={[r + 0.05, r + 0.05, 0.08, 32]} /><meshStandardMaterial color="#d4af37" metalness={0.75} roughness={0.25} /></mesh>
+      {/* Inner dial face in deep dark obsidian */}
+      <mesh position={[0, 0, 0.045]} rotation={[PI / 2, 0, 0]}>
+        <cylinderGeometry args={[r, r, 0.015, 32]} />
+        <meshStandardMaterial color="#141122" roughness={0.4} />
+      </mesh>
+
+      {/* 12 Hour tick markers in gold */}
+      {Array.from({ length: 12 }).map((_, i) => {
+        const ang = (i / 12) * PI * 2;
+        const isMajor = i % 3 === 0;
+        const tickDist = r - (isMajor ? 0.09 : 0.07);
+        const tickLen = isMajor ? 0.08 : 0.045;
+        const tickW = isMajor ? 0.025 : 0.012;
+        return (
+          <group key={i} position={[Math.sin(ang) * tickDist, Math.cos(ang) * tickDist, 0.055]} rotation={[0, 0, -ang]}>
+            <mesh><boxGeometry args={[tickW, tickLen, 0.01]} /><meshStandardMaterial color="#e6c875" metalness={0.8} /></mesh>
+          </group>
+        );
+      })}
+
+      {/* Hour Hand */}
+      <group position={[0, 0, 0.062]}>
+        <group ref={hrRef}>
+          <mesh position={[0, (r * 0.48) / 2, 0]}>
+            <boxGeometry args={[0.038, r * 0.48, 0.012]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.8} roughness={0.2} />
+          </mesh>
+        </group>
+      </group>
+
+      {/* Minute Hand */}
+      <group position={[0, 0, 0.068]}>
+        <group ref={minRef}>
+          <mesh position={[0, (r * 0.72) / 2, 0]}>
+            <boxGeometry args={[0.024, r * 0.72, 0.01]} />
+            <meshStandardMaterial color="#f0d588" metalness={0.8} roughness={0.2} />
+          </mesh>
+        </group>
+      </group>
+
+      {/* Second Hand (crimson red) */}
+      <group position={[0, 0, 0.074]}>
+        <group ref={secRef}>
+          <mesh position={[0, (r * 0.8) / 2 - 0.05, 0]}>
+            <boxGeometry args={[0.012, r * 0.8 + 0.1, 0.008]} />
+            <meshBasicMaterial color="#e63946" />
+          </mesh>
+        </group>
+      </group>
+
+      {/* Center gold cap pin */}
+      <mesh position={[0, 0, 0.082]}>
+        <cylinderGeometry args={[0.04, 0.04, 0.02, 16]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.1} />
+      </mesh>
+    </group>
+  );
+}
+
+export function ScenicWeatherWindow({ p, w = 3.6, h = 2.4, weather }) {
+  const currentWx = weather || autoWeather();
+  const isNight = currentWx === 'night';
+  const isSunset = currentWx === 'sunset';
+  const isSunrise = currentWx === 'sunrise';
+  const isRain = currentWx === 'rain';
+  const isCloudy = currentWx === 'cloudy';
+  const isDay = currentWx === 'day';
+
+  const skyColor = isNight ? '#0b102b'
+    : isSunset ? '#db6452'
+    : isSunrise ? '#e28882'
+    : isRain ? '#4e596b'
+    : isCloudy ? '#8696ab'
+    : '#4da8f7';
+
+  const horizonColor = isNight ? '#1e2454'
+    : isSunset ? '#fca052'
+    : isSunrise ? '#ffd08a'
+    : isRain ? '#6d7b8f'
+    : isCloudy ? '#b6c5d4'
+    : '#b8e2ff';
+
+  const sunColor = isNight ? '#f0f3ff'
+    : isSunset ? '#ff5522'
+    : isSunrise ? '#ffc870'
+    : '#fff9bd';
+
+  return (
+    <group position={p}>
+      {/* Wooden frame trim */}
+      <Box p={[0, h / 2, 0]} s={[w + 0.28, h + 0.28, 0.14]} c="#1b162a" r={0.06} />
+
+      {/* Window sill */}
+      <Box p={[0, -0.06, 0.1]} s={[w + 0.44, 0.12, 0.32]} c="#28203d" r={0.04} />
+
+      {/* Inside backdrop recess */}
+      <mesh position={[0, h / 2, -0.04]}>
+        <planeGeometry args={[w, h]} />
+        <meshBasicMaterial color={skyColor} />
+      </mesh>
+
+      {/* Horizon atmospheric glow */}
+      <mesh position={[0, h * 0.32, -0.03]}>
+        <planeGeometry args={[w, h * 0.64]} />
+        <meshBasicMaterial color={horizonColor} transparent opacity={0.75} />
+      </mesh>
+
+      {/* Sun / Moon disc */}
+      {!isCloudy && !isRain && (
+        <group position={[isSunset ? -w * 0.25 : w * 0.25, isSunset ? h * 0.45 : h * 0.72, -0.02]}>
+          <mesh>
+            <circleGeometry args={[isNight ? 0.28 : 0.36, 24]} />
+            <meshBasicMaterial color={sunColor} toneMapped={false} />
+          </mesh>
+          {isNight && (
+            <mesh position={[0.09, 0.06, 0.005]}>
+              <circleGeometry args={[0.26, 24]} />
+              <meshBasicMaterial color={skyColor} />
+            </mesh>
+          )}
+        </group>
+      )}
+
+      {/* Night stars */}
+      {isNight && (
+        <group position={[0, h / 2, -0.025]}>
+          {[
+            [-1.2, 0.6], [-0.8, 0.8], [-0.3, 0.4], [0.1, 0.7], [0.6, 0.9], [1.1, 0.5],
+            [-1.4, 0.2], [-0.5, 0.9], [0.4, 0.3], [1.3, 0.8], [-0.9, -0.1], [0.8, -0.2]
+          ].map(([sx, sy], i) => (
+            <mesh key={i} position={[sx * (w / 3.2), sy * (h / 2.2), 0]}>
+              <circleGeometry args={[0.02 + (i % 3) * 0.008, 6]} />
+              <meshBasicMaterial color="#ffffff" toneMapped={false} />
+            </mesh>
+          ))}
+        </group>
+      )}
+
+      {/* Clouds */}
+      {(isDay || isSunset || isSunrise || isCloudy) && (
+        <group position={[0, h * 0.62, -0.02]}>
+          {[-1.0, 0.5, -0.2, 1.1].map((cx, i) => (
+            <group key={i} position={[cx * (w / 3), (i % 2) * 0.14, 0]}>
+              <mesh>
+                <circleGeometry args={[0.35 + (i % 2) * 0.1, 16]} />
+                <meshBasicMaterial color={isSunset ? '#ffd0b8' : isCloudy ? '#c2ced9' : '#ffffff'} transparent opacity={0.88} />
+              </mesh>
+              <mesh position={[0.22, -0.04, 0]}>
+                <circleGeometry args={[0.25, 14]} />
+                <meshBasicMaterial color={isSunset ? '#ffd0b8' : isCloudy ? '#c2ced9' : '#ffffff'} transparent opacity={0.88} />
+              </mesh>
+              <mesh position={[-0.22, -0.04, 0]}>
+                <circleGeometry args={[0.25, 14]} />
+                <meshBasicMaterial color={isSunset ? '#ffd0b8' : isCloudy ? '#c2ced9' : '#ffffff'} transparent opacity={0.88} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      )}
+
+      {/* Rain streaks */}
+      {isRain && (
+        <group position={[0, h / 2, -0.02]}>
+          {Array.from({ length: 16 }).map((_, i) => (
+            <mesh key={i} position={[((i % 8) - 3.5) * (w / 8), ((i / 8) - 1) * (h / 2) + (i % 2) * 0.2, 0]} rotation={[0, 0, -0.25]}>
+              <planeGeometry args={[0.015, 0.35]} />
+              <meshBasicMaterial color="#b2c6dc" transparent opacity={0.7} />
+            </mesh>
+          ))}
+        </group>
+      )}
+
+      {/* Rolling distant green hills */}
+      <group position={[0, 0, -0.01]}>
+        {[-0.8, 0.9].map((hx, i) => (
+          <mesh key={i} position={[hx * (w / 3), 0.28, 0]}>
+            <circleGeometry args={[w * 0.65, 24, 0, PI]} />
+            <meshBasicMaterial color={isNight ? '#0e241e' : isSunset ? '#3a2e38' : isRain ? '#284632' : '#3d8246'} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* Window mullions & dividers */}
+      <Box p={[0, h * 0.55, 0.03]} s={[w, 0.05, 0.06]} c="#1b162a" shadow={false} />
+      <Box p={[-w / 3, h / 2, 0.03]} s={[0.05, h, 0.06]} c="#1b162a" shadow={false} />
+      <Box p={[w / 3, h / 2, 0.03]} s={[0.05, h, 0.06]} c="#1b162a" shadow={false} />
+
+      {/* Glass reflection */}
+      <mesh position={[0, h / 2, 0.04]} rotation={[0, 0, -0.6]}>
+        <planeGeometry args={[0.2, h * 1.3]} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.12} depthWrite={false} />
+      </mesh>
+    </group>
+  );
+}
+
+export function SnackPlatter({ p = [0, 0.55, 0] }) {
+  return (
+    <group position={p}>
+      {/* ── 1. Gourmet Pizza on wooden peel ── */}
+      <group position={[-1.1, 0, -0.2]}>
+        <mesh position={[0, 0.02, 0]} castShadow>
+          <cylinderGeometry args={[0.62, 0.62, 0.03, 24]} />
+          <meshStandardMaterial color="#b37c46" roughness={0.7} />
+        </mesh>
+        <mesh position={[-0.7, 0.02, 0]}>
+          <boxGeometry args={[0.35, 0.03, 0.12]} />
+          <meshStandardMaterial color="#b37c46" roughness={0.7} />
+        </mesh>
+        {/* Baked crust */}
+        <mesh position={[0, 0.04, 0]}>
+          <cylinderGeometry args={[0.55, 0.55, 0.03, 20]} />
+          <meshStandardMaterial color="#d49b55" roughness={0.8} />
+        </mesh>
+        {/* Melted mozzarella & marinara */}
+        <mesh position={[0, 0.06, 0]}>
+          <cylinderGeometry args={[0.49, 0.49, 0.015, 20]} />
+          <meshStandardMaterial color="#f7be38" roughness={0.55} />
+        </mesh>
+        {/* Pepperoni slices */}
+        {Array.from({ length: 8 }).map((_, i) => {
+          const ang = (i / 8) * PI * 2 + 0.2;
+          const r = 0.28 + (i % 2) * 0.1;
+          return (
+            <mesh key={`pep-${i}`} position={[Math.cos(ang) * r, 0.075, Math.sin(ang) * r]} rotation={[0, ang, 0]}>
+              <cylinderGeometry args={[0.07, 0.07, 0.015, 10]} />
+              <meshStandardMaterial color="#9b1e1e" roughness={0.5} />
+            </mesh>
+          );
+        })}
+        {/* Basil flakes */}
+        {Array.from({ length: 6 }).map((_, i) => {
+          const ang = (i / 6) * PI * 2 + 0.6;
+          return (
+            <mesh key={`basil-${i}`} position={[Math.cos(ang) * 0.2, 0.08, Math.sin(ang) * 0.2]} rotation={[0, ang, 0]}>
+              <boxGeometry args={[0.04, 0.005, 0.05]} />
+              <meshStandardMaterial color="#2d7c35" />
+            </mesh>
+          );
+        })}
+      </group>
+
+      {/* ── 2. Two Double Cheeseburgers ── */}
+      {[[-0.2, 0.4], [0.35, 0.45]].map(([bx, bz], bi) => (
+        <group key={`burger-${bi}`} position={[bx, 0, bz]}>
+          {/* Bottom brioche bun */}
+          <mesh position={[0, 0.035, 0]}>
+            <cylinderGeometry args={[0.2, 0.2, 0.07, 14]} />
+            <meshStandardMaterial color="#d89c56" roughness={0.65} />
+          </mesh>
+          {/* Grilled beef patty */}
+          <mesh position={[0, 0.09, 0]}>
+            <cylinderGeometry args={[0.22, 0.22, 0.05, 14]} />
+            <meshStandardMaterial color="#4a2718" roughness={0.9} />
+          </mesh>
+          {/* Melted cheddar slice */}
+          <mesh position={[0, 0.12, 0]} rotation={[0, 0.4 * bi + 0.3, 0]}>
+            <boxGeometry args={[0.25, 0.018, 0.25]} />
+            <meshStandardMaterial color="#ffaa00" roughness={0.5} />
+          </mesh>
+          {/* Lettuce */}
+          <mesh position={[0, 0.14, 0]}>
+            <cylinderGeometry args={[0.23, 0.23, 0.02, 12]} />
+            <meshStandardMaterial color="#489b38" />
+          </mesh>
+          {/* Ripe tomato slice */}
+          <mesh position={[0, 0.165, 0]}>
+            <cylinderGeometry args={[0.2, 0.2, 0.03, 14]} />
+            <meshStandardMaterial color="#d62828" roughness={0.4} />
+          </mesh>
+          {/* Second patty */}
+          <mesh position={[0, 0.2, 0]}>
+            <cylinderGeometry args={[0.21, 0.21, 0.045, 14]} />
+            <meshStandardMaterial color="#4a2718" roughness={0.9} />
+          </mesh>
+          {/* Top sesame bun */}
+          <mesh position={[0, 0.26, 0]}>
+            <sphereGeometry args={[0.21, 14, 10, 0, PI * 2, 0, PI / 2]} />
+            <meshStandardMaterial color="#d89c56" roughness={0.6} />
+          </mesh>
+          {/* Sesame seeds */}
+          {[-0.08, 0, 0.08].map((sx, si) => (
+            <mesh key={si} position={[sx, 0.36, (si % 2 ? 0.06 : -0.06)]}>
+              <sphereGeometry args={[0.015, 4, 4]} />
+              <meshBasicMaterial color="#ffffff" />
+            </mesh>
+          ))}
+        </group>
+      ))}
+
+      {/* ── 3. Party Drinks (Soda cups with lids & straws + cans) ── */}
+      <group position={[1.1, 0, -0.3]}>
+        <mesh position={[0, 0.18, 0]} castShadow>
+          <cylinderGeometry args={[0.12, 0.09, 0.36, 14]} />
+          <meshStandardMaterial color="#d62828" roughness={0.4} />
+        </mesh>
+        <mesh position={[0, 0.36, 0]}>
+          <cylinderGeometry args={[0.125, 0.125, 0.025, 14]} />
+          <meshStandardMaterial color="#f0f0f0" />
+        </mesh>
+        <mesh position={[0.04, 0.44, 0]} rotation={[0, 0, 0.2]}>
+          <cylinderGeometry args={[0.015, 0.015, 0.18, 6]} />
+          <meshBasicMaterial color="#ffffff" />
+        </mesh>
+      </group>
+
+      <group position={[1.4, 0, 0.1]}>
+        <mesh position={[0, 0.16, 0]} castShadow>
+          <cylinderGeometry args={[0.11, 0.08, 0.32, 14]} />
+          <meshStandardMaterial color="#1d6fc2" roughness={0.4} />
+        </mesh>
+        <mesh position={[0, 0.32, 0]}>
+          <cylinderGeometry args={[0.115, 0.115, 0.02, 14]} />
+          <meshStandardMaterial color="#f0f0f0" />
+        </mesh>
+        <mesh position={[0.03, 0.39, 0]} rotation={[0, 0, 0.15]}>
+          <cylinderGeometry args={[0.015, 0.015, 0.16, 6]} />
+          <meshBasicMaterial color="#ffd166" />
+        </mesh>
+      </group>
+
+      <group position={[0.85, 0, 0.3]}>
+        <mesh position={[0, 0.13, 0]} castShadow>
+          <cylinderGeometry args={[0.08, 0.08, 0.26, 14]} />
+          <meshStandardMaterial color="#2d9348" metalness={0.7} roughness={0.25} />
+        </mesh>
+        <mesh position={[0, 0.265, 0]}>
+          <cylinderGeometry args={[0.075, 0.075, 0.01, 14]} />
+          <meshStandardMaterial color="#d8d8d8" metalness={0.9} roughness={0.2} />
+        </mesh>
+      </group>
+
+      {/* ── 4. Golden Crispy French Fries Basket ── */}
+      <group position={[-0.2, 0, -0.45]}>
+        <mesh position={[0, 0.09, 0]}>
+          <boxGeometry args={[0.42, 0.18, 0.28]} />
+          <meshStandardMaterial color="#e63946" />
+        </mesh>
+        {[-0.14, -0.07, 0, 0.07, 0.14].map((fx, fi) => (
+          <group key={`fry-${fi}`}>
+            <mesh position={[fx, 0.22 + (fi % 3) * 0.03, -0.04]} rotation={[0.2, 0, (fi - 2) * 0.1]}>
+              <boxGeometry args={[0.035, 0.2, 0.035]} />
+              <meshStandardMaterial color="#f4c430" roughness={0.7} />
+            </mesh>
+            <mesh position={[fx + 0.02, 0.2 + (fi % 2) * 0.03, 0.04]} rotation={[-0.15, 0, (fi - 1) * 0.08]}>
+              <boxGeometry args={[0.035, 0.18, 0.035]} />
+              <meshStandardMaterial color="#e6b828" roughness={0.7} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+export function HiFiSpeaker({ p, rot = 0 }) {
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      <Box p={[0, 0.7, 0]} s={[0.76, 1.4, 0.68]} c="#161220" r={0.06} />
+      <Box p={[0, 0.7, 0.33]} s={[0.7, 1.34, 0.04]} c="#221c30" r={0.03} />
+
+      {/* Gold-accented dome tweeter */}
+      <mesh position={[0, 1.08, 0.36]}>
+        <cylinderGeometry args={[0.13, 0.13, 0.02, 18]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.75} roughness={0.25} />
+      </mesh>
+      <mesh position={[0, 1.08, 0.38]}>
+        <sphereGeometry args={[0.075, 12, 10]} />
+        <meshStandardMaterial color="#ffc83b" metalness={0.8} roughness={0.2} />
+      </mesh>
+
+      {/* Mid/Bass woofer cone */}
+      <mesh position={[0, 0.58, 0.36]}>
+        <cylinderGeometry args={[0.26, 0.26, 0.02, 22]} />
+        <meshStandardMaterial color="#2d263d" roughness={0.4} />
+      </mesh>
+      <mesh position={[0, 0.58, 0.37]}>
+        <coneGeometry args={[0.22, -0.06, 18]} />
+        <meshStandardMaterial color="#1a1626" roughness={0.6} />
+      </mesh>
+      <mesh position={[0, 0.58, 0.38]}>
+        <sphereGeometry args={[0.07, 12, 8]} />
+        <meshStandardMaterial color="#0e0c14" />
+      </mesh>
+
+      {/* Power status LED */}
+      <mesh position={[0, 0.15, 0.36]}>
+        <circleGeometry args={[0.02, 10]} />
+        <meshBasicMaterial color="#3ee8ff" toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
+export function SoundBar({ p }) {
+  return (
+    <group position={p}>
+      <Box p={[0, 0.09, 0]} s={[3.8, 0.18, 0.36]} c="#120e1c" r={0.04} />
+      <Box p={[0, 0.09, 0.17]} s={[3.72, 0.14, 0.02]} c="#1e182e" r={0.02} />
+      <mesh position={[0, 0.09, 0.185]}>
+        <circleGeometry args={[0.018, 8]} />
+        <meshBasicMaterial color="#3ee8ff" toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
+export function TrioTVLights({ p }) {
+  const heights = [2.05, 2.75, 3.45];
+  return (
+    <group position={p}>
+      {heights.map((y, i) => (
+        <group key={i} position={[0, y, 0]}>
+          <Box p={[0, 0, -0.04]} s={[0.18, 0.12, 0.08]} c="#d4af37" metalness={0.75} roughness={0.25} shadow={false} />
+          <mesh position={[0, 0, 0.06]}>
+            <cylinderGeometry args={[0.08, 0.08, 0.28, 12]} />
+            <meshStandardMaterial color="#fff3e0" roughness={0.4} />
+          </mesh>
+          <mesh position={[0, 0, 0.06]}>
+            <sphereGeometry args={[0.065, 8, 8]} />
+            <meshBasicMaterial color="#ffb347" toneMapped={false} />
+          </mesh>
+          <mesh position={[0, 0, 0.07]}>
+            <sphereGeometry args={[0.18, 8, 8]} />
+            <meshBasicMaterial color="#ff9e54" transparent opacity={0.25} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+export function ReadingArmchair({ p, rot = 0 }) {
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      {/* Deep plush lounge armchair in rich caramel leather */}
+      <Box p={[0, 0.38, 0]} s={[1.4, 0.32, 1.3]} c="#8c4e28" r={0.14} />
+      <Box p={[0, 0.95, -0.52]} s={[1.4, 0.85, 0.28]} c="#764020" r={0.12} />
+      <Box p={[-0.62, 0.65, 0]} s={[0.22, 0.45, 1.25]} c="#764020" r={0.1} />
+      <Box p={[0.62, 0.65, 0]} s={[0.22, 0.45, 1.25]} c="#764020" r={0.1} />
+      {[[-0.55, -0.5], [0.55, -0.5], [-0.55, 0.5], [0.55, 0.5]].map(([lx, lz], i) => (
+        <mesh key={i} position={[lx, 0.11, lz]}>
+          <cylinderGeometry args={[0.035, 0.022, 0.22, 8]} />
+          <meshStandardMaterial color="#1a120b" />
+        </mesh>
+      ))}
+      <Box p={[0, 0.65, -0.32]} s={[0.7, 0.35, 0.18]} c="#faf0e6" r={0.08} />
+    </group>
+  );
+}
+
+export function ReadingLamp({ p }) {
+  return (
+    <group position={p}>
+      <mesh position={[0, 0.03, 0]}>
+        <cylinderGeometry args={[0.28, 0.28, 0.04, 16]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 1.2, 0]}>
+        <cylinderGeometry args={[0.025, 0.025, 2.3, 8]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 2.35, 0]}>
+        <cylinderGeometry args={[0.28, 0.4, 0.45, 16]} />
+        <meshStandardMaterial color="#fef5ea" roughness={0.65} />
+      </mesh>
+      <mesh position={[0, 2.3, 0]}>
+        <sphereGeometry args={[0.18, 10, 8]} />
+        <meshBasicMaterial color="#ffa84a" transparent opacity={0.35} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
 

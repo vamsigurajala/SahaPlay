@@ -2,7 +2,7 @@ import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, 
 import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Cell } from './cell';
-import { Clock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity, RomanticChaiseLounge, ChampagneTable, RomanticFireplace, VelvetPouf, RomanticLantern } from './props';
+import { Clock, RealTimeClock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity, RomanticChaiseLounge, ChampagneTable, RomanticFireplace, VelvetPouf, RomanticLantern, ReadingArmchair, ReadingLamp } from './props';
 
 const ROSES = ['#d0183a', '#ff4f8a', '#ff9ac0', '#fff0f6'];
 const MIXED = ['#ff6fb5', '#ffcf5a', '#a56bff', '#ff8a5a', '#ffffff', '#4fa8ff'];
@@ -61,25 +61,29 @@ export function Study() {
   );
 }
 
-export function LivingRoom() {
+export function LivingRoom({ weather }) {
   return (
-    <Cell id="hall" base={<LivingRoomBase />}>
+    <Cell id="hall" base={<LivingRoomBase weather={weather} />}>
+      {/* Bookshelf along the wall */}
       <Bookshelf p={[15.3, 0, 0.45]} w={4.4} h={3.8} d={0.8} shelf="hall" />
-      <WallPanel p={[12.6, 3.2, 0.08]} color={NEON_PINK} />
-      <Rug p={[12.8, 0, 12.5]} w={6.4} d={5.6} c="#2b2a6e" c2="#3b3a8c" />
-      <Sofa p={[12.8, 0, 10.6]} rot={0} w={3.8} />
-      <Sofa p={[12.8, 0, 14.4]} rot={PI} w={3.8} />
-      <Table p={[12.8, 0, 12.5]} w={2.4} d={1.2} h={0.5} />
-      <BeanBag p={[16.4, 0, 11.8]} color="#7a58d6" glow={NEON_VIOLET} />
-      <BeanBag p={[16.4, 0, 13.8]} color="#e0529f" glow={NEON_PINK} />
-      <Box p={[17.1, 0.4, 9.6]} s={[0.9, 0.8, 0.9]} c="#2f2358" r={0.08} />
-      <TableLamp p={[17.1, 0.8, 9.6]} />
-      <FloorLamp p={[17.0, 0, 2.6]} />
+
+      {/* Reading Nook near Bookshelf: one lamp and a cozy chair */}
+      <ReadingLamp p={[12.6, 0, 2.6]} />
+      <ReadingArmchair p={[12.6, 0, 1.4]} rot={PI / 4} />
+
+      {/* Functioning luxury RealTimeClock that depicts actual time */}
+      <RealTimeClock p={[8.4, 4.0, 0.12]} r={0.65} />
+
+      {/* Expanded second conversation lounge */}
+      <Rug p={[12.8, 0, 12.5]} w={7.2} d={6.0} c="#2b2a6e" c2="#3b3a8c" />
+      <Sofa p={[12.8, 0, 10.4]} rot={0} w={4.6} />
+      <Sofa p={[12.8, 0, 14.6]} rot={PI} w={4.6} />
+      <Table p={[12.8, 0, 12.5]} w={3.0} d={1.4} h={0.5} />
+      <BeanBag p={[16.6, 0, 11.8]} color="#7a58d6" glow={false} />
+      <BeanBag p={[16.6, 0, 13.8]} color="#e0529f" glow={false} />
+
+      {/* Stairs to upstairs */}
       <Stairs p={[1.5, 0, 15.7]} rot={PI / 2} c="#5a4590" dark="#3a2d66" />
-      <Plant p={[4.4, 0, 15.2]} scale={1.1} />
-      <Plant p={[17.0, 0, 15.2]} scale={1.2} color="#38a86a" />
-      <Plant p={[9.4, 0, 15.0]} scale={1.0} />
-      <Clock p={[9.0, 4.0, 0.12]} r={0.6} />
     </Cell>
   );
 }
@@ -139,10 +143,7 @@ export function Bedroom() {
       <Curtain p={[2.0, 1.55, 0.2]} w={0.7} h={2.6} color="#f5b8d0" />
       <Curtain p={[6.4, 1.55, 0.2]} w={0.7} h={2.6} color="#f5b8d0" />
 
-      {/* Romantic Wall Art & Heart Motifs */}
-      <Heart p={[0.14, 3.3, 9.4]} rot={PI / 2} scale={1.5} color="#ff4f8a" glow />
-      <Heart p={[4.2, 1.5, 1.45]} rot={0.2} scale={0.7} color="#e0183a" />
-      <Heart p={[7.6, 0.07, 10.8]} scale={2.1} color="#e0527a" flat thin />
+      {/* Teddy on the bed */}
       <Teddy p={[5.0, 1.24, 4.5]} rot={-0.3} scale={0.55} />
 
       {/* Scattered Velvet Rose Petals on the Bed */}
@@ -164,16 +165,6 @@ export function Bedroom() {
           <meshBasicMaterial color={i % 3 === 0 ? '#b5122e' : i % 3 === 1 ? '#d81e42' : '#8b0d26'} />
         </mesh>
       ))}
-
-      {/* Intimate Bistro Date Night Corner with Wine & Candelabra */}
-      <group position={[5.6, 0, 11.4]}>
-        <Table p={[0, 0, 0]} w={1.1} d={1.1} h={0.75} c="#1e1828" leg="#d4af37" />
-        <RoseVase p={[0, 0.81, 0]} />
-        <WineGlass p={[-0.28, 0.81, 0.2]} />
-        <WineGlass p={[0.28, 0.81, -0.2]} />
-        <Candle p={[0.25, 0.81, 0.25]} />
-        <Candle p={[-0.25, 0.81, -0.25]} h={0.18} />
-      </group>
 
       <Clock p={[6.6, 4.25, 0.12]} r={0.5} />
       <WallPanel p={[1.6, 3.2, 0.08]} color={NEON_AMBER} />

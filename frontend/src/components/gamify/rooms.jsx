@@ -1,6 +1,6 @@
 import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Stool, Monitor, Bookshelf, Arcade, WallWindow, WallPanel, Wardrobe } from './parts';
 import { TV_LOCAL, TV_H, NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
-import { RomanticCanopyBed, BedBench, RomanticNightstand } from './props';
+import { RomanticCanopyBed, BedBench, RomanticNightstand, ScenicWeatherWindow, SnackPlatter, HiFiSpeaker, SoundBar, TrioTVLights } from './props';
 
 const PI = Math.PI;
 
@@ -46,44 +46,57 @@ export function StudyBase() {
 }
 
 // ── LIVING ROOM (x -6..6, z -10..0) — the TV lives here ───────────────────────
-export function LivingRoomBase() {
+export function LivingRoomBase({ weather = 'night' }) {
   return (
     <group>
-      {/* TV + console */}
+      {/* TV Screen + Frame */}
       <Box p={[TV_LOCAL.cx, TV_LOCAL.cy, -9.94]} s={[TV_LOCAL.w + 0.35, TV_H + 0.35, 0.12]} c="#0c0b14" r={0.08} />
       <mesh position={[TV_LOCAL.cx, TV_LOCAL.cy, TV_LOCAL.z]}>
         <planeGeometry args={[TV_LOCAL.w, TV_H]} />
         <meshBasicMaterial color="#0a0a18" />
       </mesh>
-      <Box p={[TV_LOCAL.cx, 0.5, -9.35]} s={[7, 1.0, 1.2]} c="#2c2150" r={0.06} />
-      <Neon p={[TV_LOCAL.cx, 1.03, -8.8]} s={[6.8, 0.04, 0.04]} color={NEON_CYAN} />
-      {[[-2.6, '#ffcf5a'], [-1.9, '#ff6fb5'], [2.1, '#5ad1ff'], [2.8, '#8dff9c']].map(([x, col], i) => (
-        <Box key={i} p={[x, 1.25, -9.4]} s={[0.4, 0.45 + (i % 2) * 0.2, 0.4]} c={col} r={0.08} />
+
+      {/* TV Console Table */}
+      <Box p={[TV_LOCAL.cx, 0.5, -9.35]} s={[7.2, 1.0, 1.2]} c="#1e1830" r={0.06} />
+      <Neon p={[TV_LOCAL.cx, 1.03, -8.8]} s={[7.0, 0.04, 0.04]} color={NEON_CYAN} />
+
+      {/* Realistic HiFi Speakers flanking TV + SoundBar underneath */}
+      <HiFiSpeaker p={[-3.1, 1.02, -9.35]} />
+      <HiFiSpeaker p={[3.1, 1.02, -9.35]} />
+      <SoundBar p={[0, 1.02, -9.1]} />
+
+      {/* 3 Sleek Lights on Left and 3 Lights on Right side of TV */}
+      <TrioTVLights p={[-2.75, 0, -9.9]} />
+      <TrioTVLights p={[2.75, 0, -9.9]} />
+
+      {/* Single Large Panoramic Scenery Window that changes with weather */}
+      <ScenicWeatherWindow p={[5.5, 2.9, -9.9]} w={3.6} h={2.3} weather={weather} />
+
+      {/* Expanded Luxury Rug */}
+      <Box p={[-0.6, 0.03, -4.0]} s={[12.6, 0.06, 7.8]} c="#241e3a" r={0.2} rough={0.9} shadow={false} />
+      <Box p={[-0.6, 0.065, -4.0]} s={[11.8, 0.02, 7.0]} c="#322a50" r={0.15} rough={0.85} shadow={false} />
+
+      {/* Massive Expanded L-Sectional Sofa (fits many members comfortably) */}
+      <Box p={[-0.6, 0.45, -1.5]} s={[10.4, 0.9, 2.0]} c="#363158" r={0.2} />
+      <Box p={[-0.6, 1.3, -0.6]} s={[10.4, 1.5, 0.55]} c="#2a2546" r={0.2} />
+      {/* Left chaise return extending forward towards TV */}
+      <Box p={[-4.8, 0.45, -3.2]} s={[2.0, 0.9, 3.4]} c="#363158" r={0.2} />
+      <Box p={[-5.5, 1.1, -3.2]} s={[0.45, 1.1, 3.4]} c="#2a2546" r={0.16} />
+      {/* 5 wide plush cushions along the main sofa */}
+      {[-3.6, -1.8, 0, 1.8, 3.6].map((x, i) => (
+        <Box key={i} p={[x - 0.6, 1.0, -1.6]} s={[1.65, 0.32, 1.35]} c="#4b4478" r={0.14} />
       ))}
-      {/* wall art + shelf */}
-      <WallPanel p={[-4.9, 3.2, -9.92]} color={NEON_VIOLET} />
-      <WallPanel p={[-3.9, 3.2, -9.92]} color={NEON_CYAN} />
-      <WallPanel p={[3.9, 3.2, -9.92]} color={NEON_PINK} />
-      <WallPanel p={[4.9, 3.2, -9.92]} color={NEON_AMBER} />
-      <Box p={[-4.4, 0.7, -9.3]} s={[2.0, 1.4, 1.0]} c="#2f2358" r={0.06} />
-      <Box p={[4.4, 0.7, -9.3]} s={[2.0, 1.4, 1.0]} c="#2f2358" r={0.06} />
-      {/* rug + L-sofa facing the TV + coffee table */}
-      <Box p={[-0.4, 0.03, -4.4]} s={[8.6, 0.06, 5.8]} c="#43357f" r={0.02} rough={1} shadow={false} />
-      <Box p={[-0.4, 0.065, -4.4]} s={[8.0, 0.02, 5.2]} c="#5846a0" r={0.01} rough={1} shadow={false} />
-      <Box p={[-0.6, 0.45, -1.6]} s={[6.6, 0.9, 1.9]} c="#5a4bb5" r={0.2} />
-      <Box p={[-0.6, 1.3, -0.75]} s={[6.6, 1.5, 0.5]} c="#4a3c9e" r={0.2} />
-      {[-2.9, -0.9, 1.1].map((x, i) => <Box key={i} p={[x, 1.0, -1.7]} s={[1.7, 0.3, 1.3]} c="#7664d6" r={0.14} />)}
-      <Box p={[-0.6, 0.32, -4.6]} s={[3.2, 0.5, 1.6]} c="#1d1740" r={0.08} />
-      <Neon p={[-0.6, 0.6, -4.6]} s={[3.0, 0.03, 1.4]} color={NEON_CYAN} />
-      {/* side tables, lamps, extra seating */}
-      <Box p={[3.4, 0.4, -1.4]} s={[0.9, 0.8, 0.9]} c="#2f2358" r={0.08} />
-      <TableLamp p={[3.4, 0.8, -1.4]} />
-      <BeanBag p={[3.2, 0, -4.2]} color="#7a58d6" glow={NEON_CYAN} />
-      <BeanBag p={[4.3, 0, -2.6]} color="#e0529f" glow={NEON_PINK} />
-      <FloorLamp p={[-5.2, 0, -8.4]} />
-      <FloorLamp p={[5.2, 0, -8.4]} color="#ff9ad8" />
-      <Plant p={[-5.2, 0, -0.9]} scale={1.2} />
-      <Plant p={[5.2, 0, -0.9]} scale={1.1} color="#38a86a" />
+      {/* Chaise lounge cushion */}
+      <Box p={[-4.8, 1.0, -3.2]} s={[1.7, 0.32, 3.1]} c="#4b4478" r={0.14} />
+      {/* Accent throw pillows */}
+      {[[-3.8, '#e5a840'], [-1.6, '#faf0e6'], [1.2, '#d66850'], [3.6, '#faf0e6']].map(([px, col], i) => (
+        <Box key={`pillow-${i}`} p={[px - 0.6, 1.25, -0.9]} s={[0.6, 0.5, 0.25]} c={col} r={0.1} />
+      ))}
+
+      {/* Expanded Coffee Table with Gourmet Party Snacks: Pizza, Burgers, Drinks, Fries */}
+      <Box p={[-0.2, 0.32, -4.6]} s={[4.8, 0.48, 2.2]} c="#1d1630" r={0.08} />
+      <Box p={[-0.2, 0.54, -4.6]} s={[5.0, 0.06, 2.4]} c="#292042" r={0.04} />
+      <SnackPlatter p={[-0.2, 0.57, -4.6]} />
     </group>
   );
 }

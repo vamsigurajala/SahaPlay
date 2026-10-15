@@ -375,7 +375,7 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
 
       {/* ── Rooms ── */}
       <Study />
-      <LivingRoom />
+      <LivingRoom weather={weather} />
       <Bedroom />
       <Kitchen />
       <GameRoom />
