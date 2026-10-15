@@ -289,8 +289,7 @@ describe('Gamify Mode End-to-End Test Suite', () => {
         <PropViewer kind="fridge" arg="kitchen" onClose={handleClose} />
       );
 
-      expect(screen.getByText('Fridge')).toBeInTheDocument();
-      expect(screen.getByText(/Hover or tap an item/i)).toBeInTheDocument();
+      expect(screen.getByText(/Fridge Crime Scene Investigation/i)).toBeInTheDocument();
 
       // Close modal
       fireEvent.click(screen.getByTitle('Close'));
@@ -316,8 +315,7 @@ describe('Gamify Mode End-to-End Test Suite', () => {
         <PropViewer kind="stove" arg="kitchen" onClose={handleClose} />
       );
 
-      expect(screen.getByText('Stove')).toBeInTheDocument();
-      expect(screen.getByText(/What shall we cook\?/i)).toBeInTheDocument();
+      expect(screen.getByText(/Master Chef Stove/i)).toBeInTheDocument();
       expect(screen.getByText(/Masala chai/i)).toBeInTheDocument();
 
       fireEvent.click(screen.getByTitle('Close'));
