@@ -60,17 +60,17 @@ export function LivingRoomBase({ weather = 'night' }) {
       <Box p={[TV_LOCAL.cx, 0.5, -9.35]} s={[7.2, 1.0, 1.2]} c="#1e1830" r={0.06} />
       <Neon p={[TV_LOCAL.cx, 1.03, -8.8]} s={[7.0, 0.04, 0.04]} color={NEON_CYAN} />
 
-      {/* Realistic HiFi Speakers flanking TV + SoundBar underneath */}
-      <HiFiSpeaker p={[-3.1, 1.02, -9.35]} />
-      <HiFiSpeaker p={[3.1, 1.02, -9.35]} />
-      <SoundBar p={[0, 1.02, -9.1]} />
+      {/* Realistic HiFi Speakers flanking TV + SoundBar underneath with vivid Neon accents */}
+      <HiFiSpeaker p={[-3.1, 1.02, -9.35]} neon="#3ee8ff" />
+      <HiFiSpeaker p={[3.1, 1.02, -9.35]} neon="#ff4fd8" />
+      <SoundBar p={[0, 1.02, -9.1]} neon="#3ee8ff" />
 
       {/* 3 Sleek Lights on Left and 3 Lights on Right side of TV */}
       <TrioTVLights p={[-2.75, 0, -9.9]} />
       <TrioTVLights p={[2.75, 0, -9.9]} />
 
-      {/* Single Large Panoramic Scenery Window that changes with weather */}
-      <ScenicWeatherWindow p={[5.5, 2.9, -9.9]} w={3.6} h={2.3} weather={weather} />
+      {/* Single Large Panoramic Scenery Window that changes with weather on the TV wall */}
+      <ScenicWeatherWindow p={[-4.3, 2.85, -9.9]} w={2.6} h={2.2} weather={weather} />
 
       {/* Expanded Luxury Rug */}
       <Box p={[-0.6, 0.03, -4.0]} s={[12.6, 0.06, 7.8]} c="#241e3a" r={0.2} rough={0.9} shadow={false} />

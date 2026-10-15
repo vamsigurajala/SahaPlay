@@ -2,7 +2,7 @@ import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, 
 import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Cell } from './cell';
-import { Clock, RealTimeClock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity, RomanticChaiseLounge, ChampagneTable, RomanticFireplace, VelvetPouf, RomanticLantern, ReadingArmchair, ReadingLamp } from './props';
+import { Clock, RealTimeClock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity, RomanticChaiseLounge, ChampagneTable, RomanticFireplace, VelvetPouf, RomanticLantern, ReadingArmchair, ReadingLamp, LoungeTableItems } from './props';
 
 const ROSES = ['#d0183a', '#ff4f8a', '#ff9ac0', '#fff0f6'];
 const MIXED = ['#ff6fb5', '#ffcf5a', '#a56bff', '#ff8a5a', '#ffffff', '#4fa8ff'];
@@ -56,7 +56,8 @@ export function Study() {
       <Plant p={[17.2, 0, 15.0]} scale={1.1} color="#34b36a" />
       <Plant p={[11.0, 0, 6.8]} scale={1.0} />
       <Clock p={[10.2, 3.6, 0.12]} />
-      <Telescope p={[16.4, 0, 6.0]} rot={-0.8} />
+      {/* Telescope moved away from the Living Room doorway/wall to avoid clipping */}
+      <Telescope p={[2.6, 0, 4.2]} rot={0.6} />
     </Cell>
   );
 }
@@ -71,14 +72,17 @@ export function LivingRoom({ weather }) {
       <ReadingLamp p={[12.6, 0, 2.6]} />
       <ReadingArmchair p={[12.6, 0, 1.4]} rot={PI / 4} />
 
-      {/* Functioning luxury RealTimeClock that depicts actual time */}
-      <RealTimeClock p={[8.4, 4.0, 0.12]} r={0.65} />
+      {/* Functioning luxury RealTimeClock depicting actual system/mobile time, positioned between TV and bookshelf */}
+      <RealTimeClock p={[10.9, 3.5, 0.12]} r={0.7} />
 
       {/* Expanded second conversation lounge */}
       <Rug p={[12.8, 0, 12.5]} w={7.2} d={6.0} c="#2b2a6e" c2="#3b3a8c" />
       <Sofa p={[12.8, 0, 10.4]} rot={0} w={4.6} />
       <Sofa p={[12.8, 0, 14.6]} rot={PI} w={4.6} />
       <Table p={[12.8, 0, 12.5]} w={3.0} d={1.4} h={0.5} />
+      {/* Coffee table items: stack of magazines, TV remote, ceramic coffee mugs on coasters, succulent, glass carafe */}
+      <LoungeTableItems p={[12.8, 0.52, 12.5]} />
+
       <BeanBag p={[16.6, 0, 11.8]} color="#7a58d6" glow={false} />
       <BeanBag p={[16.6, 0, 13.8]} color="#e0529f" glow={false} />
 

@@ -936,62 +936,70 @@ export function RealTimeClock({ p, rot = 0, r = 0.65 }) {
 
   return (
     <group position={p} rotation={[0, rot, 0]}>
-      {/* Outer brushed brass / gold bezel */}
-      <mesh><cylinderGeometry args={[r + 0.05, r + 0.05, 0.08, 32]} /><meshStandardMaterial color="#d4af37" metalness={0.75} roughness={0.25} /></mesh>
+      {/* Outer brushed brass / gold bezel oriented facing +Z */}
+      <mesh rotation={[PI / 2, 0, 0]}>
+        <cylinderGeometry args={[r + 0.05, r + 0.05, 0.06, 32]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.8} roughness={0.2} />
+      </mesh>
+      {/* Glowing gold/amber halo rim so the clock pops on dark walls */}
+      <mesh position={[0, 0, 0.015]} rotation={[-PI / 2, 0, 0]}>
+        <ringGeometry args={[r + 0.045, r + 0.085, 36]} />
+        <meshBasicMaterial color="#ffeaa7" toneMapped={false} />
+      </mesh>
       {/* Inner dial face in deep dark obsidian */}
-      <mesh position={[0, 0, 0.045]} rotation={[PI / 2, 0, 0]}>
+      <mesh position={[0, 0, 0.035]} rotation={[PI / 2, 0, 0]}>
         <cylinderGeometry args={[r, r, 0.015, 32]} />
-        <meshStandardMaterial color="#141122" roughness={0.4} />
+        <meshStandardMaterial color="#100e1c" roughness={0.3} />
       </mesh>
 
-      {/* 12 Hour tick markers in gold */}
+      {/* 12 Hour tick markers in gold with major ticks at 12, 3, 6, 9 */}
       {Array.from({ length: 12 }).map((_, i) => {
         const ang = (i / 12) * PI * 2;
         const isMajor = i % 3 === 0;
-        const tickDist = r - (isMajor ? 0.09 : 0.07);
-        const tickLen = isMajor ? 0.08 : 0.045;
-        const tickW = isMajor ? 0.025 : 0.012;
+        const tickDist = r - (isMajor ? 0.11 : 0.08);
+        const tickLen = isMajor ? 0.10 : 0.05;
+        const tickW = isMajor ? 0.03 : 0.015;
         return (
-          <group key={i} position={[Math.sin(ang) * tickDist, Math.cos(ang) * tickDist, 0.055]} rotation={[0, 0, -ang]}>
-            <mesh><boxGeometry args={[tickW, tickLen, 0.01]} /><meshStandardMaterial color="#e6c875" metalness={0.8} /></mesh>
+          <group key={i} position={[Math.sin(ang) * tickDist, Math.cos(ang) * tickDist, 0.05]} rotation={[0, 0, -ang]}>
+            <mesh><boxGeometry args={[tickW, tickLen, 0.012]} /><meshStandardMaterial color={isMajor ? "#ffd700" : "#e6c875"} metalness={0.85} roughness={0.15} /></mesh>
           </group>
         );
       })}
 
-      {/* Hour Hand */}
-      <group position={[0, 0, 0.062]}>
+      {/* Hour Hand (Brushed gold) */}
+      <group position={[0, 0, 0.06]}>
         <group ref={hrRef}>
           <mesh position={[0, (r * 0.48) / 2, 0]}>
-            <boxGeometry args={[0.038, r * 0.48, 0.012]} />
-            <meshStandardMaterial color="#d4af37" metalness={0.8} roughness={0.2} />
+            <boxGeometry args={[0.04, r * 0.48, 0.014]} />
+            <meshStandardMaterial color="#ffd700" metalness={0.9} roughness={0.1} />
           </mesh>
         </group>
       </group>
 
-      {/* Minute Hand */}
+      {/* Minute Hand (Sleek bright gold) */}
       <group position={[0, 0, 0.068]}>
         <group ref={minRef}>
           <mesh position={[0, (r * 0.72) / 2, 0]}>
-            <boxGeometry args={[0.024, r * 0.72, 0.01]} />
-            <meshStandardMaterial color="#f0d588" metalness={0.8} roughness={0.2} />
+            <boxGeometry args={[0.026, r * 0.72, 0.012]} />
+            <meshStandardMaterial color="#fff3a8" metalness={0.85} roughness={0.15} />
           </mesh>
         </group>
       </group>
 
-      {/* Second Hand (crimson red) */}
-      <group position={[0, 0, 0.074]}>
+      {/* Second Hand (Vibrant crimson / neon red with counterbalance) */}
+      <group position={[0, 0, 0.076]}>
         <group ref={secRef}>
-          <mesh position={[0, (r * 0.8) / 2 - 0.05, 0]}>
-            <boxGeometry args={[0.012, r * 0.8 + 0.1, 0.008]} />
-            <meshBasicMaterial color="#e63946" />
+          <mesh position={[0, (r * 0.8) / 2 - 0.06, 0]}>
+            <boxGeometry args={[0.014, r * 0.8 + 0.12, 0.01]} />
+            <meshBasicMaterial color="#ff2a55" toneMapped={false} />
           </mesh>
         </group>
       </group>
 
       {/* Center gold cap pin */}
-      <mesh position={[0, 0, 0.082]}>
-        <cylinderGeometry args={[0.04, 0.04, 0.02, 16]} />
-        <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.1} />
+      <mesh position={[0, 0, 0.085]} rotation={[PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.045, 0.045, 0.02, 16]} />
+        <meshStandardMaterial color="#ffd700" metalness={0.9} roughness={0.1} />
       </mesh>
     </group>
   );
@@ -1028,26 +1036,32 @@ export function ScenicWeatherWindow({ p, w = 3.6, h = 2.4, weather }) {
   return (
     <group position={p}>
       {/* Wooden frame trim */}
-      <Box p={[0, h / 2, 0]} s={[w + 0.28, h + 0.28, 0.14]} c="#1b162a" r={0.06} />
+      <Box p={[0, h / 2, 0.04]} s={[w + 0.28, h + 0.28, 0.12]} c="#1b162a" r={0.06} />
 
       {/* Window sill */}
-      <Box p={[0, -0.06, 0.1]} s={[w + 0.44, 0.12, 0.32]} c="#28203d" r={0.04} />
+      <Box p={[0, -0.06, 0.1]} s={[w + 0.44, 0.12, 0.26]} c="#28203d" r={0.04} />
 
-      {/* Inside backdrop recess */}
-      <mesh position={[0, h / 2, -0.04]}>
+      {/* Ambient glowing sill accent */}
+      <mesh position={[0, -0.01, 0.12]}>
+        <boxGeometry args={[w + 0.24, 0.02, 0.04]} />
+        <meshBasicMaterial color={isNight ? '#4fa8ff' : '#ffe0a0'} toneMapped={false} />
+      </mesh>
+
+      {/* Inside backdrop recess (proud of back wall to prevent z-fighting) */}
+      <mesh position={[0, h / 2, 0.015]}>
         <planeGeometry args={[w, h]} />
         <meshBasicMaterial color={skyColor} />
       </mesh>
 
       {/* Horizon atmospheric glow */}
-      <mesh position={[0, h * 0.32, -0.03]}>
+      <mesh position={[0, h * 0.32, 0.02]}>
         <planeGeometry args={[w, h * 0.64]} />
-        <meshBasicMaterial color={horizonColor} transparent opacity={0.75} />
+        <meshBasicMaterial color={horizonColor} transparent opacity={0.78} />
       </mesh>
 
       {/* Sun / Moon disc */}
       {!isCloudy && !isRain && (
-        <group position={[isSunset ? -w * 0.25 : w * 0.25, isSunset ? h * 0.45 : h * 0.72, -0.02]}>
+        <group position={[isSunset ? -w * 0.25 : w * 0.25, isSunset ? h * 0.45 : h * 0.72, 0.025]}>
           <mesh>
             <circleGeometry args={[isNight ? 0.28 : 0.36, 24]} />
             <meshBasicMaterial color={sunColor} toneMapped={false} />
@@ -1063,7 +1077,7 @@ export function ScenicWeatherWindow({ p, w = 3.6, h = 2.4, weather }) {
 
       {/* Night stars */}
       {isNight && (
-        <group position={[0, h / 2, -0.025]}>
+        <group position={[0, h / 2, 0.022]}>
           {[
             [-1.2, 0.6], [-0.8, 0.8], [-0.3, 0.4], [0.1, 0.7], [0.6, 0.9], [1.1, 0.5],
             [-1.4, 0.2], [-0.5, 0.9], [0.4, 0.3], [1.3, 0.8], [-0.9, -0.1], [0.8, -0.2]
@@ -1078,7 +1092,7 @@ export function ScenicWeatherWindow({ p, w = 3.6, h = 2.4, weather }) {
 
       {/* Clouds */}
       {(isDay || isSunset || isSunrise || isCloudy) && (
-        <group position={[0, h * 0.62, -0.02]}>
+        <group position={[0, h * 0.62, 0.025]}>
           {[-1.0, 0.5, -0.2, 1.1].map((cx, i) => (
             <group key={i} position={[cx * (w / 3), (i % 2) * 0.14, 0]}>
               <mesh>
@@ -1100,7 +1114,7 @@ export function ScenicWeatherWindow({ p, w = 3.6, h = 2.4, weather }) {
 
       {/* Rain streaks */}
       {isRain && (
-        <group position={[0, h / 2, -0.02]}>
+        <group position={[0, h / 2, 0.025]}>
           {Array.from({ length: 16 }).map((_, i) => (
             <mesh key={i} position={[((i % 8) - 3.5) * (w / 8), ((i / 8) - 1) * (h / 2) + (i % 2) * 0.2, 0]} rotation={[0, 0, -0.25]}>
               <planeGeometry args={[0.015, 0.35]} />
@@ -1111,7 +1125,7 @@ export function ScenicWeatherWindow({ p, w = 3.6, h = 2.4, weather }) {
       )}
 
       {/* Rolling distant green hills */}
-      <group position={[0, 0, -0.01]}>
+      <group position={[0, 0, 0.022]}>
         {[-0.8, 0.9].map((hx, i) => (
           <mesh key={i} position={[hx * (w / 3), 0.28, 0]}>
             <circleGeometry args={[w * 0.65, 24, 0, PI]} />
@@ -1121,12 +1135,12 @@ export function ScenicWeatherWindow({ p, w = 3.6, h = 2.4, weather }) {
       </group>
 
       {/* Window mullions & dividers */}
-      <Box p={[0, h * 0.55, 0.03]} s={[w, 0.05, 0.06]} c="#1b162a" shadow={false} />
-      <Box p={[-w / 3, h / 2, 0.03]} s={[0.05, h, 0.06]} c="#1b162a" shadow={false} />
-      <Box p={[w / 3, h / 2, 0.03]} s={[0.05, h, 0.06]} c="#1b162a" shadow={false} />
+      <Box p={[0, h * 0.55, 0.045]} s={[w, 0.05, 0.05]} c="#1b162a" shadow={false} />
+      <Box p={[-w / 3, h / 2, 0.045]} s={[0.05, h, 0.05]} c="#1b162a" shadow={false} />
+      <Box p={[w / 3, h / 2, 0.045]} s={[0.05, h, 0.05]} c="#1b162a" shadow={false} />
 
       {/* Glass reflection */}
-      <mesh position={[0, h / 2, 0.04]} rotation={[0, 0, -0.6]}>
+      <mesh position={[0, h / 2, 0.05]} rotation={[0, 0, -0.6]}>
         <planeGeometry args={[0.2, h * 1.3]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.12} depthWrite={false} />
       </mesh>
@@ -1293,54 +1307,104 @@ export function SnackPlatter({ p = [0, 0.55, 0] }) {
   );
 }
 
-export function HiFiSpeaker({ p, rot = 0 }) {
+export function HiFiSpeaker({ p, rot = 0, neon = '#3ee8ff' }) {
   return (
     <group position={p} rotation={[0, rot, 0]}>
+      {/* Main speaker cabinet with beveled edges */}
       <Box p={[0, 0.7, 0]} s={[0.76, 1.4, 0.68]} c="#161220" r={0.06} />
       <Box p={[0, 0.7, 0.33]} s={[0.7, 1.34, 0.04]} c="#221c30" r={0.03} />
 
-      {/* Gold-accented dome tweeter */}
-      <mesh position={[0, 1.08, 0.36]}>
+      {/* Glowing Neon Plinth Underglow Ring */}
+      <mesh position={[0, 0.03, 0]}>
+        <boxGeometry args={[0.82, 0.04, 0.74]} />
+        <meshBasicMaterial color={neon} toneMapped={false} />
+      </mesh>
+
+      {/* Vertical Neon Accent Stripes on cabinet front flanks */}
+      <mesh position={[-0.32, 0.7, 0.355]}>
+        <boxGeometry args={[0.025, 1.25, 0.02]} />
+        <meshBasicMaterial color={neon} toneMapped={false} />
+      </mesh>
+      <mesh position={[0.32, 0.7, 0.355]}>
+        <boxGeometry args={[0.025, 1.25, 0.02]} />
+        <meshBasicMaterial color={neon} toneMapped={false} />
+      </mesh>
+
+      {/* Gold-accented dome tweeter with glowing neon cyan rim */}
+      <mesh position={[0, 1.08, 0.355]}>
+        <ringGeometry args={[0.13, 0.165, 24]} />
+        <meshBasicMaterial color={neon} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 1.08, 0.36]} rotation={[PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.13, 0.13, 0.02, 18]} />
-        <meshStandardMaterial color="#d4af37" metalness={0.75} roughness={0.25} />
+        <meshStandardMaterial color="#2a2038" metalness={0.6} roughness={0.3} />
       </mesh>
       <mesh position={[0, 1.08, 0.38]}>
         <sphereGeometry args={[0.075, 12, 10]} />
-        <meshStandardMaterial color="#ffc83b" metalness={0.8} roughness={0.2} />
+        <meshStandardMaterial color="#d4af37" metalness={0.8} roughness={0.2} />
       </mesh>
 
-      {/* Mid/Bass woofer cone */}
-      <mesh position={[0, 0.58, 0.36]}>
+      {/* Mid/Bass woofer cone with vibrant glowing neon magenta/pink halo ring */}
+      <mesh position={[0, 0.58, 0.355]}>
+        <ringGeometry args={[0.26, 0.30, 28]} />
+        <meshBasicMaterial color="#ff4fd8" toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 0.58, 0.36]} rotation={[PI / 2, 0, 0]}>
         <cylinderGeometry args={[0.26, 0.26, 0.02, 22]} />
         <meshStandardMaterial color="#2d263d" roughness={0.4} />
       </mesh>
-      <mesh position={[0, 0.58, 0.37]}>
+      <mesh position={[0, 0.58, 0.37]} rotation={[PI / 2, 0, 0]}>
         <coneGeometry args={[0.22, -0.06, 18]} />
         <meshStandardMaterial color="#1a1626" roughness={0.6} />
       </mesh>
       <mesh position={[0, 0.58, 0.38]}>
         <sphereGeometry args={[0.07, 12, 8]} />
-        <meshStandardMaterial color="#0e0c14" />
+        <meshBasicMaterial color="#3ee8ff" toneMapped={false} />
       </mesh>
 
+      {/* Digital Graphic Equalizer / VU Meter LEDs */}
+      {[-0.08, -0.04, 0, 0.04, 0.08].map((lx, li) => (
+        <mesh key={li} position={[lx, 0.18, 0.36]}>
+          <boxGeometry args={[0.025, 0.05 + (li % 3) * 0.03, 0.01]} />
+          <meshBasicMaterial color={li < 3 ? '#39ff14' : '#00f0ff'} toneMapped={false} />
+        </mesh>
+      ))}
+
       {/* Power status LED */}
-      <mesh position={[0, 0.15, 0.36]}>
-        <circleGeometry args={[0.02, 10]} />
+      <mesh position={[0, 0.09, 0.36]}>
+        <circleGeometry args={[0.022, 10]} />
         <meshBasicMaterial color="#3ee8ff" toneMapped={false} />
       </mesh>
     </group>
   );
 }
 
-export function SoundBar({ p }) {
+export function SoundBar({ p, neon = '#3ee8ff' }) {
   return (
     <group position={p}>
-      <Box p={[0, 0.09, 0]} s={[3.8, 0.18, 0.36]} c="#120e1c" r={0.04} />
+      {/* Soundbar acoustic body */}
+      <Box p={[0, 0.09, 0]} s={[3.8, 0.18, 0.36]} c="#140f22" r={0.04} />
       <Box p={[0, 0.09, 0.17]} s={[3.72, 0.14, 0.02]} c="#1e182e" r={0.02} />
+
+      {/* Vibrant Neon Light Bar running along the front */}
       <mesh position={[0, 0.09, 0.185]}>
-        <circleGeometry args={[0.018, 8]} />
-        <meshBasicMaterial color="#3ee8ff" toneMapped={false} />
+        <boxGeometry args={[3.5, 0.025, 0.01]} />
+        <meshBasicMaterial color={neon} toneMapped={false} />
       </mesh>
+
+      {/* Underglow neon bar */}
+      <mesh position={[0, 0.01, 0.1]}>
+        <boxGeometry args={[3.6, 0.02, 0.16]} />
+        <meshBasicMaterial color="#ff4fd8" toneMapped={false} />
+      </mesh>
+
+      {/* Dual stereo driver neon rings */}
+      {[-1.3, -0.6, 0.6, 1.3].map((dx, di) => (
+        <mesh key={di} position={[dx, 0.09, 0.183]}>
+          <ringGeometry args={[0.04, 0.058, 16]} />
+          <meshBasicMaterial color={di % 2 === 0 ? '#3ee8ff' : '#ff4fd8'} toneMapped={false} />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -1411,5 +1475,152 @@ export function ReadingLamp({ p }) {
     </group>
   );
 }
+
+export function LoungeTableItems({ p = [0, 0.52, 0] }) {
+  return (
+    <group position={p}>
+      {/* ── 1. Stack of glossy lifestyle/gaming magazines ── */}
+      <group position={[-0.75, 0, -0.1]} rotation={[0, 0.18, 0]}>
+        {/* Bottom Magazine */}
+        <Box p={[0, 0.012, 0]} s={[0.65, 0.022, 0.88]} c="#241e3a" r={0.02} />
+        <mesh position={[0, 0.024, 0]} rotation={[-PI / 2, 0, 0]}>
+          <planeGeometry args={[0.63, 0.86]} />
+          <meshBasicMaterial color="#3ee8ff" />
+        </mesh>
+        {/* Top Magazine (slightly skewed) */}
+        <group position={[0.04, 0.028, 0.03]} rotation={[0, -0.12, 0]}>
+          <Box p={[0, 0.012, 0]} s={[0.65, 0.022, 0.88]} c="#1e182e" r={0.02} />
+          <mesh position={[0, 0.024, 0]} rotation={[-PI / 2, 0, 0]}>
+            <planeGeometry args={[0.63, 0.86]} />
+            <meshBasicMaterial color="#ff4fd8" />
+          </mesh>
+          {/* Magazine title bar */}
+          <mesh position={[0, 0.025, -0.32]} rotation={[-PI / 2, 0, 0]}>
+            <planeGeometry args={[0.55, 0.14]} />
+            <meshBasicMaterial color="#ffffff" />
+          </mesh>
+          {/* Graphic cover art block */}
+          <mesh position={[0, 0.025, 0.08]} rotation={[-PI / 2, 0, 0]}>
+            <planeGeometry args={[0.52, 0.48]} />
+            <meshBasicMaterial color="#ffeaa7" />
+          </mesh>
+        </group>
+      </group>
+
+      {/* ── 2. TV / Streaming Remote Control ── */}
+      <group position={[-0.1, 0.015, -0.35]} rotation={[0, -0.25, 0]}>
+        <Box p={[0, 0.015, 0]} s={[0.13, 0.028, 0.42]} c="#120f1e" r={0.03} />
+        {/* D-Pad */}
+        <mesh position={[0, 0.032, -0.1]}>
+          <circleGeometry args={[0.038, 12]} />
+          <meshStandardMaterial color="#4a3e66" />
+        </mesh>
+        {/* Colored app buttons (Netflix red, Disney blue, Prime cyan) */}
+        {[-0.03, 0.03].map((bx, bi) => (
+          <group key={bi}>
+            <mesh position={[bx, 0.032, 0.04]}>
+              <boxGeometry args={[0.032, 0.008, 0.028]} />
+              <meshBasicMaterial color={bi === 0 ? '#e50914' : '#00d2ff'} />
+            </mesh>
+            <mesh position={[bx, 0.032, 0.1]}>
+              <boxGeometry args={[0.032, 0.008, 0.028]} />
+              <meshBasicMaterial color={bi === 0 ? '#00a8e1' : '#ffeaa7'} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+
+      {/* ── 3. Designer Ceramic Coffee Mugs on wooden coasters ── */}
+      <group position={[0.28, 0, 0.15]}>
+        {/* Coaster */}
+        <mesh position={[0, 0.008, 0]}>
+          <cylinderGeometry args={[0.16, 0.16, 0.015, 18]} />
+          <meshStandardMaterial color="#b37c46" roughness={0.7} />
+        </mesh>
+        {/* Pastel Teal Mug */}
+        <mesh position={[0, 0.12, 0]}>
+          <cylinderGeometry args={[0.11, 0.09, 0.22, 16]} />
+          <meshStandardMaterial color="#4ecdc4" roughness={0.3} />
+        </mesh>
+        {/* Coffee surface */}
+        <mesh position={[0, 0.21, 0]} rotation={[-PI / 2, 0, 0]}>
+          <circleGeometry args={[0.095, 14]} />
+          <meshStandardMaterial color="#3d2314" roughness={0.4} />
+        </mesh>
+        {/* Handle */}
+        <mesh position={[0.12, 0.12, 0]} rotation={[0, 0, 0]}>
+          <torusGeometry args={[0.055, 0.016, 8, 14]} />
+          <meshStandardMaterial color="#4ecdc4" roughness={0.3} />
+        </mesh>
+      </group>
+
+      <group position={[0.62, 0, -0.15]}>
+        {/* Coaster */}
+        <mesh position={[0, 0.008, 0]}>
+          <cylinderGeometry args={[0.16, 0.16, 0.015, 18]} />
+          <meshStandardMaterial color="#b37c46" roughness={0.7} />
+        </mesh>
+        {/* Pastel Lilac Mug */}
+        <mesh position={[0, 0.12, 0]}>
+          <cylinderGeometry args={[0.11, 0.09, 0.22, 16]} />
+          <meshStandardMaterial color="#a56bff" roughness={0.3} />
+        </mesh>
+        {/* Coffee surface */}
+        <mesh position={[0, 0.21, 0]} rotation={[-PI / 2, 0, 0]}>
+          <circleGeometry args={[0.095, 14]} />
+          <meshStandardMaterial color="#3d2314" roughness={0.4} />
+        </mesh>
+        {/* Handle */}
+        <mesh position={[0.12, 0.12, 0]}>
+          <torusGeometry args={[0.055, 0.016, 8, 14]} />
+          <meshStandardMaterial color="#a56bff" roughness={0.3} />
+        </mesh>
+      </group>
+
+      {/* ── 4. Mini Succulent in Faceted Ceramic Pot ── */}
+      <group position={[-0.1, 0, 0.25]}>
+        <mesh position={[0, 0.07, 0]} castShadow>
+          <cylinderGeometry args={[0.12, 0.08, 0.14, 6]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.2} />
+        </mesh>
+        {/* Soil */}
+        <mesh position={[0, 0.135, 0]} rotation={[-PI / 2, 0, 0]}>
+          <circleGeometry args={[0.105, 8]} />
+          <meshStandardMaterial color="#2d1c10" roughness={0.9} />
+        </mesh>
+        {/* Succulent leaves */}
+        {[0, 1, 2, 3, 4, 5].map((ang, i) => (
+          <mesh key={i} position={[Math.sin((ang / 6) * PI * 2) * 0.05, 0.16, Math.cos((ang / 6) * PI * 2) * 0.05]} rotation={[0.4, (ang / 6) * PI * 2, 0]}>
+            <sphereGeometry args={[0.038, 6, 6]} />
+            <meshStandardMaterial color="#48c774" roughness={0.7} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.19, 0]}>
+          <sphereGeometry args={[0.032, 6, 6]} />
+          <meshStandardMaterial color="#5dd389" roughness={0.6} />
+        </mesh>
+      </group>
+
+      {/* ── 5. Elegant Glass Water Carafe ── */}
+      <group position={[1.0, 0, 0.1]}>
+        <mesh position={[0, 0.22, 0]} castShadow>
+          <cylinderGeometry args={[0.12, 0.16, 0.44, 16]} />
+          <meshStandardMaterial color="#a0d8ef" transparent opacity={0.65} roughness={0.1} />
+        </mesh>
+        {/* Lemon slice inside carafe */}
+        <mesh position={[0, 0.14, 0]} rotation={[0.6, 0.3, 0]}>
+          <cylinderGeometry args={[0.07, 0.07, 0.015, 12]} />
+          <meshStandardMaterial color="#ffd700" />
+        </mesh>
+        {/* Carafe cork stopper */}
+        <mesh position={[0, 0.45, 0]}>
+          <sphereGeometry args={[0.075, 10, 8]} />
+          <meshStandardMaterial color="#b37c46" roughness={0.8} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
 
 
