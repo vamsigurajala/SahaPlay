@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { House } from 'lucide-react';
+import { Gamepad2 } from 'lucide-react';
 import GamifyScene from './gamify/GamifyScene';
 const PropViewer = React.lazy(() => import('./gamify/PropViewers'));
 import Avatar3D from './gamify/Avatar3D';
@@ -280,7 +280,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     <div ref={containerRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#0b0a14', touchAction: 'none' }}>
       <div style={{ position: 'absolute', inset: 0, opacity: ready ? 1 : 0, transition: 'opacity .5s' }}><SkyBackdrop weather={weather} /></div>
       {!ready && (
-        <div className="stay-white" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 13, fontWeight: 700, zIndex: 5, pointerEvents: 'none' }}><House size={30} />Building your house...</div>
+        <div className="stay-white" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 13, fontWeight: 700, zIndex: 5, pointerEvents: 'none' }}><Gamepad2 size={30} />Building your house...</div>
       )}
       <WebGLBoundary>
         <Canvas
