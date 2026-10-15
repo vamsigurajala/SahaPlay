@@ -1,6 +1,12 @@
 import { Component, lazy, Suspense, useEffect, useId, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ChevronLeft, ChevronRight, ArrowLeft, RotateCcw } from 'lucide-react';
+import {
+  X, ChevronLeft, ChevronRight, ArrowLeft, RotateCcw,
+  Globe, ExternalLink, ArrowRight, Search, Trophy,
+  Brain, Compass, Flame, Gamepad2, Heart, Sparkles,
+  HelpCircle, Check, Clock, RefreshCw, Shuffle, Lightbulb,
+  Maximize2
+} from 'lucide-react';
 import { GENRES, SHELVES, FRIDGE_SHELVES, FRIDGE_SHELVES_UP, DISHES, DISHES_UP, OVEN_ITEMS, OVEN_ITEMS_UP } from '../../data/gamifyBooks';
 import { WARDROBES, COSMETICS, GARDEN } from '../../data/gamifyItems';
 import { useBookCover, preloadImage, coverUrl } from '../../data/bookCovers';
@@ -719,6 +725,796 @@ function GardenView({ arg }) {
   );
 }
 
+// ── monitor browser launcher ──────────────────────────────────────────────────
+function MonitorBrowserView({ onClose }) {
+  const [url, setUrl] = useState('');
+  const [lastLaunched, setLastLaunched] = useState(null);
+
+  const bookmarks = [
+    { label: 'Google Search', url: 'https://www.google.com', desc: 'Search the web' },
+    { label: 'YouTube', url: 'https://www.youtube.com', desc: 'Stream videos & music' },
+    { label: 'GitHub', url: 'https://github.com', desc: 'Code repositories & collaboration' },
+    { label: 'Wikipedia', url: 'https://www.wikipedia.org', desc: 'The free encyclopedia' },
+    { label: 'Reddit', url: 'https://www.reddit.com', desc: 'Community discussions & news' },
+    { label: 'Chess.com', url: 'https://www.chess.com', desc: 'Play chess online' },
+  ];
+
+  const handleLaunch = (targetUrl) => {
+    let raw = (targetUrl || url).trim();
+    if (!raw) return;
+    let finalUrl = raw;
+    if (!/^https?:\/\//i.test(finalUrl)) {
+      finalUrl = 'https://' + finalUrl;
+    }
+    setLastLaunched(finalUrl);
+    window.open(finalUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleLaunch();
+  };
+
+  return (
+    <div style={{ width: '100%', maxWidth: 740, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{
+        width: '100%',
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(38,28,74,0.95), rgba(12,10,24,0.98))',
+        border: '1px solid rgba(139, 92, 246, 0.35)',
+        borderRadius: 22,
+        boxShadow: '0 30px 80px rgba(0,0,0,0.75), 0 0 50px rgba(139, 92, 246, 0.15)',
+        overflow: 'hidden',
+        backdropFilter: 'blur(20px)',
+      }}>
+        {/* Title Bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)',
+          background: 'rgba(255,255,255,0.03)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+            <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+            <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+            <span style={{ marginLeft: 12, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.03em' }}>
+              Study Room Workstation Browser
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#a78bfa', fontWeight: 600, background: 'rgba(139, 92, 246, 0.15)', padding: '4px 10px', borderRadius: 99 }}>
+            <Globe size={13} />
+            <span>Ready</span>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div style={{ padding: '24px 24px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.6)', lineHeight: 1.5 }}>
+            Enter any website address to launch or redirect. The destination will open in a secure browser window.
+          </div>
+
+          {/* Address input */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{
+              flex: '1 1 320px',
+              display: 'flex', alignItems: 'center', gap: 12,
+              background: 'rgba(0, 0, 0, 0.5)',
+              border: '1.5px solid rgba(139, 92, 246, 0.45)',
+              borderRadius: 14,
+              padding: '10px 16px',
+            }}>
+              <Search size={18} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+              <input
+                type="text"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enter any URL (e.g. google.com, youtube.com, github.com)..."
+                autoFocus
+                style={{
+                  width: '100%',
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: '#ffffff',
+                  fontSize: 14.5,
+                  fontWeight: 500,
+                }}
+              />
+              {url && (
+                <button
+                  onClick={() => setUrl('')}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 2 }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+
+            <button
+              onClick={() => handleLaunch()}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 14,
+                padding: '12px 22px',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 4px 18px rgba(124, 58, 237, 0.45)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>Visit URL</span>
+              <ExternalLink size={16} />
+            </button>
+          </div>
+
+          {lastLaunched && (
+            <div style={{ fontSize: 12, color: '#34d399', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Check size={14} />
+              <span>Redirected to <strong>{lastLaunched}</strong> in a new tab.</span>
+            </div>
+          )}
+
+          {/* Bookmarks */}
+          <div style={{ marginTop: 4 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255, 255, 255, 0.45)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+              Quick Launch Bookmarks
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 10 }}>
+              {bookmarks.map((site) => (
+                <div
+                  key={site.url}
+                  onClick={() => handleLaunch(site.url)}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: 13,
+                    padding: '12px 14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    transition: 'all .18s ease-out',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(139, 92, 246, 0.18)';
+                    e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.45)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                  }}
+                >
+                  <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(139, 92, 246, 0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc', flexShrink: 0 }}>
+                    <Globe size={18} />
+                  </div>
+                  <div style={{ overflow: 'hidden' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                      {site.label}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.45)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                      {site.desc}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── interactive puzzle center ────────────────────────────────────────────────
+function SlidingTilePuzzle() {
+  const [tiles, setTiles] = useState([1, 2, 3, 4, 5, 6, 7, 8, 0]);
+  const [moves, setMoves] = useState(0);
+  const [isWon, setIsWon] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+
+  const shuffle = () => {
+    let arr = [1, 2, 3, 4, 5, 6, 7, 8, 0];
+    let zeroIdx = 8;
+    for (let i = 0; i < 75; i++) {
+      const row = Math.floor(zeroIdx / 3);
+      const col = zeroIdx % 3;
+      const neighbors = [];
+      if (row > 0) neighbors.push(zeroIdx - 3);
+      if (row < 2) neighbors.push(zeroIdx + 3);
+      if (col > 0) neighbors.push(zeroIdx - 1);
+      if (col < 2) neighbors.push(zeroIdx + 1);
+      const nextIdx = neighbors[Math.floor(Math.random() * neighbors.length)];
+      arr[zeroIdx] = arr[nextIdx];
+      arr[nextIdx] = 0;
+      zeroIdx = nextIdx;
+    }
+    setTiles([...arr]);
+    setMoves(0);
+    setIsWon(false);
+    setSeconds(0);
+  };
+
+  useEffect(() => {
+    shuffle();
+  }, []);
+
+  useEffect(() => {
+    if (isWon) return;
+    const t = setInterval(() => setSeconds(s => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [isWon]);
+
+  const handleTileClick = (index) => {
+    if (isWon) return;
+    const zeroIdx = tiles.indexOf(0);
+    const row = Math.floor(index / 3);
+    const col = index % 3;
+    const zRow = Math.floor(zeroIdx / 3);
+    const zCol = zeroIdx % 3;
+    if (Math.abs(row - zRow) + Math.abs(col - zCol) === 1) {
+      const next = [...tiles];
+      next[zeroIdx] = next[index];
+      next[index] = 0;
+      setTiles(next);
+      setMoves(m => m + 1);
+      const solved = next.every((val, idx) => (idx === 8 ? val === 0 : val === idx + 1));
+      if (solved) setIsWon(true);
+    }
+  };
+
+  const formatTime = (sec) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 330, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>
+        <div>Moves: <span style={{ color: '#a78bfa' }}>{moves}</span></div>
+        <div>Time: <span style={{ color: '#a78bfa' }}>{formatTime(seconds)}</span></div>
+        <button
+          onClick={shuffle}
+          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <Shuffle size={12} />
+          <span>Shuffle</span>
+        </button>
+      </div>
+
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
+        width: 320, height: 320, padding: 10,
+        background: 'rgba(0, 0, 0, 0.4)', borderRadius: 16,
+        border: '2px solid rgba(139, 92, 246, 0.35)', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.6)'
+      }}>
+        {tiles.map((val, idx) => {
+          if (val === 0) {
+            return <div key={`empty-${idx}`} style={{ borderRadius: 12, background: 'rgba(0,0,0,0.25)' }} />;
+          }
+          return (
+            <button
+              key={val}
+              onClick={() => handleTileClick(idx)}
+              style={{
+                borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.18)',
+                background: 'linear-gradient(135deg, rgba(124,58,237,0.75), rgba(79,70,229,0.75))',
+                color: '#ffffff',
+                fontSize: 26,
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 6px 14px rgba(0,0,0,0.35)',
+                transition: 'transform .1s ease-out, background .1s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              {val}
+            </button>
+          );
+        })}
+      </div>
+
+      {isWon && (
+        <div style={{
+          marginTop: 10, padding: '12px 24px', borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.25), rgba(5,150,105,0.4))',
+          border: '1.5px solid #10b981', display: 'flex', alignItems: 'center', gap: 10, color: '#34d399', fontWeight: 800, fontSize: 15
+        }}>
+          <Trophy size={20} />
+          <span>Brilliant! You solved the puzzle in {moves} moves and {formatTime(seconds)}!</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MemoryMatchPuzzle() {
+  const ICONS = [
+    { id: 'brain', label: 'Logic', Icon: Brain, color: '#a855f7' },
+    { id: 'compass', label: 'Explore', Icon: Compass, color: '#38bdf8' },
+    { id: 'flame', label: 'Fire', Icon: Flame, color: '#f97316' },
+    { id: 'game', label: 'Play', Icon: Gamepad2, color: '#10b981' },
+    { id: 'heart', label: 'Heart', Icon: Heart, color: '#f43f5e' },
+    { id: 'sparkles', label: 'Magic', Icon: Sparkles, color: '#eab308' },
+  ];
+
+  const createDeck = () => {
+    const deck = [];
+    ICONS.forEach(item => {
+      deck.push({ uid: `${item.id}-1`, id: item.id, item });
+      deck.push({ uid: `${item.id}-2`, id: item.id, item });
+    });
+    return deck.sort(() => Math.random() - 0.5);
+  };
+
+  const [cards, setCards] = useState([]);
+  const [flipped, setFlipped] = useState([]);
+  const [matched, setMatched] = useState([]);
+  const [moves, setMoves] = useState(0);
+
+  const reset = () => {
+    setCards(createDeck());
+    setFlipped([]);
+    setMatched([]);
+    setMoves(0);
+  };
+
+  useEffect(() => {
+    reset();
+  }, []);
+
+  const handleCardClick = (idx) => {
+    if (flipped.length === 2 || flipped.includes(idx) || matched.includes(cards[idx].id)) return;
+    const nextFlipped = [...flipped, idx];
+    setFlipped(nextFlipped);
+
+    if (nextFlipped.length === 2) {
+      setMoves(m => m + 1);
+      const [first, second] = nextFlipped;
+      if (cards[first].id === cards[second].id) {
+        setMatched(m => [...m, cards[first].id]);
+        setFlipped([]);
+      } else {
+        setTimeout(() => setFlipped([]), 750);
+      }
+    }
+  };
+
+  const isWon = matched.length === ICONS.length && ICONS.length > 0;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 360, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>
+        <div>Moves: <span style={{ color: '#a78bfa' }}>{moves}</span></div>
+        <div>Matched: <span style={{ color: '#34d399' }}>{matched.length} / {ICONS.length}</span></div>
+        <button
+          onClick={reset}
+          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <RotateCcw size={12} />
+          <span>Restart</span>
+        </button>
+      </div>
+
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
+        width: 360, padding: 12,
+        background: 'rgba(0, 0, 0, 0.4)', borderRadius: 16,
+        border: '2px solid rgba(139, 92, 246, 0.35)', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.6)'
+      }}>
+        {cards.map((card, idx) => {
+          const isOpen = flipped.includes(idx) || matched.includes(card.id);
+          const isMatched = matched.includes(card.id);
+          const { Icon, color } = card.item;
+
+          return (
+            <button
+              key={card.uid}
+              onClick={() => handleCardClick(idx)}
+              style={{
+                height: 80,
+                borderRadius: 12,
+                border: isMatched ? '2px solid #10b981' : isOpen ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.14)',
+                background: isOpen
+                  ? (isMatched ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)')
+                  : 'linear-gradient(135deg, rgba(30, 22, 54, 0.9), rgba(18, 14, 36, 0.9))',
+                cursor: isOpen ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: isMatched ? '0 0 16px rgba(16, 185, 129, 0.4)' : '0 4px 10px rgba(0,0,0,0.3)',
+                transition: 'all .2s ease-out',
+                transform: isOpen ? 'scale(1)' : 'scale(0.98)',
+              }}
+            >
+              {isOpen ? (
+                <Icon size={32} color={color} />
+              ) : (
+                <HelpCircle size={22} style={{ color: 'rgba(255,255,255,0.2)' }} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {isWon && (
+        <div style={{
+          marginTop: 10, padding: '12px 24px', borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.25), rgba(5,150,105,0.4))',
+          border: '1.5px solid #10b981', display: 'flex', alignItems: 'center', gap: 10, color: '#34d399', fontWeight: 800, fontSize: 15
+        }}>
+          <Trophy size={20} />
+          <span>Superb! All card pairs matched in {moves} moves!</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WordScramblePuzzle() {
+  const WORDS = [
+    { word: 'STUDY', clue: 'Quiet room with desks, bookshelf, and beanbags' },
+    { word: 'GUITAR', clue: 'Six-string acoustic instrument on the study wall' },
+    { word: 'PUZZLE', clue: 'Game testing wit, pattern recognition, and logic' },
+    { word: 'KEYBOARD', clue: 'Tactile typing hardware placed beside each monitor' },
+    { word: 'MONITOR', clue: 'High-res display screen perched on every desk' },
+    { word: 'CANVAS', clue: 'Framed oil artwork hanging in the living room' },
+    { word: 'LIBRARY', clue: 'Shelves packed with classic and modern literature' },
+  ];
+
+  const [index, setIndex] = useState(0);
+  const [guess, setGuess] = useState('');
+  const [scramble, setScramble] = useState([]);
+  const [streak, setStreak] = useState(0);
+  const [status, setStatus] = useState(null); // 'correct' | 'wrong'
+  const current = WORDS[index % WORDS.length];
+
+  const setupWord = (w) => {
+    const letters = w.word.split('').map((char, i) => ({ id: `${char}-${i}`, char, used: false }));
+    for (let i = letters.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [letters[i], letters[j]] = [letters[j], letters[i]];
+    }
+    setScramble(letters);
+    setGuess('');
+    setStatus(null);
+  };
+
+  useEffect(() => {
+    setupWord(current);
+  }, [index]);
+
+  const handleLetterClick = (item) => {
+    if (item.used || status === 'correct') return;
+    setGuess(g => g + item.char);
+    setScramble(prev => prev.map(l => l.id === item.id ? { ...l, used: true } : l));
+  };
+
+  const handleBackspace = () => {
+    if (!guess.length || status === 'correct') return;
+    const lastChar = guess[guess.length - 1];
+    setGuess(g => g.slice(0, -1));
+    // Unmark first used match of this char
+    let unmarked = false;
+    setScramble(prev => prev.map(l => {
+      if (!unmarked && l.used && l.char === lastChar) {
+        unmarked = true;
+        return { ...l, used: false };
+      }
+      return l;
+    }));
+  };
+
+  const checkAnswer = () => {
+    if (guess === current.word) {
+      setStatus('correct');
+      setStreak(s => s + 1);
+    } else {
+      setStatus('wrong');
+      setTimeout(() => setStatus(null), 1200);
+    }
+  };
+
+  const nextWord = () => {
+    setIndex(i => i + 1);
+  };
+
+  const giveHint = () => {
+    if (status === 'correct') return;
+    const targetChar = current.word[guess.length];
+    if (!targetChar) return;
+    const found = scramble.find(l => !l.used && l.char === targetChar);
+    if (found) {
+      handleLetterClick(found);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 420, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>
+        <div>Word: <span style={{ color: '#a78bfa' }}>{(index % WORDS.length) + 1} / {WORDS.length}</span></div>
+        <div>Streak: <span style={{ color: '#f59e0b' }}>{streak}</span></div>
+        <button
+          onClick={giveHint}
+          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <Lightbulb size={12} color="#f59e0b" />
+          <span>Hint</span>
+        </button>
+      </div>
+
+      <div style={{
+        width: '100%', maxWidth: 420, padding: '14px 18px',
+        background: 'rgba(0, 0, 0, 0.4)', borderRadius: 16,
+        border: '1.5px solid rgba(139, 92, 246, 0.35)',
+        display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center'
+      }}>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', fontStyle: 'italic', textAlign: 'center' }}>
+          Clue: &ldquo;{current.clue}&rdquo;
+        </div>
+
+        {/* Current Guess Slot */}
+        <div style={{
+          minHeight: 52, width: '100%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: 'rgba(255, 255, 255, 0.05)', borderRadius: 12,
+          padding: '6px 12px', border: status === 'correct' ? '2px solid #10b981' : status === 'wrong' ? '2px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'
+        }}>
+          {guess ? guess.split('').map((c, i) => (
+            <span key={i} style={{ fontSize: 22, fontWeight: 800, color: '#ffffff', letterSpacing: '0.05em' }}>{c}</span>
+          )) : (
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>Tap letters below to spell word</span>
+          )}
+        </div>
+
+        {/* Letter Chips */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+          {scramble.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleLetterClick(item)}
+              disabled={item.used}
+              style={{
+                width: 44, height: 44, borderRadius: 10,
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: item.used ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                color: item.used ? 'rgba(255,255,255,0.2)' : '#ffffff',
+                fontSize: 18, fontWeight: 800, cursor: item.used ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: item.used ? 'none' : '0 4px 10px rgba(0,0,0,0.3)',
+                transition: 'all .15s'
+              }}
+            >
+              {item.char}
+            </button>
+          ))}
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <button
+            onClick={handleBackspace}
+            style={{ ...btnPill, padding: '7px 14px', fontSize: 12, background: 'rgba(255,255,255,0.08)' }}
+          >
+            Clear Last
+          </button>
+          {status !== 'correct' ? (
+            <button
+              onClick={checkAnswer}
+              disabled={!guess}
+              style={{
+                ...btnPill,
+                padding: '7px 20px',
+                fontSize: 13,
+                background: guess ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.08)',
+                border: 'none',
+                opacity: guess ? 1 : 0.5,
+              }}
+            >
+              Check Answer
+            </button>
+          ) : (
+            <button
+              onClick={nextWord}
+              style={{
+                ...btnPill,
+                padding: '7px 20px',
+                fontSize: 13,
+                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                border: 'none',
+              }}
+            >
+              <span>Next Word</span>
+              <ArrowRight size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {status === 'correct' && (
+        <div style={{
+          padding: '10px 20px', borderRadius: 12,
+          background: 'rgba(16, 185, 129, 0.25)', border: '1.5px solid #10b981',
+          color: '#34d399', fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8
+        }}>
+          <Check size={18} />
+          <span>Correct! That is {current.word}!</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PuzzleGameView() {
+  const [tab, setTab] = useState('sliding');
+
+  return (
+    <div style={{ width: '100%', maxWidth: 680, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{
+        width: '100%',
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(38,28,74,0.95), rgba(12,10,24,0.98))',
+        border: '1px solid rgba(139, 92, 246, 0.35)',
+        borderRadius: 22,
+        boxShadow: '0 30px 80px rgba(0,0,0,0.75), 0 0 50px rgba(139, 92, 246, 0.15)',
+        overflow: 'hidden',
+        backdropFilter: 'blur(20px)',
+        padding: '24px 22px 28px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center'
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <Gamepad2 size={24} style={{ color: '#c084fc' }} />
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#ffffff', letterSpacing: '0.02em' }}>
+            Study Table Puzzle Lounge
+          </div>
+        </div>
+        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 18, textAlign: 'center' }}>
+          Select a brain-teaser to play while relaxing at the study corner table.
+        </div>
+
+        {/* Tab selection */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button
+            onClick={() => setTab('sliding')}
+            style={{
+              ...btnPill,
+              background: tab === 'sliding' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'rgba(255,255,255,0.06)',
+              border: tab === 'sliding' ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.12)',
+              fontSize: 13,
+            }}
+          >
+            <span>8-Tile Slider</span>
+          </button>
+          <button
+            onClick={() => setTab('memory')}
+            style={{
+              ...btnPill,
+              background: tab === 'memory' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'rgba(255,255,255,0.06)',
+              border: tab === 'memory' ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.12)',
+              fontSize: 13,
+            }}
+          >
+            <span>Memory Pairs</span>
+          </button>
+          <button
+            onClick={() => setTab('word')}
+            style={{
+              ...btnPill,
+              background: tab === 'word' ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'rgba(255,255,255,0.06)',
+              border: tab === 'word' ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.12)',
+              fontSize: 13,
+            }}
+          >
+            <span>Word Scramble</span>
+          </button>
+        </div>
+
+        {/* Game Body */}
+        {tab === 'sliding' && <SlidingTilePuzzle />}
+        {tab === 'memory' && <MemoryMatchPuzzle />}
+        {tab === 'word' && <WordScramblePuzzle />}
+      </div>
+    </div>
+  );
+}
+
+// ── luxury live clock view ───────────────────────────────────────────────────
+function LuxuryClockView() {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const hours = time.getHours();
+  const minutes = time.getMinutes();
+  const seconds = time.getSeconds();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+
+  const pad = (n) => (n < 10 ? '0' + n : n);
+
+  const dateStr = time.toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const worldCities = [
+    { city: 'London', tz: 'Europe/London' },
+    { city: 'New York', tz: 'America/New_York' },
+    { city: 'Tokyo', tz: 'Asia/Tokyo' },
+    { city: 'Mumbai', tz: 'Asia/Kolkata' },
+  ];
+
+  return (
+    <div style={{ width: '100%', maxWidth: 580, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{
+        width: '100%',
+        background: 'radial-gradient(ellipse at 50% 0%, rgba(38,28,74,0.95), rgba(12,10,24,0.98))',
+        border: '1px solid rgba(255, 215, 120, 0.4)',
+        borderRadius: 24,
+        boxShadow: '0 30px 80px rgba(0,0,0,0.8), 0 0 50px rgba(255, 215, 120, 0.15)',
+        padding: '30px 24px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18,
+        backdropFilter: 'blur(20px)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fcd34d' }}>
+          <Clock size={24} />
+          <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            Living Room Timepiece
+          </span>
+        </div>
+
+        {/* Digital display */}
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.65)',
+          border: '1.5px solid rgba(255, 215, 120, 0.5)',
+          borderRadius: 18,
+          padding: '16px 36px',
+          display: 'flex', alignItems: 'baseline', gap: 12,
+          boxShadow: 'inset 0 0 25px rgba(255, 215, 120, 0.15)',
+        }}>
+          <span style={{ fontSize: 52, fontWeight: 900, color: '#ffffff', fontFamily: 'monospace', letterSpacing: '0.04em' }}>
+            {pad(displayHours)}:{pad(minutes)}:{pad(seconds)}
+          </span>
+          <span style={{ fontSize: 20, fontWeight: 800, color: '#fcd34d' }}>
+            {ampm}
+          </span>
+        </div>
+
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)' }}>
+          {dateStr}
+        </div>
+
+        {/* World Time zones */}
+        <div style={{ width: '100%', marginTop: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, textAlign: 'center' }}>
+            Global Reference Clocks
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+            {worldCities.map(({ city, tz }) => {
+              const cityTime = time.toLocaleTimeString(undefined, { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+              return (
+                <div key={city} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{city}</span>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: '#fcd34d', fontFamily: 'monospace' }}>{cityTime}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 class ViewerBoundary extends Component {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -746,6 +1542,9 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'cosmetics' && <CosmeticsView />}
         {kind === 'telescope' && <ViewerBoundary><Suspense fallback={<div className="stay-white" style={{ marginTop: 120, fontWeight: 700 }}>Pointing the telescope...</div>}><SpaceViewer /></Suspense></ViewerBoundary>}
         {kind === 'garden' && <GardenView arg={arg} />}
+        {kind === 'monitor' && <MonitorBrowserView onClose={onClose} />}
+        {kind === 'puzzles' && <PuzzleGameView />}
+        {kind === 'clock' && <LuxuryClockView />}
       </div>
     </div>,
     document.body,

@@ -239,7 +239,21 @@ export function Chair({ p, rot = 0, c = '#6d4fd0' }) {
   return (
     <group position={p} rotation={[0, rot, 0]}>
       <mesh geometry={cushionGeo} material={cushionMat} castShadow receiveShadow />
-      <Box p={[0, 0.25, 0]} s={[0.14, 0.5, 0.14]} c="#2a2140" />
+      {/* Central column stand */}
+      <Box p={[0, 0.25, 0]} s={[0.12, 0.46, 0.12]} c="#1e1830" />
+      {/* 4 Sturdy supporting legs with casters */}
+      {[[-0.32, -0.32], [0.32, -0.32], [-0.32, 0.32], [0.32, 0.32]].map(([lx, lz], i) => (
+        <group key={i}>
+          <mesh position={[lx * 0.65, 0.16, lz * 0.65]} rotation={[lz * 0.35, 0, -lx * 0.35]}>
+            <cylinderGeometry args={[0.024, 0.024, 0.42, 6]} />
+            <meshStandardMaterial color="#1a1426" metalness={0.8} roughness={0.2} />
+          </mesh>
+          <mesh position={[lx, 0.035, lz]}>
+            <sphereGeometry args={[0.042, 8, 6]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.7} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }
@@ -255,12 +269,77 @@ export function Stool({ p, c = '#e0529f' }) {
 }
 
 export function Monitor({ p, rot = 0, color = '#3ee8ff' }) {
+  const open = useOpenProp('monitor');
   return (
-    <group position={p} rotation={[0, rot, 0]}>
+    <group position={p} rotation={[0, rot, 0]} {...open}>
+      <PropDot position={[0, 1.25, 0]} kind="monitor" />
       <Box p={[0, 0.12, 0]} s={[0.5, 0.06, 0.34]} c="#1a1530" />
       <Box p={[0, 0.3, 0]} s={[0.08, 0.3, 0.08]} c="#1a1530" />
       <Box p={[0, 0.75, 0]} s={[1.3, 0.78, 0.07]} c="#0e0c1c" />
       <mesh position={[0, 0.75, 0.04]}><planeGeometry args={[1.2, 0.68]} /><meshBasicMaterial color={color} toneMapped={false} /></mesh>
+    </group>
+  );
+}
+
+export function Keyboard({ p, rot = 0 }) {
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      {/* Keyboard base */}
+      <Box p={[0, 0.015, 0]} s={[0.72, 0.025, 0.28]} c="#161226" r={0.02} />
+      {/* Keycaps surface */}
+      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[0.68, 0.24]} />
+        <meshStandardMaterial color="#2d2448" roughness={0.4} />
+      </mesh>
+      {/* Key rows backlight glow */}
+      {[-0.06, 0, 0.06].map((kz, i) => (
+        <mesh key={i} position={[0, 0.032, kz]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.64, 0.03]} />
+          <meshBasicMaterial color="#3ee8ff" opacity={0.65} transparent />
+        </mesh>
+      ))}
+      {/* Spacebar */}
+      <mesh position={[0, 0.033, 0.09]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[0.32, 0.025]} />
+        <meshStandardMaterial color="#ff4fd8" />
+      </mesh>
+      {/* Mousepad & Mouse */}
+      <mesh position={[0.52, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[0.24, 0.28]} />
+        <meshStandardMaterial color="#0e0a1c" roughness={0.9} />
+      </mesh>
+      <Box p={[0.52, 0.02, 0]} s={[0.09, 0.03, 0.15]} c="#241e3a" r={0.03} />
+    </group>
+  );
+}
+
+export function Dustbin({ p }) {
+  return (
+    <group position={p}>
+      {/* Mesh wastebasket bin */}
+      <mesh position={[0, 0.32, 0]} castShadow>
+        <cylinderGeometry args={[0.22, 0.16, 0.64, 16, 1, true]} />
+        <meshStandardMaterial color="#2a2240" metalness={0.6} roughness={0.4} />
+      </mesh>
+      {/* Solid bottom */}
+      <mesh position={[0, 0.02, 0]}>
+        <cylinderGeometry args={[0.16, 0.16, 0.04, 16]} />
+        <meshStandardMaterial color="#1a1426" />
+      </mesh>
+      {/* Top rim ring */}
+      <mesh position={[0, 0.64, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.22, 0.02, 8, 20]} />
+        <meshStandardMaterial color="#3ee8ff" metalness={0.8} />
+      </mesh>
+      {/* Crumpled paper balls inside */}
+      <mesh position={[0.04, 0.16, -0.02]} rotation={[0.4, 0.2, 0]}>
+        <dodecahedronGeometry args={[0.065, 0]} />
+        <meshStandardMaterial color="#e0e0e0" roughness={0.9} />
+      </mesh>
+      <mesh position={[-0.04, 0.22, 0.04]} rotation={[0.1, 0.8, 0.5]}>
+        <dodecahedronGeometry args={[0.055, 0]} />
+        <meshStandardMaterial color="#f0d588" roughness={0.9} />
+      </mesh>
     </group>
   );
 }

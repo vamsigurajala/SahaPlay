@@ -1,7 +1,7 @@
-import { useContext, useLayoutEffect, useMemo, useRef } from 'react';
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Box, Neon, Plant, useOpenProp, ViewContext, PropDot } from './parts';
+import { Box, Neon, Plant, useOpenProp, ViewContext, PropDot, ScaledHtml } from './parts';
 import { NEON_CYAN, NEON_AMBER } from './constants';
 import { autoWeather } from './environment';
 
@@ -918,10 +918,16 @@ export function RomanticLantern({ p }) {
 
 // ── Living Room Upgrades (Speakers, Clock, Window, Snacks, Reading Nook) ───
 
-export function RealTimeClock({ p, rot = 0, r = 0.65 }) {
+export function RealTimeClock({ p, rot = 0, r = 0.85 }) {
   const hrRef = useRef();
   const minRef = useRef();
   const secRef = useRef();
+  const [digitalTime, setDigitalTime] = useState(() => {
+    const d = new Date();
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  });
+
+  const open = useOpenProp('clock');
 
   useFrame(() => {
     const d = new Date();
@@ -934,73 +940,115 @@ export function RealTimeClock({ p, rot = 0, r = 0.65 }) {
     if (hrRef.current) hrRef.current.rotation.z = -hr * (PI * 2 / 12);
   });
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const d = new Date();
+      setDigitalTime(d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
-    <group position={p} rotation={[0, rot, 0]}>
+    <group position={p} rotation={[0, rot, 0]} {...open}>
+      <PropDot position={[0, r + 0.35, 0]} kind="clock" />
       {/* Outer brushed brass / gold bezel oriented facing +Z */}
       <mesh rotation={[PI / 2, 0, 0]}>
-        <cylinderGeometry args={[r + 0.05, r + 0.05, 0.06, 32]} />
-        <meshStandardMaterial color="#d4af37" metalness={0.8} roughness={0.2} />
+        <cylinderGeometry args={[r + 0.06, r + 0.06, 0.06, 36]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.85} roughness={0.15} />
       </mesh>
       {/* Glowing gold/amber halo rim so the clock pops on dark walls */}
       <mesh position={[0, 0, 0.015]} rotation={[-PI / 2, 0, 0]}>
-        <ringGeometry args={[r + 0.045, r + 0.085, 36]} />
-        <meshBasicMaterial color="#ffeaa7" toneMapped={false} />
+        <ringGeometry args={[r + 0.05, r + 0.12, 36]} />
+        <meshBasicMaterial color="#ffcf5a" toneMapped={false} />
       </mesh>
-      {/* Inner dial face in deep dark obsidian */}
+      {/* High-contrast crisp ivory/porcelain dial face */}
       <mesh position={[0, 0, 0.035]} rotation={[PI / 2, 0, 0]}>
-        <cylinderGeometry args={[r, r, 0.015, 32]} />
-        <meshStandardMaterial color="#100e1c" roughness={0.3} />
+        <cylinderGeometry args={[r, r, 0.015, 36]} />
+        <meshStandardMaterial color="#f8f5ee" roughness={0.2} metalness={0.1} />
+      </mesh>
+      {/* Inner subtle gold dial ring */}
+      <mesh position={[0, 0, 0.045]} rotation={[-PI / 2, 0, 0]}>
+        <ringGeometry args={[r * 0.75, r * 0.77, 36]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.8} />
       </mesh>
 
-      {/* 12 Hour tick markers in gold with major ticks at 12, 3, 6, 9 */}
+      {/* 12 Hour tick markers in bold dark purple-black & gold */}
       {Array.from({ length: 12 }).map((_, i) => {
         const ang = (i / 12) * PI * 2;
         const isMajor = i % 3 === 0;
-        const tickDist = r - (isMajor ? 0.11 : 0.08);
-        const tickLen = isMajor ? 0.10 : 0.05;
-        const tickW = isMajor ? 0.03 : 0.015;
+        const tickDist = r - (isMajor ? 0.13 : 0.09);
+        const tickLen = isMajor ? 0.15 : 0.07;
+        const tickW = isMajor ? 0.045 : 0.022;
         return (
           <group key={i} position={[Math.sin(ang) * tickDist, Math.cos(ang) * tickDist, 0.05]} rotation={[0, 0, -ang]}>
-            <mesh><boxGeometry args={[tickW, tickLen, 0.012]} /><meshStandardMaterial color={isMajor ? "#ffd700" : "#e6c875"} metalness={0.85} roughness={0.15} /></mesh>
+            <mesh><boxGeometry args={[tickW, tickLen, 0.012]} /><meshStandardMaterial color={isMajor ? "#120e24" : "#4a3c66"} metalness={0.5} roughness={0.3} /></mesh>
           </group>
         );
       })}
 
-      {/* Hour Hand (Brushed gold) */}
+      {/* Hour Hand (Bold dark with luminous gold insert) */}
       <group position={[0, 0, 0.06]}>
         <group ref={hrRef}>
           <mesh position={[0, (r * 0.48) / 2, 0]}>
-            <boxGeometry args={[0.04, r * 0.48, 0.014]} />
-            <meshStandardMaterial color="#ffd700" metalness={0.9} roughness={0.1} />
+            <boxGeometry args={[0.052, r * 0.48, 0.015]} />
+            <meshStandardMaterial color="#140e24" metalness={0.6} />
+          </mesh>
+          <mesh position={[0, (r * 0.48) / 2, 0.008]}>
+            <boxGeometry args={[0.028, r * 0.38, 0.006]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.9} />
           </mesh>
         </group>
       </group>
 
-      {/* Minute Hand (Sleek bright gold) */}
-      <group position={[0, 0, 0.068]}>
+      {/* Minute Hand (Sleek bold dark with luminous gold insert) */}
+      <group position={[0, 0, 0.07]}>
         <group ref={minRef}>
-          <mesh position={[0, (r * 0.72) / 2, 0]}>
-            <boxGeometry args={[0.026, r * 0.72, 0.012]} />
-            <meshStandardMaterial color="#fff3a8" metalness={0.85} roughness={0.15} />
+          <mesh position={[0, (r * 0.74) / 2, 0]}>
+            <boxGeometry args={[0.038, r * 0.74, 0.014]} />
+            <meshStandardMaterial color="#140e24" metalness={0.6} />
+          </mesh>
+          <mesh position={[0, (r * 0.74) / 2, 0.008]}>
+            <boxGeometry args={[0.02, r * 0.62, 0.006]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.9} />
           </mesh>
         </group>
       </group>
 
       {/* Second Hand (Vibrant crimson / neon red with counterbalance) */}
-      <group position={[0, 0, 0.076]}>
+      <group position={[0, 0, 0.08]}>
         <group ref={secRef}>
-          <mesh position={[0, (r * 0.8) / 2 - 0.06, 0]}>
-            <boxGeometry args={[0.014, r * 0.8 + 0.12, 0.01]} />
-            <meshBasicMaterial color="#ff2a55" toneMapped={false} />
+          <mesh position={[0, (r * 0.82) / 2 - 0.08, 0]}>
+            <boxGeometry args={[0.018, r * 0.82 + 0.16, 0.012]} />
+            <meshBasicMaterial color="#e63946" />
           </mesh>
         </group>
       </group>
 
       {/* Center gold cap pin */}
-      <mesh position={[0, 0, 0.085]} rotation={[PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.045, 0.045, 0.02, 16]} />
-        <meshStandardMaterial color="#ffd700" metalness={0.9} roughness={0.1} />
+      <mesh position={[0, 0, 0.09]} rotation={[PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, 0.022, 18]} />
+        <meshStandardMaterial color="#ffd700" metalness={0.95} roughness={0.1} />
       </mesh>
+
+      {/* Crystal Clear Live Digital Time Readout Badge */}
+      <ScaledHtml position={[0, -r * 0.38, 0.08]} zIndexRange={[33, 0]} pointerEvents="none">
+        <div style={{
+          background: 'rgba(18, 14, 34, 0.94)',
+          border: '1.5px solid #d4af37',
+          borderRadius: 8,
+          padding: '3px 10px',
+          fontSize: 13,
+          fontWeight: 800,
+          letterSpacing: 1.2,
+          color: '#3ee8ff',
+          fontFamily: 'monospace',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.6), 0 0 10px rgba(62,232,255,0.45)',
+          whiteSpace: 'nowrap',
+          textShadow: '0 0 6px rgba(62,232,255,0.8)',
+        }}>
+          {digitalTime}
+        </div>
+      </ScaledHtml>
     </group>
   );
 }
@@ -1617,6 +1665,194 @@ export function LoungeTableItems({ p = [0, 0.52, 0] }) {
           <sphereGeometry args={[0.075, 10, 8]} />
           <meshStandardMaterial color="#b37c46" roughness={0.8} />
         </mesh>
+      </group>
+    </group>
+  );
+}
+
+export function FramedArt({ p, w = 1.8, h = 2.2, rot = 0 }) {
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      {/* Outer brushed brass / dark wood frame */}
+      <Box p={[0, 0, 0.03]} s={[w + 0.16, h + 0.16, 0.06]} c="#1b1424" r={0.03} />
+      <Box p={[0, 0, 0.05]} s={[w + 0.08, h + 0.08, 0.03]} c="#d4af37" metalness={0.7} r={0.02} />
+      {/* White gallery matting */}
+      <mesh position={[0, 0, 0.066]}>
+        <planeGeometry args={[w, h]} />
+        <meshBasicMaterial color="#f8f4ec" />
+      </mesh>
+      {/* Artistic abstract canvas artwork */}
+      <mesh position={[0, 0, 0.07]}>
+        <planeGeometry args={[w - 0.22, h - 0.26]} />
+        <meshBasicMaterial color="#3a2468" />
+      </mesh>
+      {/* Abstract geometric color waves */}
+      <mesh position={[0, 0.15, 0.072]}>
+        <circleGeometry args={[0.42, 24]} />
+        <meshBasicMaterial color="#ff5e7e" toneMapped={false} />
+      </mesh>
+      <mesh position={[-0.2, -0.25, 0.073]}>
+        <planeGeometry args={[0.6, 0.5]} />
+        <meshBasicMaterial color="#3ee8ff" toneMapped={false} />
+      </mesh>
+      <mesh position={[0.22, -0.15, 0.074]}>
+        <circleGeometry args={[0.28, 20]} />
+        <meshBasicMaterial color="#ffd166" toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
+export function WallGuitar({ p, rot = 0 }) {
+  return (
+    <group position={p} rotation={[0, rot, -0.25]}>
+      {/* Guitar body - lower bout */}
+      <mesh position={[0, 0, 0.06]}>
+        <cylinderGeometry args={[0.38, 0.38, 0.09, 24]} />
+        <meshStandardMaterial color="#c2753a" roughness={0.4} />
+      </mesh>
+      {/* Guitar body - upper bout */}
+      <mesh position={[0, 0.44, 0.06]}>
+        <cylinderGeometry args={[0.29, 0.29, 0.088, 24]} />
+        <meshStandardMaterial color="#b3662d" roughness={0.4} />
+      </mesh>
+      {/* Waist transition */}
+      <mesh position={[0, 0.22, 0.06]}>
+        <boxGeometry args={[0.48, 0.35, 0.086]} />
+        <meshStandardMaterial color="#c2753a" roughness={0.4} />
+      </mesh>
+      {/* Soundhole */}
+      <mesh position={[0, 0.28, 0.106]} rotation={[-PI / 2, 0, 0]}>
+        <circleGeometry args={[0.11, 20]} />
+        <meshBasicMaterial color="#1a0f08" />
+      </mesh>
+      {/* Rosette ring */}
+      <mesh position={[0, 0.28, 0.107]} rotation={[-PI / 2, 0, 0]}>
+        <ringGeometry args={[0.115, 0.14, 20]} />
+        <meshBasicMaterial color="#ffeaa7" />
+      </mesh>
+      {/* Bridge */}
+      <mesh position={[0, -0.08, 0.11]}>
+        <boxGeometry args={[0.24, 0.05, 0.02]} />
+        <meshStandardMaterial color="#4a2810" />
+      </mesh>
+      {/* Neck */}
+      <mesh position={[0, 0.95, 0.06]}>
+        <boxGeometry args={[0.12, 0.75, 0.05]} />
+        <meshStandardMaterial color="#5a3418" />
+      </mesh>
+      {/* Fretboard */}
+      <mesh position={[0, 0.95, 0.088]}>
+        <boxGeometry args={[0.11, 0.74, 0.012]} />
+        <meshStandardMaterial color="#1f140e" />
+      </mesh>
+      {/* Frets */}
+      {[-0.25, -0.15, -0.05, 0.05, 0.15, 0.25].map((fy, i) => (
+        <mesh key={i} position={[0, 0.95 + fy, 0.096]}>
+          <boxGeometry args={[0.1, 0.008, 0.005]} />
+          <meshStandardMaterial color="#d4af37" metalness={0.9} />
+        </mesh>
+      ))}
+      {/* Headstock */}
+      <mesh position={[0, 1.45, 0.06]}>
+        <boxGeometry args={[0.16, 0.28, 0.05]} />
+        <meshStandardMaterial color="#c2753a" />
+      </mesh>
+      {/* Tuning pegs */}
+      {[-0.09, 0.09].map((px, pi) => (
+        [1.38, 1.45, 1.52].map((py, yi) => (
+          <mesh key={`${pi}-${yi}`} position={[px, py, 0.06]}>
+            <cylinderGeometry args={[0.02, 0.02, 0.04, 8]} />
+            <meshStandardMaterial color="#ffd700" metalness={0.9} />
+          </mesh>
+        ))
+      ))}
+      {/* Wall hanger bracket */}
+      <mesh position={[0, 1.25, 0.02]}>
+        <boxGeometry args={[0.2, 0.06, 0.06]} />
+        <meshStandardMaterial color="#1a1426" metalness={0.8} />
+      </mesh>
+    </group>
+  );
+}
+
+export function CuteTreeVase({ p, potColor = '#4ecdc4', leavesColor = '#2ecc71' }) {
+  return (
+    <group position={p}>
+      {/* Cute ceramic pot with round bulbous base */}
+      <mesh position={[0, 0.22, 0]} castShadow>
+        <cylinderGeometry args={[0.24, 0.16, 0.44, 18]} />
+        <meshStandardMaterial color={potColor} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.44, 0]}>
+        <torusGeometry args={[0.24, 0.03, 8, 20]} />
+        <meshStandardMaterial color="#ffffff" roughness={0.2} />
+      </mesh>
+      {/* Dark soil */}
+      <mesh position={[0, 0.41, 0]} rotation={[-PI / 2, 0, 0]}>
+        <circleGeometry args={[0.22, 16]} />
+        <meshStandardMaterial color="#2c1a0e" roughness={0.9} />
+      </mesh>
+      {/* Woody bonsai trunk */}
+      <mesh position={[0, 0.65, 0]} rotation={[0.08, 0, 0.1]}>
+        <cylinderGeometry args={[0.05, 0.07, 0.5, 8]} />
+        <meshStandardMaterial color="#5c381e" roughness={0.8} />
+      </mesh>
+      {/* Cute fluffy rounded foliage clouds */}
+      <mesh position={[0, 1.05, 0]} castShadow>
+        <sphereGeometry args={[0.38, 14, 12]} />
+        <meshStandardMaterial color={leavesColor} roughness={0.7} />
+      </mesh>
+      <mesh position={[-0.18, 0.95, 0.1]} castShadow>
+        <sphereGeometry args={[0.25, 12, 10]} />
+        <meshStandardMaterial color={leavesColor} roughness={0.7} />
+      </mesh>
+      <mesh position={[0.18, 0.98, -0.08]} castShadow>
+        <sphereGeometry args={[0.26, 12, 10]} />
+        <meshStandardMaterial color={leavesColor} roughness={0.7} />
+      </mesh>
+    </group>
+  );
+}
+
+export function PuzzleTableSet({ p }) {
+  const open = useOpenProp('puzzles');
+  return (
+    <group position={p} {...open}>
+      <PropDot position={[0, 0.8, 0]} kind="puzzles" />
+      {/* Jigsaw wooden puzzle board */}
+      <Box p={[0, 0.02, 0]} s={[1.8, 0.04, 1.3]} c="#c29b62" r={0.03} />
+      <Box p={[0, 0.042, 0]} s={[1.65, 0.015, 1.15]} c="#241e3a" r={0.02} />
+      
+      {/* Scattered colorful puzzle pieces */}
+      {[
+        [-0.5, 0.06, -0.3, '#ff4fd8'],
+        [-0.2, 0.06, -0.2, '#3ee8ff'],
+        [0.1, 0.06, -0.35, '#ffd166'],
+        [0.4, 0.06, -0.15, '#06d6a0'],
+        [-0.4, 0.06, 0.2, '#ff6b6b'],
+        [-0.05, 0.06, 0.15, '#a29bfe'],
+        [0.35, 0.06, 0.25, '#ffeaa7'],
+        [-0.6, 0.06, 0.05, '#48dbfb']
+      ].map(([px, py, pz, col], i) => (
+        <mesh key={i} position={[px, py, pz]} rotation={[0, i * 0.7, 0]}>
+          <boxGeometry args={[0.22, 0.02, 0.22]} />
+          <meshStandardMaterial color={col} roughness={0.3} />
+        </mesh>
+      ))}
+
+      {/* Rubik's cube / puzzle box sitting on side */}
+      <group position={[1.1, 0.15, 0.2]} rotation={[0.1, 0.35, 0]}>
+        <Box p={[0, 0, 0]} s={[0.28, 0.28, 0.28]} c="#120e1f" r={0.03} />
+        {/* Colorful faces */}
+        {[-0.07, 0.07].map(fx => (
+          [-0.07, 0.07].map(fy => (
+            <mesh key={`${fx}-${fy}`} position={[fx, fy, 0.145]}>
+              <planeGeometry args={[0.11, 0.11]} />
+              <meshBasicMaterial color={fx > 0 ? '#ff4fd8' : '#3ee8ff'} />
+            </mesh>
+          ))
+        ))}
       </group>
     </group>
   );

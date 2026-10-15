@@ -1,8 +1,8 @@
-import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, Bookshelf, Arcade, WallWindow, WallPanel, Rug, Table, Sofa, Wardrobe } from './parts';
+import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, Keyboard, Dustbin, Bookshelf, Arcade, WallWindow, WallPanel, Rug, Table, Sofa, Wardrobe } from './parts';
 import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Cell } from './cell';
-import { Clock, RealTimeClock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity, RomanticChaiseLounge, ChampagneTable, RomanticFireplace, VelvetPouf, RomanticLantern, ReadingArmchair, ReadingLamp, LoungeTableItems } from './props';
+import { Clock, RealTimeClock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity, RomanticChaiseLounge, ChampagneTable, RomanticFireplace, VelvetPouf, RomanticLantern, ReadingArmchair, ReadingLamp, LoungeTableItems, PuzzleTableSet } from './props';
 
 const ROSES = ['#d0183a', '#ff4f8a', '#ff9ac0', '#fff0f6'];
 const MIXED = ['#ff6fb5', '#ffcf5a', '#a56bff', '#ff8a5a', '#ffffff', '#4fa8ff'];
@@ -21,6 +21,8 @@ function DeskSet({ p, mon, chair }) {
       <Box p={[x - 1.4, 0.5, z]} s={[0.14, 1.0, 1.3]} c="#241c4a" />
       <Box p={[x + 1.4, 0.5, z]} s={[0.14, 1.0, 1.3]} c="#241c4a" />
       <Monitor p={[x, 1.07, z - 0.2]} color={mon} />
+      <Keyboard p={[x, 1.08, z + 0.25]} />
+      <Dustbin p={[x + 1.85, 0, z]} />
       <Chair p={[x, 0, z + 1.5]} rot={PI} c={chair} />
     </group>
   );
@@ -41,23 +43,20 @@ export function Study() {
       <DeskSet p={[12.2, 0, 1.0]} mon={NEON_AMBER} chair="#e0529f" />
       <DeskSet p={[15.8, 0, 1.0]} mon={NEON_VIOLET} chair="#4fa8ff" />
       <Bookshelf p={[17.45, 0, 11.0]} rot={-PI / 2} w={5} h={3.8} d={0.9} shelf="study-b" />
+
+      {/* Table with 3 chairs and playable puzzle games */}
       <Rug p={[13.4, 0, 12.0]} w={7.4} d={4.6} c="#2b5a8a" c2="#3a72a8" />
       <Table p={[13.4, 0, 12.0]} w={5.2} d={2.2} />
-      {[12.0, 14.8].map(x => (
-        <group key={x}>
-          <Chair p={[x, 0, 10.3]} rot={0} c="#4f7fe0" />
-          <Chair p={[x, 0, 13.7]} rot={PI} c="#c24fa3" />
-        </group>
-      ))}
-      <BeanBag p={[3.0, 0, 13.0]} color="#f0b73a" glow={NEON_AMBER} />
-      <BeanBag p={[4.8, 0, 14.4]} color="#4fa8ff" glow={NEON_CYAN} />
-      <FloorLamp p={[1.2, 0, 11.6]} />
-      <Plant p={[1.0, 0, 14.8]} scale={1.2} />
-      <Plant p={[17.2, 0, 15.0]} scale={1.1} color="#34b36a" />
-      <Plant p={[11.0, 0, 6.8]} scale={1.0} />
+      {/* 3 chairs around the puzzle table */}
+      <Chair p={[12.0, 0, 10.3]} rot={0} c="#4f7fe0" />
+      <Chair p={[14.8, 0, 10.3]} rot={0} c="#4f7fe0" />
+      <Chair p={[13.4, 0, 13.7]} rot={PI} c="#c24fa3" />
+      {/* Playable puzzle board & Rubik's cube on the table */}
+      <PuzzleTableSet p={[13.4, 0.82, 12.0]} />
+
+      <BeanBag p={[3.0, 0, 13.0]} color="#f0b73a" glow={false} />
+      <BeanBag p={[4.8, 0, 14.4]} color="#4fa8ff" glow={false} />
       <Clock p={[10.2, 3.6, 0.12]} />
-      {/* Telescope moved away from the Living Room doorway/wall to avoid clipping */}
-      <Telescope p={[2.6, 0, 4.2]} rot={0.6} />
     </Cell>
   );
 }

@@ -1,6 +1,6 @@
-import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Stool, Monitor, Bookshelf, Arcade, WallWindow, WallPanel, Wardrobe } from './parts';
+import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Stool, Monitor, Keyboard, Dustbin, Bookshelf, Arcade, WallWindow, WallPanel, Wardrobe } from './parts';
 import { TV_LOCAL, TV_H, NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
-import { RomanticCanopyBed, BedBench, RomanticNightstand, ScenicWeatherWindow, SnackPlatter, HiFiSpeaker, SoundBar, TrioTVLights } from './props';
+import { RomanticCanopyBed, BedBench, RomanticNightstand, ScenicWeatherWindow, SnackPlatter, HiFiSpeaker, SoundBar, TrioTVLights, FramedArt, WallGuitar, CuteTreeVase } from './props';
 
 const PI = Math.PI;
 
@@ -8,38 +8,54 @@ const PI = Math.PI;
 export function StudyBase() {
   return (
     <group>
+      {/* Clean clear daylight window with no colored panels */}
       <WallWindow p={[-11, 2.9, -9.9]} w={3.4} h={1.9} color="#7fc4ff" />
-      <WallPanel p={[-14.6, 3.1, -9.92]} color={NEON_VIOLET} />
-      <WallPanel p={[-7.4, 3.1, -9.92]} color={NEON_PINK} />
-      {/* two desks along the back wall, each with a monitor and chair */}
+
+      {/* Two desks along the back wall, each with a clickable monitor, keyboard, and dustbin */}
       {[-13.4, -8.6].map((x, i) => (
         <group key={x}>
           <Box p={[x, 1.0, -9.0]} s={[3.2, 0.14, 1.5]} c="#3a2d66" r={0.04} />
           <Box p={[x - 1.4, 0.5, -9.0]} s={[0.14, 1.0, 1.3]} c="#241c4a" />
           <Box p={[x + 1.4, 0.5, -9.0]} s={[0.14, 1.0, 1.3]} c="#241c4a" />
           <Monitor p={[x, 1.07, -9.2]} color={i ? NEON_PINK : NEON_CYAN} />
-          <Box p={[x - 0.9, 1.12, -8.7]} s={[0.55, 0.05, 0.22]} c="#161226" shadow={false} />
+          <Keyboard p={[x, 1.08, -8.72]} />
+          <Dustbin p={[x + 1.85, 0, -9.0]} />
           <Chair p={[x, 0, -7.5]} rot={PI} c={i ? '#c24fa3' : '#4f7fe0'} />
         </group>
       ))}
-      {/* bookshelf wall */}
+
+      {/* Bookshelf wall */}
       <Bookshelf p={[-15.45, 0, -5.2]} rot={PI / 2} w={6.6} h={3.8} d={0.9} shelf="study-a" />
-      {/* reading nook */}
+
+      {/* Acoustic guitar mounted on wall to the left of the bookshelf */}
+      <WallGuitar p={[-15.35, 2.2, -1.2]} rot={PI / 2} />
+
+      {/* Cute miniature tree vases in front of the guitar, left and right */}
+      <CuteTreeVase p={[-14.2, 0, -1.8]} potColor="#3ee8ff" leavesColor="#2ecc71" />
+      <CuteTreeVase p={[-14.2, 0, -0.6]} potColor="#ff70a6" leavesColor="#27ae60" />
+
+      {/* Center Reading Nook Carpet */}
       <Box p={[-10.6, 0.03, -3.6]} s={[5.6, 0.06, 4.2]} c="#2b5a8a" rough={1} shadow={false} />
       <Box p={[-10.6, 0.07, -3.6]} s={[5.0, 0.02, 3.6]} c="#3a72a8" rough={1} shadow={false} />
-      <BeanBag p={[-11.6, 0, -3.3]} color="#f0b73a" glow={NEON_AMBER} />
-      <BeanBag p={[-9.6, 0, -2.4]} color="#4fa8ff" glow={NEON_CYAN} />
-      <FloorLamp p={[-12.9, 0, -2.0]} />
-      <Box p={[-10.6, 0.35, -4.4]} s={[1.3, 0.7, 1.3]} c="#2f2358" r={0.1} />
-      <TableLamp p={[-10.6, 0.7, -4.4]} />
-      {/* globe */}
-      <group position={[-7.2, 0, -5.4]}>
-        <mesh position={[0, 0.6, 0]}><cylinderGeometry args={[0.05, 0.05, 1.2, 8]} /><meshStandardMaterial color="#2a2140" /></mesh>
-        <mesh position={[0, 1.55, 0]} castShadow><sphereGeometry args={[0.5, 20, 16]} /><meshStandardMaterial color="#3d7fe0" roughness={0.5} /></mesh>
-        <mesh position={[0, 1.55, 0]} rotation={[0.4, 0, 0.3]}><torusGeometry args={[0.56, 0.025, 8, 30]} /><meshStandardMaterial color="#d9c48a" /></mesh>
-      </group>
-      <Plant p={[-6.9, 0, -1.1]} scale={1.2} />
-      <Plant p={[-15.0, 0, -0.9]} scale={1.0} color="#34b36a" />
+
+      {/* Small table with cute flower vase centered on the carpet */}
+      <Box p={[-10.6, 0.35, -3.6]} s={[1.4, 0.7, 1.4]} c="#2f2358" r={0.1} />
+      <mesh position={[-10.6, 0.75, -3.6]} castShadow>
+        <cylinderGeometry args={[0.16, 0.1, 0.32, 14]} />
+        <meshStandardMaterial color="#f0b0d0" roughness={0.3} />
+      </mesh>
+      {[[0, 0.18, 0, '#ff4fd8'], [-0.08, 0.15, 0.06, '#ffd166'], [0.08, 0.16, -0.05, '#3ee8ff'], [0.05, 0.2, 0.07, '#06d6a0']].map(([fx, fy, fz, fc], fi) => (
+        <mesh key={fi} position={[-10.6 + fx, 0.85 + fy, -3.6 + fz]}>
+          <sphereGeometry args={[0.075, 8, 8]} />
+          <meshStandardMaterial color={fc} roughness={0.4} />
+        </mesh>
+      ))}
+
+      {/* Couch bags (beanbags) placed around 3 sides of the center table */}
+      <BeanBag p={[-12.4, 0, -3.6]} color="#f0b73a" glow={false} />
+      <BeanBag p={[-8.8, 0, -3.6]} color="#4fa8ff" glow={false} />
+      <BeanBag p={[-10.6, 0, -2.1]} color="#a56bff" glow={false} />
+
       <Neon p={[-11, 0.1, -9.9]} s={[9.6, 0.05, 0.05]} color={NEON_CYAN} />
     </group>
   );
@@ -72,6 +88,16 @@ export function LivingRoomBase({ weather = 'night' }) {
       {/* Single Large Panoramic Scenery Window that changes with weather on the TV wall */}
       <ScenicWeatherWindow p={[-4.3, 2.85, -9.9]} w={2.6} h={2.2} weather={weather} />
 
+      {/* Framed Canvas Painting on the right side of the TV wall */}
+      <FramedArt p={[4.3, 3.1, -9.9]} w={2.0} h={2.2} />
+
+      {/* Designer Floor Lamp right in front of the painting */}
+      <FloorLamp p={[4.3, 0, -8.6]} color="#ffe0a0" />
+
+      {/* Lighting near Study door to illuminate the sectional couch */}
+      <FloorLamp p={[-5.3, 0, -5.2]} color="#ffd699" />
+      <pointLight position={[-4.8, 2.4, -4.2]} intensity={50} distance={10} color="#ffe2b0" decay={2} />
+
       {/* Expanded Luxury Rug */}
       <Box p={[-0.6, 0.03, -4.0]} s={[12.6, 0.06, 7.8]} c="#241e3a" r={0.2} rough={0.9} shadow={false} />
       <Box p={[-0.6, 0.065, -4.0]} s={[11.8, 0.02, 7.0]} c="#322a50" r={0.15} rough={0.85} shadow={false} />
@@ -79,7 +105,7 @@ export function LivingRoomBase({ weather = 'night' }) {
       {/* Massive Expanded L-Sectional Sofa (fits many members comfortably) */}
       <Box p={[-0.6, 0.45, -1.5]} s={[10.4, 0.9, 2.0]} c="#363158" r={0.2} />
       <Box p={[-0.6, 1.3, -0.6]} s={[10.4, 1.5, 0.55]} c="#2a2546" r={0.2} />
-      {/* Left chaise return extending forward towards TV */}
+      {/* Left chaise return extending forward towards TV & study door */}
       <Box p={[-4.8, 0.45, -3.2]} s={[2.0, 0.9, 3.4]} c="#363158" r={0.2} />
       <Box p={[-5.5, 1.1, -3.2]} s={[0.45, 1.1, 3.4]} c="#2a2546" r={0.16} />
       {/* 5 wide plush cushions along the main sofa */}
