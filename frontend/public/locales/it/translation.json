@@ -2002,5 +2002,86 @@
   "appUpdateAvailable": "È disponibile una nuova versione",
   "appUpdateButton": "Aggiorna",
   "appUpdateDownloading": "Download dell'aggiornamento in corso…",
-  "appUpdateInstalling": "Installazione dell'aggiornamento in corso…"
+  "appUpdateInstalling": "Installazione dell'aggiornamento in corso…",
+  "gamify": {
+    "close": "Chiudi",
+    "clock": {
+      "title": "Orologio del soggiorno",
+      "reference": "Orologi di riferimento nel mondo",
+      "chronometer": "Cronometro",
+      "london": "Londra",
+      "newyork": "New York",
+      "tokyo": "Tokyo",
+      "mumbai": "Mumbai"
+    },
+    "monalisa": {
+      "museum": "Museo del Louvre • Parigi • Salle des États",
+      "title": "La Gioconda — Monna Lisa",
+      "subtitle": "Leonardo di ser Piero da Vinci (1503–1519 circa) • Ispezione interattiva del capolavoro",
+      "linesOn": "Tutte le linee guida visibili",
+      "linesOff": "Mostra tutte le linee guida",
+      "labelMedium": "Tecnica",
+      "valueMedium": "Olio su tavola di pioppo",
+      "labelDims": "Dimensioni",
+      "valueDims": "77 cm × 53 cm (30 in × 21 in)",
+      "labelAccession": "Inventario del Louvre",
+      "valueAccession": "INV. 779 • Salle des États (Sala 711)",
+      "labelCommission": "Committenza storica",
+      "valueCommission": "Francesco del Giocondo (Firenze, 1503)",
+      "smile": {
+        "title": "L'elusivo sorriso a sfumato",
+        "subtitle": "Neuroscienze ottiche e 30 microvelature",
+        "curator": "Perché il sorriso appare e scompare mentre lo sguardo scorre sul suo volto",
+        "d1": "Leonardo fu pioniere della sua rivoluzionaria tecnica dello «sfumato» (dall'italiano sfumare, «svanire come fumo»), che fonde le tonalità senza linee nette né pennellate percepibili.",
+        "d2": "Dipinse con fino a 30 strati ultrasottili di velatura a olio colorata, ciascuno spesso meno di 2 micrometri: un cinquantesimo dello spessore di un capello umano.",
+        "d3": "La neurobiologa di Harvard Margaret Livingstone ha dimostrato che il sorriso coinvolge la visione periferica: guardando direttamente la bocca, la nitidezza foveale rende le labbra serene; guardando gli occhi, la visione periferica delle ombre a bassa frequenza allarga vistosamente il sorriso!",
+        "discovery": "Analisi multispettrale ad alta risoluzione del Louvre e Harvard Medical School"
+      },
+      "eyebrows": {
+        "title": "Le sopracciglia e le ciglia scomparse",
+        "subtitle": "Moda aristocratica fiorentina e scansioni da 240 MP",
+        "curator": "Alta moda del Cinquecento e 500 anni di conservazione delicata",
+        "d1": "Nella Firenze del pieno Rinascimento le nobildonne si depilavano sopracciglia e attaccatura dei capelli per mettere in risalto una fronte alta e curva, simbolo supremo di eleganza spirituale.",
+        "d2": "Nel 2007 l'ingegnere ottico francese Pascal Cotte eseguì al Louvre scansioni multispettrali da 240 megapixel su 13 frequenze luminose, scoprendo i tratti microscopici di un singolo pelo di sopracciglio.",
+        "d3": "Ciò dimostra che Leonardo dipinse in origine sopracciglia e ciglia sottili, ma 500 anni di delicate pulizie della vernice hanno gradualmente dissolto la fragile velatura superficiale.",
+        "discovery": "Indagine di Pascal Cotte con fotocamera multispettrale da 240 MP (2007)"
+      },
+      "veil": {
+        "title": "Il velo di maternità «guarnello»",
+        "subtitle": "Il segreto post-parto di Lisa Gherardini",
+        "curator": "Prove sull'abbigliamento che confermano l'epoca del ritratto e l'identità della modella",
+        "d1": "Sui suoi capelli scuri e ricci è posato con delicatezza un velo etereo, quasi trasparente, di garza di seta, noto nell'Italia rinascimentale come «guarnello».",
+        "d2": "Gli studiosi di costume storico hanno confermato che il guarnello era indossato esclusivamente dalle madri del Rinascimento italiano durante la gravidanza o poco dopo il parto.",
+        "d3": "Questo dettaglio cruciale ha confermato i documenti d'archivio di Firenze: il ricco mercante di seta Francesco del Giocondo commissionò a Leonardo il ritratto della moglie Lisa Gherardini per celebrare la nascita del secondo figlio, Andrea, nel dicembre 1502.",
+        "discovery": "Archivio di Stato di Firenze e scansione laser 3D del NRC Canada"
+      },
+      "horizon": {
+        "title": "L'asimmetrico orizzonte toscano",
+        "subtitle": "Profondità ottica forzata e Ponte Buriano",
+        "curator": "Uno scarto d'orizzonte voluto che crea una presenza monumentale",
+        "d1": "Osserva con attenzione l'orizzonte sullo sfondo: il paesaggio di sinistra è nettamente più basso di quello roccioso di destra.",
+        "d2": "Leonardo creò di proposito questo scarto: poiché l'occhio umano scorre in orizzontale, la discrepanza prospettica inganna il cervello facendogli percepire un movimento continuo, e la Gioconda appare più alta e imponente.",
+        "d3": "Storici dell'arte e geologi toscani hanno identificato il ponte medievale in pietra sopra la sua spalla sinistra come il Ponte Buriano, costruito sull'Arno vicino ad Arezzo nel 1277.",
+        "discovery": "Topografia del paesaggio toscano e studi geologici sul campo"
+      },
+      "initials": {
+        "title": "Lettere microscopiche negli occhi",
+        "subtitle": "Le microfirme clandestine di Leonardo",
+        "curator": "Codici alfanumerici segreti nascosti nelle sue pupille scure",
+        "d1": "Nel 2010 il Comitato nazionale per i beni culturali italiano scoprì minuscoli caratteri alfanumerici dipinti nelle pupille della Gioconda con un ingrandimento di 50x.",
+        "d2": "Nella pupilla destra i ricercatori hanno individuato le lettere «LV», le iniziali della firma personale di Leonardo da Vinci.",
+        "d3": "Nella pupilla sinistra ci sono simboli tenui simili a «CE» o «B», accanto al numero «72» dipinto sotto un arco del ponte sullo sfondo.",
+        "discovery": "Analisi al microscopio del Comitato nazionale per i beni culturali italiano (2010)"
+      },
+      "hands": {
+        "title": "Le mani piramidali auree",
+        "subtitle": "La poltrona «pozzetto» e l'armonia rinascimentale",
+        "curator": "Il modello supremo della composizione ritrattistica classica",
+        "d1": "Le mani conserte della Gioconda poggiano sul bracciolo ligneo di una sedia «pozzetto» e formano la solida base del triangolo piramidale a sezione aurea di Leonardo (Φ ≈ 1,618).",
+        "d2": "La mano destra poggia dolcemente sul polso sinistro, un gesto lodato da Giorgio Vasari nel 1550 come «più divino che umano», emblema di serenità, fedeltà e grazia senza tempo.",
+        "d3": "Raffaello, in visita alla bottega di Leonardo, ne fu così affascinato da schizzarne le mani, e questa posa divenne per secoli il modello del ritratto europeo.",
+        "discovery": "Analisi strutturale del Louvre e «Le Vite» di Giorgio Vasari (1550)"
+      }
+    }
+  }
 }

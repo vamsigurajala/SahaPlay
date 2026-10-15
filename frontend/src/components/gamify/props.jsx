@@ -1805,8 +1805,37 @@ export function CuteTreeVase({ p, potColor = '#4ecdc4', leavesColor = '#2ecc71' 
   );
 }
 
+export const MONA_LISA_IMG = '/images/gamify/art/mona-lisa.jpg';
+const MONA_ASPECT = 500 / 745;
+let monaTexPromise = null;
+function loadMonaTexture() {
+  if (!monaTexPromise) {
+    monaTexPromise = new Promise((resolve) => {
+      new THREE.TextureLoader().load(
+        MONA_LISA_IMG,
+        (t) => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; resolve(t); },
+        undefined,
+        () => { monaTexPromise = null; resolve(null); }, // let the next attempt retry
+      );
+    });
+  }
+  return monaTexPromise;
+}
+
 export function MonaLisaPainting({ p, w = 2.4, h = 2.6 }) {
   const open = useOpenProp('monalisa');
+  const [monaTex, setMonaTex] = useState(null);
+  useEffect(() => {
+    let live = true;
+    let timer = 0;
+    const attempt = (n) => loadMonaTexture().then((t) => {
+      if (!live) return;
+      if (t) setMonaTex(t);
+      else if (n < 3) timer = setTimeout(() => attempt(n + 1), 2500 * (n + 1));
+    });
+    attempt(0);
+    return () => { live = false; clearTimeout(timer); };
+  }, []);
   return (
     <group position={p} {...open}>
       <PropDot position={[0, h / 2 + 0.35, 0.1]} kind="monalisa" />
@@ -1831,8 +1860,15 @@ export function MonaLisaPainting({ p, w = 2.4, h = 2.6 }) {
         <meshStandardMaterial color="#2d2218" roughness={0.9} />
       </mesh>
 
+      {/* The real painting (public domain, Louvre) once its texture has loaded; the drawn version below is the fallback */}
+      {monaTex && (
+        <mesh position={[0, 0, 0.125]}>
+          <planeGeometry args={[Math.min(w, h * MONA_ASPECT), Math.min(w, h * MONA_ASPECT) / MONA_ASPECT]} />
+          <meshBasicMaterial map={monaTex} toneMapped={false} />
+        </mesh>
+      )}
       {/* Mona Lisa Canvas composition (warm Renaissance palette & sfumato portrait) */}
-      <group position={[0, 0, 0.1]}>
+      <group position={[0, 0, 0.1]} visible={!monaTex}>
         {/* Sky & background Italian landscape */}
         <mesh position={[0, h * 0.22, 0]}>
           <planeGeometry args={[w * 0.88, h * 0.44]} />

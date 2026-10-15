@@ -2002,5 +2002,86 @@
   "appUpdateAvailable": "Uma nova versão está disponível",
   "appUpdateButton": "Atualizar",
   "appUpdateDownloading": "Baixando atualização…",
-  "appUpdateInstalling": "Instalando atualização…"
+  "appUpdateInstalling": "Instalando atualização…",
+  "gamify": {
+    "close": "Fechar",
+    "clock": {
+      "title": "Relógio da sala de estar",
+      "reference": "Relógios de referência mundial",
+      "chronometer": "Cronómetro",
+      "london": "Londres",
+      "newyork": "Nova Iorque",
+      "tokyo": "Tóquio",
+      "mumbai": "Mumbai"
+    },
+    "monalisa": {
+      "museum": "Museu do Louvre • Paris • Salle des États",
+      "title": "La Gioconda — A Mona Lisa",
+      "subtitle": "Leonardo di ser Piero da Vinci (c. 1503–1519) • Inspeção interativa da obra-prima",
+      "linesOn": "Todas as linhas-guia visíveis",
+      "linesOff": "Mostrar todas as linhas-guia",
+      "labelMedium": "Técnica",
+      "valueMedium": "Óleo sobre painel de choupo",
+      "labelDims": "Dimensões",
+      "valueDims": "77 cm × 53 cm (30 pol × 21 pol)",
+      "labelAccession": "Inventário do Louvre",
+      "valueAccession": "INV. 779 • Salle des États (Sala 711)",
+      "labelCommission": "Encomenda histórica",
+      "valueCommission": "Francesco del Giocondo (Florença, 1503)",
+      "smile": {
+        "title": "O esquivo sorriso em sfumato",
+        "subtitle": "Neurociência óptica e 30 microvelaturas",
+        "curator": "Por que o sorriso aparece e desaparece quando o olhar percorre o seu rosto",
+        "d1": "Leonardo foi pioneiro da sua revolucionária técnica do «sfumato» (do italiano sfumare, «evaporar como fumo»), que funde os tons sem linhas nítidas nem pinceladas perceptíveis.",
+        "d2": "Pintou com até 30 microcamadas ultrafinas de velatura a óleo tingida, cada uma com menos de 2 micrómetros de espessura — um quinquagésimo da espessura de um cabelo humano.",
+        "d3": "A neurobióloga de Harvard Margaret Livingstone provou que o sorriso envolve a visão periférica: olhando diretamente para a boca, a nitidez da fóvea faz os lábios parecerem serenos; olhando para os olhos, a visão periférica de sombras de baixa frequência faz o sorriso alargar-se de forma dramática!",
+        "discovery": "Análise multiespectral de alta resolução do Louvre e Harvard Medical School"
+      },
+      "eyebrows": {
+        "title": "As sobrancelhas e pestanas desaparecidas",
+        "subtitle": "Moda aristocrática florentina e digitalizações de 240 MP",
+        "curator": "Alta-costura do século XVI e 500 anos de conservação delicada",
+        "d1": "Na Florença do auge do Renascimento, as nobres depilavam as sobrancelhas e a linha do cabelo para realçar uma testa alta e curva — o símbolo supremo de elegância espiritual.",
+        "d2": "Em 2007, o engenheiro óptico francês Pascal Cotte realizou no Louvre digitalizações multiespectrais de 240 megapixéis em 13 frequências de luz e descobriu traços microscópicos de um único pelo de sobrancelha.",
+        "d3": "Isto provou que Leonardo pintou inicialmente sobrancelhas e pestanas finas, mas 500 anos de limpezas suaves do verniz dissolveram gradualmente a delicada velatura superficial.",
+        "discovery": "Investigação de Pascal Cotte com câmara multiespectral de 240 MP (2007)"
+      },
+      "veil": {
+        "title": "O véu de maternidade «guarnello»",
+        "subtitle": "O segredo pós-parto de Lisa Gherardini",
+        "curator": "Provas do vestuário que confirmam a data do retrato e a identidade da modelo",
+        "d1": "Sobre o seu cabelo escuro e encaracolado repousa delicadamente um véu de gaze de seda etéreo e quase transparente, conhecido na Itália renascentista como «guarnello».",
+        "d2": "Investigadores de trajes históricos confirmaram que o guarnello era usado exclusivamente pelas mães do Renascimento italiano durante a gravidez ou pouco depois do parto.",
+        "d3": "Este detalhe crucial confirmou os registos de arquivo de Florença: o rico comerciante de seda Francesco del Giocondo encomendou a Leonardo o retrato da esposa, Lisa Gherardini, para celebrar o nascimento do segundo filho, Andrea, em dezembro de 1502.",
+        "discovery": "Archivio di Stato di Firenze e digitalização laser 3D do NRC Canadá"
+      },
+      "horizon": {
+        "title": "O horizonte toscano assimétrico",
+        "subtitle": "Profundidade óptica forçada e Ponte Buriano",
+        "curator": "Um desfasamento de horizonte intencional que cria presença monumental",
+        "d1": "Observe com atenção o horizonte ao fundo: a paisagem da esquerda está nitidamente mais baixa do que a paisagem rochosa da direita.",
+        "d2": "Leonardo criou este desfasamento de propósito: como os olhos humanos percorrem a imagem na horizontal, a discrepância de perspetiva engana o cérebro, que percebe movimento contínuo, e a Mona Lisa parece mais alta e imponente.",
+        "d3": "Historiadores de arte e geólogos toscanos identificaram a ponte medieval de pedra sobre o seu ombro esquerdo como a Ponte Buriano, construída sobre o rio Arno, perto de Arezzo, em 1277.",
+        "discovery": "Topografia da paisagem toscana e estudos geológicos de campo"
+      },
+      "initials": {
+        "title": "Letras microscópicas nos olhos",
+        "subtitle": "As microassinaturas clandestinas de Da Vinci",
+        "curator": "Códigos alfanuméricos secretos escondidos nas suas pupilas escuras",
+        "d1": "Em 2010, o Comité Nacional do Património Cultural de Itália descobriu minúsculos carateres alfanuméricos pintados nas pupilas da Mona Lisa com ampliação de 50x.",
+        "d2": "Na pupila direita, os investigadores identificaram as letras «LV» — as iniciais da assinatura pessoal de Leonardo da Vinci.",
+        "d3": "Na pupila esquerda há símbolos ténues semelhantes a «CE» ou «B», além do número «72» pintado sob um arco da ponte ao fundo.",
+        "discovery": "Análise microscópica do Comité Nacional do Património Cultural de Itália (2010)"
+      },
+      "hands": {
+        "title": "As mãos piramidais douradas",
+        "subtitle": "A cadeira «pozzetto» e a harmonia renascentista",
+        "curator": "O padrão supremo da composição clássica do retrato",
+        "d1": "As mãos cruzadas da Mona Lisa repousam no braço de madeira de uma cadeira «pozzetto» e formam a base sólida do triângulo piramidal de proporção áurea de Leonardo (Φ ≈ 1,618).",
+        "d2": "A mão direita repousa suavemente sobre o pulso esquerdo — um gesto que Giorgio Vasari elogiou em 1550 como «mais divino do que humano», símbolo de serenidade, fidelidade e graça intemporal.",
+        "d3": "Rafael ficou tão encantado ao visitar a oficina de Leonardo que desenhou as suas mãos, e esta pose tornou-se durante séculos o padrão de ouro do retrato europeu.",
+        "discovery": "Análise estrutural do Louvre e «Vidas dos Artistas» de Giorgio Vasari (1550)"
+      }
+    }
+  }
 }

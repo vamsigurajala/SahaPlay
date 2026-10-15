@@ -2000,5 +2000,86 @@
   "appUpdateAvailable": "Une nouvelle version est disponible",
   "appUpdateButton": "Mettre à jour",
   "appUpdateDownloading": "Téléchargement de la mise à jour…",
-  "appUpdateInstalling": "Installation de la mise à jour…"
+  "appUpdateInstalling": "Installation de la mise à jour…",
+  "gamify": {
+    "close": "Fermer",
+    "clock": {
+      "title": "Pendule du salon",
+      "reference": "Horloges de référence dans le monde",
+      "chronometer": "Chronomètre",
+      "london": "Londres",
+      "newyork": "New York",
+      "tokyo": "Tokyo",
+      "mumbai": "Bombay"
+    },
+    "monalisa": {
+      "museum": "Musée du Louvre • Paris • Salle des États",
+      "title": "La Gioconda — La Joconde",
+      "subtitle": "Léonard de Vinci (v. 1503–1519) • Inspection interactive du chef-d'œuvre",
+      "linesOn": "Tous les traits guides sont affichés",
+      "linesOff": "Afficher tous les traits guides",
+      "labelMedium": "Technique",
+      "valueMedium": "Huile sur panneau de peuplier",
+      "labelDims": "Dimensions",
+      "valueDims": "77 cm × 53 cm (30 po × 21 po)",
+      "labelAccession": "Inventaire du Louvre",
+      "valueAccession": "INV. 779 • Salle des États (salle 711)",
+      "labelCommission": "Commanditaire historique",
+      "valueCommission": "Francesco del Giocondo (Florence, 1503)",
+      "smile": {
+        "title": "Le sourire insaisissable en sfumato",
+        "subtitle": "Neurosciences optiques et 30 micro-glacis",
+        "curator": "Pourquoi le sourire apparaît et disparaît quand le regard parcourt son visage",
+        "d1": "Léonard a inventé sa technique révolutionnaire du « sfumato » (de l'italien sfumare, « s'évaporer comme la fumée »), qui fond les teintes sans contours nets ni coups de pinceau visibles.",
+        "d2": "Il a peint avec jusqu'à 30 micro-couches ultrafines de glacis à l'huile teinté, chacune de moins de 2 micromètres d'épaisseur, soit un cinquantième de l'épaisseur d'un cheveu.",
+        "d3": "La neurobiologiste de Harvard Margaret Livingstone a montré que ce sourire sollicite la vision périphérique : en fixant la bouche, la netteté fovéale rend les lèvres sereines ; en regardant les yeux, la vision périphérique des ombres à basse fréquence élargit nettement le sourire !",
+        "discovery": "Analyse multispectrale haute résolution du Louvre et Harvard Medical School"
+      },
+      "eyebrows": {
+        "title": "Les sourcils et cils disparus",
+        "subtitle": "Mode aristocratique florentine et scans de 240 Mpx",
+        "curator": "Haute couture du XVIe siècle et 500 ans de conservation délicate",
+        "d1": "Dans la Florence de la Haute Renaissance, les aristocrates s'épilaient sourcils et naissance des cheveux pour souligner un front haut et bombé, symbole suprême d'élégance spirituelle.",
+        "d2": "En 2007, l'ingénieur optique français Pascal Cotte a réalisé au Louvre des scans multispectraux de 240 mégapixels sur 13 fréquences lumineuses et découvert les traits microscopiques d'un poil de sourcil.",
+        "d3": "Cela prouve que Léonard avait bien peint de fins sourcils et cils, mais que 500 ans de nettoyages doux du vernis ont peu à peu dissous le délicat glacis de surface.",
+        "discovery": "Enquête de Pascal Cotte avec caméra multispectrale de 240 Mpx (2007)"
+      },
+      "veil": {
+        "title": "Le voile de maternité « guarnello »",
+        "subtitle": "Le secret post-partum de Lisa Gherardini",
+        "curator": "Indices vestimentaires confirmant la date du portrait et l'identité du modèle",
+        "d1": "Posé délicatement sur ses cheveux bruns bouclés, un voile de gaze de soie éthéré, presque transparent, connu dans l'Italie de la Renaissance sous le nom de « guarnello ».",
+        "d2": "Les spécialistes du costume historique ont confirmé que le guarnello n'était porté que par les mères de la Renaissance italienne, pendant la grossesse ou peu après l'accouchement.",
+        "d3": "Ce détail capital confirme les archives de Florence : le riche marchand de soie Francesco del Giocondo a commandé à Léonard le portrait de son épouse Lisa Gherardini pour fêter la naissance de leur deuxième fils, Andrea, en décembre 1502.",
+        "discovery": "Archivio di Stato di Firenze et numérisation laser 3D du CNRC Canada"
+      },
+      "horizon": {
+        "title": "L'horizon toscan asymétrique",
+        "subtitle": "Profondeur optique forcée et Ponte Buriano",
+        "curator": "Un décalage d'horizon voulu qui donne une présence monumentale",
+        "d1": "Observez bien l'horizon à l'arrière-plan : le paysage de gauche est nettement plus bas que le paysage rocheux de droite.",
+        "d2": "Léonard a conçu ce décalage à dessein : comme l'œil balaie l'image horizontalement, cette discordance de perspective trompe le cerveau, qui perçoit un mouvement continu, et la Joconde paraît plus grande et plus imposante.",
+        "d3": "Historiens de l'art et géologues toscans ont identifié le pont de pierre médiéval au-dessus de son épaule gauche comme le Ponte Buriano, construit sur l'Arno près d'Arezzo en 1277.",
+        "discovery": "Topographie du paysage toscan et études géologiques de terrain"
+      },
+      "initials": {
+        "title": "Des lettres microscopiques dans les yeux",
+        "subtitle": "Les micro-signatures clandestines de Léonard",
+        "curator": "Des codes alphanumériques secrets cachés dans ses pupilles sombres",
+        "d1": "En 2010, le Comité national italien du patrimoine culturel a découvert de minuscules caractères alphanumériques peints dans les pupilles de la Joconde, sous un grossissement de 50x.",
+        "d2": "Dans sa pupille droite, les chercheurs ont identifié les lettres « LV », les initiales de la signature personnelle de Léonard de Vinci.",
+        "d3": "Dans sa pupille gauche figurent de faibles symboles ressemblant à « CE » ou « B », ainsi que le nombre « 72 » peint sous une arche du pont à l'arrière-plan.",
+        "discovery": "Analyse au microscope du Comité national italien du patrimoine culturel (2010)"
+      },
+      "hands": {
+        "title": "Les mains pyramidales d'or",
+        "subtitle": "Le fauteuil « pozzetto » et l'harmonie de la Renaissance",
+        "curator": "La référence suprême de la composition classique du portrait",
+        "d1": "Les mains croisées de la Joconde reposent sur l'accoudoir en bois d'un siège « pozzetto » et forment la base solide du triangle pyramidal au nombre d'or de Léonard (Φ ≈ 1,618).",
+        "d2": "Sa main droite repose doucement sur son poignet gauche, un geste que Giorgio Vasari a loué en 1550 comme « plus divin qu'humain », incarnant la sérénité, la fidélité et une grâce intemporelle.",
+        "d3": "Raphaël, charmé lors d'une visite à l'atelier de Léonard, a dessiné ses mains, et cette pose est restée pendant des siècles la référence du portrait européen.",
+        "discovery": "Analyse structurelle du Louvre et « Vies des meilleurs peintres » de Giorgio Vasari (1550)"
+      }
+    }
+  }
 }

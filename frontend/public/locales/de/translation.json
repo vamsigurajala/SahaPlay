@@ -2000,5 +2000,86 @@
   "appUpdateAvailable": "Eine neue Version ist verfügbar",
   "appUpdateButton": "Aktualisieren",
   "appUpdateDownloading": "Update wird heruntergeladen…",
-  "appUpdateInstalling": "Update wird installiert…"
+  "appUpdateInstalling": "Update wird installiert…",
+  "gamify": {
+    "close": "Schließen",
+    "clock": {
+      "title": "Wohnzimmeruhr",
+      "reference": "Weltzeituhren",
+      "chronometer": "Chronometer",
+      "london": "London",
+      "newyork": "New York",
+      "tokyo": "Tokio",
+      "mumbai": "Mumbai"
+    },
+    "monalisa": {
+      "museum": "Musée du Louvre • Paris • Salle des États",
+      "title": "La Gioconda — Die Mona Lisa",
+      "subtitle": "Leonardo di ser Piero da Vinci (ca. 1503–1519) • Interaktive Meisterwerk-Inspektion",
+      "linesOn": "Alle Hinweislinien sichtbar",
+      "linesOff": "Alle Hinweislinien anzeigen",
+      "labelMedium": "Technik",
+      "valueMedium": "Öl auf Pappelholztafel",
+      "labelDims": "Maße",
+      "valueDims": "77 cm × 53 cm (30 in × 21 in)",
+      "labelAccession": "Louvre-Inventar",
+      "valueAccession": "INV. 779 • Salle des États (Saal 711)",
+      "labelCommission": "Historischer Auftraggeber",
+      "valueCommission": "Francesco del Giocondo (Florenz, 1503)",
+      "smile": {
+        "title": "Das flüchtige Sfumato-Lächeln",
+        "subtitle": "Optische Neurowissenschaft & 30 Mikrolasuren",
+        "curator": "Warum das Lächeln erscheint und verschwindet, wenn man über ihr Gesicht blickt",
+        "d1": "Leonardo entwickelte seine revolutionäre „Sfumato“-Technik (von italienisch sfumare, „wie Rauch verdunsten“), die Farbtöne ohne scharfe Linien oder sichtbare Pinselstriche verschmelzen lässt.",
+        "d2": "Er malte mit bis zu 30 hauchdünnen Mikroschichten aus getönter Öllasur, jede dünner als 2 Mikrometer – ein Fünfzigstel der Dicke eines menschlichen Haares.",
+        "d3": "Die Harvard-Neurobiologin Prof. Margaret Livingstone wies nach, dass ihr Lächeln das periphere Sehen anspricht: Blickt man direkt auf den Mund, sorgt die scharfe Fovea dafür, dass die Lippen ruhig wirken; blickt man auf die Augen, lässt das periphere Sehen niederfrequenter Schatten das Lächeln deutlich breiter erscheinen!",
+        "discovery": "Hochauflösende Multispektralanalyse des Louvre & Harvard Medical School"
+      },
+      "eyebrows": {
+        "title": "Die verschwundenen Augenbrauen & Wimpern",
+        "subtitle": "Florentiner Adelsmode & 240-MP-Scans",
+        "curator": "Hochmode des 16. Jahrhunderts und 500 Jahre behutsame Konservierung",
+        "d1": "Im Florenz der Hochrenaissance zupften adlige Frauen Augenbrauen und Haaransatz, um eine hohe, gewölbte Stirn zu betonen – das höchste Symbol geistiger Eleganz.",
+        "d2": "2007 führte der französische Optikingenieur Pascal Cotte im Louvre Multispektralscans mit 240 Megapixeln bei 13 Lichtfrequenzen durch und entdeckte mikroskopische Striche eines einzelnen Augenbrauenhaares.",
+        "d3": "Das beweist, dass Leonardo zunächst feine Augenbrauen und Wimpern gemalt hat, doch 500 Jahre sanfter Firnisreinigung lösten die zarte oberste Lasur allmählich auf.",
+        "discovery": "Untersuchung von Pascal Cotte mit der 240-MP-Multispektralkamera (2007)"
+      },
+      "veil": {
+        "title": "Der Mutterschaftsschleier „Guarnello“",
+        "subtitle": "Lisa Gherardinis Geheimnis nach der Geburt",
+        "curator": "Kostümbeweise bestätigen den Zeitpunkt des Porträts und die Identität der Dargestellten",
+        "d1": "Zart über ihr dunkles, gelocktes Haar fällt ein ätherischer, fast durchsichtiger Seidengazeschleier, der im Italien der Renaissance „Guarnello“ hieß.",
+        "d2": "Kostümhistoriker bestätigten, dass ein Guarnello ausschließlich von Müttern der italienischen Renaissance während der Schwangerschaft oder kurz nach der Geburt getragen wurde.",
+        "d3": "Dieses entscheidende Detail bestätigte die Florentiner Archivunterlagen: Der wohlhabende Seidenhändler Francesco del Giocondo beauftragte Leonardo, seine Frau Lisa Gherardini zur Geburt ihres zweiten Sohnes Andrea im Dezember 1502 zu porträtieren.",
+        "discovery": "Archivio di Stato di Firenze & 3D-Laserscan des NRC Kanada"
+      },
+      "horizon": {
+        "title": "Der asymmetrische toskanische Horizont",
+        "subtitle": "Optisch erzwungene Tiefe & Ponte Buriano",
+        "curator": "Ein absichtlicher Horizontversatz, der monumentale Präsenz erzeugt",
+        "d1": "Betrachte den Horizont im Hintergrund genau: Die Landschaft links liegt deutlich tiefer als die felsige Landschaft rechts.",
+        "d2": "Leonardo schuf diesen Horizontversatz absichtlich: Da das menschliche Auge horizontal abtastet, täuscht die Perspektivabweichung das Gehirn und erzeugt den Eindruck ständiger Bewegung – die Mona Lisa wirkt größer und eindrucksvoller.",
+        "d3": "Kunsthistoriker und toskanische Geologen identifizierten die mittelalterliche Steinbrücke über ihrer linken Schulter als Ponte Buriano, 1277 über den Arno bei Arezzo erbaut.",
+        "discovery": "Topografie der toskanischen Landschaft & geologische Feldstudien"
+      },
+      "initials": {
+        "title": "Mikroskopische Buchstaben in den Augen",
+        "subtitle": "Da Vincis heimliche Mikrosignaturen",
+        "curator": "Geheime alphanumerische Codes in ihren dunklen Pupillen",
+        "d1": "2010 entdeckte das italienische Nationalkomitee für Kulturerbe bei 50-facher Vergrößerung winzige alphanumerische Zeichen in den Pupillen der Mona Lisa.",
+        "d2": "In ihrer rechten Pupille erkannten die Forscher die deutlichen Buchstaben „LV“ – die Initialen von Leonardo da Vincis persönlicher Signatur.",
+        "d3": "In ihrer linken Pupille finden sich schwache Symbole, die an „CE“ oder „B“ erinnern, außerdem die Zahl „72“ unter einem Bogen der Brücke im Hintergrund.",
+        "discovery": "Mikroskopanalyse des italienischen Nationalkomitees für Kulturerbe (2010)"
+      },
+      "hands": {
+        "title": "Die goldenen Pyramidenhände",
+        "subtitle": "Pozzetto-Sessel & Harmonie der Renaissance",
+        "curator": "Der höchste Maßstab klassischer Porträtkomposition",
+        "d1": "Die gefalteten Hände der Mona Lisa ruhen auf der hölzernen Armlehne eines „Pozzetto“-Stuhls und bilden die feste Basis von Leonardos Pyramidendreieck im Goldenen Schnitt (Φ ≈ 1,618).",
+        "d2": "Ihre rechte Hand liegt sanft auf dem linken Handgelenk – eine Geste, die Giorgio Vasari 1550 als „göttlicher als menschlich“ pries und die Gelassenheit, Treue und zeitlose Anmut verkörpert.",
+        "d3": "Raffael war bei einem Besuch in Leonardos Werkstatt so fasziniert, dass er ihre Hände skizzierte; diese Pose wurde jahrhundertelang zum Goldstandard der europäischen Porträtmalerei.",
+        "discovery": "Strukturanalyse des Louvre & Giorgio Vasaris „Lebensbeschreibungen der Künstler“ (1550)"
+      }
+    }
+  }
 }

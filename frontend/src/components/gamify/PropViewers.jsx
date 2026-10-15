@@ -1,4 +1,5 @@
 import { Component, lazy, Suspense, useEffect, useId, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import {
   X, ChevronLeft, ChevronRight, ArrowLeft, RotateCcw,
@@ -16,6 +17,7 @@ import { WARDROBE_PHOTOS, COSMETICS_PHOTOS, GARDEN_PHOTOS } from '../../data/gam
 
 const SpaceViewer = lazy(() => import('./SpaceViewer'));
 import { ClothArt, BeautyArt, PlantArt } from './viewerArt';
+import { MONA_LISA_IMG } from './props';
 
 // Full-screen "look closer" views for props in the Gamify house: bookshelf (tap a
 // book to read it), fridge (hover an item for its name), oven (something is baking)
@@ -1756,6 +1758,7 @@ function PuzzleGameView() {
 
 // ── luxury live analog clock component ──────────────────────────────────────
 function LuxuryAnalogClock({ time }) {
+  const { t } = useTranslation();
   const sec = time.getSeconds();
   const min = time.getMinutes();
   const hr = time.getHours();
@@ -1865,7 +1868,7 @@ function LuxuryAnalogClock({ time }) {
           SAHAPLAY
         </text>
         <text x={center} y={center - 20} textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="7" fontWeight="700" letterSpacing="0.14em">
-          CHRONOMETER
+          {t('gamify.clock.chronometer', 'CHRONOMETER').toUpperCase()}
         </text>
 
         {/* Hour Hand */}
@@ -1909,6 +1912,8 @@ function LuxuryAnalogClock({ time }) {
 
 // ── luxury live clock view ───────────────────────────────────────────────────
 function LuxuryClockView() {
+  const { t, i18n } = useTranslation();
+  const lng = i18n.language || undefined;
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -1924,7 +1929,7 @@ function LuxuryClockView() {
 
   const pad = (n) => (n < 10 ? '0' + n : n);
 
-  const dateStr = time.toLocaleDateString(undefined, {
+  const dateStr = time.toLocaleDateString(lng, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -1932,10 +1937,10 @@ function LuxuryClockView() {
   });
 
   const worldCities = [
-    { city: 'London', tz: 'Europe/London' },
-    { city: 'New York', tz: 'America/New_York' },
-    { city: 'Tokyo', tz: 'Asia/Tokyo' },
-    { city: 'Mumbai', tz: 'Asia/Kolkata' },
+    { city: t('gamify.clock.london', 'London'), id: 'london', tz: 'Europe/London' },
+    { city: t('gamify.clock.newyork', 'New York'), id: 'newyork', tz: 'America/New_York' },
+    { city: t('gamify.clock.tokyo', 'Tokyo'), id: 'tokyo', tz: 'Asia/Tokyo' },
+    { city: t('gamify.clock.mumbai', 'Mumbai'), id: 'mumbai', tz: 'Asia/Kolkata' },
   ];
 
   return (
@@ -1953,7 +1958,7 @@ function LuxuryClockView() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#fcd34d' }}>
           <Clock size={24} />
           <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-            Living Room Timepiece
+            {t('gamify.clock.title', 'Living Room Timepiece')}
           </span>
         </div>
 
@@ -1984,13 +1989,13 @@ function LuxuryClockView() {
         {/* World Time zones */}
         <div style={{ width: '100%', marginTop: 4 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, textAlign: 'center' }}>
-            Global Reference Clocks
+            {t('gamify.clock.reference', 'Global Reference Clocks')}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-            {worldCities.map(({ city, tz }) => {
-              const cityTime = time.toLocaleTimeString(undefined, { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+            {worldCities.map(({ city, id, tz }) => {
+              const cityTime = time.toLocaleTimeString(lng, { timeZone: tz, hour: '2-digit', minute: '2-digit' });
               return (
-                <div key={city} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '9px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div key={id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '9px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,0.8)' }}>{city}</span>
                   <span style={{ fontSize: 13.5, fontWeight: 800, color: '#fcd34d', fontFamily: 'monospace' }}>{cityTime}</span>
                 </div>
@@ -2104,11 +2109,14 @@ const MONA_LISA_SECRETS = [
 ];
 
 function MonaLisaDetailViewer({ onClose }) {
+  const { t } = useTranslation();
+  const tx = (sc, f) => t(`gamify.monalisa.${sc.id}.${f}`, sc[f]);
+  const td = (sc) => sc.details.map((d, i) => t(`gamify.monalisa.${sc.id}.d${i + 1}`, d));
   const [activeSecret, setActiveSecret] = useState('smile');
   const [showAllLines, setShowAllLines] = useState(true);
 
   const pw = 340;
-  const ph = 460;
+  const ph = 506;
 
   return (
     <div style={{ width: '100%', maxWidth: 1160, display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none', padding: '10px 0 30px' }}>
@@ -2139,14 +2147,14 @@ function MonaLisaDetailViewer({ onClose }) {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 11, fontWeight: 800, color: '#fcd34d', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                Musée du Louvre • Paris • Salle des États
+                {t('gamify.monalisa.museum', 'Musée du Louvre • Paris • Salle des États')}
               </span>
             </div>
             <h2 style={{ margin: '2px 0 0', fontSize: 22, fontWeight: 900, color: '#ffffff', letterSpacing: '0.02em' }}>
-              La Gioconda — The Mona Lisa
+              {t('gamify.monalisa.title', 'La Gioconda — The Mona Lisa')}
             </h2>
             <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>
-              Leonardo di ser Piero da Vinci (c. 1503–1519) • Interactive Masterpiece Inspection
+              {t('gamify.monalisa.subtitle', 'Leonardo di ser Piero da Vinci (c. 1503–1519) • Interactive Masterpiece Inspection')}
             </div>
           </div>
         </div>
@@ -2171,7 +2179,7 @@ function MonaLisaDetailViewer({ onClose }) {
             }}
           >
             <Compass size={14} />
-            <span>{showAllLines ? 'All Pointer Lines Visible' : 'Show All Pointer Lines'}</span>
+            <span>{showAllLines ? t('gamify.monalisa.linesOn', 'All Pointer Lines Visible') : t('gamify.monalisa.linesOff', 'Show All Pointer Lines')}</span>
           </button>
         </div>
       </div>
@@ -2216,30 +2224,30 @@ function MonaLisaDetailViewer({ onClose }) {
                       {s.num}
                     </span>
                     <span style={{ fontSize: 13.5, fontWeight: 800, color: isSelected ? '#fcd34d' : '#ffffff' }}>
-                      {s.title}
+                      {tx(s, 'title')}
                     </span>
                   </div>
                 </div>
 
                 <div style={{ fontSize: 11.5, color: isSelected ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)', fontWeight: 600, marginBottom: 8 }}>
-                  {s.subtitle}
+                  {tx(s, 'subtitle')}
                 </div>
 
                 {isSelected ? (
                   <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,215,120,0.2)' }}>
                     <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.85)', fontSize: 12, lineHeight: 1.55 }}>
-                      {s.details.map((d, i) => (
+                      {td(s).map((d, i) => (
                         <li key={i} style={{ marginBottom: 6 }}>{d}</li>
                       ))}
                     </ul>
                     <div style={{ marginTop: 8, fontSize: 10.5, fontWeight: 700, color: '#fcd34d', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Check size={12} />
-                      <span>{s.discovery}</span>
+                      <span>{tx(s, 'discovery')}</span>
                     </div>
                   </div>
                 ) : (
                   <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic' }}>
-                    {s.curator}
+                    {tx(s, 'curator')}
                   </div>
                 )}
               </div>
@@ -2268,82 +2276,8 @@ function MonaLisaDetailViewer({ onClose }) {
             zIndex: 15
           }} />
 
-          {/* Mona Lisa Renaissance Canvas (SVG Render) */}
-          <svg width={pw} height={ph} viewBox={`0 0 ${pw} ${ph}`} style={{ width: '100%', height: '100%', display: 'block' }}>
-            <defs>
-              <linearGradient id="skyHaze" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#4a5a54" />
-                <stop offset="50%" stopColor="#687e74" />
-                <stop offset="100%" stopColor="#3d4d42" />
-              </linearGradient>
-              <linearGradient id="skinShade" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#e2c8a8" />
-                <stop offset="60%" stopColor="#caa480" />
-                <stop offset="100%" stopColor="#9a7452" />
-              </linearGradient>
-              <linearGradient id="dressOchre" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#2c2219" />
-                <stop offset="60%" stopColor="#19130d" />
-                <stop offset="100%" stopColor="#0f0b08" />
-              </linearGradient>
-              <radialGradient id="sfumatoFace" cx="50%" cy="40%" r="50%">
-                <stop offset="0%" stopColor="#ebd3b5" />
-                <stop offset="65%" stopColor="#c5a17d" />
-                <stop offset="100%" stopColor="#8d6849" />
-              </radialGradient>
-            </defs>
-
-            {/* Background Italian Sky */}
-            <rect x="0" y="0" width={pw} height={ph * 0.45} fill="url(#skyHaze)" />
-
-            {/* Distant crags & mountains (Left and Right - showing asymmetry) */}
-            <path d={`M 0,${ph * 0.38} Q 40,${ph * 0.28} 80,${ph * 0.35} T 140,${ph * 0.32} L 140,${ph * 0.55} L 0,${ph * 0.55} Z`} fill="#34433a" />
-            <path d={`M ${pw * 0.65},${ph * 0.24} Q ${pw * 0.78},${ph * 0.18} ${pw * 0.88},${ph * 0.26} T ${pw},${ph * 0.22} L ${pw},${ph * 0.55} L ${pw * 0.65},${ph * 0.55} Z`} fill="#2d3b33" />
-
-            {/* Winding River Arno & Ponte Buriano bridge on right */}
-            <path d={`M ${pw * 0.68},${ph * 0.38} Q ${pw * 0.78},${ph * 0.34} ${pw * 0.92},${ph * 0.42} L ${pw},${ph * 0.44}`} fill="none" stroke="#5a7062" strokeWidth="12" />
-            <path d={`M ${pw * 0.72},${ph * 0.43} L ${pw * 0.88},${ph * 0.43}`} stroke="#87755b" strokeWidth="5" strokeDasharray="3,2" />
-
-            {/* Sinuous winding road on left */}
-            <path d={`M 20,${ph * 0.48} Q 60,${ph * 0.42} 40,${ph * 0.36}`} fill="none" stroke="#7a7056" strokeWidth="8" />
-
-            {/* Sitter Torso & Dark Dress */}
-            <path d={`M 50,${ph} C 70,${ph * 0.5} 120,${ph * 0.42} ${pw / 2},${ph * 0.42} C ${pw - 120},${ph * 0.42} ${pw - 70},${ph * 0.5} ${pw - 50},${ph} Z`} fill="url(#dressOchre)" />
-
-            {/* Gold embroidered bodice border */}
-            <path d={`M ${pw * 0.38},${ph * 0.48} Q ${pw * 0.5},${ph * 0.55} ${pw * 0.62},${ph * 0.48}`} fill="none" stroke="#bfa054" strokeWidth="3" />
-
-            {/* Neck & Decolletage */}
-            <path d={`M ${pw * 0.42},${ph * 0.38} C ${pw * 0.44},${ph * 0.46} ${pw * 0.56},${ph * 0.46} ${pw * 0.58},${ph * 0.38} Z`} fill="url(#skinShade)" />
-
-            {/* Head & Sfumato Face */}
-            <ellipse cx={pw * 0.5} cy={ph * 0.3} rx={42} ry={52} fill="url(#sfumatoFace)" />
-
-            {/* Translucent Guarnello Veil & Dark Curls */}
-            <path d={`M ${pw * 0.34},${ph * 0.28} C ${pw * 0.36},${ph * 0.16} ${pw * 0.64},${ph * 0.16} ${pw * 0.66},${ph * 0.28} C ${pw * 0.68},${ph * 0.45} ${pw * 0.6},${ph * 0.52} ${pw * 0.58},${ph * 0.52} C ${pw * 0.56},${ph * 0.35} ${pw * 0.44},${ph * 0.35} ${pw * 0.42},${ph * 0.52} C ${pw * 0.4},${ph * 0.52} ${pw * 0.32},${ph * 0.45} ${pw * 0.34},${ph * 0.28} Z`} fill="#15110d" />
-
-            {/* Eyes */}
-            <ellipse cx={pw * 0.45} cy={ph * 0.29} rx={5.5} ry={2.5} fill="#2c2219" />
-            <ellipse cx={pw * 0.55} cy={ph * 0.29} rx={5.5} ry={2.5} fill="#2c2219" />
-            {/* Eye shading */}
-            <path d={`M ${pw * 0.42},${ph * 0.28} Q ${pw * 0.45},${ph * 0.265} ${pw * 0.48},${ph * 0.28}`} fill="none" stroke="#684f38" strokeWidth="1.5" />
-            <path d={`M ${pw * 0.52},${ph * 0.28} Q ${pw * 0.55},${ph * 0.265} ${pw * 0.58},${ph * 0.28}`} fill="none" stroke="#684f38" strokeWidth="1.5" />
-            {/* Soft nose shadow */}
-            <path d={`M ${pw * 0.49},${ph * 0.29} L ${pw * 0.49},${ph * 0.33} L ${pw * 0.51},${ph * 0.335}`} fill="none" stroke="#876547" strokeWidth="1.8" strokeLinecap="round" />
-            {/* Iconic Sfumato Smile */}
-            <path d={`M ${pw * 0.46},${ph * 0.355} Q ${pw * 0.5},${ph * 0.368} ${pw * 0.54},${ph * 0.355}`} fill="none" stroke="#5a3d28" strokeWidth="2.2" strokeLinecap="round" />
-            {/* Shadow under lower lip */}
-            <path d={`M ${pw * 0.48},${ph * 0.37} Q ${pw * 0.5},${ph * 0.376} ${pw * 0.52},${ph * 0.37}`} fill="none" stroke="#7a5538" strokeWidth="1.2" />
-
-            {/* Folded Hands in foreground */}
-            <g transform={`translate(${pw * 0.36}, ${ph * 0.72})`}>
-              <rect x="-30" y="32" width="160" height="14" rx="6" fill="#422e1d" />
-              <ellipse cx="48" cy="24" rx="34" ry="16" fill="url(#skinShade)" transform="rotate(-6, 48, 24)" />
-              <ellipse cx="36" cy="18" rx="32" ry="14" fill="url(#skinShade)" transform="rotate(12, 36, 18)" />
-              <path d="M 45,18 Q 65,18 78,22" fill="none" stroke="#8c6a48" strokeWidth="1.8" />
-              <path d="M 45,23 Q 62,23 74,27" fill="none" stroke="#8c6a48" strokeWidth="1.8" />
-            </g>
-          </svg>
+          {/* The real painting (public domain, Louvre) */}
+          <img src={MONA_LISA_IMG} alt={t('gamify.monalisa.title', 'La Gioconda - The Mona Lisa')} draggable={false} style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }} />
 
           {/* ── SVG DYNAMIC LEADER LINES ── */}
           <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 12 }}>
@@ -2398,7 +2332,7 @@ function MonaLisaDetailViewer({ onClose }) {
                   zIndex: 20,
                   cursor: 'pointer'
                 }}
-                title={s.title}
+                title={tx(s, 'title')}
               >
                 <div style={{
                   position: 'absolute', inset: -7, borderRadius: '50%',
@@ -2453,30 +2387,30 @@ function MonaLisaDetailViewer({ onClose }) {
                       {s.num}
                     </span>
                     <span style={{ fontSize: 13.5, fontWeight: 800, color: isSelected ? '#fcd34d' : '#ffffff' }}>
-                      {s.title}
+                      {tx(s, 'title')}
                     </span>
                   </div>
                 </div>
 
                 <div style={{ fontSize: 11.5, color: isSelected ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)', fontWeight: 600, marginBottom: 8 }}>
-                  {s.subtitle}
+                  {tx(s, 'subtitle')}
                 </div>
 
                 {isSelected ? (
                   <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,215,120,0.2)' }}>
                     <ul style={{ margin: 0, paddingLeft: 18, color: 'rgba(255,255,255,0.85)', fontSize: 12, lineHeight: 1.55 }}>
-                      {s.details.map((d, i) => (
+                      {td(s).map((d, i) => (
                         <li key={i} style={{ marginBottom: 6 }}>{d}</li>
                       ))}
                     </ul>
                     <div style={{ marginTop: 8, fontSize: 10.5, fontWeight: 700, color: '#fcd34d', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Check size={12} />
-                      <span>{s.discovery}</span>
+                      <span>{tx(s, 'discovery')}</span>
                     </div>
                   </div>
                 ) : (
                   <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic' }}>
-                    {s.curator}
+                    {tx(s, 'curator')}
                   </div>
                 )}
               </div>
@@ -2500,20 +2434,20 @@ function MonaLisaDetailViewer({ onClose }) {
         boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Artwork Medium</span>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>Oil on Poplar Wood Panel</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('gamify.monalisa.labelMedium', 'Artwork Medium')}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>{t('gamify.monalisa.valueMedium', 'Oil on Poplar Wood Panel')}</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Physical Dimensions</span>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>77 cm × 53 cm (30 in × 21 in)</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('gamify.monalisa.labelDims', 'Physical Dimensions')}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>{t('gamify.monalisa.valueDims', '77 cm × 53 cm (30 in × 21 in)')}</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Louvre Accession</span>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>INV. 779 • Salle des États (Room 711)</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('gamify.monalisa.labelAccession', 'Louvre Accession')}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>{t('gamify.monalisa.valueAccession', 'INV. 779 • Salle des États (Room 711)')}</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Historical Commission</span>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>Francesco del Giocondo (Florence, 1503)</span>
+          <span style={{ fontSize: 10.5, fontWeight: 700, color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t('gamify.monalisa.labelCommission', 'Historical Commission')}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 600, color: '#ffffff' }}>{t('gamify.monalisa.valueCommission', 'Francesco del Giocondo (Florence, 1503)')}</span>
         </div>
       </div>
     </div>
@@ -2532,12 +2466,13 @@ class ViewerBoundary extends Component {
 }
 
 export default function PropViewer({ kind, arg, onClose }) {
+  const { t } = useTranslation();
   const [book, setBook] = useState(null);
   useEscape(onClose);
   return createPortal(
     <div className="gcw-force-dark" style={overlay} onClick={onClose}>
       <style>{CSS}</style>
-      <button onClick={onClose} className="stay-white" style={closeBtn} title="Close"><X size={20} /></button>
+      <button onClick={onClose} className="stay-white" style={closeBtn} title={t('gamify.close', 'Close')}><X size={20} /></button>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
         {kind === 'books' && (book ? <BookReader book={book} onBack={() => setBook(null)} /> : <BookshelfView shelfId={arg} onPick={setBook} />)}
         {kind === 'fridge' && <FridgeView set={arg} />}

@@ -1957,5 +1957,86 @@
   "appUpdateAvailable": "A new version is available",
   "appUpdateButton": "Update",
   "appUpdateDownloading": "Downloading update…",
-  "appUpdateInstalling": "Installing update…"
+  "appUpdateInstalling": "Installing update…",
+  "gamify": {
+    "close": "Close",
+    "clock": {
+      "title": "Living Room Timepiece",
+      "reference": "Global Reference Clocks",
+      "chronometer": "Chronometer",
+      "london": "London",
+      "newyork": "New York",
+      "tokyo": "Tokyo",
+      "mumbai": "Mumbai"
+    },
+    "monalisa": {
+      "museum": "Musée du Louvre • Paris • Salle des États",
+      "title": "La Gioconda — The Mona Lisa",
+      "subtitle": "Leonardo di ser Piero da Vinci (c. 1503–1519) • Interactive Masterpiece Inspection",
+      "linesOn": "All Pointer Lines Visible",
+      "linesOff": "Show All Pointer Lines",
+      "labelMedium": "Artwork Medium",
+      "valueMedium": "Oil on Poplar Wood Panel",
+      "labelDims": "Physical Dimensions",
+      "valueDims": "77 cm × 53 cm (30 in × 21 in)",
+      "labelAccession": "Louvre Accession",
+      "valueAccession": "INV. 779 • Salle des États (Room 711)",
+      "labelCommission": "Historical Commission",
+      "valueCommission": "Francesco del Giocondo (Florence, 1503)",
+      "smile": {
+        "title": "The Elusive Sfumato Smile",
+        "subtitle": "Optical Neuroscience & 30 Micro-Glazes",
+        "curator": "Why the smile appears and vanishes as you gaze across her face",
+        "d1": "Leonardo pioneered his revolutionary \"sfumato\" technique (from Italian sfumare, \"to evaporate like smoke\"), fusing shades without sharp lines or perceptible brushstrokes.",
+        "d2": "He painted with up to 30 ultrathin micro-layers of tinted oil glaze, each less than 2 micrometers thick—one-fiftieth the thickness of a human hair.",
+        "d3": "Harvard neurobiologist Prof. Margaret Livingstone proved her smile engages human peripheral vision: looking straight at her mouth activates central foveal sharpness where lips look serene; glancing at her eyes triggers peripheral low-frequency shadow vision, causing the smile to dramatically broaden!",
+        "discovery": "Louvre High-Resolution Multispectral Analysis & Harvard Medical School"
+      },
+      "eyebrows": {
+        "title": "The Vanished Eyebrows & Lashes",
+        "subtitle": "Florentine Aristocratic Trend & 240MP Scans",
+        "curator": "16th-century high fashion and 500 years of gentle conservation",
+        "d1": "In high Renaissance Florence, aristocratic noblewomen plucked their eyebrows and upper hairlines to accentuate high, curved foreheads—the supreme symbol of spiritual elegance.",
+        "d2": "In 2007, French optical engineer Pascal Cotte conducted 240-megapixel multispectral scans across 13 light frequencies at the Louvre, discovering microscopic strokes of a single eyebrow hair.",
+        "d3": "This proved Leonardo did initially paint fine eyebrows and eyelashes, but 500 years of gentle varnish cleanings gradually dissolved the delicate top surface glaze.",
+        "discovery": "Pascal Cotte 240MP Multispectral Camera Investigation (2007)"
+      },
+      "veil": {
+        "title": "The Maternity \"Guarnello\" Veil",
+        "subtitle": "Lisa Gherardini's Postpartum Secret",
+        "curator": "Costume evidence confirming portrait timing and sitter identity",
+        "d1": "Draped delicately across her dark curled hair is an ethereal, nearly transparent silk gauze veil known in Renaissance Italy as a \"guarnello\".",
+        "d2": "Historical costume researchers confirmed that a guarnello was worn exclusively by Italian Renaissance mothers during pregnancy or shortly after giving birth.",
+        "d3": "This crucial detail confirmed archival records in Florence: wealthy silk merchant Francesco del Giocondo commissioned Leonardo to paint his wife Lisa Gherardini to celebrate the birth of their second son, Andrea, in December 1502.",
+        "discovery": "Archivio di Stato di Firenze & NRC Canada 3D Laser Scanning"
+      },
+      "horizon": {
+        "title": "The Asymmetric Tuscan Horizon",
+        "subtitle": "Optical Forced Depth & Ponte Buriano",
+        "curator": "Intentional horizon mismatch that creates monumental presence",
+        "d1": "Look closely at the background horizon: the landscape on the left is positioned noticeably lower than the rocky landscape on the right.",
+        "d2": "Leonardo intentionally engineered this horizon mismatch: because human eyes scan horizontally, the forced perspective discrepancy tricks the brain into perceiving continuous motion, making Mona Lisa appear taller and more commanding.",
+        "d3": "Art historians and Tuscan geologists identified the medieval stone bridge over her left shoulder as Ponte Buriano, built across the River Arno near Arezzo in 1277.",
+        "discovery": "Tuscan Landscape Topography & Geological Field Studies"
+      },
+      "initials": {
+        "title": "Microscopic Letters in the Eyes",
+        "subtitle": "Da Vinci's Clandestine Micro-Signatures",
+        "curator": "Secret alphanumeric codes hidden inside her dark pupils",
+        "d1": "In 2010, Italy's National Committee for Cultural Heritage discovered tiny alphanumeric characters painted into Mona Lisa's pupils under 50x magnification.",
+        "d2": "Inside her right pupil, researchers identified the distinct letters \"LV\"—Leonardo da Vinci's personal signature initials.",
+        "d3": "Inside her left pupil are faint symbols resembling \"CE\" or \"B\", alongside the number \"72\" painted beneath an arch of the background bridge.",
+        "discovery": "Italian National Committee for Cultural Heritage Microscope Analysis (2010)"
+      },
+      "hands": {
+        "title": "The Golden Pyramidal Hands",
+        "subtitle": "Pozzetto Armchair & Renaissance Harmony",
+        "curator": "The supreme standard of classical portrait composition",
+        "d1": "Mona Lisa's folded hands rest upon the wooden arm of a \"pozzetto\" chair, forming the solid base of Leonardo's Golden Ratio pyramidal triangle (Φ ≈ 1.618).",
+        "d2": "Her right hand gently rests atop her left wrist—a gesture praised by Giorgio Vasari in 1550 as \"more divine than human,\" embodying serenity, fidelity, and timeless grace.",
+        "d3": "Raphael was so captivated when visiting Leonardo's workshop that he sketched her hands, establishing this pose as the gold standard for European portraiture for centuries.",
+        "discovery": "Louvre Structural Analysis & Giorgio Vasari \"Lives of the Artists\" (1550)"
+      }
+    }
+  }
 }
