@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
+import { FOOD_PHOTOS } from './gamifyManifest';
 
-// Real photographs (food, planets) from Wikipedia, looked up by article title and
-// cached in localStorage. Wikipedia's summary endpoint returns a thumbnail of the
-// article's lead image and allows cross-origin requests. If a lookup fails the
-// callers keep drawing their illustrated fallback.
+// Curated self-hosted food photographs under public/images/gamify/foods/
+// with Wikipedia summary lookup (https://en.wikipedia.org) kept as fallback.
+// If both fail, callers keep drawing their illustrated fallback.
 
 const KEY = 'sahaplay-wiki-img-v1';
 let store = null;
@@ -31,15 +31,38 @@ async function fetchOne(title) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), 8000);
   try {
-    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, { signal: ctl.signal });
+    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, {
+      headers: { 'User-Agent': 'SahaPlay/1.0' },
+      signal: ctl.signal,
+    });
     if (!r.ok) return { url: '', extract: '' };
     const j = await r.json();
     return { url: j?.thumbnail?.source || '', extract: j?.extract || '' };
-  } finally { clearTimeout(t); }
+  } catch {
+    return { url: '', extract: '' };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Find curated self-hosted photo if available
+export function getLocalFoodPhoto(keyOrName) {
+  if (!keyOrName) return null;
+  if (FOOD_PHOTOS[keyOrName]) return FOOD_PHOTOS[keyOrName];
+  // check array
+  if (Array.isArray(keyOrName)) {
+    for (const k of keyOrName) {
+      if (FOOD_PHOTOS[k]) return FOOD_PHOTOS[k];
+    }
+  }
+  return null;
 }
 
 // Resolves to an image URL ('' if none). `title` may be a list of fallbacks.
 export function lookupWikiImage(title) {
+  const local = getLocalFoodPhoto(title);
+  if (local) return Promise.resolve(local);
+
   const titles = norm(title);
   const key = titles.join('|');
   const s = load();
@@ -62,16 +85,26 @@ export function lookupWikiImage(title) {
   return p;
 }
 
-export function useWikiImage(title) {
+export function useWikiImage(title, itemName = null) {
+  const local = (itemName && FOOD_PHOTOS[itemName]) || getLocalFoodPhoto(title);
   const key = title ? norm(title).join('|') : '';
-  const [url, setUrl] = useState(() => (key ? (load()[key] || '') : ''));
+  const [url, setUrl] = useState(() => local || (key ? (load()[key] || '') : ''));
+
   useEffect(() => {
-    if (!key) { return undefined; }
+    if (local) {
+      setUrl(local);
+      return undefined;
+    }
+    if (!key) {
+      setUrl('');
+      return undefined;
+    }
     let live = true;
     lookupWikiImage(title).then((u) => { if (live) setUrl(u || ''); });
     return () => { live = false; };
-  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  return key ? url || null : null;
+  }, [key, local, title]);
+
+  return url || null;
 }
 
 export async function wikiExtract(title) {
@@ -79,14 +112,25 @@ export async function wikiExtract(title) {
 }
 
 let warmed = false;
-// Warm the photos the kitchen viewers use, in the background.
+// Warm the curated food photos and fallbacks in the background.
 export async function prefetchFoodImages() {
   if (warmed) return;
   warmed = true;
   try {
     if (navigator.connection?.saveData) return;
+    // Preload curated local photos first
+    Object.values(FOOD_PHOTOS).forEach((url) => {
+      const im = new Image();
+      im.decoding = 'async';
+      im.src = url;
+    });
+
     const [{ FOOD_WIKI }, { FRIDGE_SHELVES, FRIDGE_SHELVES_UP, DISHES, DISHES_UP, OVEN_ITEMS, OVEN_ITEMS_UP }] = await Promise.all([import('./foodWiki'), import('./gamifyBooks')]);
     const names = [...FRIDGE_SHELVES.flat(), ...FRIDGE_SHELVES_UP.flat(), ...DISHES, ...DISHES_UP, ...OVEN_ITEMS, ...OVEN_ITEMS_UP].map(x => x.name);
-    names.forEach((n) => { if (FOOD_WIKI[n]) lookupWikiImage(FOOD_WIKI[n]).then((u) => { if (u) { const im = new Image(); im.src = u; } }); });
+    names.forEach((n) => {
+      if (!FOOD_PHOTOS[n] && FOOD_WIKI[n]) {
+        lookupWikiImage(FOOD_WIKI[n]).then((u) => { if (u) { const im = new Image(); im.src = u; } });
+      }
+    });
   } catch { /* offline: viewers fall back to drawings */ }
 }

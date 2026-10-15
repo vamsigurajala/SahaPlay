@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
+import { BOOK_COVERS } from './gamifyManifest';
 
-// Real cover art from Open Library (https://openlibrary.org). Each book is looked
-// up once by title and author, the cover id is remembered in localStorage, and the
-// image itself is a plain <img>. If the lookup fails, is offline, or the title is
-// a short poem with no meaningful cover, callers fall back to a generated cover.
+// Curated self-hosted book covers stored under public/images/gamify/books/,
+// with Open Library (https://openlibrary.org) live search kept as fallback.
+// If the lookup fails, is offline, or the title is a short poem with no
+// meaningful cover, callers fall back to a generated cover.
 
 const KEY = 'sahaplay-book-covers-v1';
 const NO_COVER = new Set(['sonnet18', 'ozymandias', 'daffodils', 'if']);
@@ -36,10 +37,11 @@ function pump() {
 }
 
 function lookup(book) {
+  if (!book?.id) return Promise.resolve(0);
   const s = load();
   if (book.id in s) return Promise.resolve(s[book.id]);
   if (pending.has(book.id)) return pending.get(book.id);
-  const q = QUERY[book.id] || { title: book.title.replace(/\(.*?\)/g, '').trim(), author: book.author };
+  const q = QUERY[book.id] || { title: (book.title || '').replace(/\(.*?\)/g, '').trim(), author: book.author };
   const url = `https://openlibrary.org/search.json?limit=1&fields=cover_i&title=${encodeURIComponent(q.title)}${q.author ? `&author=${encodeURIComponent(q.author)}` : ''}`;
   const p = new Promise((resolve) => {
     waiters.push(async () => {
@@ -65,16 +67,29 @@ function lookup(book) {
 }
 
 // Returns a cover image URL (or null while loading / when none exists).
+// Checks the curated self-hosted manifest first, then falls back to Open Library.
 export function useBookCover(book, size = 'M') {
-  const none = NO_COVER.has(book.id);
-  const [id, setId] = useState(() => (none ? 0 : (load()[book.id] || 0)));
+  const localCover = book?.id ? BOOK_COVERS?.[book.id] : null;
+  const none = !book?.id || (NO_COVER.has(book.id) && !localCover);
+  const [url, setUrl] = useState(() => (localCover || (none ? null : (load()[book.id] ? `https://covers.openlibrary.org/b/id/${load()[book.id]}-${size}.jpg` : null))));
+
   useEffect(() => {
-    if (none) return undefined;
+    if (localCover) {
+      setUrl(localCover);
+      return undefined;
+    }
+    if (none) {
+      setUrl(null);
+      return undefined;
+    }
     let live = true;
-    lookup(book).then(v => { if (live) setId(v || 0); });
+    lookup(book).then((v) => {
+      if (live) setUrl(v ? `https://covers.openlibrary.org/b/id/${v}-${size}.jpg` : null);
+    });
     return () => { live = false; };
-  }, [book, none]);
-  return !none && id ? `https://covers.openlibrary.org/b/id/${id}-${size}.jpg` : null;
+  }, [book, localCover, none, size]);
+
+  return url;
 }
 
 const keep = [];
@@ -89,8 +104,8 @@ export function preloadImage(url) {
 }
 export const coverUrl = (id, size = 'M') => `https://covers.openlibrary.org/b/id/${id}-${size}.jpg`;
 
-// Warm everything in the background (cover ids first, then the images), so the
-// shelves open with covers already there. Called once when a room is entered.
+// Warm everything in the background (curated local covers first, then Open Library covers),
+// so the shelves open with covers already there. Called once when a room is entered.
 let warmed = false;
 export async function prefetchBookCovers() {
   if (warmed) return;
@@ -99,8 +114,12 @@ export async function prefetchBookCovers() {
     if (navigator.connection?.saveData) return;
     const { BOOKS } = await import('./gamifyBooks');
     BOOKS.forEach((b) => {
-      if (NO_COVER.has(b.id)) return;
-      lookup(b).then((id) => { if (id) preloadImage(coverUrl(id, 'M')); });
+      const local = BOOK_COVERS?.[b.id];
+      if (local) {
+        preloadImage(local);
+      } else if (!NO_COVER.has(b.id)) {
+        lookup(b).then((id) => { if (id) preloadImage(coverUrl(id, 'M')); });
+      }
     });
   } catch { /* offline etc: the shelves load covers on demand instead */ }
 }

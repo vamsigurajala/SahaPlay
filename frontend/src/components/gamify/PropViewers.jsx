@@ -6,6 +6,7 @@ import { WARDROBES, COSMETICS, GARDEN } from '../../data/gamifyItems';
 import { useBookCover, preloadImage, coverUrl } from '../../data/bookCovers';
 import { useWikiImage } from '../../data/wikiImages';
 import { FOOD_WIKI } from '../../data/foodWiki';
+import { WARDROBE_PHOTOS, COSMETICS_PHOTOS, GARDEN_PHOTOS } from '../../data/gamifyManifest';
 
 const SpaceViewer = lazy(() => import('./SpaceViewer'));
 import { ClothArt, BeautyArt, PlantArt } from './viewerArt';
@@ -235,9 +236,9 @@ function ItemArt({ kind, color, accent, label }) {
   );
 }
 
-// A real photograph from Wikipedia when one is found, otherwise the drawing.
+// A real photograph (curated self-hosted with Wikipedia fallback) when one is found, otherwise the drawing.
 function FoodPhoto({ title, fallback, label }) {
-  const url = useWikiImage(title);
+  const url = useWikiImage(title, label);
   const [ok, setOk] = useState(false);
   useEffect(() => { setOk(false); }, [url]);
   return (
@@ -245,7 +246,8 @@ function FoodPhoto({ title, fallback, label }) {
       <div style={{ position: 'absolute', inset: 0, opacity: ok ? 0 : 1, transition: 'opacity .3s' }}>{fallback}</div>
       {url && (
         <img
-          src={url} alt="" referrerPolicy="no-referrer" onLoad={() => setOk(true)} onError={() => setOk(false)}
+          src={url} alt={label || ''} referrerPolicy="no-referrer" loading="lazy"
+          onLoad={() => setOk(true)} onError={() => setOk(false)}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10, boxShadow: '0 6px 12px rgba(0,0,0,0.35)', opacity: ok ? 1 : 0, transition: 'opacity .3s' }}
         />
       )}
@@ -358,7 +360,7 @@ function OvenFood({ kind, done }) {
 function OvenView({ set }) {
   const ITEMS = set === 'up' ? OVEN_ITEMS_UP : OVEN_ITEMS;
   const [item, setItem] = useState(ITEMS[0]);
-  const photo = useWikiImage(FOOD_WIKI[item.name]);
+  const photo = useWikiImage(FOOD_WIKI[item.name], item.name);
   const [elapsed, setElapsed] = useState(0); // seconds of the fast-forwarded bake (12s total)
   useEffect(() => { setElapsed(0); }, [item]);
   useEffect(() => {
@@ -471,7 +473,7 @@ function StoveView({ set }) {
   const [dish, setDish] = useState(null);
   const [stage, setStage] = useState(0);
   const [tick, setTick] = useState(0);
-  const photo = useWikiImage(dish ? FOOD_WIKI[dish.name] : null);
+  const photo = useWikiImage(dish ? FOOD_WIKI[dish.name] : null, dish?.name);
   useEffect(() => {
     if (!dish) return undefined;
     setStage(0); setTick(0);
@@ -538,22 +540,45 @@ function StoveView({ set }) {
 }
 
 // ── wardrobe, dressing table, garden ─────────────────────────────────────────
-function ItemCard({ item, Art, picked, onPick, hang }) {
+function ItemCard({ item, Art, picked, onPick, hang, category = 'wardrobe' }) {
+  const photo = category === 'cosmetics' ? COSMETICS_PHOTOS[item.name] : WARDROBE_PHOTOS[item.name];
+  const [imgErr, setImgErr] = useState(false);
+
   return (
     <button
       onClick={() => onPick(item.name)}
-      style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, color: '#fff', transition: 'transform .15s', transform: picked ? 'translateY(-6px) scale(1.06)' : 'none', filter: picked ? 'drop-shadow(0 8px 8px rgba(0,0,0,0.45))' : 'none' }}
+      style={{
+        background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, color: '#fff',
+        transition: 'transform .15s',
+        transform: picked ? 'translateY(-6px) scale(1.06)' : 'none',
+        filter: picked ? 'drop-shadow(0 8px 8px rgba(0,0,0,0.45))' : 'none'
+      }}
       onMouseEnter={() => onPick(item.name, true)}
       onMouseLeave={() => onPick(null, true)}
     >
       {hang && <div style={{ width: 3, height: 10, background: '#b8bccb', borderRadius: 2 }} />}
-      <div style={{ width: 84, height: 84 }}><Art kind={item.kind} color={item.color} accent={item.accent} /></div>
-      <div className="stay-white" style={{ fontSize: 12, fontWeight: 700, textAlign: 'center', maxWidth: 96, lineHeight: 1.2 }}>{item.name}</div>
+      <div style={{ width: 84, height: 84, borderRadius: 10, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.28)', border: '1px solid rgba(255,255,255,0.16)', position: 'relative' }}>
+        {photo && !imgErr ? (
+          <img
+            src={photo}
+            alt={item.name}
+            loading="lazy"
+            onError={() => setImgErr(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <Art kind={item.kind} color={item.color} accent={item.accent} />
+        )}
+      </div>
+      <div className="stay-white" style={{ fontSize: 12, fontWeight: 700, textAlign: 'center', maxWidth: 96, lineHeight: 1.2 }}>
+        {item.name}
+      </div>
     </button>
   );
 }
 
-function SectionGrid({ sections, Art, tone }) {
+function SectionGrid({ sections, Art, tone, category = 'wardrobe' }) {
   const [pinned, setPinned] = useState(null);
   const [hover, setHover] = useState(null);
   const shown = hover || pinned;
@@ -569,7 +594,17 @@ function SectionGrid({ sections, Art, tone }) {
             <div className="stay-white" style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.7, margin: '0 4px 4px' }}>{sec.label}</div>
             {sec.label === 'Hanging' && <div style={{ height: 5, borderRadius: 3, background: 'linear-gradient(180deg,#e0e4f0,#8a90a8)', margin: '0 2px' }} />}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 10px', justifyContent: 'center', padding: '4px 4px 12px', background: 'rgba(0,0,0,0.22)', borderRadius: 8, borderBottom: `7px solid ${tone.shelf}` }}>
-              {sec.items.map(it => <ItemCard key={it.name} item={it} Art={Art} picked={shown === it.name} onPick={pick} hang={sec.label === 'Hanging'} />)}
+              {sec.items.map(it => (
+                <ItemCard
+                  key={it.name}
+                  item={it}
+                  Art={Art}
+                  category={category}
+                  picked={shown === it.name}
+                  onPick={pick}
+                  hang={sec.label === 'Hanging'}
+                />
+              ))}
             </div>
           </div>
         ))}
@@ -586,7 +621,7 @@ function WardrobeView({ id }) {
     <div style={{ width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div className="stay-white" style={{ fontSize: 22, fontWeight: 800 }}>{data.title}</div>
       <div style={{ position: 'relative', width: '100%', perspective: 1600 }}>
-        <SectionGrid sections={data.sections} Art={ClothArt} tone={{ body: 'linear-gradient(180deg,#5a4070,#2e2040)', rim: '#7a5a96', shelf: '#8a6a4a' }} />
+        <SectionGrid sections={data.sections} Art={ClothArt} category="wardrobe" tone={{ body: 'linear-gradient(180deg,#5a4070,#2e2040)', rim: '#7a5a96', shelf: '#8a6a4a' }} />
         {[['left', -1], ['right', 1]].map(([side, dir]) => (
           <div key={side} style={{
             position: 'absolute', top: 56, bottom: 0, [side]: 0, width: '50%', transformOrigin: `${side} center`,
@@ -608,8 +643,44 @@ function CosmeticsView() {
       <div style={{ width: 150, height: 190, marginTop: 10, borderRadius: '50% 50% 46% 46%', border: '9px solid #c9a77a', background: 'radial-gradient(circle at 35% 28%, #ffffff, #cfe2f6 55%, #8fb0d8)', boxShadow: '0 20px 40px rgba(0,0,0,0.55), inset 0 0 30px rgba(255,255,255,0.7)', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: -20, left: 20, width: 36, height: 260, background: 'rgba(255,255,255,0.45)', transform: 'rotate(22deg)' }} />
       </div>
-      <SectionGrid sections={COSMETICS.sections} Art={BeautyArt} tone={{ body: 'linear-gradient(180deg,#6a3a56,#331828)', rim: '#a86a8a', shelf: '#c9a77a' }} />
+      <SectionGrid sections={COSMETICS.sections} Art={BeautyArt} category="cosmetics" tone={{ body: 'linear-gradient(180deg,#6a3a56,#331828)', rim: '#a86a8a', shelf: '#c9a77a' }} />
     </div>
+  );
+}
+
+function GardenPlantCard({ item, on, onPick, onHover }) {
+  const photo = GARDEN_PHOTOS[item.name];
+  const [imgErr, setImgErr] = useState(false);
+
+  return (
+    <button
+      onClick={() => onPick(p => (p === item.name ? null : item.name))}
+      onMouseEnter={() => onHover(item.name)}
+      onMouseLeave={() => onHover(null)}
+      style={{
+        background: on ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.24)',
+        border: on ? '1px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.16)',
+        borderRadius: 12, padding: '10px 8px 8px', cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 108,
+        color: '#fff', transition: 'transform .15s', transform: on ? 'translateY(-5px)' : 'none'
+      }}
+    >
+      <div style={{ width: 80, height: 80, borderRadius: 10, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.14)' }}>
+        {photo && !imgErr ? (
+          <img
+            src={photo}
+            alt={item.name}
+            loading="lazy"
+            onError={() => setImgErr(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <PlantArt kind={item.kind} color={item.color} accent={item.accent} />
+        )}
+      </div>
+      <div className="stay-white" style={{ fontSize: 13, fontWeight: 800 }}>{item.name}</div>
+      {item.local && item.local !== item.name && <div className="stay-white" style={{ fontSize: 11, opacity: 0.65 }}>{item.local}</div>}
+    </button>
   );
 }
 
@@ -634,22 +705,15 @@ function GardenView({ arg }) {
         {shown ? (<><div style={{ fontWeight: 800, fontSize: 16 }}>{shown.name}{shown.local && shown.local !== shown.name ? ` (${shown.local})` : ''}</div><div style={{ opacity: 0.8, fontSize: 13 }}>{shown.note}</div></>) : 'Hover or tap a plant to see its name'}
       </div>
       <div style={{ width: '100%', background: 'linear-gradient(180deg,#27502f,#14301c)', borderRadius: 16, padding: 14, boxShadow: '0 30px 70px rgba(0,0,0,0.6), inset 0 0 0 6px #3f7a4a', display: 'flex', flexWrap: 'wrap', gap: '12px 12px', justifyContent: 'center' }}>
-        {data.items.map(it => {
-          const on = shownName === it.name;
-          return (
-            <button
-              key={it.name}
-              onClick={() => setPinned(p => (p === it.name ? null : it.name))}
-              onMouseEnter={() => setHover(it.name)}
-              onMouseLeave={() => setHover(null)}
-              style={{ background: on ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, padding: '10px 8px 8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 108, color: '#fff', transition: 'transform .15s', transform: on ? 'translateY(-5px)' : 'none' }}
-            >
-              <div style={{ width: 80, height: 80 }}><PlantArt kind={it.kind} color={it.color} accent={it.accent} /></div>
-              <div className="stay-white" style={{ fontSize: 13, fontWeight: 800 }}>{it.name}</div>
-              {it.local && it.local !== it.name && <div className="stay-white" style={{ fontSize: 11, opacity: 0.65 }}>{it.local}</div>}
-            </button>
-          );
-        })}
+        {data.items.map(it => (
+          <GardenPlantCard
+            key={it.name}
+            item={it}
+            on={shownName === it.name}
+            onPick={setPinned}
+            onHover={setHover}
+          />
+        ))}
       </div>
     </div>
   );
