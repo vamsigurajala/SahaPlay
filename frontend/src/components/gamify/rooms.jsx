@@ -1,6 +1,6 @@
 import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Stool, Monitor, Keyboard, Dustbin, Bookshelf, Arcade, WallWindow, WallPanel, Wardrobe } from './parts';
 import { TV_LOCAL, TV_H, NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
-import { RomanticCanopyBed, BedBench, RomanticNightstand, ScenicWeatherWindow, SnackPlatter, HiFiSpeaker, SoundBar, TrioTVLights, FramedArt, WallGuitar, CuteTreeVase } from './props';
+import { RomanticCanopyBed, BedBench, RomanticNightstand, ScenicWeatherWindow, SnackPlatter, HiFiSpeaker, SoundBar, TrioTVLights, FramedArt, MonaLisaPainting, WallGuitar, CuteTreeVase, StudyCenterLamp } from './props';
 
 const PI = Math.PI;
 
@@ -27,29 +27,20 @@ export function StudyBase() {
       {/* Bookshelf wall */}
       <Bookshelf p={[-15.45, 0, -5.2]} rot={PI / 2} w={6.6} h={3.8} d={0.9} shelf="study-a" />
 
-      {/* Acoustic guitar mounted on wall to the left of the bookshelf */}
-      <WallGuitar p={[-15.35, 2.2, -1.2]} rot={PI / 2} />
+      {/* Acoustic guitar securely attached to the left room wall, separated from bookshelf */}
+      <WallGuitar p={[-15.88, 2.3, 0.4]} rot={PI / 2} />
 
-      {/* Cute miniature tree vases in front of the guitar, left and right */}
-      <CuteTreeVase p={[-14.2, 0, -1.8]} potColor="#3ee8ff" leavesColor="#2ecc71" />
-      <CuteTreeVase p={[-14.2, 0, -0.6]} potColor="#ff70a6" leavesColor="#27ae60" />
+      {/* Cute tree vases on the floor: bottom-left and bottom-right of the guitar */}
+      <CuteTreeVase p={[-15.3, 0, -0.4]} potColor="#3ee8ff" leavesColor="#2ecc71" />
+      <CuteTreeVase p={[-15.3, 0, 1.2]} potColor="#ff70a6" leavesColor="#27ae60" />
 
       {/* Center Reading Nook Carpet */}
       <Box p={[-10.6, 0.03, -3.6]} s={[5.6, 0.06, 4.2]} c="#2b5a8a" rough={1} shadow={false} />
       <Box p={[-10.6, 0.07, -3.6]} s={[5.0, 0.02, 3.6]} c="#3a72a8" rough={1} shadow={false} />
 
-      {/* Small table with cute flower vase centered on the carpet */}
+      {/* Small center coffee table on carpet with warm study reading lamp (replaces flower vase) */}
       <Box p={[-10.6, 0.35, -3.6]} s={[1.4, 0.7, 1.4]} c="#2f2358" r={0.1} />
-      <mesh position={[-10.6, 0.75, -3.6]} castShadow>
-        <cylinderGeometry args={[0.16, 0.1, 0.32, 14]} />
-        <meshStandardMaterial color="#f0b0d0" roughness={0.3} />
-      </mesh>
-      {[[0, 0.18, 0, '#ff4fd8'], [-0.08, 0.15, 0.06, '#ffd166'], [0.08, 0.16, -0.05, '#3ee8ff'], [0.05, 0.2, 0.07, '#06d6a0']].map(([fx, fy, fz, fc], fi) => (
-        <mesh key={fi} position={[-10.6 + fx, 0.85 + fy, -3.6 + fz]}>
-          <sphereGeometry args={[0.075, 8, 8]} />
-          <meshStandardMaterial color={fc} roughness={0.4} />
-        </mesh>
-      ))}
+      <StudyCenterLamp p={[-10.6, 0.7, -3.6]} />
 
       {/* Couch bags (beanbags) placed around 3 sides of the center table */}
       <BeanBag p={[-12.4, 0, -3.6]} color="#f0b73a" glow={false} />
@@ -85,18 +76,14 @@ export function LivingRoomBase({ weather = 'night' }) {
       <TrioTVLights p={[-2.75, 0, -9.9]} />
       <TrioTVLights p={[2.75, 0, -9.9]} />
 
-      {/* Single Large Panoramic Scenery Window that changes with weather on the TV wall */}
-      <ScenicWeatherWindow p={[-4.3, 2.85, -9.9]} w={2.6} h={2.2} weather={weather} />
+      {/* Mona Lisa Painting on the TV wall (replaces the black/green screen) */}
+      <MonaLisaPainting p={[-4.3, 2.9, -9.9]} w={2.2} h={2.4} />
 
-      {/* Framed Canvas Painting on the right side of the TV wall */}
-      <FramedArt p={[4.3, 3.1, -9.9]} w={2.0} h={2.2} />
+      {/* Floor Lamp moved beside the left speaker near the wall */}
+      <FloorLamp p={[-3.9, 0, -9.0]} color="#ffe0a0" />
 
-      {/* Designer Floor Lamp right in front of the painting */}
-      <FloorLamp p={[4.3, 0, -8.6]} color="#ffe0a0" />
-
-      {/* Lighting near Study door to illuminate the sectional couch */}
-      <FloorLamp p={[-5.3, 0, -5.2]} color="#ffd699" />
-      <pointLight position={[-4.8, 2.4, -4.2]} intensity={50} distance={10} color="#ffe2b0" decay={2} />
+      {/* Warm ambient light over sectional couch near the study opening */}
+      <pointLight position={[-4.8, 2.4, -4.5]} intensity={45} distance={9} color="#ffe2b0" decay={2} />
 
       {/* Expanded Luxury Rug */}
       <Box p={[-0.6, 0.03, -4.0]} s={[12.6, 0.06, 7.8]} c="#241e3a" r={0.2} rough={0.9} shadow={false} />

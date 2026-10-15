@@ -5,7 +5,7 @@ import {
   Globe, ExternalLink, ArrowRight, Search, Trophy,
   Brain, Compass, Flame, Gamepad2, Heart, Sparkles,
   HelpCircle, Check, Clock, RefreshCw, Shuffle, Lightbulb,
-  Maximize2
+  Maximize2, Laptop, Home, Lock
 } from 'lucide-react';
 import { GENRES, SHELVES, FRIDGE_SHELVES, FRIDGE_SHELVES_UP, DISHES, DISHES_UP, OVEN_ITEMS, OVEN_ITEMS_UP } from '../../data/gamifyBooks';
 import { WARDROBES, COSMETICS, GARDEN } from '../../data/gamifyItems';
@@ -725,184 +725,339 @@ function GardenView({ arg }) {
   );
 }
 
-// ── monitor browser launcher ──────────────────────────────────────────────────
+// ── laptop in-screen browser workstation ──────────────────────────────────────
 function MonitorBrowserView({ onClose }) {
-  const [url, setUrl] = useState('');
-  const [lastLaunched, setLastLaunched] = useState(null);
+  const [activeUrl, setActiveUrl] = useState('https://en.m.wikipedia.org/wiki/Portal:Arts');
+  const [inputUrl, setInputUrl] = useState('https://en.m.wikipedia.org/wiki/Portal:Arts');
+  const [history, setHistory] = useState(['https://en.m.wikipedia.org/wiki/Portal:Arts']);
+  const [histIndex, setHistIndex] = useState(0);
+  const [frameKey, setFrameKey] = useState(1);
+  const [loading, setLoading] = useState(false);
 
-  const bookmarks = [
-    { label: 'Google Search', url: 'https://www.google.com', desc: 'Search the web' },
-    { label: 'YouTube', url: 'https://www.youtube.com', desc: 'Stream videos & music' },
-    { label: 'GitHub', url: 'https://github.com', desc: 'Code repositories & collaboration' },
-    { label: 'Wikipedia', url: 'https://www.wikipedia.org', desc: 'The free encyclopedia' },
-    { label: 'Reddit', url: 'https://www.reddit.com', desc: 'Community discussions & news' },
-    { label: 'Chess.com', url: 'https://www.chess.com', desc: 'Play chess online' },
+  const presets = [
+    { label: 'Wikipedia', url: 'https://en.m.wikipedia.org', desc: 'Free encyclopedia' },
+    { label: '2048 Game', url: 'https://gabrielecirulli.github.io/2048/', desc: 'Play 2048 in screen' },
+    { label: 'Hacker News', url: 'https://news.ycombinator.com', desc: 'Tech & Discussions' },
+    { label: 'Open Library', url: 'https://openlibrary.org', desc: 'Millions of free books' },
+    { label: 'DuckDuckGo', url: 'https://lite.duckduckgo.com/lite/', desc: 'Web search engine' },
   ];
 
-  const handleLaunch = (targetUrl) => {
-    let raw = (targetUrl || url).trim();
-    if (!raw) return;
-    let finalUrl = raw;
-    if (!/^https?:\/\//i.test(finalUrl)) {
-      finalUrl = 'https://' + finalUrl;
+  const navigateTo = (urlToLoad) => {
+    let clean = (urlToLoad || inputUrl).trim();
+    if (!clean) return;
+    if (!/^https?:\/\//i.test(clean)) {
+      clean = 'https://' + clean;
     }
-    setLastLaunched(finalUrl);
-    window.open(finalUrl, '_blank', 'noopener,noreferrer');
+    setInputUrl(clean);
+    setActiveUrl(clean);
+    setFrameKey(k => k + 1);
+    setLoading(true);
+    setHistory(prev => [...prev.slice(0, histIndex + 1), clean]);
+    setHistIndex(prev => prev + 1);
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') handleLaunch();
+  const handleBack = () => {
+    if (histIndex > 0) {
+      const prevUrl = history[histIndex - 1];
+      setHistIndex(i => i - 1);
+      setInputUrl(prevUrl);
+      setActiveUrl(prevUrl);
+      setFrameKey(k => k + 1);
+      setLoading(true);
+    }
+  };
+
+  const handleForward = () => {
+    if (histIndex < history.length - 1) {
+      const nextUrl = history[histIndex + 1];
+      setHistIndex(i => i + 1);
+      setInputUrl(nextUrl);
+      setActiveUrl(nextUrl);
+      setFrameKey(k => k + 1);
+      setLoading(true);
+    }
+  };
+
+  const handleReload = () => {
+    setFrameKey(k => k + 1);
+    setLoading(true);
+  };
+
+  const handleHome = () => {
+    navigateTo('https://en.m.wikipedia.org/wiki/Portal:Arts');
+  };
+
+  const getDomain = (raw) => {
+    try {
+      const u = new URL(raw);
+      return u.hostname.replace('www.', '');
+    } catch {
+      return 'Web Browser';
+    }
   };
 
   return (
-    <div style={{ width: '100%', maxWidth: 740, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ width: '100%', maxWidth: 940, display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none' }}>
+      {/* ── LAPTOP LID / SCREEN CHASSIS ── */}
       <div style={{
         width: '100%',
-        background: 'radial-gradient(ellipse at 50% 0%, rgba(38,28,74,0.95), rgba(12,10,24,0.98))',
-        border: '1px solid rgba(139, 92, 246, 0.35)',
-        borderRadius: 22,
-        boxShadow: '0 30px 80px rgba(0,0,0,0.75), 0 0 50px rgba(139, 92, 246, 0.15)',
-        overflow: 'hidden',
-        backdropFilter: 'blur(20px)',
+        background: 'linear-gradient(180deg, #2d2640 0%, #171326 100%)',
+        borderRadius: '24px 24px 8px 8px',
+        padding: '16px 18px 12px',
+        boxShadow: '0 30px 90px rgba(0, 0, 0, 0.85), 0 0 45px rgba(139, 92, 246, 0.18)',
+        border: '2px solid rgba(139, 92, 246, 0.35)',
+        position: 'relative'
       }}>
-        {/* Title Bar */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)',
-          background: 'rgba(255,255,255,0.03)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
-            <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
-            <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
-            <span style={{ marginLeft: 12, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.85)', letterSpacing: '0.03em' }}>
-              Study Room Workstation Browser
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#a78bfa', fontWeight: 600, background: 'rgba(139, 92, 246, 0.15)', padding: '4px 10px', borderRadius: 99 }}>
-            <Globe size={13} />
-            <span>Ready</span>
-          </div>
+        {/* Top Bezel with Webcam and privacy LED */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 16, marginBottom: 8 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#090710', border: '1px solid rgba(255,255,255,0.2)', display: 'inline-block' }} />
+          <span style={{ width: 4, height: 4, borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }} />
         </div>
 
-        {/* Content Area */}
-        <div style={{ padding: '24px 24px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.6)', lineHeight: 1.5 }}>
-            Enter any website address to launch or redirect. The destination will open in a secure browser window.
+        {/* ── LAPTOP DISPLAY (High-res glass screen) ── */}
+        <div style={{
+          width: '100%',
+          background: '#0d0b18',
+          borderRadius: 14,
+          overflow: 'hidden',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          boxShadow: 'inset 0 0 20px rgba(0, 0, 0, 0.8)'
+        }}>
+          {/* Browser Window Bar & Tab */}
+          <div style={{
+            background: 'linear-gradient(180deg, #1f1934 0%, #151124 100%)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '10px 14px 0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12
+          }}>
+            {/* Window control dots */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingBottom: 8 }}>
+              <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+              <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+              <span style={{ width: 11, height: 11, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+            </div>
+
+            {/* Active Browser Tab */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: '#0d0b18',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderBottom: 'none',
+              borderRadius: '10px 10px 0 0',
+              padding: '6px 16px',
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: '#ffffff',
+              maxWidth: 240,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              <Globe size={13} style={{ color: '#a78bfa', flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{getDomain(activeUrl)}</span>
+            </div>
+
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, fontSize: 11.5, color: 'rgba(255,255,255,0.45)' }}>
+              <Laptop size={14} />
+              <span>Study Laptop Session</span>
+            </div>
           </div>
 
-          {/* Address input */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {/* Browser Navigation Toolbar */}
+          <div style={{
+            background: '#151124',
+            padding: '8px 14px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            flexWrap: 'wrap'
+          }}>
+            {/* Navigation buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button
+                onClick={handleBack}
+                disabled={histIndex <= 0}
+                style={{ background: 'none', border: 'none', color: histIndex > 0 ? '#fff' : 'rgba(255,255,255,0.2)', cursor: histIndex > 0 ? 'pointer' : 'default', padding: 4 }}
+                title="Back"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={handleForward}
+                disabled={histIndex >= history.length - 1}
+                style={{ background: 'none', border: 'none', color: histIndex < history.length - 1 ? '#fff' : 'rgba(255,255,255,0.2)', cursor: histIndex < history.length - 1 ? 'pointer' : 'default', padding: 4 }}
+                title="Forward"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button
+                onClick={handleReload}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}
+                title="Reload"
+              >
+                <RefreshCw size={14} style={{ animation: loading ? 'gp-spin 1s linear infinite' : 'none' }} />
+              </button>
+              <button
+                onClick={handleHome}
+                style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 4 }}
+                title="Home"
+              >
+                <Home size={15} />
+              </button>
+            </div>
+
+            {/* Address Input Bar */}
             <div style={{
-              flex: '1 1 320px',
-              display: 'flex', alignItems: 'center', gap: 12,
-              background: 'rgba(0, 0, 0, 0.5)',
-              border: '1.5px solid rgba(139, 92, 246, 0.45)',
-              borderRadius: 14,
-              padding: '10px 16px',
+              flex: '1 1 300px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'rgba(0, 0, 0, 0.55)',
+              border: '1px solid rgba(139, 92, 246, 0.35)',
+              borderRadius: 10,
+              padding: '6px 12px'
             }}>
-              <Search size={18} style={{ color: '#8b5cf6', flexShrink: 0 }} />
+              <Lock size={13} style={{ color: '#10b981', flexShrink: 0 }} />
               <input
                 type="text"
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Enter any URL (e.g. google.com, youtube.com, github.com)..."
-                autoFocus
+                value={inputUrl}
+                onChange={e => setInputUrl(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && navigateTo()}
+                placeholder="Type any URL (e.g. wikipedia.org)..."
                 style={{
                   width: '100%',
                   background: 'transparent',
                   border: 'none',
                   outline: 'none',
                   color: '#ffffff',
-                  fontSize: 14.5,
-                  fontWeight: 500,
+                  fontSize: 13,
+                  fontWeight: 500
                 }}
               />
-              {url && (
+              <button
+                onClick={() => navigateTo()}
+                style={{
+                  background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                  border: 'none',
+                  color: '#ffffff',
+                  borderRadius: 6,
+                  padding: '3px 10px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4
+                }}
+              >
+                <span>Go</span>
+                <ArrowRight size={12} />
+              </button>
+            </div>
+
+            {/* In-screen Preset Shortcuts */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {presets.map(p => (
                 <button
-                  onClick={() => setUrl('')}
-                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 2 }}
-                >
-                  <X size={15} />
-                </button>
-              )}
-            </div>
-
-            <button
-              onClick={() => handleLaunch()}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: 14,
-                padding: '12px 22px',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 4px 18px rgba(124, 58, 237, 0.45)',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span>Visit URL</span>
-              <ExternalLink size={16} />
-            </button>
-          </div>
-
-          {lastLaunched && (
-            <div style={{ fontSize: 12, color: '#34d399', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Check size={14} />
-              <span>Redirected to <strong>{lastLaunched}</strong> in a new tab.</span>
-            </div>
-          )}
-
-          {/* Bookmarks */}
-          <div style={{ marginTop: 4 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: 'rgba(255, 255, 255, 0.45)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-              Quick Launch Bookmarks
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 10 }}>
-              {bookmarks.map((site) => (
-                <div
-                  key={site.url}
-                  onClick={() => handleLaunch(site.url)}
+                  key={p.label}
+                  onClick={() => navigateTo(p.url)}
                   style={{
-                    background: 'rgba(255, 255, 255, 0.04)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: 13,
-                    padding: '12px 14px',
+                    background: activeUrl === p.url ? 'rgba(139, 92, 246, 0.35)' : 'rgba(255, 255, 255, 0.06)',
+                    border: activeUrl === p.url ? '1px solid #a78bfa' : '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: 8,
+                    padding: '3px 9px',
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    color: '#ffffff',
                     cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    transition: 'all .18s ease-out',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(139, 92, 246, 0.18)';
-                    e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.45)';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                    whiteSpace: 'nowrap'
                   }}
                 >
-                  <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(139, 92, 246, 0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc', flexShrink: 0 }}>
-                    <Globe size={18} />
-                  </div>
-                  <div style={{ overflow: 'hidden' }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#ffffff', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                      {site.label}
-                    </div>
-                    <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.45)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                      {site.desc}
-                    </div>
-                  </div>
-                </div>
+                  {p.label}
+                </button>
               ))}
             </div>
           </div>
+
+          {/* ── THE IN-SCREEN BROWSER VIEWPORT ── */}
+          <div style={{ position: 'relative', width: '100%', height: '490px', background: '#ffffff' }}>
+            <iframe
+              key={frameKey}
+              src={activeUrl}
+              title="Laptop Web Screen"
+              onLoad={() => setLoading(false)}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                display: 'block',
+                background: '#ffffff'
+              }}
+            />
+
+            {/* Note banner at bottom of the embedded screen */}
+            <div style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              background: 'rgba(18, 14, 30, 0.92)',
+              backdropFilter: 'blur(8px)',
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              padding: '6px 14px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: 11.5,
+              color: 'rgba(255, 255, 255, 0.7)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Check size={12} color="#10b981" />
+                <span>Rendered directly inside your Study Room workstation laptop.</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => window.open(activeUrl, '_blank', 'noopener,noreferrer')}
+                  style={{ background: 'none', border: 'none', color: '#a78bfa', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700 }}
+                  title="If site has strict security preventing iframe display"
+                >
+                  <span>Open in Tab</span>
+                  <ExternalLink size={12} />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* ── LAPTOP LOWER HINGE & KEYBOARD DECK BASE ── */}
+      <div style={{
+        width: '98%',
+        height: 28,
+        background: 'linear-gradient(180deg, #1b162a 0%, #100d1c 100%)',
+        borderRadius: '0 0 20px 20px',
+        border: '2px solid rgba(139, 92, 246, 0.25)',
+        borderTop: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxShadow: '0 14px 28px rgba(0, 0, 0, 0.6)'
+      }}>
+        {/* Trackpad notch indent */}
+        <div style={{
+          width: 90,
+          height: 6,
+          background: 'rgba(255, 255, 255, 0.08)',
+          borderRadius: '0 0 6px 6px',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderTop: 'none'
+        }} />
       </div>
     </div>
   );
@@ -1035,18 +1190,35 @@ function SlidingTilePuzzle() {
 }
 
 function MemoryMatchPuzzle() {
-  const ICONS = [
+  const ICONS_POOL = [
     { id: 'brain', label: 'Logic', Icon: Brain, color: '#a855f7' },
     { id: 'compass', label: 'Explore', Icon: Compass, color: '#38bdf8' },
     { id: 'flame', label: 'Fire', Icon: Flame, color: '#f97316' },
     { id: 'game', label: 'Play', Icon: Gamepad2, color: '#10b981' },
-    { id: 'heart', label: 'Heart', Icon: Heart, color: '#f43f5e' },
+    { id: 'heart', label: 'Life', Icon: Heart, color: '#f43f5e' },
     { id: 'sparkles', label: 'Magic', Icon: Sparkles, color: '#eab308' },
+    { id: 'trophy', label: 'Victory', Icon: Trophy, color: '#f59e0b' },
+    { id: 'clock', label: 'Time', Icon: Clock, color: '#06b6d4' },
+    { id: 'search', label: 'Search', Icon: Search, color: '#818cf8' },
+    { id: 'globe', label: 'World', Icon: Globe, color: '#14b8a6' },
+    { id: 'external', label: 'Launch', Icon: ExternalLink, color: '#ec4899' },
+    { id: 'help', label: 'Mystery', Icon: HelpCircle, color: '#eab308' },
+    { id: 'bulb', label: 'Idea', Icon: Lightbulb, color: '#facc15' },
+    { id: 'shuffle', label: 'Random', Icon: Shuffle, color: '#8b5cf6' },
+    { id: 'refresh', label: 'Renew', Icon: RefreshCw, color: '#84cc16' },
+    { id: 'maximize', label: 'Focus', Icon: Maximize2, color: '#3b82f6' },
+    { id: 'check', label: 'Done', Icon: Check, color: '#22c55e' },
+    { id: 'laptop', label: 'Tech', Icon: Laptop, color: '#0ea5e9' },
   ];
 
-  const createDeck = () => {
+  const [cardCount, setCardCount] = useState(32); // 32 cards (16 pairs) or 36 cards (18 pairs)
+  const pairCount = cardCount / 2;
+
+  const createDeck = (count) => {
+    const pairs = count / 2;
+    const selectedIcons = ICONS_POOL.slice(0, pairs);
     const deck = [];
-    ICONS.forEach(item => {
+    selectedIcons.forEach(item => {
       deck.push({ uid: `${item.id}-1`, id: item.id, item });
       deck.push({ uid: `${item.id}-2`, id: item.id, item });
     });
@@ -1058,16 +1230,16 @@ function MemoryMatchPuzzle() {
   const [matched, setMatched] = useState([]);
   const [moves, setMoves] = useState(0);
 
-  const reset = () => {
-    setCards(createDeck());
+  const reset = (count = cardCount) => {
+    setCards(createDeck(count));
     setFlipped([]);
     setMatched([]);
     setMoves(0);
   };
 
   useEffect(() => {
-    reset();
-  }, []);
+    reset(cardCount);
+  }, [cardCount]);
 
   const handleCardClick = (idx) => {
     if (flipped.length === 2 || flipped.includes(idx) || matched.includes(cards[idx].id)) return;
@@ -1081,32 +1253,68 @@ function MemoryMatchPuzzle() {
         setMatched(m => [...m, cards[first].id]);
         setFlipped([]);
       } else {
-        setTimeout(() => setFlipped([]), 750);
+        setTimeout(() => setFlipped([]), 650);
       }
     }
   };
 
-  const isWon = matched.length === ICONS.length && ICONS.length > 0;
+  const isWon = matched.length === pairCount && pairCount > 0;
+  const cols = cardCount === 32 ? 8 : 6;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 360, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>
-        <div>Moves: <span style={{ color: '#a78bfa' }}>{moves}</span></div>
-        <div>Matched: <span style={{ color: '#34d399' }}>{matched.length} / {ICONS.length}</span></div>
-        <button
-          onClick={reset}
-          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-        >
-          <RotateCcw size={12} />
-          <span>Restart</span>
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 12 }}>
+      {/* Top Controls & Mode Switcher */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 580, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={() => setCardCount(32)}
+            style={{
+              ...btnPill,
+              padding: '4px 10px', fontSize: 11.5,
+              background: cardCount === 32 ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'rgba(255,255,255,0.06)',
+              border: cardCount === 32 ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.1)'
+            }}
+          >
+            32 Cards (16 Pairs)
+          </button>
+          <button
+            onClick={() => setCardCount(36)}
+            style={{
+              ...btnPill,
+              padding: '4px 10px', fontSize: 11.5,
+              background: cardCount === 36 ? 'linear-gradient(135deg, #7c3aed, #4f46e5)' : 'rgba(255,255,255,0.06)',
+              border: cardCount === 36 ? '1px solid #a78bfa' : '1px solid rgba(255,255,255,0.1)'
+            }}
+          >
+            36 Cards (18 Pairs)
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div>Moves: <span style={{ color: '#a78bfa' }}>{moves}</span></div>
+          <div>Matched: <span style={{ color: '#34d399' }}>{matched.length} / {pairCount}</span></div>
+          <button
+            onClick={() => reset(cardCount)}
+            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '4px 10px', fontSize: 11.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <RotateCcw size={12} />
+            <span>Restart</span>
+          </button>
+        </div>
       </div>
 
+      {/* Responsive Card Grid (32 or 36 cards) */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10,
-        width: 360, padding: 12,
-        background: 'rgba(0, 0, 0, 0.4)', borderRadius: 16,
-        border: '2px solid rgba(139, 92, 246, 0.35)', boxShadow: 'inset 0 0 20px rgba(0,0,0,0.6)'
+        display: 'grid',
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gap: 8,
+        width: '100%',
+        maxWidth: cols === 8 ? 620 : 520,
+        padding: 12,
+        background: 'rgba(0, 0, 0, 0.45)',
+        borderRadius: 18,
+        border: '2px solid rgba(139, 92, 246, 0.35)',
+        boxShadow: 'inset 0 0 20px rgba(0,0,0,0.6)'
       }}>
         {cards.map((card, idx) => {
           const isOpen = flipped.includes(idx) || matched.includes(card.id);
@@ -1118,23 +1326,24 @@ function MemoryMatchPuzzle() {
               key={card.uid}
               onClick={() => handleCardClick(idx)}
               style={{
-                height: 80,
-                borderRadius: 12,
-                border: isMatched ? '2px solid #10b981' : isOpen ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.14)',
+                height: 58,
+                borderRadius: 10,
+                border: isMatched ? '2px solid #10b981' : isOpen ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.12)',
                 background: isOpen
-                  ? (isMatched ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.08)')
-                  : 'linear-gradient(135deg, rgba(30, 22, 54, 0.9), rgba(18, 14, 36, 0.9))',
+                  ? (isMatched ? 'rgba(16, 185, 129, 0.22)' : 'rgba(255, 255, 255, 0.1)')
+                  : 'linear-gradient(135deg, rgba(32, 24, 58, 0.95), rgba(18, 14, 36, 0.95))',
                 cursor: isOpen ? 'default' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: isMatched ? '0 0 16px rgba(16, 185, 129, 0.4)' : '0 4px 10px rgba(0,0,0,0.3)',
-                transition: 'all .2s ease-out',
-                transform: isOpen ? 'scale(1)' : 'scale(0.98)',
+                boxShadow: isMatched ? '0 0 14px rgba(16, 185, 129, 0.45)' : '0 3px 8px rgba(0,0,0,0.3)',
+                transition: 'all .16s ease-out',
+                transform: isOpen ? 'scale(1)' : 'scale(0.97)',
+                padding: 0
               }}
             >
               {isOpen ? (
-                <Icon size={32} color={color} />
+                <Icon size={24} color={color} />
               ) : (
-                <HelpCircle size={22} style={{ color: 'rgba(255,255,255,0.2)' }} />
+                <HelpCircle size={18} style={{ color: 'rgba(255,255,255,0.2)' }} />
               )}
             </button>
           );
@@ -1143,12 +1352,12 @@ function MemoryMatchPuzzle() {
 
       {isWon && (
         <div style={{
-          marginTop: 10, padding: '12px 24px', borderRadius: 14,
-          background: 'linear-gradient(135deg, rgba(16,185,129,0.25), rgba(5,150,105,0.4))',
+          marginTop: 8, padding: '12px 26px', borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(16,185,129,0.3), rgba(5,150,105,0.45))',
           border: '1.5px solid #10b981', display: 'flex', alignItems: 'center', gap: 10, color: '#34d399', fontWeight: 800, fontSize: 15
         }}>
-          <Trophy size={20} />
-          <span>Superb! All card pairs matched in {moves} moves!</span>
+          <Trophy size={22} />
+          <span>Extraordinary! All {pairCount} pairs matched in {moves} moves!</span>
         </div>
       )}
     </div>
@@ -1157,27 +1366,40 @@ function MemoryMatchPuzzle() {
 
 function WordScramblePuzzle() {
   const WORDS = [
-    { word: 'STUDY', clue: 'Quiet room with desks, bookshelf, and beanbags' },
-    { word: 'GUITAR', clue: 'Six-string acoustic instrument on the study wall' },
-    { word: 'PUZZLE', clue: 'Game testing wit, pattern recognition, and logic' },
-    { word: 'KEYBOARD', clue: 'Tactile typing hardware placed beside each monitor' },
-    { word: 'MONITOR', clue: 'High-res display screen perched on every desk' },
-    { word: 'CANVAS', clue: 'Framed oil artwork hanging in the living room' },
-    { word: 'LIBRARY', clue: 'Shelves packed with classic and modern literature' },
+    { word: 'STUDY', clue: 'Quiet room with desks, bookshelf, and cozy beanbags' },
+    { word: 'GUITAR', clue: 'Six-string acoustic instrument mounted on the wall' },
+    { word: 'PUZZLE', clue: 'Brain-teasing game testing logic, patience, and patterns' },
+    { word: 'KEYBOARD', clue: 'Tactile typing peripheral beside each desktop monitor' },
+    { word: 'MONITOR', clue: 'High-res display screen perched on every study desk' },
+    { word: 'CANVAS', clue: 'Framed artwork hanging proudly in the living room' },
+    { word: 'LIBRARY', clue: 'Tall wooden shelves packed with classic and modern literature' },
+    { word: 'COMPASS', clue: 'Navigation instrument guiding explorers across uncharted maps' },
+    { word: 'TELESCOPE', clue: 'Stargazing optic for viewing distant nebulae and planets' },
+    { word: 'FOOSBALL', clue: 'Fast-paced tabletop soccer match in the game room' },
+    { word: 'ARCADE', clue: 'Glowing cabinet loaded with vintage retro games' },
+    { word: 'BALCONY', clue: 'Outdoor deck looking out at the skyline and night sky' },
+    { word: 'FIREPLACE', clue: 'Cozy hearth radiating warmth and dancing embers' },
+    { word: 'LANTERN', clue: 'Gentle glowing light casting shadows through the night' },
+    { word: 'SUNSHINE', clue: 'Bright rays pouring in through the panoramic windows' },
+    { word: 'SNACKS', clue: 'Delicious pizza, burgers, fries, and cold party drinks' },
   ];
 
   const [index, setIndex] = useState(0);
   const [guess, setGuess] = useState('');
   const [scramble, setScramble] = useState([]);
   const [streak, setStreak] = useState(0);
-  const [status, setStatus] = useState(null); // 'correct' | 'wrong'
+  const [status, setStatus] = useState(null); // 'correct' | 'wrong' | null
   const current = WORDS[index % WORDS.length];
 
   const setupWord = (w) => {
     const letters = w.word.split('').map((char, i) => ({ id: `${char}-${i}`, char, used: false }));
-    for (let i = letters.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [letters[i], letters[j]] = [letters[j], letters[i]];
+    // Shuffle ensuring different from target word if length > 1
+    for (let attempts = 0; attempts < 5; attempts++) {
+      for (let i = letters.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [letters[i], letters[j]] = [letters[j], letters[i]];
+      }
+      if (letters.map(l => l.char).join('') !== w.word) break;
     }
     setScramble(letters);
     setGuess('');
@@ -1190,32 +1412,47 @@ function WordScramblePuzzle() {
 
   const handleLetterClick = (item) => {
     if (item.used || status === 'correct') return;
+    setStatus(null);
     setGuess(g => g + item.char);
     setScramble(prev => prev.map(l => l.id === item.id ? { ...l, used: true } : l));
   };
 
-  const handleBackspace = () => {
-    if (!guess.length || status === 'correct') return;
-    const lastChar = guess[guess.length - 1];
-    setGuess(g => g.slice(0, -1));
-    // Unmark first used match of this char
-    let unmarked = false;
+  const handleRemoveLetterAt = (charIdx) => {
+    if (status === 'correct') return;
+    setStatus(null);
+    const targetChar = guess[charIdx];
+    const newGuess = guess.slice(0, charIdx) + guess.slice(charIdx + 1);
+    setGuess(newGuess);
+
+    // Unmark the corresponding used letter chip
+    let restored = false;
     setScramble(prev => prev.map(l => {
-      if (!unmarked && l.used && l.char === lastChar) {
-        unmarked = true;
+      if (!restored && l.used && l.char === targetChar) {
+        restored = true;
         return { ...l, used: false };
       }
       return l;
     }));
   };
 
+  const handleBackspace = () => {
+    if (!guess.length || status === 'correct') return;
+    handleRemoveLetterAt(guess.length - 1);
+  };
+
+  const handleClearAll = () => {
+    setGuess('');
+    setScramble(prev => prev.map(l => ({ ...l, used: false })));
+    setStatus(null);
+  };
+
   const checkAnswer = () => {
-    if (guess === current.word) {
+    if (!guess) return;
+    if (guess.trim().toUpperCase() === current.word.toUpperCase()) {
       setStatus('correct');
       setStreak(s => s + 1);
     } else {
       setStatus('wrong');
-      setTimeout(() => setStatus(null), 1200);
     }
   };
 
@@ -1225,6 +1462,7 @@ function WordScramblePuzzle() {
 
   const giveHint = () => {
     if (status === 'correct') return;
+    setStatus(null);
     const targetChar = current.word[guess.length];
     if (!targetChar) return;
     const found = scramble.find(l => !l.used && l.char === targetChar);
@@ -1235,39 +1473,70 @@ function WordScramblePuzzle() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 14 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 420, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>
+      {/* Header bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: 460, fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>
         <div>Word: <span style={{ color: '#a78bfa' }}>{(index % WORDS.length) + 1} / {WORDS.length}</span></div>
         <div>Streak: <span style={{ color: '#f59e0b' }}>{streak}</span></div>
-        <button
-          onClick={giveHint}
-          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '3px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-        >
-          <Lightbulb size={12} color="#f59e0b" />
-          <span>Hint</span>
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={giveHint}
+            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            <Lightbulb size={12} color="#f59e0b" />
+            <span>Hint</span>
+          </button>
+          <button
+            onClick={nextWord}
+            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', borderRadius: 8, padding: '4px 10px', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+            title="Skip to next word"
+          >
+            <span>Skip</span>
+            <ChevronRight size={13} />
+          </button>
+        </div>
       </div>
 
       <div style={{
-        width: '100%', maxWidth: 420, padding: '14px 18px',
-        background: 'rgba(0, 0, 0, 0.4)', borderRadius: 16,
+        width: '100%', maxWidth: 460, padding: '16px 20px',
+        background: 'rgba(0, 0, 0, 0.45)', borderRadius: 18,
         border: '1.5px solid rgba(139, 92, 246, 0.35)',
-        display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center'
+        display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center'
       }}>
-        <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', fontStyle: 'italic', textAlign: 'center' }}>
+        <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.7)', fontStyle: 'italic', textAlign: 'center' }}>
           Clue: &ldquo;{current.clue}&rdquo;
         </div>
 
-        {/* Current Guess Slot */}
+        {/* Current Guess Slot with tap-to-remove letters */}
         <div style={{
-          minHeight: 52, width: '100%',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          background: 'rgba(255, 255, 255, 0.05)', borderRadius: 12,
-          padding: '6px 12px', border: status === 'correct' ? '2px solid #10b981' : status === 'wrong' ? '2px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'
+          minHeight: 56, width: '100%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap',
+          background: 'rgba(255, 255, 255, 0.05)', borderRadius: 14,
+          padding: '8px 14px',
+          border: status === 'correct' ? '2.5px solid #10b981' : status === 'wrong' ? '2.5px solid #ef4444' : '1px solid rgba(255,255,255,0.12)',
+          boxShadow: status === 'correct' ? '0 0 16px rgba(16, 185, 129, 0.3)' : status === 'wrong' ? '0 0 16px rgba(239, 68, 68, 0.3)' : 'none',
+          transition: 'border .2s, box-shadow .2s'
         }}>
           {guess ? guess.split('').map((c, i) => (
-            <span key={i} style={{ fontSize: 22, fontWeight: 800, color: '#ffffff', letterSpacing: '0.05em' }}>{c}</span>
+            <button
+              key={i}
+              onClick={() => handleRemoveLetterAt(i)}
+              title="Tap to remove this letter"
+              style={{
+                background: 'rgba(139, 92, 246, 0.25)',
+                border: '1px solid rgba(139, 92, 246, 0.45)',
+                borderRadius: 8,
+                padding: '4px 10px',
+                fontSize: 22,
+                fontWeight: 900,
+                color: '#ffffff',
+                letterSpacing: '0.04em',
+                cursor: 'pointer'
+              }}
+            >
+              {c}
+            </button>
           )) : (
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>Tap letters below to spell word</span>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>Tap letters below to arrange your answer</span>
           )}
         </div>
 
@@ -1285,8 +1554,8 @@ function WordScramblePuzzle() {
                 color: item.used ? 'rgba(255,255,255,0.2)' : '#ffffff',
                 fontSize: 18, fontWeight: 800, cursor: item.used ? 'default' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: item.used ? 'none' : '0 4px 10px rgba(0,0,0,0.3)',
-                transition: 'all .15s'
+                boxShadow: item.used ? 'none' : '0 4px 10px rgba(0,0,0,0.35)',
+                transition: 'all .14s ease-out'
               }}
             >
               {item.char}
@@ -1294,25 +1563,47 @@ function WordScramblePuzzle() {
           ))}
         </div>
 
-        {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+        {/* Action Buttons: Clear All, Clear Last, Check Answer / Next Word */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button
+            onClick={handleClearAll}
+            disabled={!guess.length}
+            style={{
+              ...btnPill,
+              padding: '8px 14px', fontSize: 12,
+              background: guess.length ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)',
+              opacity: guess.length ? 1 : 0.4,
+              cursor: guess.length ? 'pointer' : 'default'
+            }}
+          >
+            Clear All
+          </button>
           <button
             onClick={handleBackspace}
-            style={{ ...btnPill, padding: '7px 14px', fontSize: 12, background: 'rgba(255,255,255,0.08)' }}
+            disabled={!guess.length}
+            style={{
+              ...btnPill,
+              padding: '8px 14px', fontSize: 12,
+              background: guess.length ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)',
+              opacity: guess.length ? 1 : 0.4,
+              cursor: guess.length ? 'pointer' : 'default'
+            }}
           >
             Clear Last
           </button>
+
           {status !== 'correct' ? (
             <button
               onClick={checkAnswer}
               disabled={!guess}
               style={{
                 ...btnPill,
-                padding: '7px 20px',
+                padding: '8px 22px',
                 fontSize: 13,
                 background: guess ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.08)',
                 border: 'none',
                 opacity: guess ? 1 : 0.5,
+                boxShadow: guess ? '0 4px 12px rgba(16, 185, 129, 0.4)' : 'none'
               }}
             >
               Check Answer
@@ -1322,27 +1613,42 @@ function WordScramblePuzzle() {
               onClick={nextWord}
               style={{
                 ...btnPill,
-                padding: '7px 20px',
-                fontSize: 13,
+                padding: '8px 26px',
+                fontSize: 13.5,
                 background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-                border: 'none',
+                border: '1px solid #a78bfa',
+                boxShadow: '0 4px 16px rgba(124, 58, 237, 0.5)',
+                animation: 'gp-glow 1.5s ease-in-out infinite'
               }}
             >
               <span>Next Word</span>
-              <ArrowRight size={14} />
+              <ArrowRight size={15} />
             </button>
           )}
         </div>
       </div>
 
-      {status === 'correct' && (
+      {/* Clear Textual Feedback Banner for Wrong / Correct states */}
+      {status === 'wrong' && (
         <div style={{
           padding: '10px 20px', borderRadius: 12,
-          background: 'rgba(16, 185, 129, 0.25)', border: '1.5px solid #10b981',
-          color: '#34d399', fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8
+          background: 'rgba(239, 68, 68, 0.25)', border: '1.5px solid #ef4444',
+          color: '#fca5a5', fontWeight: 700, fontSize: 13.5, display: 'flex', alignItems: 'center', gap: 8
         }}>
-          <Check size={18} />
-          <span>Correct! That is {current.word}!</span>
+          <X size={18} color="#ef4444" />
+          <span>Not quite! &ldquo;{guess}&rdquo; is not the secret word for this clue. Tap &ldquo;Clear All&rdquo; or use a Hint.</span>
+        </div>
+      )}
+
+      {status === 'correct' && (
+        <div style={{
+          padding: '12px 24px', borderRadius: 14,
+          background: 'rgba(16, 185, 129, 0.28)', border: '1.5px solid #10b981',
+          color: '#34d399', fontWeight: 800, fontSize: 14.5, display: 'flex', alignItems: 'center', gap: 10,
+          boxShadow: '0 4px 16px rgba(16, 185, 129, 0.35)'
+        }}>
+          <Check size={20} />
+          <span>Brilliant! &ldquo;{current.word}&rdquo; is correct! Click &ldquo;Next Word&rdquo; to continue your streak!</span>
         </div>
       )}
     </div>

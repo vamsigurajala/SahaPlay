@@ -52,7 +52,7 @@ export function Study() {
       <Chair p={[14.8, 0, 10.3]} rot={0} c="#4f7fe0" />
       <Chair p={[13.4, 0, 13.7]} rot={PI} c="#c24fa3" />
       {/* Playable puzzle board & Rubik's cube on the table */}
-      <PuzzleTableSet p={[13.4, 0.82, 12.0]} />
+      <PuzzleTableSet p={[13.4, 1.05, 12.0]} />
 
       <BeanBag p={[3.0, 0, 13.0]} color="#f0b73a" glow={false} />
       <BeanBag p={[4.8, 0, 14.4]} color="#4fa8ff" glow={false} />

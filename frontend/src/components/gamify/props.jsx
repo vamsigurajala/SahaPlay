@@ -1815,40 +1815,198 @@ export function CuteTreeVase({ p, potColor = '#4ecdc4', leavesColor = '#2ecc71' 
   );
 }
 
+export function MonaLisaPainting({ p, w = 2.4, h = 2.6 }) {
+  return (
+    <group position={p}>
+      {/* Outer dark wood frame backboard */}
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[w + 0.35, h + 0.35, 0.08]} />
+        <meshStandardMaterial color="#1a120c" roughness={0.7} />
+      </mesh>
+      {/* Gilded ornamental baroque frame */}
+      <mesh position={[0, 0, 0.04]}>
+        <boxGeometry args={[w + 0.25, h + 0.25, 0.08]} />
+        <meshStandardMaterial color="#b8860b" roughness={0.3} metalness={0.75} />
+      </mesh>
+      {/* Inner gold fillet bevel */}
+      <mesh position={[0, 0, 0.07]}>
+        <boxGeometry args={[w + 0.08, h + 0.08, 0.06]} />
+        <meshStandardMaterial color="#ffd700" roughness={0.25} metalness={0.85} />
+      </mesh>
+      {/* Off-white canvas mat border */}
+      <mesh position={[0, 0, 0.09]}>
+        <planeGeometry args={[w, h]} />
+        <meshStandardMaterial color="#2d2218" roughness={0.9} />
+      </mesh>
+
+      {/* Mona Lisa Canvas composition (warm Renaissance palette & sfumato portrait) */}
+      <group position={[0, 0, 0.1]}>
+        {/* Sky & background Italian landscape */}
+        <mesh position={[0, h * 0.22, 0]}>
+          <planeGeometry args={[w * 0.88, h * 0.44]} />
+          <meshBasicMaterial color="#556254" />
+        </mesh>
+        <mesh position={[0, h * 0.08, 0.001]}>
+          <planeGeometry args={[w * 0.88, h * 0.28]} />
+          <meshBasicMaterial color="#3a4232" />
+        </mesh>
+        {/* River/road winding through landscape */}
+        <mesh position={[-w * 0.2, h * 0.1, 0.002]} rotation={[0, 0, 0.4]}>
+          <planeGeometry args={[w * 0.14, h * 0.3]} />
+          <meshBasicMaterial color="#6a7860" />
+        </mesh>
+        {/* Mona Lisa Torso & dark veil drapery */}
+        <mesh position={[0, -h * 0.12, 0.003]}>
+          <planeGeometry args={[w * 0.65, h * 0.62]} />
+          <meshBasicMaterial color="#1b1713" />
+        </mesh>
+        {/* Warm ochre dress bodice */}
+        <mesh position={[0, -h * 0.08, 0.004]}>
+          <planeGeometry args={[w * 0.38, h * 0.32]} />
+          <meshBasicMaterial color="#3a2f20" />
+        </mesh>
+        {/* Mona Lisa Head & glowing skin */}
+        <mesh position={[0, h * 0.15, 0.005]}>
+          <circleGeometry args={[w * 0.18, 24]} />
+          <meshBasicMaterial color="#dfc09c" />
+        </mesh>
+        {/* Dark curled hair & delicate translucent veil */}
+        <mesh position={[0, h * 0.18, 0.006]}>
+          <circleGeometry args={[w * 0.21, 24, 0, Math.PI]} />
+          <meshBasicMaterial color="#15120f" />
+        </mesh>
+        <mesh position={[-w * 0.14, h * 0.1, 0.006]}>
+          <planeGeometry args={[w * 0.08, h * 0.22]} />
+          <meshBasicMaterial color="#1f1a14" />
+        </mesh>
+        <mesh position={[w * 0.14, h * 0.1, 0.006]}>
+          <planeGeometry args={[w * 0.08, h * 0.22]} />
+          <meshBasicMaterial color="#1f1a14" />
+        </mesh>
+        {/* Iconic soft smile & eyes shadow */}
+        <mesh position={[0, h * 0.13, 0.007]}>
+          <planeGeometry args={[w * 0.12, h * 0.04]} />
+          <meshBasicMaterial color="#4a3726" />
+        </mesh>
+        {/* Folded hands in the foreground */}
+        <mesh position={[0, -h * 0.32, 0.005]}>
+          <planeGeometry args={[w * 0.32, h * 0.14]} />
+          <meshBasicMaterial color="#d4b490" />
+        </mesh>
+      </group>
+
+      {/* Brass Museum Plaque */}
+      <mesh position={[0, -h / 2 - 0.1, 0.05]}>
+        <boxGeometry args={[1.4, 0.12, 0.02]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.25} />
+      </mesh>
+      {/* Subtle art spotlight */}
+      <pointLight position={[0, 0.4, 1.2]} intensity={18} distance={4} color="#fff1d6" decay={2} />
+    </group>
+  );
+}
+
+export function StudyCenterLamp({ p }) {
+  return (
+    <group position={p}>
+      {/* Glazed porcelain base */}
+      <mesh position={[0, 0.14, 0]} castShadow>
+        <cylinderGeometry args={[0.18, 0.24, 0.28, 18]} />
+        <meshStandardMaterial color="#f8eedf" roughness={0.2} metalness={0.1} />
+      </mesh>
+      {/* Brass collar ring */}
+      <mesh position={[0, 0.29, 0]}>
+        <cylinderGeometry args={[0.08, 0.12, 0.04, 16]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.3} />
+      </mesh>
+      {/* Brass stem */}
+      <mesh position={[0, 0.46, 0]}>
+        <cylinderGeometry args={[0.03, 0.03, 0.32, 12]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.3} />
+      </mesh>
+      {/* Pleated linen lampshade */}
+      <mesh position={[0, 0.68, 0]} castShadow>
+        <cylinderGeometry args={[0.22, 0.38, 0.38, 24, 1, true]} />
+        <meshStandardMaterial color="#fff6ea" roughness={0.9} side={2} />
+      </mesh>
+      {/* Inner glowing lamp bulb */}
+      <mesh position={[0, 0.65, 0]}>
+        <sphereGeometry args={[0.08, 12, 10]} />
+        <meshBasicMaterial color="#fff3cc" />
+      </mesh>
+      {/* Warm cozy reading glow */}
+      <pointLight position={[0, 0.72, 0]} intensity={22} distance={6} color="#ffe5b4" decay={2} />
+    </group>
+  );
+}
+
 export function PuzzleTableSet({ p }) {
   const open = useOpenProp('puzzles');
   return (
     <group position={p} {...open}>
-      <PropDot position={[0, 0.8, 0]} kind="puzzles" />
-      {/* Jigsaw wooden puzzle board */}
-      <Box p={[0, 0.02, 0]} s={[1.8, 0.04, 1.3]} c="#c29b62" r={0.03} />
-      <Box p={[0, 0.042, 0]} s={[1.65, 0.015, 1.15]} c="#241e3a" r={0.02} />
+      <PropDot position={[0, 0.6, 0]} kind="puzzles" />
+      {/* Main Jigsaw Puzzle Board with mahogany rim */}
+      <Box p={[0, 0.02, 0]} s={[2.4, 0.04, 1.6]} c="#6e4726" r={0.03} />
+      <Box p={[0, 0.045, 0]} s={[2.24, 0.02, 1.44]} c="#1f1832" r={0.02} />
       
-      {/* Scattered colorful puzzle pieces */}
+      {/* Visual jigsaw puzzle picture in progress on the board */}
       {[
-        [-0.5, 0.06, -0.3, '#ff4fd8'],
-        [-0.2, 0.06, -0.2, '#3ee8ff'],
-        [0.1, 0.06, -0.35, '#ffd166'],
-        [0.4, 0.06, -0.15, '#06d6a0'],
-        [-0.4, 0.06, 0.2, '#ff6b6b'],
-        [-0.05, 0.06, 0.15, '#a29bfe'],
-        [0.35, 0.06, 0.25, '#ffeaa7'],
-        [-0.6, 0.06, 0.05, '#48dbfb']
+        [-0.7, 0.06, -0.4, '#38bdf8'],
+        [-0.25, 0.06, -0.4, '#818cf8'],
+        [0.2, 0.06, -0.4, '#c084fc'],
+        [0.65, 0.06, -0.4, '#f472b6'],
+        [-0.7, 0.06, 0.0, '#0284c7'],
+        [-0.25, 0.06, 0.0, '#6366f1'],
+        [0.2, 0.06, 0.0, '#a855f7'],
+        [0.65, 0.06, 0.0, '#ec4899'],
+        [-0.7, 0.06, 0.4, '#059669'],
+        [-0.25, 0.06, 0.4, '#10b981'],
+        [0.2, 0.06, 0.4, '#eab308'],
+        [0.65, 0.06, 0.4, '#f97316'],
       ].map(([px, py, pz, col], i) => (
-        <mesh key={i} position={[px, py, pz]} rotation={[0, i * 0.7, 0]}>
-          <boxGeometry args={[0.22, 0.02, 0.22]} />
+        <mesh key={`grid-${i}`} position={[px, py, pz]}>
+          <planeGeometry args={[0.42, 0.36]} />
+          <meshStandardMaterial color={col} roughness={0.4} />
+        </mesh>
+      ))}
+
+      {/* Grid line overlay to simulate jigsaw interlocking cut lines */}
+      <mesh position={[0, 0.065, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[2.2, 1.4]} />
+        <meshBasicMaterial color="#0b0716" wireframe />
+      </mesh>
+
+      {/* Loose scattered jigsaw puzzle pieces around the table */}
+      {[
+        [-1.4, 0.03, -0.3, '#38bdf8', 0.4],
+        [-1.3, 0.03, 0.2, '#f472b6', 1.2],
+        [-1.5, 0.03, 0.5, '#eab308', -0.5],
+        [1.3, 0.03, -0.4, '#10b981', 0.8],
+        [1.4, 0.03, 0.1, '#a855f7', -1.1],
+        [1.35, 0.03, 0.45, '#f97316', 0.3],
+      ].map(([px, py, pz, col, rot], i) => (
+        <mesh key={`loose-${i}`} position={[px, py, pz]} rotation={[0, rot, 0]}>
+          <boxGeometry args={[0.2, 0.015, 0.2]} />
           <meshStandardMaterial color={col} roughness={0.3} />
         </mesh>
       ))}
 
-      {/* Rubik's cube / puzzle box sitting on side */}
-      <group position={[1.1, 0.15, 0.2]} rotation={[0.1, 0.35, 0]}>
-        <Box p={[0, 0, 0]} s={[0.28, 0.28, 0.28]} c="#120e1f" r={0.03} />
-        {/* Colorful faces */}
-        {[-0.07, 0.07].map(fx => (
-          [-0.07, 0.07].map(fy => (
-            <mesh key={`${fx}-${fy}`} position={[fx, fy, 0.145]}>
-              <planeGeometry args={[0.11, 0.11]} />
+      {/* Jigsaw Puzzle Box Lid with colorful game art cover */}
+      <group position={[-1.6, 0.08, -0.1]} rotation={[0, 0.25, 0]}>
+        <Box p={[0, 0, 0]} s={[0.8, 0.12, 0.6]} c="#241e3a" r={0.02} />
+        <mesh position={[0, 0.065, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.74, 0.54]} />
+          <meshBasicMaterial color="#8b5cf6" />
+        </mesh>
+      </group>
+
+      {/* 3D Rubik's cube on the side */}
+      <group position={[1.5, 0.14, -0.2]} rotation={[0.08, 0.45, 0]}>
+        <Box p={[0, 0, 0]} s={[0.3, 0.3, 0.3]} c="#120e1f" r={0.03} />
+        {[-0.075, 0.075].map(fx => (
+          [-0.075, 0.075].map(fy => (
+            <mesh key={`rc-${fx}-${fy}`} position={[fx, fy, 0.155]}>
+              <planeGeometry args={[0.12, 0.12]} />
               <meshBasicMaterial color={fx > 0 ? '#ff4fd8' : '#3ee8ff'} />
             </mesh>
           ))
