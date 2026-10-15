@@ -1427,6 +1427,7 @@ const Room = () => {
   useEffect(() => {
     const run = () => {
       import('./data/bookCovers').then(m => m.prefetchBookCovers()).catch(() => {});
+      import('./data/wikiImages').then(m => m.prefetchFoodImages()).catch(() => {});
       if (!navigator.connection?.saveData) gamifyChunk().catch(() => {});
     };
     const t = setTimeout(() => { if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 4000 }); else run(); }, 3000);

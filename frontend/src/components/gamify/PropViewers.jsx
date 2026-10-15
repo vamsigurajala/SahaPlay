@@ -1,9 +1,13 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { Component, lazy, Suspense, useEffect, useId, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ChevronLeft, ChevronRight, ArrowLeft, RotateCcw } from 'lucide-react';
 import { GENRES, SHELVES, FRIDGE_SHELVES, FRIDGE_SHELVES_UP, DISHES, DISHES_UP, OVEN_ITEMS, OVEN_ITEMS_UP } from '../../data/gamifyBooks';
 import { WARDROBES, COSMETICS, GARDEN } from '../../data/gamifyItems';
 import { useBookCover, preloadImage, coverUrl } from '../../data/bookCovers';
+import { useWikiImage } from '../../data/wikiImages';
+import { FOOD_WIKI } from '../../data/foodWiki';
+
+const SpaceViewer = lazy(() => import('./SpaceViewer'));
 import { ClothArt, BeautyArt, PlantArt } from './viewerArt';
 
 // Full-screen "look closer" views for props in the Gamify house: bookshelf (tap a
@@ -231,6 +235,25 @@ function ItemArt({ kind, color, accent, label }) {
   );
 }
 
+// A real photograph from Wikipedia when one is found, otherwise the drawing.
+function FoodPhoto({ title, fallback, label }) {
+  const url = useWikiImage(title);
+  const [ok, setOk] = useState(false);
+  useEffect(() => { setOk(false); }, [url]);
+  return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <div style={{ position: 'absolute', inset: 0, opacity: ok ? 0 : 1, transition: 'opacity .3s' }}>{fallback}</div>
+      {url && (
+        <img
+          src={url} alt="" referrerPolicy="no-referrer" onLoad={() => setOk(true)} onError={() => setOk(false)}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', borderRadius: 10, boxShadow: '0 6px 12px rgba(0,0,0,0.35)', opacity: ok ? 1 : 0, transition: 'opacity .3s' }}
+        />
+      )}
+      {url && ok && label && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '10px 2px 3px', borderRadius: '0 0 10px 10px', background: 'linear-gradient(transparent, rgba(0,0,0,0.78))', color: '#fff', fontSize: 9.5, fontWeight: 800, textAlign: 'center', lineHeight: 1.1 }}>{label}</div>}
+    </div>
+  );
+}
+
 function FridgeView({ set }) {
   const SHELVES_IN = set === 'up' ? FRIDGE_SHELVES_UP : FRIDGE_SHELVES;
   const [open, setOpen] = useState(false);
@@ -256,7 +279,7 @@ function FridgeView({ set }) {
                   onClick={() => setPinned(p => (p === it.name ? null : it.name))}
                   style={{ width: '17.5%', height: it.kind === 'block' || it.kind === 'eggs' ? '78%' : '96%', cursor: 'pointer', transition: 'transform .15s', transform: shown === it.name ? 'translateY(-7px) scale(1.1)' : 'none', filter: shown === it.name ? 'drop-shadow(0 8px 8px rgba(0,0,0,0.4))' : 'none' }}
                 >
-                  <ItemArt kind={it.kind} color={it.color} accent={it.accent} label={it.label} />
+                  <FoodPhoto title={FOOD_WIKI[it.name]} label={it.name} fallback={<ItemArt kind={it.kind} color={it.color} accent={it.accent} label={it.label} />} />
                 </div>
               ))}
             </div>
@@ -335,14 +358,15 @@ function OvenFood({ kind, done }) {
 function OvenView({ set }) {
   const ITEMS = set === 'up' ? OVEN_ITEMS_UP : OVEN_ITEMS;
   const [item, setItem] = useState(ITEMS[0]);
-  const [elapsed, setElapsed] = useState(0); // seconds of the fast-forwarded bake (24s total)
+  const photo = useWikiImage(FOOD_WIKI[item.name]);
+  const [elapsed, setElapsed] = useState(0); // seconds of the fast-forwarded bake (12s total)
   useEffect(() => { setElapsed(0); }, [item]);
   useEffect(() => {
-    const t = setInterval(() => setElapsed(e => Math.min(24, e + 0.5)), 500);
+    const t = setInterval(() => setElapsed(e => Math.min(12, e + 0.5)), 500);
     return () => clearInterval(t);
   }, [item]);
-  const done = elapsed >= 24;
-  const left = Math.ceil(item.minutes * (1 - elapsed / 24));
+  const done = elapsed >= 12;
+  const left = Math.ceil(item.minutes * (1 - elapsed / 12));
   return (
     <div style={{ width: '100%', maxWidth: 520, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <div className="stay-white" style={{ fontSize: 22, fontWeight: 800 }}>Oven</div>
@@ -362,7 +386,11 @@ function OvenView({ set }) {
           <div style={{ position: 'absolute', left: 14, right: 14, bottom: 52, height: 4, background: '#9aa0b3', borderRadius: 2 }} />
           <div style={{ position: 'absolute', left: 14, right: 14, bottom: 30, height: 4, background: '#9aa0b3', borderRadius: 2 }} />
           <div style={{ position: 'absolute', left: '50%', bottom: 54, width: 260, maxWidth: '80%', transform: 'translateX(-50%)', height: 130 }}>
-            <OvenFood kind={item.kind} done={done} />
+            {photo ? (
+              <div style={{ width: 150, height: 150, margin: '-10px auto 0', borderRadius: '50%', overflow: 'hidden', border: '5px solid #20202e', boxShadow: '0 0 40px rgba(255,150,60,0.55)' }}>
+                <img src={photo} alt={item.name} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: done ? 'none' : `sepia(0.45) brightness(${0.7 + (elapsed / 12) * 0.3}) blur(${(1 - elapsed / 12) * 5}px)`, transition: 'filter .6s linear' }} />
+              </div>
+            ) : <OvenFood kind={item.kind} done={done} />}
           </div>
           {!done && [0, 1, 2].map(i => <span key={i} style={{ position: 'absolute', bottom: 150, left: `${38 + i * 12}%`, width: 14, height: 36, borderRadius: 14, background: 'rgba(255,255,255,0.25)', filter: 'blur(5px)', animation: `gp-steam 3s ease-in ${i * 0.9}s infinite` }} />)}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(115deg, rgba(255,255,255,0.14), rgba(255,255,255,0) 35%)', pointerEvents: 'none' }} />
@@ -443,13 +471,14 @@ function StoveView({ set }) {
   const [dish, setDish] = useState(null);
   const [stage, setStage] = useState(0);
   const [tick, setTick] = useState(0);
+  const photo = useWikiImage(dish ? FOOD_WIKI[dish.name] : null);
   useEffect(() => {
     if (!dish) return undefined;
     setStage(0); setTick(0);
-    const t = setInterval(() => setTick(x => x + 1), 1000);
+    const t = setInterval(() => setTick(x => x + 1), 600);
     return () => clearInterval(t);
   }, [dish]);
-  useEffect(() => { if (dish) setStage(Math.min(dish.steps.length, Math.floor(tick / 4))); }, [tick, dish]);
+  useEffect(() => { if (dish) setStage(Math.min(dish.steps.length, Math.floor(tick / 3))); }, [tick, dish]);
   if (!dish) {
     return (
       <div style={{ width: '100%', maxWidth: 640 }}>
@@ -468,15 +497,27 @@ function StoveView({ set }) {
     );
   }
   const done = stage >= dish.steps.length;
+  const prog = Math.min(1, tick / (dish.steps.length * 3));
+  const reveal = photo && (
+    <div style={{ width: done ? 260 : 200, height: done ? 260 : 200, borderRadius: '50%', overflow: 'hidden', border: '8px solid #f4f1e8', boxShadow: '0 16px 34px rgba(0,0,0,0.6)', position: 'relative', flex: 'none', animation: done ? 'gp-pop .5s ease-out' : 'none' }}>
+      <img src={photo} alt={dish.name} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover', transform: done ? 'scale(1)' : `scale(${1.2 - prog * 0.2})`, filter: done ? 'none' : `blur(${(1 - prog) * 12}px) grayscale(${(1 - prog) * 0.9}) brightness(${0.6 + prog * 0.4})`, transition: 'filter .6s linear, transform .6s linear' }} />
+      {[0, 1, 2].map(i => <span key={i} style={{ position: 'absolute', top: 10, left: `${30 + i * 18}%`, width: 14, height: 36, borderRadius: 14, background: 'rgba(255,255,255,0.35)', filter: 'blur(5px)', animation: `gp-steam 2.6s ease-in ${i * 0.7}s infinite` }} />)}
+    </div>
+  );
   return (
     <div style={{ width: '100%', maxWidth: 560, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <button onClick={() => setDish(null)} className="stay-white" style={{ ...btnPill, alignSelf: 'flex-start' }}><ArrowLeft size={15} /> Choose another dish</button>
       <div className="stay-white" style={{ fontSize: 22, fontWeight: 800 }}>{dish.name}</div>
       <div style={{ width: '100%', borderRadius: 18, padding: '18px 12px 10px', background: 'linear-gradient(180deg,#2a2840,#14121f)', boxShadow: '0 30px 70px rgba(0,0,0,0.6), inset 0 0 0 2px rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'center', minHeight: 190, alignItems: 'center' }}>
-        {done ? <ServedPlate dish={dish} /> : <Vessel dish={dish} stage={stage} done={false} />}
+        {done ? (reveal || <ServedPlate dish={dish} />) : (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+            <div style={{ flex: '1 1 220px', maxWidth: 300 }}><Vessel dish={dish} stage={stage} done={false} /></div>
+            {reveal}
+          </div>
+        )}
       </div>
       <div style={{ width: '100%', height: 8, borderRadius: 4, background: 'rgba(255,255,255,0.15)', overflow: 'hidden' }}>
-        <div style={{ width: `${Math.min(100, (tick / (dish.steps.length * 4)) * 100)}%`, height: '100%', background: 'linear-gradient(90deg,#ffb347,#ff5a1a)', transition: 'width 1s linear' }} />
+        <div style={{ width: `${Math.min(100, prog * 100)}%`, height: '100%', background: 'linear-gradient(90deg,#ffb347,#ff5a1a)', transition: 'width .6s linear' }} />
       </div>
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {dish.steps.map((s, i) => (
@@ -614,6 +655,17 @@ function GardenView({ arg }) {
   );
 }
 
+class ViewerBoundary extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err) { console.warn('[GAMIFY] viewer failed:', err?.message); }
+  render() {
+    return this.state.failed
+      ? <div className="stay-white" style={{ marginTop: 120, fontWeight: 700, textAlign: 'center' }}>This view could not start on this device. Close it and try again.</div>
+      : this.props.children;
+  }
+}
+
 export default function PropViewer({ kind, arg, onClose }) {
   const [book, setBook] = useState(null);
   useEscape(onClose);
@@ -628,6 +680,7 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'stove' && <StoveView set={arg} />}
         {kind === 'wardrobe' && <WardrobeView id={arg} />}
         {kind === 'cosmetics' && <CosmeticsView />}
+        {kind === 'telescope' && <ViewerBoundary><Suspense fallback={<div className="stay-white" style={{ marginTop: 120, fontWeight: 700 }}>Pointing the telescope...</div>}><SpaceViewer /></Suspense></ViewerBoundary>}
         {kind === 'garden' && <GardenView arg={arg} />}
       </div>
     </div>,

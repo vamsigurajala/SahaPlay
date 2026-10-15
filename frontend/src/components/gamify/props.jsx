@@ -19,8 +19,10 @@ export function Clock({ p, rot = 0, r = 0.55 }) {
 }
 
 export function Telescope({ p, rot = 0 }) {
+  const open = useOpenProp('telescope');
   return (
-    <group position={p} rotation={[0, rot, 0]}>
+    <group position={p} rotation={[0, rot, 0]} {...open}>
+      <PropDot position={[0, 2.5, 0]} kind="telescope" />
       {[[0.4, 0.3], [-0.4, 0.3], [0, -0.45]].map(([x, z], i) => (
         <mesh key={i} position={[x * 0.5, 0.7, z * 0.5]} rotation={[z * 0.5, 0, -x * 0.5]}><cylinderGeometry args={[0.03, 0.03, 1.5, 6]} /><meshStandardMaterial color="#2a2140" /></mesh>
       ))}
