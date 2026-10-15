@@ -1,5 +1,6 @@
 import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Stool, Monitor, Bookshelf, Arcade, WallWindow, WallPanel, Wardrobe } from './parts';
 import { TV_LOCAL, TV_H, NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
+import { RomanticCanopyBed, BedBench, RomanticNightstand } from './props';
 
 const PI = Math.PI;
 
@@ -92,31 +93,24 @@ export function BedroomBase() {
   return (
     <group>
       <WallWindow p={[10.2, 3.1, -9.9]} w={3.6} h={1.7} color="#9ad7ff" />
-      <Box p={[10.2, 0.03, -6.2]} s={[7, 0.06, 5.6]} c="#6a4796" rough={1} shadow={false} />
-      <Box p={[10.2, 0.07, -6.2]} s={[6.4, 0.02, 5.0]} c="#7d58ad" rough={1} shadow={false} />
-      {/* bed */}
-      <Box p={[10.2, 0.4, -7.2]} s={[4.4, 0.8, 5.4]} c="#3b2d66" r={0.12} />
-      <Box p={[10.2, 0.9, -7.1]} s={[4.2, 0.35, 5.2]} c="#efe7ff" r={0.12} />
-      <Box p={[10.2, 1.12, -5.9]} s={[4.2, 0.22, 3.0]} c="#8f6bff" r={0.1} />
-      <Box p={[9.3, 1.2, -9.3]} s={[1.5, 0.34, 0.8]} c="#fff" r={0.15} />
-      <Box p={[11.1, 1.2, -9.3]} s={[1.5, 0.34, 0.8]} c="#fff" r={0.15} />
-      <Box p={[10.2, 1.5, -9.85]} s={[4.8, 2.1, 0.22]} c="#2a1f4d" r={0.06} />
-      <Neon p={[10.2, 2.65, -9.7]} s={[4.6, 0.06, 0.06]} color={NEON_PINK} />
-      {/* nightstands + lamps */}
-      <Box p={[7.3, 0.45, -9.3]} s={[0.95, 0.9, 0.95]} c="#2f2358" r={0.08} />
-      <TableLamp p={[7.3, 0.9, -9.3]} color="#ffb4e6" />
-      <Box p={[13.1, 0.45, -9.3]} s={[0.95, 0.9, 0.95]} c="#2f2358" r={0.08} />
-      <TableLamp p={[13.1, 0.9, -9.3]} color="#b4e0ff" />
-      {/* wardrobe — tap to open */}
+
+      {/* Plush layered velvet & dusty rose rugs under the bed */}
+      <Box p={[10.2, 0.02, -6.6]} s={[8.2, 0.04, 7.2]} c="#36193e" rough={0.9} shadow={false} r={0.3} />
+      <Box p={[10.2, 0.05, -6.6]} s={[7.4, 0.03, 6.4]} c="#4f2652" rough={0.85} shadow={false} r={0.25} />
+      <Box p={[10.2, 0.06, -6.6]} s={[6.8, 0.02, 5.8]} c="#6e3768" rough={0.8} shadow={false} r={0.2} />
+
+      {/* Romantic Four-Poster Canopy Master Bed with underbed glow & sheer silk drapes */}
+      <RomanticCanopyBed p={[10.2, 0, -7.2]} />
+
+      {/* Velvet upholstered bench at the foot of the bed (replaces cold office desk) */}
+      <BedBench p={[10.2, 0, -3.7]} />
+
+      {/* Designer bedside nightstands with fluted cabinets & warm ambient lamps */}
+      <RomanticNightstand p={[7.3, 0, -9.4]} side="left" />
+      <RomanticNightstand p={[13.1, 0, -9.4]} side="right" />
+
+      {/* Wardrobe — tap to open (preserved!) */}
       <Wardrobe p={[14.95, 0, -9.3]} id="wd-a" />
-      {/* desk + laptop + chair */}
-      <Box p={[13.8, 0.9, -2.2]} s={[2.4, 0.12, 1.2]} c="#3a2d66" r={0.04} />
-      <Box p={[12.7, 0.45, -2.2]} s={[0.12, 0.9, 1.0]} c="#241c4a" />
-      <Box p={[14.9, 0.45, -2.2]} s={[0.12, 0.9, 1.0]} c="#241c4a" />
-      <Monitor p={[13.8, 0.96, -2.45]} color={NEON_AMBER} />
-      <Chair p={[13.8, 0, -0.9]} rot={PI} c="#e0529f" />
-      <Plant p={[15.2, 0, -5.4]} scale={1.2} />
-      <Plant p={[6.9, 0, -0.8]} scale={0.9} color="#3bbf74" />
     </group>
   );
 }

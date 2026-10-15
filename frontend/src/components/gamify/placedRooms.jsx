@@ -2,7 +2,7 @@ import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, 
 import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Cell } from './cell';
-import { Clock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity } from './props';
+import { Clock, Telescope, Foosball, ClawMachine, Jhula, Heart, Candle, Teddy, FairyLights, Curtain, RoseVase, WineGlass, Stairs, FlowerPatch, VegPatch, Hedge, Topiary, FlowerArch, Vanity, RomanticChaiseLounge, ChampagneTable, RomanticFireplace, VelvetPouf, RomanticLantern } from './props';
 
 const ROSES = ['#d0183a', '#ff4f8a', '#ff9ac0', '#fff0f6'];
 const MIXED = ['#ff6fb5', '#ffcf5a', '#a56bff', '#ff8a5a', '#ffffff', '#4fa8ff'];
@@ -87,45 +87,96 @@ export function LivingRoom() {
 export function Bedroom() {
   return (
     <Cell id="bedroom" base={<BedroomBase />}>
+      {/* Interactive wardrobes & vanity along back wall — preserved! */}
       <Wardrobe p={[11.8, 0, 0.7]} id="wd-b" />
       <Wardrobe p={[14.0, 0, 0.7]} c="#33265a" id="wd-c" />
       <Vanity p={[16.7, 0, 0.8]} />
-      <Rug p={[13.4, 0, 8.8]} w={6.4} d={4.6} c="#6a4796" c2="#7d58ad" />
-      <Sofa p={[13.4, 0, 7.4]} rot={0} w={3.8} c="#8f6bff" back="#7a58e0" />
-      <Table p={[13.4, 0, 9.4]} w={2.0} d={1.0} h={0.5} />
-      <Box p={[13.4, 0.45, 12.7]} s={[3.6, 0.9, 0.9]} c="#2f2358" r={0.06} />
-      <Box p={[13.4, 1.75, 12.7]} s={[3.0, 1.6, 0.1]} c="#0c0b14" r={0.03} />
-      <Neon p={[13.4, 1.75, 12.64]} s={[2.8, 1.4, 0.02]} color="#7a8cff" halo={false} />
-      <Box p={[7.0, 0.04, 12.0]} s={[1.2, 0.05, 3.0]} c="#ff6fb5" r={0.02} shadow={false} />
-      <BeanBag p={[9.2, 0, 13.4]} color="#5a8cff" glow={NEON_CYAN} />
+
+      {/* Vanity corner enhancement: plush sheepskin rug & Hollywood vanity glow */}
+      <mesh position={[16.7, 0.02, 2.0]} rotation={[-PI / 2, 0, 0]}>
+        <circleGeometry args={[0.95, 20]} />
+        <meshStandardMaterial color="#fff6f2" roughness={0.9} />
+      </mesh>
+      {/* Hollywood vanity mirror bulbs around mirror rim */}
+      {Array.from({ length: 8 }).map((_, i) => {
+        const ang = (i / 8) * PI * 2;
+        return (
+          <mesh key={`vanity-bulb-${i}`} position={[16.7 + Math.cos(ang) * 0.88, 2.5 + Math.sin(ang) * 0.88, 0.38]}>
+            <sphereGeometry args={[0.045, 8, 8]} />
+            <meshBasicMaterial color="#ffe8d6" toneMapped={false} />
+          </mesh>
+        );
+      })}
+
+      {/* Romantic Lounge Area: Circular Velvet Rugs, Chaise Lounge & Champagne Table */}
+      <mesh position={[13.4, 0.02, 8.8]} rotation={[-PI / 2, 0, 0]}>
+        <circleGeometry args={[3.2, 28]} />
+        <meshStandardMaterial color="#4a2142" roughness={0.85} />
+      </mesh>
+      <mesh position={[13.4, 0.03, 8.8]} rotation={[-PI / 2, 0, 0]}>
+        <circleGeometry args={[2.7, 28]} />
+        <meshStandardMaterial color="#682c5a" roughness={0.8} />
+      </mesh>
+      <RomanticChaiseLounge p={[13.4, 0, 7.4]} />
+      <ChampagneTable p={[13.4, 0, 9.4]} />
+      <VelvetPouf p={[9.2, 0, 13.0]} />
+
+      {/* Modern Romantic Linear Electric Fireplace Console */}
+      <RomanticFireplace p={[13.4, 0, 12.7]} />
+
+      {/* Floor Lamp in lounge corner with soft ambient glow */}
       <FloorLamp p={[10.6, 0, 10.8]} color="#ffb4e6" />
-      <Plant p={[1.0, 0, 14.8]} scale={1.1} color="#3bbf74" />
-      <Plant p={[17.1, 0, 14.8]} scale={1.2} />
+
+      {/* Interactive Bookshelf along left wall — preserved! */}
       <Bookshelf p={[0.45, 0, 12.5]} rot={PI / 2} w={3.2} h={2.8} d={0.7} shelf="bed" />
 
-      {/* cosy / romantic touches */}
+      {/* Romantic Brass & Glass Floor Lanterns with glowing pillar candles */}
+      <RomanticLantern p={[1.2, 0, 14.2]} />
+      <RomanticLantern p={[16.4, 0, 11.2]} />
+
+      {/* Soft romantic window drapery & fairy lights */}
       <FairyLights from={0.8} to={7.6} y={4.35} z={0.22} count={18} />
-      <Curtain p={[2.0, 1.55, 0.2]} w={0.7} h={2.6} />
-      <Curtain p={[6.4, 1.55, 0.2]} w={0.7} h={2.6} />
+      <Curtain p={[2.0, 1.55, 0.2]} w={0.7} h={2.6} color="#f5b8d0" />
+      <Curtain p={[6.4, 1.55, 0.2]} w={0.7} h={2.6} color="#f5b8d0" />
+
+      {/* Romantic Wall Art & Heart Motifs */}
       <Heart p={[0.14, 3.3, 9.4]} rot={PI / 2} scale={1.5} color="#ff4f8a" glow />
       <Heart p={[4.2, 1.5, 1.45]} rot={0.2} scale={0.7} color="#e0183a" />
       <Heart p={[7.6, 0.07, 10.8]} scale={2.1} color="#e0527a" flat thin />
       <Teddy p={[5.0, 1.24, 4.5]} rot={-0.3} scale={0.55} />
-      {[[3.1, 3.2], [3.7, 3.9], [4.5, 3.4], [5.3, 4.0], [3.4, 4.6], [4.2, 4.2], [5.5, 2.9], [3.0, 2.4]].map(([x, z], i) => (
-        <mesh key={i} position={[x, 1.245, z]} rotation={[-PI / 2, 0, i]}><circleGeometry args={[0.1, 8]} /><meshBasicMaterial color={i % 3 ? '#d0183a' : '#ff6f9a'} /></mesh>
+
+      {/* Scattered Velvet Rose Petals on the Bed */}
+      {[[3.1, 3.2], [3.7, 3.9], [4.5, 3.4], [5.3, 4.0], [3.4, 4.6], [4.2, 4.2], [5.5, 2.9], [3.0, 2.4], [4.0, 3.0], [4.8, 3.6]].map(([x, z], i) => (
+        <mesh key={`bed-petal-${i}`} position={[x, 1.245, z]} rotation={[-PI / 2, 0, i]}>
+          <circleGeometry args={[0.11, 8]} />
+          <meshBasicMaterial color={i % 2 === 0 ? '#b5122e' : '#d81e42'} />
+        </mesh>
       ))}
-      <Candle p={[1.9, 0.9, 0.7]} h={0.2} />
-      <Candle p={[8.1, 0.9, 0.9]} h={0.2} />
+
+      {/* Seductive Rose Petal Trail across the floor */}
+      {[
+        [2.0, 5.0], [2.4, 5.8], [3.0, 6.4], [3.6, 7.2], [4.4, 7.8],
+        [5.0, 8.6], [6.2, 9.2], [7.0, 8.5], [8.0, 7.8], [9.0, 6.8],
+        [9.8, 5.5], [10.2, 4.2], [8.6, 9.8], [9.4, 10.4], [10.2, 10.0]
+      ].map(([x, z], i) => (
+        <mesh key={`trail-${i}`} position={[x, 0.08, z]} rotation={[-PI / 2, 0, i * 0.7]}>
+          <circleGeometry args={[0.085, 6]} />
+          <meshBasicMaterial color={i % 3 === 0 ? '#b5122e' : i % 3 === 1 ? '#d81e42' : '#8b0d26'} />
+        </mesh>
+      ))}
+
+      {/* Intimate Bistro Date Night Corner with Wine & Candelabra */}
       <group position={[5.6, 0, 11.4]}>
-        <Table p={[0, 0, 0]} w={1.0} d={1.0} h={0.75} c="#6a3a4a" leg="#3a1a2a" />
+        <Table p={[0, 0, 0]} w={1.1} d={1.1} h={0.75} c="#1e1828" leg="#d4af37" />
         <RoseVase p={[0, 0.81, 0]} />
         <WineGlass p={[-0.28, 0.81, 0.2]} />
         <WineGlass p={[0.28, 0.81, -0.2]} />
         <Candle p={[0.25, 0.81, 0.25]} />
+        <Candle p={[-0.25, 0.81, -0.25]} h={0.18} />
       </group>
+
       <Clock p={[6.6, 4.25, 0.12]} r={0.5} />
       <WallPanel p={[1.6, 3.2, 0.08]} color={NEON_AMBER} />
-      <Plant p={[17.2, 0, 5.2]} scale={1.0} color="#34b36a" />
     </Cell>
   );
 }

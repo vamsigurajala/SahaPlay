@@ -539,3 +539,378 @@ export function Stairs({ p, rot = 0, dir = 'up', steps = 9, c = '#a98260', dark 
     </group>
   );
 }
+
+// ── Romantic Ground Floor Master Bedroom Suite Props ────────────────────────
+
+export function RomanticCanopyBed({ p = [10.2, 0, -7.2] }) {
+  const corners = useMemo(() => [
+    [-2.25, -2.6], [2.25, -2.6], [-2.25, 2.6], [2.25, 2.6]
+  ], []);
+
+  return (
+    <group position={p}>
+      {/* Seductive underbed ambient glow */}
+      <mesh position={[0, 0.04, 0]} rotation={[-PI / 2, 0, 0]}>
+        <planeGeometry args={[4.8, 5.8]} />
+        <meshBasicMaterial color="#ff4f7a" transparent opacity={0.28} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 0.05, 0]} rotation={[-PI / 2, 0, 0]}>
+        <planeGeometry args={[3.8, 4.8]} />
+        <meshBasicMaterial color="#ffa26b" transparent opacity={0.22} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+      </mesh>
+
+      {/* Deep velvet espresso base platform */}
+      <Box p={[0, 0.28, 0]} s={[4.6, 0.54, 5.6]} c="#1e1026" r={0.14} />
+
+      {/* Plush mattress in warm ivory silk */}
+      <Box p={[0, 0.68, 0.05]} s={[4.36, 0.38, 5.3]} c="#faf3f5" r={0.12} />
+
+      {/* Royal wine velvet duvet / comforter */}
+      <Box p={[0, 0.98, 0.55]} s={[4.3, 0.32, 4.1]} c="#521226" r={0.16} />
+
+      {/* Folded dusty rose satin coverlet */}
+      <Box p={[0, 1.09, 1.7]} s={[4.32, 0.16, 1.7]} c="#be4a75" r={0.12} />
+
+      {/* Champagne gold satin runner across foot */}
+      <Box p={[0, 1.15, 2.3]} s={[4.34, 0.06, 0.8]} c="#dfbe82" r={0.06} />
+
+      {/* Pillows: 2 king velvet back pillows */}
+      {[-1.0, 1.0].map(x => (
+        <Box key={`king-${x}`} p={[x, 1.18, -2.0]} s={[1.65, 0.44, 0.75]} c="#3c1126" r={0.15} />
+      ))}
+      {/* 2 sleeping pillows in silk ivory */}
+      {[-1.0, 1.0].map(x => (
+        <Box key={`silk-${x}`} p={[x, 1.26, -1.45]} s={[1.5, 0.34, 0.7]} c="#fff9fa" r={0.14} />
+      ))}
+      {/* 2 round velvet accent cushions with gold button */}
+      {[-0.6, 0.6].map(x => (
+        <group key={`cushion-${x}`} position={[x, 1.28, -0.95]} rotation={[0.4, 0, 0]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[0.26, 0.26, 0.12, 16]} />
+            <meshStandardMaterial color="#c8567e" roughness={0.6} />
+          </mesh>
+          <mesh position={[0, 0.07, 0]}>
+            <sphereGeometry args={[0.045, 8, 8]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Tufted headboard in deep wine velvet with brass border */}
+      <Box p={[0, 1.9, -2.64]} s={[4.9, 2.6, 0.2]} c="#2e1022" r={0.14} />
+      <Box p={[0, 1.9, -2.68]} s={[5.06, 2.76, 0.14]} c="#d4af37" r={0.08} />
+      {/* Vertical fluted velvet ribs */}
+      {[-1.8, -0.9, 0, 0.9, 1.8].map(dx => (
+        <Box key={`rib-${dx}`} p={[dx, 1.9, -2.52]} s={[0.78, 2.3, 0.08]} c="#401630" r={0.06} />
+      ))}
+      {/* Soft warm headboard backglow */}
+      <mesh position={[0, 3.15, -2.6]}>
+        <planeGeometry args={[4.6, 0.12]} />
+        <meshBasicMaterial color="#ff6b96" transparent opacity={0.65} toneMapped={false} />
+      </mesh>
+
+      {/* Four-poster brass canopy posts & top rails */}
+      {corners.map(([cx, cz], i) => (
+        <group key={`post-${i}`} position={[cx, 2.1, cz]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[0.04, 0.04, 4.2, 10]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.25} />
+          </mesh>
+          <mesh position={[0, 2.14, 0]}>
+            <sphereGeometry args={[0.08, 10, 8]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.75} roughness={0.2} />
+          </mesh>
+        </group>
+      ))}
+      {/* Top connecting rails at y = 4.2 */}
+      <Box p={[0, 4.2, -2.6]} s={[4.55, 0.05, 0.05]} c="#d4af37" shadow={false} />
+      <Box p={[0, 4.2, 2.6]} s={[4.55, 0.05, 0.05]} c="#d4af37" shadow={false} />
+      <Box p={[-2.25, 4.2, 0]} s={[0.05, 0.05, 5.25]} c="#d4af37" shadow={false} />
+      <Box p={[2.25, 4.2, 0]} s={[0.05, 0.05, 5.25]} c="#d4af37" shadow={false} />
+
+      {/* Sheer silk canopy drapery */}
+      <mesh position={[0, 3.1, -2.55]}>
+        <planeGeometry args={[4.3, 2.1]} />
+        <meshStandardMaterial color="#fff0f5" transparent opacity={0.34} depthWrite={false} roughness={0.9} side={THREE.DoubleSide} />
+      </mesh>
+      {corners.map(([cx, cz], i) => (
+        <group key={`drape-${i}`} position={[cx, 2.9, cz]}>
+          <mesh>
+            <cylinderGeometry args={[0.13, 0.2, 2.4, 8, 1, true]} />
+            <meshStandardMaterial color="#fff2f6" transparent opacity={0.38} depthWrite={false} roughness={0.9} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+export function BedBench({ p = [10.2, 0, -3.7] }) {
+  return (
+    <group position={p}>
+      {/* Velvet upholstered bench in rich berry wine */}
+      <Box p={[0, 0.44, 0]} s={[3.6, 0.32, 1.05]} c="#6b1c3b" r={0.14} />
+      <Box p={[0, 0.26, 0]} s={[3.5, 0.05, 0.95]} c="#d4af37" r={0.02} shadow={false} />
+      {/* 4 tapered brass legs */}
+      {[[-1.6, -0.38], [1.6, -0.38], [-1.6, 0.38], [1.6, 0.38]].map(([lx, lz], i) => (
+        <mesh key={i} position={[lx, 0.13, lz]}>
+          <cylinderGeometry args={[0.035, 0.022, 0.26, 8]} />
+          <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+        </mesh>
+      ))}
+      {/* Draped ivory cashmere throw */}
+      <Box p={[-0.85, 0.49, 0]} s={[1.1, 0.24, 1.1]} c="#fff6ed" r={0.08} />
+      {/* Polished brass tray with champagne glass */}
+      <mesh position={[0.8, 0.62, 0]}>
+        <cylinderGeometry args={[0.26, 0.26, 0.02, 16]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.75} roughness={0.25} />
+      </mesh>
+      <WineGlass p={[0.8, 0.63, 0]} />
+    </group>
+  );
+}
+
+export function RomanticNightstand({ p, side = 'left' }) {
+  const isLeft = side === 'left';
+  return (
+    <group position={p}>
+      {/* Fluted dark plum cabinet with Italian Carrara marble top */}
+      <Box p={[0, 0.44, 0]} s={[1.1, 0.88, 1.0]} c="#24142a" r={0.08} />
+      <Box p={[0, 0.90, 0]} s={[1.16, 0.06, 1.06]} c="#f5ede9" r={0.02} />
+      <Box p={[0, 0.55, 0.52]} s={[0.25, 0.04, 0.04]} c="#d4af37" shadow={false} />
+
+      {/* Designer bedside lamp with warm fluted amber glow */}
+      <mesh position={[0, 0.95, 0]}>
+        <cylinderGeometry args={[0.1, 0.12, 0.04, 12]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 1.15, 0]}>
+        <cylinderGeometry args={[0.02, 0.02, 0.4, 8]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 1.4, 0]}>
+        <cylinderGeometry args={[0.22, 0.28, 0.34, 14]} />
+        <meshStandardMaterial color="#ffe6d4" roughness={0.6} />
+      </mesh>
+      {/* Warm ambient sphere inside the lamp */}
+      <mesh position={[0, 1.4, 0]}>
+        <sphereGeometry args={[0.18, 10, 8]} />
+        <meshBasicMaterial color="#ffaa55" transparent opacity={0.35} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+      </mesh>
+
+      {isLeft ? (
+        <>
+          {/* Amber glass scented candle jar */}
+          <mesh position={[0.3, 0.98, 0.2]}>
+            <cylinderGeometry args={[0.07, 0.07, 0.12, 10]} />
+            <meshStandardMaterial color="#d98236" transparent opacity={0.75} />
+          </mesh>
+          <mesh position={[0.3, 1.08, 0.2]}>
+            <sphereGeometry args={[0.035, 6, 6]} />
+            <meshBasicMaterial color="#ffd56b" toneMapped={false} />
+          </mesh>
+          {/* Golden jewelry tray */}
+          <mesh position={[-0.28, 0.94, 0.15]}>
+            <cylinderGeometry args={[0.12, 0.12, 0.02, 12]} />
+            <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+          </mesh>
+        </>
+      ) : (
+        <>
+          {/* Single red rose in crystal bud vase */}
+          <mesh position={[0.28, 1.04, 0.15]}>
+            <cylinderGeometry args={[0.04, 0.06, 0.22, 10]} />
+            <meshStandardMaterial color="#e0f4ff" transparent opacity={0.8} />
+          </mesh>
+          <mesh position={[0.28, 1.2, 0.15]}>
+            <sphereGeometry args={[0.06, 8, 8]} />
+            <meshStandardMaterial color="#c01230" />
+          </mesh>
+          {/* Scented reed diffuser */}
+          <mesh position={[-0.26, 0.98, 0.2]}>
+            <cylinderGeometry args={[0.05, 0.05, 0.1, 10]} />
+            <meshStandardMaterial color="#2a1824" />
+          </mesh>
+          {[-0.03, 0, 0.03].map((dx, k) => (
+            <mesh key={k} position={[-0.26 + dx, 1.12, 0.2]} rotation={[0, 0, dx * 4]}>
+              <cylinderGeometry args={[0.006, 0.006, 0.22, 4]} />
+              <meshStandardMaterial color="#1a1118" />
+            </mesh>
+          ))}
+        </>
+      )}
+    </group>
+  );
+}
+
+export function RomanticChaiseLounge({ p, rot = 0 }) {
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      {/* Sculpted curved velvet base in deep ruby wine */}
+      <Box p={[0, 0.42, 0]} s={[3.8, 0.36, 1.7]} c="#6b1836" r={0.16} />
+      {/* High curved backrest */}
+      <Box p={[0, 0.95, -0.68]} s={[3.8, 0.78, 0.32]} c="#58122a" r={0.14} />
+      {/* Armrests */}
+      <Box p={[-1.76, 0.72, 0]} s={[0.32, 0.56, 1.65]} c="#58122a" r={0.12} />
+      <Box p={[1.76, 0.72, 0]} s={[0.32, 0.56, 1.65]} c="#58122a" r={0.12} />
+      {/* 4 tapered brass legs */}
+      {[[-1.65, -0.65], [1.65, -0.65], [-1.65, 0.65], [1.65, 0.65]].map(([lx, lz], i) => (
+        <mesh key={i} position={[lx, 0.12, lz]}>
+          <cylinderGeometry args={[0.04, 0.025, 0.24, 8]} />
+          <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+        </mesh>
+      ))}
+      {/* Champagne silk pillows */}
+      <Box p={[-1.1, 0.72, -0.38]} s={[0.65, 0.45, 0.22]} c="#f5e6d3" r={0.1} />
+      <Box p={[1.1, 0.72, -0.38]} s={[0.65, 0.45, 0.22]} c="#f5e6d3" r={0.1} />
+      {/* Ivory cashmere throw */}
+      <Box p={[0.2, 0.52, 0.1]} s={[1.2, 0.24, 1.6]} c="#fff6ee" r={0.08} />
+    </group>
+  );
+}
+
+export function ChampagneTable({ p }) {
+  return (
+    <group position={p}>
+      {/* Carrara marble top with brass rim */}
+      <mesh position={[0, 0.48, 0]}>
+        <cylinderGeometry args={[0.9, 0.9, 0.06, 24]} />
+        <meshStandardMaterial color="#f7f2ed" roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.48, 0]} rotation={[PI / 2, 0, 0]}>
+        <torusGeometry args={[0.9, 0.028, 8, 24]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+      </mesh>
+      {/* Brass pedestal */}
+      <mesh position={[0, 0.24, 0]}>
+        <cylinderGeometry args={[0.07, 0.07, 0.46, 12]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, 0.02, 0]}>
+        <cylinderGeometry args={[0.42, 0.42, 0.04, 16]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+      </mesh>
+
+      {/* Silver champagne ice bucket */}
+      <mesh position={[-0.32, 0.64, -0.1]}>
+        <cylinderGeometry args={[0.2, 0.16, 0.28, 14]} />
+        <meshStandardMaterial color="#e8eff5" metalness={0.85} roughness={0.15} />
+      </mesh>
+      {/* Ice cubes */}
+      <mesh position={[-0.32, 0.76, -0.1]}>
+        <cylinderGeometry args={[0.18, 0.18, 0.04, 12]} />
+        <meshStandardMaterial color="#d8ecfc" transparent opacity={0.8} />
+      </mesh>
+      {/* Champagne bottle */}
+      <mesh position={[-0.32, 0.82, -0.1]} rotation={[0.1, 0, 0.2]}>
+        <cylinderGeometry args={[0.05, 0.06, 0.28, 10]} />
+        <meshStandardMaterial color="#1a3522" />
+      </mesh>
+      {/* Gold foil neck */}
+      <mesh position={[-0.29, 0.97, -0.1]} rotation={[0.1, 0, 0.2]}>
+        <cylinderGeometry args={[0.025, 0.035, 0.1, 8]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.8} />
+      </mesh>
+
+      {/* Two champagne flutes */}
+      <WineGlass p={[0.15, 0.51, -0.22]} />
+      <WineGlass p={[0.38, 0.51, -0.08]} />
+
+      {/* Scented candle on mirrored brass tray */}
+      <mesh position={[0.2, 0.52, 0.3]}>
+        <cylinderGeometry args={[0.26, 0.26, 0.02, 16]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.75} roughness={0.25} />
+      </mesh>
+      <Candle p={[0.2, 0.53, 0.3]} h={0.22} />
+
+      {/* Plate with chocolate-covered strawberries */}
+      <mesh position={[-0.2, 0.52, 0.3]}>
+        <cylinderGeometry args={[0.22, 0.22, 0.02, 14]} />
+        <meshStandardMaterial color="#ffffff" transparent opacity={0.7} />
+      </mesh>
+      {[-0.08, 0, 0.08].map((dx, k) => (
+        <mesh key={k} position={[-0.2 + dx, 0.56, 0.3 + (k % 2 ? 0.04 : -0.04)]}>
+          <sphereGeometry args={[0.038, 8, 8]} />
+          <meshStandardMaterial color="#8b0d26" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+export function RomanticFireplace({ p }) {
+  return (
+    <group position={p}>
+      {/* Floating dark Nero Marquina console */}
+      <Box p={[0, 0.48, 0]} s={[4.4, 0.92, 0.9]} c="#161120" r={0.06} />
+      {/* Recessed linear electric fireplace chamber */}
+      <Box p={[0, 0.44, -0.42]} s={[3.0, 0.42, 0.08]} c="#08060d" />
+
+      {/* Glowing ember bed */}
+      <mesh position={[0, 0.32, -0.46]}>
+        <boxGeometry args={[2.8, 0.08, 0.04]} />
+        <meshBasicMaterial color="#ff3814" toneMapped={false} />
+      </mesh>
+      {/* Ambient flame glow sphere */}
+      <mesh position={[0, 0.42, -0.46]}>
+        <sphereGeometry args={[0.45, 8, 8]} />
+        <meshBasicMaterial color="#ff7a18" transparent opacity={0.4} depthWrite={false} blending={THREE.AdditiveBlending} toneMapped={false} />
+      </mesh>
+      {/* Emissive flame tongues */}
+      {[-0.9, -0.45, 0, 0.45, 0.9].map((fx, fi) => (
+        <mesh key={fi} position={[fx, 0.42 + (fi % 2) * 0.04, -0.47]}>
+          <coneGeometry args={[0.06, 0.18 + (fi % 3) * 0.06, 6]} />
+          <meshBasicMaterial color={fi % 2 ? '#ffb034' : '#ff4a1c'} toneMapped={false} />
+        </mesh>
+      ))}
+      <Neon p={[0, 0.44, -0.48]} s={[2.7, 0.08, 0.02]} color="#ff6b22" halo />
+
+      {/* Sleek OLED screen above fireplace */}
+      <Box p={[0, 1.88, 0]} s={[3.2, 1.7, 0.1]} c="#0c0b14" r={0.03} />
+      <Neon p={[0, 1.88, -0.06]} s={[3.0, 1.5, 0.02]} color="#ff7597" halo={false} />
+
+      {/* Mantle pillar candles */}
+      <Candle p={[-1.7, 0.95, -0.1]} h={0.28} />
+      <Candle p={[-1.5, 0.95, -0.1]} h={0.38} />
+      <Candle p={[-1.3, 0.95, -0.1]} h={0.22} />
+
+      {/* Scent diffuser on mantle */}
+      <mesh position={[1.6, 1.02, -0.1]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.12, 10]} />
+        <meshStandardMaterial color="#2b1a26" />
+      </mesh>
+      {[-0.04, 0, 0.04].map((dx, k) => (
+        <mesh key={k} position={[1.6 + dx, 1.18, -0.1]} rotation={[0, 0, dx * 3]}>
+          <cylinderGeometry args={[0.006, 0.006, 0.24, 4]} />
+          <meshStandardMaterial color="#1a1118" />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+export function VelvetPouf({ p }) {
+  return (
+    <group position={p}>
+      <mesh castShadow position={[0, 0.26, 0]}>
+        <cylinderGeometry args={[0.55, 0.55, 0.44, 20]} />
+        <meshStandardMaterial color="#9e345c" roughness={0.75} />
+      </mesh>
+      <mesh position={[0, 0.49, 0]}>
+        <sphereGeometry args={[0.06, 8, 8]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+      </mesh>
+    </group>
+  );
+}
+
+export function RomanticLantern({ p }) {
+  return (
+    <group position={p}>
+      <Box p={[0, 0.42, 0]} s={[0.38, 0.84, 0.38]} c="#d4af37" metalness={0.7} roughness={0.3} />
+      <Box p={[0, 0.42, 0]} s={[0.34, 0.8, 0.34]} c="#fff8e8" opacity={0.35} transparent shadow={false} />
+      <Candle p={[0, 0.08, 0]} h={0.32} />
+    </group>
+  );
+}
+
