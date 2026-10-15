@@ -1,6 +1,6 @@
 import { useRef, useContext } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { ViewContext } from './parts';
+import { ViewContext, ZoneContext } from './parts';
 import { ALL_ZONES } from '../../data/gamifyZones';
 
 // Each room in rooms.jsx is authored in its own original 10-12 unit frame; every
@@ -34,8 +34,10 @@ export function Cell({ id, base, children }) {
   });
   return (
     <group ref={gate} position={[w.x0, 0, w.z0]}>
-      {base && <group position={[-ox, 0, -oz]}>{base}</group>}
-      {children}
+      <ZoneContext.Provider value={id}>
+        {base && <group position={[-ox, 0, -oz]}>{base}</group>}
+        {children}
+      </ZoneContext.Provider>
     </group>
   );
 }

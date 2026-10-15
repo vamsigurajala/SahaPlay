@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useMemo, useState, useContext } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown } from 'lucide-react';
+import { House, ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown } from 'lucide-react';
 import GamifyScene, { WALL_H } from './gamify/GamifyScene';
 const PropViewer = React.lazy(() => import('./gamify/PropViewers'));
 import Avatar3D from './gamify/Avatar3D';
@@ -13,7 +13,7 @@ import { SkyBackdrop, WEATHER, WEATHER_ORDER, autoWeather } from './gamify/envir
 import { homographyMatrix3d } from '../lib/homography';
 
 const MIN_ZOOM = 0.36; // zoomed all the way out shows most of the house
-const MAX_ZOOM = 2.8;
+const MAX_ZOOM = 2.0;
 const FLIP_KEY = 'sp_gamify_flip';
 const CAM_OFFSET = new THREE.Vector3(18, 15.5, 18);
 const SIN_ELEV = CAM_OFFSET.y / CAM_OFFSET.length();
@@ -44,7 +44,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // a fixed linear step). Pan targets ease the same way. Everything is read from
 // refs inside useFrame, never React state, so panning/zooming never re-renders
 // Room.jsx.
-function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onReady }) {
+function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onInChange, onReady }) {
   const readyRef = useRef(false);
   const { camera, gl, size } = useThree();
   const target = useMemo(() => new THREE.Vector3(), []);
@@ -195,6 +195,8 @@ function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onReady }) {
       const d = (z.center.x - lx) ** 2 + (z.center.z - lz) ** 2;
       if (d < bestD) { bestD = d; best = z.id; }
     }
+    const inn = v.cur > 1.45;
+    if (inn !== v.inn) { v.inn = inn; onInChange && onInChange(inn); }
     const out = v.cur < 0.8;
     if (out !== v.out) { v.out = out; onOutChange && onOutChange(out); }
     if (best !== v.focus) {
@@ -321,12 +323,13 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     const flip = readFlip();
     const t = roomCenterTarget(myZoneRef.current, flip);
     const floor0 = ALL_ZONES[myZoneRef.current]?.floor || 0;
-    viewRef.current = { uiVisible: true, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, floor: floor0, py: floor0 * FLOOR_Y, flip, focus: myZoneRef.current, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
+    viewRef.current = { uiVisible: true, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, floor: floor0, py: floor0 * FLOOR_Y, flip, focus: myZoneRef.current, doors: {}, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
   }
   const dragLockRef = useRef(false);
   const [flipped, setFlipped] = useState(() => viewRef.current.flip);
   const [focus, setFocus] = useState(() => viewRef.current.focus);
   const [zoomedOut, setZoomedOut] = useState(false);
+  const [zoomedIn, setZoomedIn] = useState(false);
   const [floor, setFloor] = useState(() => viewRef.current.floor);
   const [weatherPref, setWeatherPref] = useState(() => { try { return localStorage.getItem(WEATHER_KEY) || 'auto'; } catch { return 'auto'; } });
   const [autoWx, setAutoWx] = useState(() => autoWeather());
@@ -380,11 +383,23 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     const onWheel = (e) => {
       e.preventDefault();
       const v = viewRef.current;
-      const rate = e.ctrlKey ? 0.012 : 0.0016; // trackpad pinch reports ctrlKey with small deltas
+      const rate = e.ctrlKey ? 0.012 : 0.0022; // trackpad pinch reports ctrlKey with small deltas
       v.zoom = clamp(v.zoom * Math.exp(-e.deltaY * rate), MIN_ZOOM, MAX_ZOOM);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // However far in you are, one tap gets you back: double-click / double-tap, Escape,
+  // or the Zoom out pill all return to a one-room view.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return undefined;
+    const reset = () => { const v = viewRef.current; if (v.zoom > 1.05) v.zoom = 1; };
+    const onKey = (e) => { if (e.key === 'Escape') reset(); };
+    el.addEventListener('dblclick', reset);
+    window.addEventListener('keydown', onKey);
+    return () => { el.removeEventListener('dblclick', reset); window.removeEventListener('keydown', onKey); };
   }, []);
 
   // Glide the camera so room `id` fills the view.
@@ -398,6 +413,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   // A door: glide into the next room and, if that is where you were standing, walk through it.
   const goThroughDoor = (link) => {
     focusRoom(link.to);
+    if (!link.dir) { const v = viewRef.current; (v.doors || (v.doors = {}))[[link.from, link.to].sort().join('|')] = performance.now() + 3000; }
     if (myZoneRef.current === link.from) {
       const f = ALL_ZONES[link.to].floor || 0;
       viewRef.current.walk = { x: link.entry.x, z: link.entry.z, floor: f, snap: f !== (ALL_ZONES[link.from].floor || 0) };
@@ -445,7 +461,10 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
 
   return (
     <div ref={containerRef} style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#0b0a14', touchAction: 'none' }}>
-      <SkyBackdrop weather={weather} />
+      <div style={{ position: 'absolute', inset: 0, opacity: ready ? 1 : 0, transition: 'opacity .5s' }}><SkyBackdrop weather={weather} /></div>
+      {!ready && (
+        <div className="stay-white" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 13, fontWeight: 700, zIndex: 5, pointerEvents: 'none' }}><House size={30} />Building your house...</div>
+      )}
       <WebGLBoundary>
         <Canvas
           orthographic
@@ -457,7 +476,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         >
           <ViewContext.Provider value={viewRef}>
             <PerformanceMonitor onDecline={() => setLowQ(true)} flipflops={2} />
-            <Rig viewRef={viewRef} dragLockRef={dragLockRef} onFocusChange={setFocus} onOutChange={setZoomedOut} onReady={() => setReady(true)} />
+            <Rig viewRef={viewRef} dragLockRef={dragLockRef} onFocusChange={setFocus} onOutChange={setZoomedOut} onInChange={setZoomedIn} onReady={() => setReady(true)} />
             <MirrorRoot>
               <GamifyScene onGoToRoom={goThroughDoor} onExitHouse={onExitHouse} focus={ready ? focus : null} zoomedOut={ready && zoomedOut} lowQ={lowQ} coarse={coarse} weather={weather} />
               {ready && userList.map(user => {
@@ -493,6 +512,14 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
           {floor === 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}{floor === 0 ? 'Go upstairs' : 'Go downstairs'}
         </button>
       </div>
+
+      {zoomedIn && (
+        <button
+          className="stay-white"
+          onClick={() => { viewRef.current.zoom = 1; }}
+          style={{ ...glass, position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)', zIndex: 62, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 99, fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
+        ><ZoomOut size={15} />Zoom out</button>
+      )}
 
       {viewer && (
         <React.Suspense fallback={null}>

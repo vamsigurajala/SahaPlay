@@ -52,7 +52,7 @@ import { resolveDmRecipientPublicKey } from './lib/dmKeyResolution.js';
 import { castPollVote } from './lib/pollApi';
 import crownImg from './assets/crown.svg';
 import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
-import { LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles, Sun, SwitchCamera, Move, Minus, PartyPopper } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
+import { House, LayoutGrid, Upload, Link as LinkIcon, MessageSquare, Monitor, MonitorPlay, Users, Send, VolumeX, Volume2, Ban, Flag, Play, Pause, Square, X, Share2, MessageCircle, MicOff, LogOut, Reply, Lock, Hash, ChevronLeft, ChevronRight, Settings, Settings2, Video, VideoOff, Mic, MoreVertical, Edit2, Trash2, Globe, Pin, Star, Shield, ShieldOff, SmilePlus, Plus, Maximize, Minimize, Maximize2, Minimize2, Gamepad2, Volume1, Activity, Search, Bell, HelpCircle, User, UserMinus, Cast, RotateCcw, RotateCw, Paintbrush, ChevronDown, ChevronUp, Eye, EyeOff, Sparkles, Sun, SwitchCamera, Move, Minus, PartyPopper } from 'lucide-react';import { mergeHistoryBatch } from './utils/chatHelper.js';
 
 function normalizeUrl(input) {
   if (!input || typeof input !== 'string') return null;
@@ -12319,7 +12319,7 @@ const Room = () => {
                 transition: 'all 0.2s',
               }}
             >
-              <LayoutGrid size={15} color="#fff" />
+              <House size={16} color="#fff" />
             </button>
           )}
           {/* ── OLD in-player game overlay REPLACED — game name is now in header ── */}
@@ -12333,7 +12333,7 @@ const Room = () => {
               would otherwise interrupt playback or drop a live Hyperbeam
               session. */}
           {gamifyMode && (
-            <React.Suspense fallback={null}>
+            <React.Suspense fallback={<div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, background: '#0b0a14', color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 700, zIndex: 5 }}><House size={30} />Building your house...</div>}>
               <GamifyFloorPlan
                 userList={userList}
                 mySocketId={socket?.id}
@@ -16022,7 +16022,7 @@ const Room = () => {
             )}
             {!isGameOrActivity(mediaUrl) && (
               <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); toggleGamify(); }} onTouchStart={preloadGamify}>
-                <LayoutGrid size={20} /> <span>{gamifyMode ? t('gamifyOff', 'Turn off Gamify Mode') : t('gamifyOn', 'Gamify Mode')}</span>
+                <House size={20} /> <span>{gamifyMode ? t('gamifyOff', 'Turn off Gamify Mode') : t('gamifyOn', 'Gamify Mode')}</span>
               </button>
             )}
             {!isEffectiveHost && (

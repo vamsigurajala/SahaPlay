@@ -1,4 +1,4 @@
-import { Box, Neon, Plant, Chair, Table, Rug, FloorLamp, WallWindow, useOpenProp } from './parts';
+import { Box, Neon, Plant, Chair, Table, Rug, FloorLamp, WallWindow, useOpenProp, PropDot } from './parts';
 import { NEON_AMBER, NEON_CYAN } from './constants';
 
 const PI = Math.PI;
@@ -48,6 +48,7 @@ export default function IndianKitchen({ natural = false, set = 'ground' }) {
       {[-1.3, -0.4, 0.5, 1.4].map((dx, i) => <Box key={i} p={[3.4 + dx, 0.5, 1.62]} s={[0.85, 0.85, 0.03]} c="#d6c3a0" shadow={false} />)}
       {/* gas hob + kadhai + tawa — tap to choose what to cook */}
       <group {...openStove}>
+      <PropDot position={[2.2, 1.9, 0.95]} kind="stove" arg={set} />
       <Box p={[2.2, 1.1, 0.95]} s={[1.7, 0.06, 0.85]} c={STEEL} metal={0.8} rough={0.3} />
       {[[-0.4, 0], [0.4, 0]].map(([dx], i) => (
         <group key={i}>
@@ -97,6 +98,7 @@ export default function IndianKitchen({ natural = false, set = 'ground' }) {
       {[-0.3, -0.1, 0.1, 0.3].map(dx => <mesh key={dx} position={[13.4 + dx, 1.6, 0.8]}><cylinderGeometry args={[0.2, 0.2, 0.03, 14]} /><meshStandardMaterial color="#f4f1e8" /></mesh>)}
       {/* microwave / OTG — tap to watch something bake */}
       <group {...openOven}>
+      <PropDot position={[15.0, 2.2, 0.9]} kind="oven" arg={set} />
       <Box p={[15.0, 1.4, 0.9]} s={[1.3, 0.7, 0.85]} c="#1c1a28" r={0.04} />
       <Box p={[14.85, 1.4, 1.33]} s={[0.85, 0.5, 0.03]} c="#1a2a45" emissive="#1a3a6a" ei={0.5} shadow={false} />
       {!natural && <Neon p={[15.5, 1.4, 1.34]} s={[0.12, 0.45, 0.02]} color={NEON_CYAN} halo={false} />}
@@ -111,6 +113,7 @@ export default function IndianKitchen({ natural = false, set = 'ground' }) {
       <Box p={[15.3, 3.3, 0.45]} s={[3.6, 1.3, 0.7]} c={CREAM} r={0.03} />
       {/* double-door fridge — tap to look inside */}
       <group {...openFridge}>
+      <PropDot position={[17.1, 4.3, 1.0]} kind="fridge" arg={set} />
       <Box p={[17.1, 1.85, 1.0]} s={[1.3, 3.7, 1.4]} c="#dfe3ee" r={0.06} metal={0.3} rough={0.35} />
       <Box p={[17.1, 2.4, 1.72]} s={[1.28, 0.03, 0.04]} c="#8f95a8" shadow={false} />
       <Box p={[16.65, 2.9, 1.74]} s={[0.05, 0.9, 0.06]} c="#8f95a8" shadow={false} />

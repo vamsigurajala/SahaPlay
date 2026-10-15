@@ -2,7 +2,7 @@ import { useMemo, useRef, useContext, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { DoorOpen, LogOut, Shirt, ArrowUp, ArrowDown } from 'lucide-react';
-import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip } from './parts';
+import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip, FocusContext } from './parts';
 import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden, Terrace, FrontYard, Courtyard } from './placedRooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { WORLD_W, WORLD_D, CELL_W, CELL_D, COLS, ROWS, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, DOORWAYS, ALL_LINKS } from '../../data/gamifyZones';
@@ -327,6 +327,7 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
   for (let r = 1; r < ROWS; r++) hLines.push(-halfD + r * CELL_D);
 
   return (
+    <FocusContext.Provider value={focus}>
     <group>
       {/* ── Lighting (tinted by the weather) ── */}
       <ambientLight intensity={wx.ambient[1]} color={wx.ambient[0]} />
@@ -369,7 +370,7 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
           tallForAt={(m) => zoneAt(Math.min(COLS - 1, Math.max(0, Math.floor((m + halfW) / CELL_W))), i + 1).id} />
       ))}
       {DOORWAYS.map((d, i) => (
-        <DoorFrame key={i} p={[d.x, 0, d.z]} axis={d.axis === 'v' ? 'z' : 'x'} color={DOOR_COLORS[i % 4]} />
+        <DoorFrame key={i} p={[d.x, 0, d.z]} axis={d.axis === 'v' ? 'z' : 'x'} color={DOOR_COLORS[i % 4]} doorKey={[d.a, d.b].sort().join('|')} />
       ))}
 
       {/* ── Rooms ── */}
@@ -388,8 +389,8 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       {zoomedOut && zones.filter(z => z.row === 2).map(z => <RoomSign key={z.id} z={z} />)}
       {zoomedOut && Object.values(ALL_ZONES).filter(z => z.floor === 1).map(z => <RoomSign key={z.id} z={z} />)}
       {focus === 'frontyard' && <ExitChip onExit={onExitHouse} />}
-      {focus === 'bedroom' && <WardrobeChip />}
       {ALL_LINKS.filter(l => l.from === focus).map(l => <DoorChip key={`${l.from}-${l.to}`} link={l} onGo={onGoToRoom} />)}
     </group>
+    </FocusContext.Provider>
   );
 }

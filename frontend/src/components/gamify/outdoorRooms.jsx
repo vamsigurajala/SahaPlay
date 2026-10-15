@@ -1,4 +1,4 @@
-import { Box, Neon, Plant, Tree, BeanBag, Rug, Table, Stool, FloorLamp, useOpenProp } from './parts';
+import { Box, Neon, Plant, Tree, BeanBag, Rug, Table, Stool, FloorLamp, useOpenProp, PropDot } from './parts';
 import { Cell } from './cell';
 import { Charpai, Car, Scooter, Jhula, LampPost, Diya, Rangoli, Pillar, Telescope, Planter, FlowerPatch, VegPatch, Hedge, LotusPond, Banana } from './props';
 
@@ -96,6 +96,7 @@ export function Courtyard() {
       {[[1.6, 1.6], [16.4, 1.6], [1.6, 14.4], [16.4, 14.4]].map(([x, z], i) => <Pillar key={i} p={[x, 0, z]} />)}
       {/* tulsi vrindavan */}
       <group position={[12.0, 0, 9.6]} {...openHerbs}>
+        <PropDot position={[0, 2.8, 0]} kind="garden" arg="herbs" />
         <Box p={[0, 0.2, 0]} s={[1.6, 0.4, 1.6]} c="#d9c9a8" r={0.03} />
         <Box p={[0, 0.6, 0]} s={[1.2, 0.4, 1.2]} c="#c9a77a" r={0.03} />
         <Box p={[0, 1.0, 0]} s={[0.9, 0.4, 0.9]} c="#d9c9a8" r={0.03} />

@@ -182,6 +182,83 @@ export function Monitor({ p, rot = 0, color = '#3ee8ff' }) {
   );
 }
 
+// Which room a prop sits in (set by Cell) and which room is being viewed (set by
+// the scene), so a prop can show its tap dot only while you are in that room.
+export const ZoneContext = createContext(null);
+export const FocusContext = createContext(null);
+
+let dotCss = false;
+function ensureDotCss() {
+  if (dotCss || typeof document === 'undefined') return;
+  dotCss = true;
+  const el = document.createElement('style');
+  el.textContent = '@keyframes gp-dot { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.75) } 70% { box-shadow: 0 0 0 11px rgba(255,255,255,0) } 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0) } }';
+  document.head.appendChild(el);
+}
+
+function PropDotInner({ position, kind, arg, onClick }) {
+  const view = useContext(ViewContext);
+  const ref = useRef();
+  ensureDotCss();
+  useFrame(() => {
+    const el = ref.current;
+    if (!el) return;
+    const on = view.current.uiVisible !== false && !view.current.out;
+    el.style.opacity = on ? '1' : '0';
+    el.style.pointerEvents = on ? 'auto' : 'none';
+  });
+  return (
+    <ScaledHtml position={position} zIndexRange={[33, 0]}>
+      <div ref={ref} style={{ transition: 'opacity .25s' }}>
+        <button
+          aria-label="Look closer"
+          onPointerDown={e => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); if (onClick) onClick(e); else view.current.openProp?.(kind, arg); }}
+          style={{ width: 18, height: 18, borderRadius: '50%', cursor: 'pointer', padding: 0, background: 'rgba(255,255,255,0.94)', border: '4px solid rgba(139,92,255,0.95)', animation: 'gp-dot 1.8s infinite' }}
+        />
+      </div>
+    </ScaledHtml>
+  );
+}
+
+// A small pulsing dot over something you can tap (wardrobe, shelf, fridge...). Only
+// mounted for the room you are in, and it fades out when the pointer is idle.
+export function PropDot(props) {
+  const zone = useContext(ZoneContext);
+  const focus = useContext(FocusContext);
+  if (!zone || focus !== zone) return null;
+  return <PropDotInner {...props} />;
+}
+
+// Two door leaves that stay shut until someone goes through (view.doors[key] holds
+// the time until which the door stays open).
+export function DoorLeaves({ along, doorKey, color, handle = '#d9c48a' }) {
+  const view = useContext(ViewContext);
+  const l = useRef();
+  const r = useRef();
+  const a = useRef(0);
+  useFrame((_, dt) => {
+    const until = view.current.doors?.[doorKey] || 0;
+    const want = performance.now() < until ? 1.35 : 0;
+    if (Math.abs(want - a.current) < 0.002) return;
+    a.current += (want - a.current) * (1 - Math.exp(-dt * 7));
+    if (l.current) l.current.rotation.y = a.current;
+    if (r.current) r.current.rotation.y = -a.current;
+  });
+  return (
+    <group rotation={[0, along ? 0 : Math.PI / 2, 0]}>
+      <group ref={l} position={[-1.6, 0, 0]}>
+        <Box p={[0.8, 1.5, 0]} s={[1.6, 3.0, 0.1]} c={color} r={0.03} />
+        <Box p={[1.4, 1.5, 0.08]} s={[0.1, 0.1, 0.05]} c={handle} shadow={false} />
+      </group>
+      <group ref={r} position={[1.6, 0, 0]}>
+        <Box p={[-0.8, 1.5, 0]} s={[1.6, 3.0, 0.1]} c={color} r={0.03} />
+        <Box p={[-1.4, 1.5, 0.08]} s={[0.1, 0.1, 0.05]} c={handle} shadow={false} />
+      </group>
+    </group>
+  );
+}
+
 const BOOK_COLORS = ['#ff6fb5', '#5ad1ff', '#ffcf5a', '#8dff9c', '#a56bff', '#ff8a5a', '#e8e1ff'];
 
 // Front faces +z; rotate with `rot` to face another wall.
@@ -191,6 +268,7 @@ export function Bookshelf({ p, rot = 0, w = 3, h = 3.4, d = 0.8, shelf, wood }) 
   const open = useOpenProp('books', shelf);
   return (
     <group position={p} rotation={[0, rot, 0]} {...open}>
+      <PropDot position={[0, h + 0.3, 0.2]} kind="books" arg={shelf} />
       <Box p={[0, h / 2, -d / 2 + 0.05]} s={[w, h, 0.1]} c={wood || "#2a1f4d"} />
       <Box p={[-w / 2 + 0.05, h / 2, 0]} s={[0.1, h, d]} c={wood || "#33265a"} />
       <Box p={[w / 2 - 0.05, h / 2, 0]} s={[0.1, h, d]} c={wood || "#33265a"} />
@@ -338,6 +416,7 @@ export function Wardrobe({ p, rot = 0, c = '#3a2d66', w = 2.0, id }) {
   );
   return (
     <group position={p} rotation={[0, rot, 0]}>
+      <PropDot position={[0, 3.8, 0.7]} onClick={toggle} />
       <Box p={[0, 1.75, -0.55]} s={[w, 3.5, 0.1]} c="#241c4a" />
       <Box p={[-w / 2 + 0.05, 1.75, 0]} s={[0.1, 3.5, 1.2]} c={c} />
       <Box p={[w / 2 - 0.05, 1.75, 0]} s={[0.1, 3.5, 1.2]} c={c} />
@@ -366,7 +445,7 @@ export function Wardrobe({ p, rot = 0, c = '#3a2d66', w = 2.0, id }) {
 // A framed doorway cut into a divider wall: two posts, a lintel with a neon
 // strip, and a door leaf swung open against one post. `axis` follows Divider's
 // convention ('x' = wall runs along x).
-export function DoorFrame({ p, axis, color }) {
+export function DoorFrame({ p, axis, color, doorKey }) {
   const along = axis === 'x';
   const s = (len, h, th) => (along ? [len, h, th] : [th, h, len]);
   const at = (o, y) => (along ? [o, y, 0] : [0, y, o]);
@@ -376,10 +455,7 @@ export function DoorFrame({ p, axis, color }) {
       <Box p={at(1.75, 1.6)} s={s(0.3, 3.2, 0.34)} c="#4a3a82" r={0.04} />
       <Box p={at(0, 3.3)} s={s(3.8, 0.28, 0.34)} c="#4a3a82" r={0.05} />
       <Neon p={at(0, 3.12)} s={s(3.2, 0.06, 0.1)} color={color} />
-      <group position={at(-1.45, 0)} rotation={[0, along ? -1.15 : 1.15, 0]}>
-        <Box p={along ? [0.7, 1.5, 0] : [0, 1.5, 0.7]} s={s(1.4, 3.0, 0.1)} c="#7a5cc4" r={0.03} />
-        <Box p={along ? [1.2, 1.5, 0.07] : [0.07, 1.5, 1.2]} s={s(0.1, 0.1, 0.05)} c="#d9c48a" shadow={false} />
-      </group>
+      <DoorLeaves along={along} doorKey={doorKey} color="#7a5cc4" />
     </group>
   );
 }

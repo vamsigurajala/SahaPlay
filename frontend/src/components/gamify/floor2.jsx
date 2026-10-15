@@ -1,7 +1,7 @@
 import { useContext, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Box, Plant, Chair, Table, Rug, Sofa, TableLamp, FloorLamp, Monitor, Bookshelf, Wardrobe, WallWindow, ViewContext } from './parts';
+import { Box, Plant, Chair, Table, Rug, Sofa, TableLamp, FloorLamp, Monitor, Bookshelf, Wardrobe, WallWindow, ViewContext, DoorLeaves } from './parts';
 import { Cell } from './cell';
 import { Telescope, Jhula, Vanity, FairyLights, Curtain, FlowerPatch, Teddy, Stairs } from './props';
 import IndianKitchen from './indianKitchen';
@@ -112,7 +112,7 @@ function Divider2({ axis, at, from, to, gaps = [], tallForAt }) {
 }
 
 // Wooden door frame (posts, lintel) — a plain home door opening.
-function Door2({ p, axis }) {
+function Door2({ p, axis, doorKey }) {
   const along = axis === 'x';
   const s = (len, h, th) => (along ? [len, h, th] : [th, h, len]);
   const at = (o, y) => (along ? [o, y, 0] : [0, y, o]);
@@ -121,6 +121,7 @@ function Door2({ p, axis }) {
       <Box p={at(-1.75, 1.6)} s={s(0.28, 3.2, 0.34)} c={TRIM} r={0.03} />
       <Box p={at(1.75, 1.6)} s={s(0.28, 3.2, 0.34)} c={TRIM} r={0.03} />
       <Box p={at(0, 3.3)} s={s(3.8, 0.26, 0.34)} c={TRIM} r={0.04} />
+      <DoorLeaves along={along} doorKey={doorKey} color="#b08a5c" handle="#e0cf9a" />
     </group>
   );
 }
@@ -334,7 +335,7 @@ export default function Floor2() {
         tallForAt={(m) => (m < mz ? 'f2hall' : 'f2balcony')} />
       <Divider2 axis="z" at={9} from={z0} to={mz} gaps={vGaps(9)} tallForAt={() => 'f2bed2'} />
       <Divider2 axis="x" at={mz} from={x0} to={9} gaps={hGaps(mz)} tallForAt={(m) => (m < -9 ? 'f2kitchen' : 'f2balcony')} />
-      {DOORWAYS_F2.map((d, i) => <Door2 key={i} p={[d.x, 0, d.z]} axis={d.axis === 'v' ? 'z' : 'x'} />)}
+      {DOORWAYS_F2.map((d, i) => <Door2 key={i} p={[d.x, 0, d.z]} axis={d.axis === 'v' ? 'z' : 'x'} doorKey={[d.a, d.b].sort().join('|')} />)}
 
       {/* railings along the open edges */}
       <Railing axis="x" at={zEnd} from={x0} to={9} />

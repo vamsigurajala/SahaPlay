@@ -1,6 +1,6 @@
 import { useContext, useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { Box, Neon, Plant, useOpenProp, ViewContext } from './parts';
+import { Box, Neon, Plant, useOpenProp, ViewContext, PropDot } from './parts';
 import { NEON_CYAN, NEON_AMBER } from './constants';
 
 const PI = Math.PI;
@@ -340,6 +340,7 @@ export function FlowerPatch({ p, w = 3, d = 1.4, n = 40, colors, tall = 0.55, he
   }, [n, w, d, colors, tall, head, seed]);
   return (
     <group position={p} rotation={[0, rot, 0]} {...open}>
+      <PropDot position={[0, tall + 0.9, 0]} kind="garden" arg="flowers" />
       <Box p={[0, 0.17, 0]} s={[w, 0.34, d]} c="#5a3d2b" r={0.05} />
       <Box p={[0, 0.34, 0]} s={[w - 0.2, 0.05, d - 0.2]} c="#2a1c10" shadow={false} />
       <Instances items={stems} geo={<cylinderGeometry args={[0.018, 0.018, 1, 5]} />} />
@@ -377,6 +378,7 @@ export function VegPatch({ p, w = 3.4, d = 3, rot = 0 }) {
   }, [w, d]);
   return (
     <group position={p} rotation={[0, rot, 0]} {...open}>
+      <PropDot position={[0, 1.5, 0]} kind="garden" arg="veg" />
       <Box p={[0, 0.17, 0]} s={[w, 0.34, d]} c="#6a4a2f" r={0.05} />
       <Box p={[0, 0.34, 0]} s={[w - 0.2, 0.05, d - 0.2]} c="#3a2412" shadow={false} />
       <Instances items={stakes} geo={<cylinderGeometry args={[0.02, 0.02, 1, 5]} />} />
@@ -420,6 +422,7 @@ export function LotusPond({ p, r = 2.0 }) {
   const lotus = [[0.6, 0.5, '#ff9ac0'], [-0.8, 0.3, '#fff0f6'], [0.1, -0.9, '#ff7aa8']];
   return (
     <group position={p} {...open}>
+      <PropDot position={[0, 1.2, 0]} kind="garden" arg="flowers" />
       <mesh position={[0, 0.16, 0]} castShadow receiveShadow><cylinderGeometry args={[r, r + 0.12, 0.32, 28]} /><meshStandardMaterial color="#a8896a" roughness={0.9} /></mesh>
       <mesh position={[0, 0.3, 0]}><cylinderGeometry args={[r - 0.25, r - 0.25, 0.04, 28]} /><meshStandardMaterial color="#1f7ab0" emissive="#1f7ab0" emissiveIntensity={0.45} roughness={0.2} /></mesh>
       {pads.map(([x, z, s], i) => <mesh key={i} position={[x * r / 2, 0.34, z * r / 2]} rotation={[0, i, 0]}><cylinderGeometry args={[s, s, 0.02, 12, 1, false, 0.4, 5.5]} /><meshStandardMaterial color="#2f9a4a" roughness={0.7} /></mesh>)}
@@ -460,6 +463,7 @@ export function FlowerArch({ p, rot = 0, color = '#e0187a' }) {
   const leaves = useMemo(() => dots.map(d => ({ p: [d.p[0] * 0.98, d.p[1] - 0.05, d.p[2] - 0.1], c: '#2f8f4a', s: d.s * 0.9 })), [dots]);
   return (
     <group position={p} rotation={[0, rot, 0]} {...open}>
+      <PropDot position={[0, 3.6, 0]} kind="garden" arg="flowers" />
       {[-1.5, 1.5].map(x => <Box key={x} p={[x, 1.25, 0]} s={[0.14, 2.5, 0.14]} c="#f6efe0" />)}
       <mesh position={[0, 2.5, 0]}><torusGeometry args={[1.5, 0.07, 6, 18, PI]} /><meshStandardMaterial color="#f6efe0" /></mesh>
       <Instances items={leaves} geo={<sphereGeometry args={[0.15, 6, 4]} />} />
@@ -473,6 +477,7 @@ export function Vanity({ p, rot = 0 }) {
   const open = useOpenProp('cosmetics');
   return (
     <group position={p} rotation={[0, rot, 0]} {...open}>
+      <PropDot position={[0, 2.4, 0.5]} kind="cosmetics" />
       <Box p={[0, 0.6, 0]} s={[1.9, 1.2, 1.1]} c="#5a3a4a" r={0.05} />
       <Box p={[0, 1.22, 0]} s={[2.0, 0.08, 1.2]} c="#7a5a6a" r={0.03} />
       {[-0.45, 0.45].map(x => <Box key={x} p={[x, 0.8, 0.57]} s={[0.8, 0.4, 0.04]} c="#6a4a5a" shadow={false} />)}
@@ -510,6 +515,7 @@ export function Stairs({ p, rot = 0, dir = 'up', steps = 9, c = '#a98260', dark 
   if (dir === 'down') {
     return (
       <group position={p} rotation={[0, rot, 0]} {...go}>
+        <PropDot position={[2.2, 1.4, 0]} onClick={() => view.current.changeFloor?.()} />
         <Box p={[2.2, 0.03, 0]} s={[4.6, 0.06, 2.2]} c="#1c1612" shadow={false} />
         {[0, 1, 2, 3, 4, 5].map(i => <Box key={i} p={[0.4 + i * 0.7, 0.07 + 0.001 * i, 0]} s={[0.55, 0.02, 1.8]} c={i % 2 ? '#2a211a' : '#33281f'} shadow={false} />)}
         <Box p={[2.2, 0.5, 1.15]} s={[4.7, 0.1, 0.1]} c={dark} shadow={false} />
@@ -520,6 +526,7 @@ export function Stairs({ p, rot = 0, dir = 'up', steps = 9, c = '#a98260', dark 
   }
   return (
     <group position={p} rotation={[0, rot, 0]} {...go}>
+      <PropDot position={[(steps * run) / 2, rise * steps + 0.8, 0]} onClick={() => view.current.changeFloor?.()} />
       {Array.from({ length: steps }).map((_, i) => <Box key={i} p={[i * run + run / 2, (rise * (i + 1)) / 2, 0]} s={[run, rise * (i + 1), 2]} c={c} />)}
       {[1.05, -1.05].map(z => <Box key={z} p={[(steps * run) / 2, (rise * steps) / 2 + 0.2, z]} s={[steps * run, 0.1, 0.1]} c={dark} rot={0} shadow={false} />)}
       {[1.05, -1.05].map(z => Array.from({ length: 4 }).map((_, k) => {
