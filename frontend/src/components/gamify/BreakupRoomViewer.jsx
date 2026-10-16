@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import CalmMusicPanel from './CalmMusicPanel';
 import {
   Heart, HeartCrack, Volume2, VolumeX, Flame, BookOpen, Sparkles,
   Send, RefreshCw, X, Check, Shield, Feather, Music, CloudRain,
@@ -185,8 +186,8 @@ const HEALING_AFFIRMATIONS = [
 // MAIN BREAKUP ROOM VIEWER EXPORT
 // ============================================================================
 
-export default function BreakupRoomViewer({ onClose }) {
-  const [activeTab, setActiveTab] = useState('letters'); // 'letters' | 'rain' | 'burn' | 'healing'
+export default function BreakupRoomViewer({ onClose, arg }) {
+  const [activeTab, setActiveTab] = useState(['music', 'letters', 'burn', 'healing'].includes(arg) ? arg : 'music'); // 'music' | 'letters' | 'burn' | 'healing'
   const [selectedLetter, setSelectedLetter] = useState(UNSENT_LETTERS[0]);
   const [isRaining, setIsRaining] = useState(false);
   const [burnText, setBurnText] = useState('');
@@ -290,14 +291,17 @@ export default function BreakupRoomViewer({ onClose }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '16px 24px',
+          flexWrap: 'wrap',
+          gap: 10,
+          padding: '16px clamp(12px, 3vw, 24px)',
           borderBottom: `1px solid ${innerCardBorder}`,
           background: isLight ? 'rgba(241,245,249,0.6)' : 'rgba(0,0,0,0.3)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: '1 1 260px', minWidth: 0 }}>
           <div
             style={{
+              flex: 'none',
               width: 44,
               height: 44,
               borderRadius: 14,
@@ -312,7 +316,7 @@ export default function BreakupRoomViewer({ onClose }) {
             <HeartCrack size={22} color="#a5b4fc" />
           </div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               The Breakup Room &amp; Solitude Sanctuary
               <span
                 style={{
@@ -382,13 +386,15 @@ export default function BreakupRoomViewer({ onClose }) {
       <div
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           gap: 8,
-          padding: '12px 24px',
+          padding: '12px clamp(12px, 3vw, 24px)',
           borderBottom: `1px solid ${innerCardBorder}`,
           background: isLight ? 'rgba(241,245,249,0.4)' : 'rgba(0,0,0,0.15)',
         }}
       >
         {[
+          { id: 'music', label: 'Calm Music', icon: <Music size={15} /> },
           { id: 'letters', label: 'Unsent Letters', icon: <Feather size={15} /> },
           { id: 'burn', label: 'Burn & Release Journal', icon: <Flame size={15} /> },
           { id: 'healing', label: 'Comfort & Healing Words', icon: <Sparkles size={15} /> },
@@ -401,7 +407,7 @@ export default function BreakupRoomViewer({ onClose }) {
               borderRadius: 12,
               border: activeTab === tab.id ? '1px solid rgba(99,102,241,0.5)' : `1px solid ${innerCardBorder}`,
               background: activeTab === tab.id ? 'rgba(99,102,241,0.18)' : innerCardBg,
-              color: activeTab === tab.id ? '#a5b4fc' : textSub,
+              color: activeTab === tab.id ? (isLight ? '#4338ca' : '#a5b4fc') : textSub,
               fontSize: 12.5,
               fontWeight: 800,
               cursor: 'pointer',
@@ -419,9 +425,14 @@ export default function BreakupRoomViewer({ onClose }) {
 
       {/* ── Main Tab Content ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+        {/* TAB 0: CALM MUSIC */}
+        {activeTab === 'music' && (
+          <CalmMusicPanel onClose={onClose} ink={textTitle} muted={textSub} card={innerCardBg} border={innerCardBorder} isLight={isLight} />
+        )}
+
         {/* TAB 1: UNSENT LETTERS */}
         {activeTab === 'letters' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 20, height: '100%' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 20 }}>
             {/* Left: Letters Index */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>

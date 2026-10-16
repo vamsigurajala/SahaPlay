@@ -9,6 +9,8 @@ import { ViewContext } from './gamify/parts';
 import { DEFAULT_SPAWN, ALL_ZONES, STAIR_LINKS, FLOOR_Y } from '../data/gamifyZones';
 import { SkyBackdrop, WEATHER, autoWeather, fetchLiveWeather } from './gamify/environment';
 import { stopRadio } from './gamify/radioPlayer';
+import { stopCalm } from './gamify/calmMusic';
+import CalmMusicDock from './gamify/CalmMusicDock';
 import GamifyRig, { MIN_ZOOM, MAX_ZOOM, clamp } from './gamify/GamifyRig';
 import MirrorRoot from './gamify/GamifyMirror';
 import TvProjector from './gamify/GamifyTvProjector';
@@ -57,7 +59,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     viewRef.current = { uiVisible: true, alwaysDots: false, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, floor: floor0, py: floor0 * FLOOR_Y, flip, focus: myZoneRef.current, doors: {}, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
   }
   const dragLockRef = useRef(false);
-  useEffect(() => stopRadio, []); // the house radio only plays while you are in the house
+  useEffect(() => () => { stopRadio(); stopCalm(); }, []); // the radio and the calm music only play while you are in the house
   const [flipped, setFlipped] = useState(() => viewRef.current.flip);
   const [focus, setFocus] = useState(() => viewRef.current.focus);
   const [zoomedOut, setZoomedOut] = useState(false);
@@ -326,6 +328,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         </Canvas>
       </WebGLBoundary>
 
+      <CalmMusicDock />
       <GamifyControls
         focus={focus}
         floor={floor}

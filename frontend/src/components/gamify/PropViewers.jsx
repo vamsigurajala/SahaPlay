@@ -4189,7 +4189,7 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'radio' && <ViewerBoundary><Suspense fallback={<div className="stay-white" style={{ marginTop: 120, fontWeight: 700 }}>Warming up the radio...</div>}><RadioViewer /></Suspense></ViewerBoundary>}
         {kind === 'shop' && <ViewerBoundary><ShopViewer id={arg} onClose={onClose} /></ViewerBoundary>}
         {kind === 'garage' && <ViewerBoundary><GarageWorkshopViewer onClose={onClose} arg={arg} /></ViewerBoundary>}
-        {kind === 'breakup' && <ViewerBoundary><BreakupRoomViewer onClose={onClose} /></ViewerBoundary>}
+        {kind === 'breakup' && <ViewerBoundary><BreakupRoomViewer onClose={onClose} arg={arg} /></ViewerBoundary>}
       </div>
     </div>,
     document.body,
