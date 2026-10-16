@@ -10,7 +10,7 @@ export default function QuickAccess({ onOpen, onDaily, dailyOpen }) {
   const game = GAMES[gameOfTheDay()];
   const chip = { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 99, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(12,10,24,0.78)', color: '#fff', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap', cursor: 'pointer', backdropFilter: 'blur(6px)', flex: 'none', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis' };
   return (
-    <div className="stay-white" style={{ position: 'absolute', top: 10, left: 10, width: 132, maxHeight: 'calc(100% - 240px)', zIndex: 58, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', pointerEvents: 'none' }}>
+    <div className="stay-white" style={{ position: 'absolute', top: 54, left: 8, width: 132, maxHeight: 'calc(100% - 290px)', zIndex: 58, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', pointerEvents: 'none' }}>
       <button onClick={onDaily} aria-pressed={dailyOpen} title="Game of the day and today's scores" style={{ ...chip, pointerEvents: 'auto', borderColor: 'rgba(251,191,36,0.7)', background: dailyOpen ? 'rgba(251,191,36,0.25)' : chip.background }}>
         <Trophy size={13} color="#fbbf24" style={{ flex: 'none' }} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{game ? `Today: ${game.title}` : 'Game of the day'}</span>
       </button>
