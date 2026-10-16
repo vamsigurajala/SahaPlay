@@ -69,7 +69,7 @@ export default function ShopViewer({ id, onClose }) {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 200px), 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 156px), 1fr))', gap: 12 }}>
         {shop.items.map((it, n) => {
           const Icon = ICONS[it.icon] || ShoppingBag;
           const q = cart[it.id] || 0;

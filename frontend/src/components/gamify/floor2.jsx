@@ -1,7 +1,7 @@
 import { useContext, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Box, Plant, Chair, Table, Rug, Sofa, TableLamp, FloorLamp, Monitor, Bookshelf, Wardrobe, WallWindow, ViewContext, DoorLeaves } from './parts';
+import { Box, Plant, Chair, Table, Rug, Sofa, BeanBag, TableLamp, FloorLamp, Monitor, Bookshelf, Wardrobe, WallWindow, ViewContext, DoorLeaves } from './parts';
 import { Cell } from './cell';
 import { Telescope, Jhula, Vanity, FairyLights, Curtain, FlowerPatch, Teddy, Stairs } from './props';
 import IndianKitchen from './indianKitchen';
@@ -241,6 +241,7 @@ function UpstairsHall() {
       <Sofa p={[9, 0, 11.0]} rot={PI} w={5.6} c="#d9c9a9" back="#c9b690" />
       <Sofa p={[5.3, 0, 7.4]} rot={PI / 2} w={3.4} c="#c9d2bf" back="#b4c0a8" />
       <SoftCouch p={[13.0, 0, 7.4]} rot={-PI / 2} w={2.6} />
+      <BeanBag p={[13.5, 0, 4.7]} color="#e3a13c" glow="#f2c978" />
       <Table p={[9, 0, 7.4]} w={2.6} d={1.4} h={0.5} c={WOOD} leg={DARK_WOOD} />
       <Remote p={[8.4, 0.56, 7.2]} rot={0.5} />
       <PhoneFlat p={[9.6, 0.56, 7.6]} rot={-0.4} />

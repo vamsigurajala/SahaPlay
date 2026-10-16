@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Heart, Quote, Eye, Brush } from 'lucide-react';
 import { PAINTINGS, PAINTING_IDS } from '../../data/gamifyPaintings';
+import { useIsLight } from './useIsLight';
 
 // A close look at one of the sad love paintings in the upstairs living room: the
 // picture itself, why the artist painted it, and the story behind it. Arrows and the
@@ -13,10 +14,16 @@ const CSS = `
 .art-thumb:hover { transform: translateY(-2px); opacity: 1 !important; }
 `;
 
-const sectionTitle = { display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#ffd36b', margin: '0 0 6px' };
+const palette = (light) => (light
+  ? { card: '#fbf7ee', border: 'rgba(60,40,10,0.18)', ink: '#1f1a14', muted: '#5b5247', accent: '#8a5a00', chipBg: 'rgba(190,40,90,0.1)', chipBorder: 'rgba(190,40,90,0.45)', chipInk: '#8f1d47', shadow: '0 18px 50px rgba(0,0,0,0.4)' }
+  : { card: 'rgba(22,17,40,0.82)', border: 'rgba(255,255,255,0.16)', ink: '#ffffff', muted: 'rgba(255,255,255,0.78)', accent: '#ffd36b', chipBg: 'rgba(255,90,138,0.18)', chipBorder: 'rgba(255,90,138,0.45)', chipInk: '#ffffff', shadow: '0 18px 50px rgba(0,0,0,0.5)' });
 
 export default function PaintingViewer({ id }) {
   const { t } = useTranslation();
+  const light = useIsLight();
+  const c = palette(light);
+  const sectionTitle = { display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: c.accent, margin: '0 0 6px' };
+  const para = { margin: 0, fontSize: 14.5, lineHeight: 1.6, color: c.ink };
   const [cur, setCur] = useState(PAINTINGS[id] ? id : PAINTING_IDS[0]);
   const p = PAINTINGS[cur];
   const i = PAINTING_IDS.indexOf(cur);
@@ -32,39 +39,39 @@ export default function PaintingViewer({ id }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button onClick={() => go(-1)} aria-label="Previous painting" style={navBtn}><ChevronLeft size={18} /></button>
-            <span style={{ fontSize: 12.5, opacity: 0.7, minWidth: 70, textAlign: 'center' }}>{i + 1} / {PAINTING_IDS.length}</span>
+            <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.8)', minWidth: 70, textAlign: 'center' }}>{i + 1} / {PAINTING_IDS.length}</span>
             <button onClick={() => go(1)} aria-label="Next painting" style={navBtn}><ChevronRight size={18} /></button>
           </div>
         </div>
 
-        <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ flex: '1 1 340px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14, padding: 'clamp(14px, 3vw, 22px)', borderRadius: 20, background: c.card, border: `1px solid ${c.border}`, boxShadow: c.shadow, color: c.ink }}>
           <div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-              {p.mood.map(m => <span key={m} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, background: 'rgba(255,90,138,0.18)', border: '1px solid rgba(255,90,138,0.45)', fontSize: 12, fontWeight: 700 }}><Heart size={11} />{m}</span>)}
+              {p.mood.map(m => <span key={m} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, background: c.chipBg, border: `1px solid ${c.chipBorder}`, color: c.chipInk, fontSize: 12, fontWeight: 700 }}><Heart size={11} />{m}</span>)}
             </div>
-            <div style={{ fontSize: 'clamp(24px,5vw,34px)', fontWeight: 900, lineHeight: 1.1 }}>{p.title}</div>
-            <div style={{ fontSize: 14.5, opacity: 0.85, marginTop: 4 }}>{p.artist}, {p.year}</div>
-            {p.place && <div style={{ fontSize: 12.5, opacity: 0.6, marginTop: 2 }}>{p.place}</div>}
+            <div style={{ fontSize: 'clamp(24px,5vw,34px)', fontWeight: 900, lineHeight: 1.1, color: c.ink }}>{p.title}</div>
+            <div style={{ fontSize: 14.5, color: c.muted, marginTop: 4 }}>{p.artist}, {p.year}</div>
+            {p.place && <div style={{ fontSize: 12.5, color: c.muted, marginTop: 2 }}>{p.place}</div>}
           </div>
 
-          <section>
-            <h3 style={sectionTitle}><Brush size={13} />{t('gamify.art.why', 'Why the artist painted it')}</h3>
-            <p style={para}>{p.why}</p>
-          </section>
-          <section>
-            <h3 style={sectionTitle}><Quote size={13} />{t('gamify.art.story', 'The story')}</h3>
-            <p style={para}>{p.story}</p>
-          </section>
-          <section>
-            <h3 style={sectionTitle}><Brush size={13} />{t('gamify.art.behind', 'Behind the canvas')}</h3>
-            <p style={para}>{p.behind}</p>
-          </section>
-          <section>
-            <h3 style={sectionTitle}><Eye size={13} />{t('gamify.art.look', 'Look closer')}</h3>
-            <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 5 }}>
-              {p.look.map(l => <li key={l} style={{ fontSize: 14, lineHeight: 1.5, opacity: 0.9 }}>{l}</li>)}
-            </ul>
-          </section>
+          <div>
+            <div style={sectionTitle}><Brush size={13} />{t('gamify.art.why', 'Why the artist painted it')}</div>
+            <div style={para}>{p.why}</div>
+          </div>
+          <div>
+            <div style={sectionTitle}><Quote size={13} />{t('gamify.art.story', 'The story')}</div>
+            <div style={para}>{p.story}</div>
+          </div>
+          <div>
+            <div style={sectionTitle}><Brush size={13} />{t('gamify.art.behind', 'Behind the canvas')}</div>
+            <div style={para}>{p.behind}</div>
+          </div>
+          <div>
+            <div style={sectionTitle}><Eye size={13} />{t('gamify.art.look', 'Look closer')}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {p.look.map(l => <div key={l} style={{ display: 'flex', gap: 8, fontSize: 14, lineHeight: 1.5, color: c.ink }}><span aria-hidden="true" style={{ color: c.accent, flex: 'none' }}>-</span><span>{l}</span></div>)}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -75,10 +82,9 @@ export default function PaintingViewer({ id }) {
           </button>
         ))}
       </div>
-      <div style={{ fontSize: 11.5, opacity: 0.5, textAlign: 'center' }}>{t('gamify.art.credit', 'Public-domain paintings, shown with short retellings of their stories.')}</div>
+      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.6)', textAlign: 'center' }}>{t('gamify.art.credit', 'Public-domain paintings, shown with short retellings of their stories.')}</div>
     </div>
   );
 }
 
-const para = { margin: 0, fontSize: 14.5, lineHeight: 1.6, opacity: 0.92 };
 const navBtn = { width: 36, height: 36, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.08)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 };
