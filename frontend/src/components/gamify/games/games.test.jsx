@@ -27,7 +27,7 @@ const FILES = {
   snake: () => import('./SnakeGame'), breakout: () => import('./BreakoutGame'), tetris: () => import('./TetrisGame'), invaders: () => import('./InvadersGame'),
   flappy: () => import('./FlappyGame'), g2048: () => import('./Game2048'), whack: () => import('./WhackGame'), mines: () => import('./MinesGame'),
   connect4: () => import('./ConnectFourGame'), racing: () => import('./RacingGame'), penalty: () => import('./PenaltyGame'), airhockey: () => import('./AirHockeyGame'),
-  dj: () => import('./DjBooth'), mixbar: () => import('./MixBar'), cricket: () => import('./CricketGame'),
+  dj: () => import('./DjBooth'), mixbar: () => import('./MixBar'), cricket: () => import('./CricketGame'), xoxo: () => import('./XoxoGame'),
 };
 
 describe('Game Room games', () => {
@@ -124,6 +124,18 @@ describe('Game Room games', () => {
     fireEvent.click(screen.getByRole('button', { name: '6' }));
     run(900);
     expect(screen.getAllByText(/\+6|OUT/i, { selector: 'div' }).length).toBeGreaterThan(0);
+  });
+
+  it('xoxo: the computer answers after you place an X', async () => {
+    vi.useRealTimers();
+    const Game = (await FILES.xoxo()).default;
+    vi.useFakeTimers();
+    render(<Game />);
+    fireEvent.click(screen.getByRole('button', { name: 'cell 5' }));
+    expect(screen.getByText(/thinking/i)).toBeInTheDocument();
+    run(600);
+    expect(screen.getByText(/Your turn/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /cell \d O/ }).length).toBe(1);
   });
 
   it('racing: the countdown ends and the race clock runs', async () => {

@@ -8,14 +8,14 @@ describe('gamify zones', () => {
     }
   });
 
-  it('zones do not overlap: the 3x3 house, the street and the cricket ground fill 11 of the 15 grid cells', () => {
+  it('zones do not overlap: the 3x3 house, the street, the cricket ground and the market fill 12 of the 15 grid cells', () => {
     const area = Object.values(FLOORPLAN_ZONES).reduce((s, z) => s + z.width * z.height, 0);
-    expect(area).toBeCloseTo((FLOORPLAN_WIDTH * FLOORPLAN_HEIGHT * 11) / 15, 4);
+    expect(area).toBeCloseTo((FLOORPLAN_WIDTH * FLOORPLAN_HEIGHT * 12) / 15, 4);
   });
 
   it('the front yard gate leads to the street, and the street to the cricket ground, both ways', () => {
     const toVirtual = (p) => [(p.x / WORLD_W + 0.5) * FLOORPLAN_WIDTH, (p.z / WORLD_D + 0.5) * FLOORPLAN_HEIGHT];
-    expect(GATE_LINKS).toHaveLength(4);
+    expect(GATE_LINKS).toHaveLength(6);
     for (const l of GATE_LINKS) {
       expect(zoneForPoint(...toVirtual(l.chip))).toBe(l.from);
       expect(zoneForPoint(...toVirtual(l.entry))).toBe(l.to);

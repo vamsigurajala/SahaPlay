@@ -24,6 +24,7 @@ import DogCareView from './DogCareView';
 import AquariumViewer from './AquariumViewer';
 import SupercarViewer from './SupercarViewer';
 import GarageWorkshopViewer from './GarageWorkshopViewer';
+import ShopViewer from './ShopViewer';
 
 // Full-screen "look closer" views for props in the Gamify house: bookshelf (tap a
 // book to read it), fridge (hover an item for its name), oven (something is baking)
@@ -4181,6 +4182,7 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'dog' && <DogCareView onClose={onClose} />}
         {kind === 'pond' && <AquariumViewer onClose={onClose} />}
         {kind === 'supercar' && <ViewerBoundary><SupercarViewer onClose={onClose} /></ViewerBoundary>}
+        {kind === 'shop' && <ViewerBoundary><ShopViewer id={arg} onClose={onClose} /></ViewerBoundary>}
         {kind === 'garage' && <ViewerBoundary><GarageWorkshopViewer onClose={onClose} arg={arg} /></ViewerBoundary>}
       </div>
     </div>,

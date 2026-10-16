@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ArrowLeft, Bird, Blocks, Bomb, Car, Circle, Disc, Disc3, Gamepad2, Goal, Grab, Grid3x3, Hammer, Hash, Layers, Martini, Rocket, Shield, Snail, Trophy, Zap,
+  ArrowLeft, Bird, Blocks, Bomb, Car, Circle, Disc, Disc3, Gamepad2, Goal, Grab, Grid3x3, Hammer, Hash, Layers, Martini, Rocket, Shield, Snail, Trophy, X, Zap,
 } from 'lucide-react';
 import { getBest, ui } from './shared';
 
@@ -24,6 +24,7 @@ export const GAMES = {
   whack: { title: 'Whack-a-Mole', desc: '30 seconds, quick fingers', Icon: Hammer, color: '#c0763a', group: 'arcade', load: () => import('./WhackGame') },
   mines: { title: 'Minesweeper', desc: 'Find the mines, fast', Icon: Bomb, color: '#4f7bff', group: 'arcade', load: () => import('./MinesGame'), fmt: (n) => `${n}s` },
   connect4: { title: 'Connect Four', desc: 'Outsmart the computer', Icon: Grid3x3, color: '#e0529f', group: 'arcade', load: () => import('./ConnectFourGame') },
+  xoxo: { title: 'XOXO', desc: 'Noughts and crosses against the computer', Icon: X, color: '#ff6fb5', group: 'arcade', load: () => import('./XoxoGame') },
   racing: { title: 'Turbo Racing', desc: '3 laps against 3 drivers', Icon: Car, color: '#ff4f6e', group: 'console', load: () => import('./RacingGame'), fmt: fmtTime },
   penalty: { title: 'Penalty Shootout', desc: 'Shoot, then save, vs the computer', Icon: Shield, color: '#2f9a4a', group: 'console', load: () => import('./PenaltyGame') },
   airhockey: { title: 'Air Hockey', desc: 'Smash the puck past the computer', Icon: Disc, color: '#2a7fd0', group: 'console', load: () => import('./AirHockeyGame') },

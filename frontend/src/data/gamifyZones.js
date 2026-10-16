@@ -63,6 +63,7 @@ export const FLOORPLAN_ZONES = {
   courtyard: zone('courtyard', 'Courtyard', 2, 2),
   street: zone('street', 'Street', 1, 3),
   cricket: zone('cricket', 'Cricket Ground', 1, 4),
+  market: zone('market', 'Market', 2, 4),
 };
 
 // Upstairs: two bedrooms, a living room, a kitchen and a balcony (the
@@ -147,10 +148,13 @@ export const STAIR_LINKS = [
 // street across the road to the cricket ground.
 const streetZ = FLOORPLAN_ZONES.street;
 const cricketZ = FLOORPLAN_ZONES.cricket;
+const marketZ = FLOORPLAN_ZONES.market;
 export const GATE_LINKS = [
   { from: 'frontyard', to: 'street', label: 'Go to the street', chip: { x: yardZ.world.x0 + 13.2, z: yardZ.world.z1 - 3.2 }, entry: { x: streetZ.world.x0 + 9, z: streetZ.world.z0 + 2 } },
   { from: 'street', to: 'frontyard', label: 'Back to the house', chip: { x: streetZ.world.x0 + 13.4, z: streetZ.world.z0 + 1.8 }, entry: { x: yardZ.world.x0 + 9, z: yardZ.world.z1 - 3.4 } },
   { from: 'street', to: 'cricket', label: 'Cricket ground', chip: { x: streetZ.world.x0 + 13.4, z: streetZ.world.z1 - 1.8 }, entry: { x: cricketZ.world.x0 + 9, z: cricketZ.world.z0 + 3 } },
+  { from: 'cricket', to: 'market', label: 'Market', chip: { x: cricketZ.world.x1 - 2.4, z: cricketZ.world.z0 + 12.5 }, entry: { x: marketZ.world.x0 + 4.5, z: marketZ.world.z0 + 10 } },
+  { from: 'market', to: 'cricket', label: 'Cricket ground', chip: { x: marketZ.world.x0 + 2.6, z: marketZ.world.z0 + 13.6 }, entry: { x: cricketZ.world.x1 - 4, z: cricketZ.world.z0 + 12 } },
   { from: 'cricket', to: 'street', label: 'Back to the street', chip: { x: cricketZ.world.x0 + 13.4, z: cricketZ.world.z0 + 2.8 }, entry: { x: streetZ.world.x0 + 9, z: streetZ.world.z1 - 2 } },
 ];
 export const ALL_LINKS = [...DOOR_LINKS, ...DOOR_LINKS_F2, ...STAIR_LINKS, ...GATE_LINKS];

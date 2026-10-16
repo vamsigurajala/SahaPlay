@@ -6,6 +6,7 @@ import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip, FocusContext } 
 import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden, Veranda, FrontYard, Courtyard } from './placedRooms';
 import { CricketGround, CricketFloor } from './cricket';
 import { Street } from './street';
+import { Market, MarketFloor } from './market';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { WORLD_W, WORLD_D, HOUSE_D, CELL_W, CELL_D, COLS, HOUSE_ROWS, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, DOORWAYS, ALL_LINKS } from '../../data/gamifyZones';
 import Floor2 from './floor2';
@@ -388,7 +389,7 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
   const houseMid = -halfD + HOUSE_D / 2;
   const roomLights = [
     ['study', NEON_CYAN, 3.4, 44], ['hall', NEON_PINK, 3.6, 60], ['bedroom', NEON_VIOLET, 3.4, 48],
-    ['kitchen', '#ffd9a0', 3.4, 40], ['gameroom', NEON_CYAN, 3.2, 52], ['lawn', NEON_AMBER, 2.2, 30], ['terrace', '#ffb98a', 3.0, 34], ['frontyard', '#fff6e5', 3.6, 68], ['courtyard', NEON_AMBER, 2.8, 44], ['street', '#ffe9c4', 5.5, 46], ['cricket', '#fff6e5', 5.5, 80],
+    ['kitchen', '#ffd9a0', 3.4, 40], ['gameroom', NEON_CYAN, 3.2, 52], ['lawn', NEON_AMBER, 2.2, 30], ['terrace', '#ffb98a', 3.0, 34], ['frontyard', '#fff6e5', 3.6, 68], ['courtyard', NEON_AMBER, 2.8, 44], ['street', '#ffe9c4', 5.5, 46], ['cricket', '#fff6e5', 5.5, 80], ['market', '#ffe2b0', 5.0, 60],
   ];
   const allLights = [
     ...roomLights.map(([id, color, y, intensity]) => ({ id, color, y, intensity, x: FLOORPLAN_ZONES[id].center.x, z: FLOORPLAN_ZONES[id].center.z, floor: 0 })),
@@ -459,6 +460,8 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       <Street weather={weather} />
       <CricketFloor weather={weather} />
       <CricketGround weather={weather} />
+      <MarketFloor />
+      <Market weather={weather} />
       <Floor2 />
 
       {/* ── Room signs + door hotspots ── */}
