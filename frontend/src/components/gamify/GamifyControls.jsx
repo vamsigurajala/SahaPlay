@@ -1,5 +1,5 @@
-import React from 'react';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, Eye } from 'lucide-react';
+import React, { useState } from 'react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
 import { ALL_ZONES, COLS } from '../../data/gamifyZones';
 import { ZONES_BY_FLOOR } from './GamifyRig';
 import { WEATHER, WEATHER_ORDER } from './environment';
@@ -29,6 +29,9 @@ export default function GamifyControls({
   onZoomIn,
   onZoomOut,
 }) {
+  const [rightOpen, setRightOpen] = useState(true);
+  const [leftOpen, setLeftOpen] = useState(true);
+
   const btn = {
     width: 34,
     height: 34,
@@ -41,6 +44,7 @@ export default function GamifyControls({
     justifyContent: 'center',
     cursor: 'pointer',
     backdropFilter: 'blur(6px)',
+    transition: 'all 0.2s ease',
   };
   const glass = {
     background: 'rgba(12,10,24,0.72)',
@@ -81,69 +85,153 @@ export default function GamifyControls({
         </button>
       )}
 
-      {/* Floors + room map */}
-      <div className="stay-white" style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 60, padding: 6, borderRadius: 12, ...glass }}>
-        <div style={{ display: 'flex', gap: 4, marginBottom: 5 }}>
-          {[['Ground floor', 0], ['Upstairs', 1]].map(([label, f]) => (
+      {/* Floors + room map with smooth collapsible dropdown */}
+      <div
+        className="stay-white"
+        style={{
+          position: 'absolute',
+          bottom: 12,
+          left: 12,
+          zIndex: 60,
+          padding: '6px 8px',
+          borderRadius: 14,
+          ...glass,
+          transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+          minWidth: leftOpen ? 210 : 120,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        }}
+      >
+        {/* Header bar with Floor switch & Arrow dropdown */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: leftOpen ? 6 : 0 }}>
+          {leftOpen ? (
+            <div style={{ display: 'flex', gap: 4, flex: 1 }}>
+              {[['Ground floor', 0], ['Upstairs', 1]].map(([label, f]) => (
+                <button
+                  key={f}
+                  className="stay-white"
+                  onClick={() => onFocusRoom(f ? 'f2hall' : 'hall')}
+                  style={{
+                    flex: 1,
+                    padding: '5px 6px',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    background: floor === f ? 'rgba(255,255,255,0.22)' : 'transparent',
+                    border: '1px solid rgba(255,255,255,0.14)',
+                    transition: 'background 0.2s ease',
+                  }}
+                >
+                  <Layers size={10} />{label}
+                </button>
+              ))}
+            </div>
+          ) : (
             <button
-              key={f}
+              onClick={() => setLeftOpen(true)}
               className="stay-white"
-              onClick={() => onFocusRoom(f ? 'f2hall' : 'hall')}
+              title="Expand room navigation"
               style={{
-                flex: 1,
-                padding: '5px 6px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontSize: 10,
-                fontWeight: 800,
-                color: '#fff',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: 4,
-                background: floor === f ? 'rgba(255,255,255,0.22)' : 'transparent',
-                border: '1px solid rgba(255,255,255,0.14)',
-              }}
-            >
-              <Layers size={10} />{label}
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 4 }}>
-          {ZONES_BY_FLOOR[floor].slice().sort((a, b) => a.row - b.row || a.col - b.col).map(z => (
-            <button
-              key={z.id}
-              className="stay-white"
-              onClick={() => onFocusRoom(z.id)}
-              title={`Go to ${z.label}`}
-              style={{
-                gridColumn: z.col + 1,
-                gridRow: z.row + 1,
-                minWidth: 62,
-                padding: '6px 6px 5px',
-                borderRadius: 8,
-                cursor: 'pointer',
-                fontSize: 10,
-                fontWeight: 700,
+                gap: 6,
+                background: 'transparent',
+                border: 'none',
                 color: '#fff',
-                background: z.id === focus ? 'rgba(139,92,255,0.8)' : 'rgba(255,255,255,0.07)',
-                border: z.id === focus ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.12)',
+                cursor: 'pointer',
+                fontSize: 11,
+                fontWeight: 800,
+                padding: '3px 4px',
               }}
             >
-              {z.label}
-              {counts[z.id] > 0 && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 4, fontSize: 10 }}>
-                  <Users size={9} />{counts[z.id]}
-                </span>
-              )}
+              <Layers size={12} color="#a56bff" />
+              <span>{ALL_ZONES[focus]?.label || 'Rooms'}</span>
             </button>
-          ))}
+          )}
+
+          <button
+            className="stay-white"
+            onClick={() => setLeftOpen(o => !o)}
+            title={leftOpen ? 'Hide room navigation' : 'Show room navigation'}
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 7,
+              border: '1px solid rgba(255,255,255,0.16)',
+              background: 'rgba(255,255,255,0.08)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'background 0.2s',
+            }}
+          >
+            <ChevronDown
+              size={14}
+              style={{
+                transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+                transform: leftOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+              }}
+            />
+          </button>
+        </div>
+
+        {/* Room grid with smooth collapsible height and opacity */}
+        <div
+          style={{
+            maxHeight: leftOpen ? 180 : 0,
+            opacity: leftOpen ? 1 : 0,
+            overflow: 'hidden',
+            transformOrigin: 'top left',
+            transform: leftOpen ? 'scaleY(1)' : 'scaleY(0)',
+            transition: 'max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            pointerEvents: leftOpen ? 'auto' : 'none',
+          }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${COLS}, 1fr)`, gap: 4, paddingTop: 2 }}>
+            {ZONES_BY_FLOOR[floor].slice().sort((a, b) => a.row - b.row || a.col - b.col).map(z => (
+              <button
+                key={z.id}
+                className="stay-white"
+                onClick={() => onFocusRoom(z.id)}
+                title={`Go to ${z.label}`}
+                style={{
+                  gridColumn: z.col + 1,
+                  gridRow: z.row + 1,
+                  minWidth: 62,
+                  padding: '6px 6px 5px',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: '#fff',
+                  background: z.id === focus ? 'rgba(139,92,255,0.8)' : 'rgba(255,255,255,0.07)',
+                  border: z.id === focus ? '1px solid rgba(255,255,255,0.6)' : '1px solid rgba(255,255,255,0.12)',
+                  transition: 'background 0.18s, border-color 0.18s',
+                }}
+              >
+                {z.label}
+                {counts[z.id] > 0 && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 4, fontSize: 10 }}>
+                    <Users size={9} />{counts[z.id]}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Weather selection menu */}
-      {wxOpen && (
-        <div className="stay-white" style={{ position: 'absolute', bottom: 12, right: 54, zIndex: 61, display: 'flex', flexDirection: 'column', gap: 3, padding: 6, borderRadius: 12, ...glass }}>
+      {wxOpen && rightOpen && (
+        <div className="stay-white" style={{ position: 'absolute', bottom: 50, right: 54, zIndex: 61, display: 'flex', flexDirection: 'column', gap: 3, padding: 6, borderRadius: 12, ...glass }}>
           {['auto', 'real', ...WEATHER_ORDER].map(k => (
             <button
               key={k}
@@ -171,40 +259,69 @@ export default function GamifyControls({
         </div>
       )}
 
-      {/* Floating control buttons on right */}
-      <div style={{ position: 'absolute', bottom: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 60 }}>
+      {/* Floating control buttons on right with smooth arrow collapse */}
+      <div style={{ position: 'absolute', bottom: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, zIndex: 60 }}>
+        {/* Collapsible Action buttons */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+            maxHeight: rightOpen ? 260 : 0,
+            opacity: rightOpen ? 1 : 0,
+            transform: rightOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(24px)',
+            transformOrigin: 'bottom center',
+            overflow: 'hidden',
+            transition: 'max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+            pointerEvents: rightOpen ? 'auto' : 'none',
+          }}
+        >
+          <button
+            className="stay-white"
+            onClick={onToggleWx}
+            title={`Weather: ${WEATHER[weather]?.label || weather}`}
+            style={{ ...btn, background: wxOpen ? 'rgba(139,92,255,0.75)' : btn.background }}
+          >
+            <CloudSun size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={onToggleFlip}
+            title="Flip house left/right"
+            style={{ ...btn, background: flipped ? 'rgba(139,92,255,0.75)' : btn.background }}
+          >
+            <FlipHorizontal2 size={16} />
+          </button>
+          <button className="stay-white" onClick={onResetView} title="Back to my room" style={btn}>
+            <Maximize2 size={16} />
+          </button>
+          <button className="stay-white" onClick={onZoomIn} title="Zoom in" style={btn}>
+            <ZoomIn size={16} />
+          </button>
+          <button className="stay-white" onClick={onZoomOut} title="Zoom out" style={btn}>
+            <ZoomOut size={16} />
+          </button>
+        </div>
+
+        {/* Smooth Arrow dropdown toggle button */}
         <button
           className="stay-white"
-          onClick={onToggleWx}
-          title={`Weather: ${WEATHER[weather]?.label || weather}`}
-          style={{ ...btn, background: wxOpen ? 'rgba(139,92,255,0.75)' : btn.background }}
+          onClick={() => setRightOpen(o => !o)}
+          title={rightOpen ? 'Hide controls' : 'Show controls'}
+          style={{
+            ...btn,
+            background: rightOpen ? 'rgba(12,10,24,0.72)' : 'rgba(139,92,255,0.85)',
+            boxShadow: rightOpen ? 'none' : '0 0 16px rgba(139,92,255,0.6)',
+            transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
         >
-          <CloudSun size={16} />
-        </button>
-        <button
-          className="stay-white"
-          onClick={onToggleFlip}
-          title="Flip house left/right"
-          style={{ ...btn, background: flipped ? 'rgba(139,92,255,0.75)' : btn.background }}
-        >
-          <FlipHorizontal2 size={16} />
-        </button>
-        <button
-          className="stay-white"
-          onClick={onToggleAlwaysDots}
-          title={alwaysDots ? 'Interactive dots: Always on (click to auto-fade)' : 'Interactive dots: Tap to reveal (click for always on)'}
-          style={{ ...btn, background: alwaysDots ? 'rgba(139,92,255,0.85)' : btn.background }}
-        >
-          <Eye size={16} />
-        </button>
-        <button className="stay-white" onClick={onResetView} title="Back to my room" style={btn}>
-          <Maximize2 size={16} />
-        </button>
-        <button className="stay-white" onClick={onZoomIn} title="Zoom in" style={btn}>
-          <ZoomIn size={16} />
-        </button>
-        <button className="stay-white" onClick={onZoomOut} title="Zoom out" style={btn}>
-          <ZoomOut size={16} />
+          <ChevronDown
+            size={16}
+            style={{
+              transition: 'transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+              transform: rightOpen ? 'rotate(0deg)' : 'rotate(180deg)',
+            }}
+          />
         </button>
       </div>
     </>

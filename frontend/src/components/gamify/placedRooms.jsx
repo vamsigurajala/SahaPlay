@@ -10,6 +10,7 @@ const MIXED = ['#ff6fb5', '#ffcf5a', '#a56bff', '#ff8a5a', '#ffffff', '#4fa8ff']
 const SUN = ['#f6c030', '#f0a020'];
 const PURPLE = ['#9a7aff', '#c85ae0', '#e0529f'];
 import IndianKitchen from './indianKitchen';
+import DogPet3D from './DogPet3D';
 
 const PI = Math.PI;
 export { Terrace, FrontYard, Courtyard } from './outdoorRooms';
@@ -230,10 +231,119 @@ export function GameRoom() {
   );
 }
 
+function SmallStonePond({ p = [10.5, 0, 8.2], r = 2.1 }) {
+  const [x, y, z] = p;
+  const stones = [
+    { a: 0, col: '#6e6882' }, { a: 0.39, col: '#7d7694' }, { a: 0.78, col: '#5f5973' },
+    { a: 1.18, col: '#8a83a0' }, { a: 1.57, col: '#6e6882' }, { a: 1.96, col: '#7d7694' },
+    { a: 2.35, col: '#5f5973' }, { a: 2.75, col: '#8a83a0' }, { a: 3.14, col: '#6e6882' },
+    { a: 3.53, col: '#7d7694' }, { a: 3.93, col: '#5f5973' }, { a: 4.32, col: '#8a83a0' },
+    { a: 4.71, col: '#6e6882' }, { a: 5.10, col: '#7d7694' }, { a: 5.50, col: '#5f5973' },
+    { a: 5.89, col: '#8a83a0' },
+  ];
+
+  return (
+    <group position={[x, y, z]}>
+      {/* Pond stone basin */}
+      <mesh position={[0, 0.14, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[r + 0.24, r + 0.3, 0.28, 32]} />
+        <meshStandardMaterial color="#58526d" roughness={0.9} />
+      </mesh>
+
+      {/* Outer natural river stones along rim */}
+      {stones.map((s, i) => {
+        const sr = r + 0.16 + (i % 2 === 0 ? 0.08 : -0.04);
+        const sx = Math.cos(s.a) * sr;
+        const sz = Math.sin(s.a) * sr;
+        return (
+          <mesh key={i} position={[sx, 0.22, sz]} rotation={[0, s.a, 0]} castShadow>
+            <sphereGeometry args={[0.22, 10, 8]} />
+            <meshStandardMaterial color={s.col} roughness={0.85} />
+          </mesh>
+        );
+      })}
+
+      {/* Crystal Clear Aquamarine Water */}
+      <mesh position={[0, 0.24, 0]}>
+        <cylinderGeometry args={[r, r, 0.04, 32]} />
+        <meshStandardMaterial
+          color="#1aa8ea"
+          emissive="#0284c7"
+          emissiveIntensity={0.4}
+          roughness={0.12}
+          transparent
+          opacity={0.88}
+        />
+      </mesh>
+
+      {/* Gentle center water ripple rings */}
+      <mesh position={[0, 0.25, 0]} rotation={[-PI / 2, 0, 0]}>
+        <ringGeometry args={[0.3, 0.42, 24]} />
+        <meshBasicMaterial color="#7dd3fc" transparent opacity={0.6} />
+      </mesh>
+      <mesh position={[0, 0.25, 0]} rotation={[-PI / 2, 0, 0]}>
+        <ringGeometry args={[0.7, 0.8, 24]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.35} />
+      </mesh>
+
+      {/* Small center bubbling fountain stone */}
+      <mesh position={[0, 0.32, 0]} castShadow>
+        <cylinderGeometry args={[0.18, 0.26, 0.2, 10]} />
+        <meshStandardMaterial color="#645e78" roughness={0.9} />
+      </mesh>
+      <mesh position={[0, 0.44, 0]}>
+        <sphereGeometry args={[0.09, 10, 8]} />
+        <meshBasicMaterial color="#bae6fd" />
+      </mesh>
+
+      {/* Water Lily Pads & Lotus Blossoms */}
+      {[
+        [-0.9, 0.25, -0.6, 0.32, 0.4],
+        [0.8, 0.25, -0.5, 0.28, 1.8],
+        [-0.5, 0.25, 0.8, 0.35, 3.2],
+        [0.9, 0.25, 0.6, 0.26, 4.6],
+      ].map(([lx, ly, lz, lr, rot], idx) => (
+        <group key={idx} position={[lx, ly, lz]} rotation={[0, rot, 0]}>
+          <mesh rotation={[-PI / 2, 0, 0]}>
+            <circleGeometry args={[lr, 16, 0, PI * 1.85]} />
+            <meshStandardMaterial color={idx % 2 ? '#2d6a4f' : '#40916c'} roughness={0.65} />
+          </mesh>
+          {idx % 2 === 0 && (
+            <group position={[0.08, 0.08, 0]}>
+              <mesh position={[0, 0.04, 0]}>
+                <coneGeometry args={[0.1, 0.12, 6]} />
+                <meshStandardMaterial color={idx === 0 ? '#ffb3c6' : '#ffffff'} roughness={0.5} />
+              </mesh>
+              <mesh position={[0, 0.08, 0]}>
+                <sphereGeometry args={[0.04, 6, 6]} />
+                <meshBasicMaterial color="#fef08a" />
+              </mesh>
+            </group>
+          )}
+        </group>
+      ))}
+
+      {/* Flat river stepping stones alongside the pond edge */}
+      {[
+        [-r - 0.4, 0.05, 0.3, 0.45],
+        [-r - 0.5, 0.05, -0.5, 0.4],
+        [-r - 0.2, 0.05, -1.2, 0.42],
+        [r + 0.3, 0.05, -0.6, 0.4],
+        [r + 0.4, 0.05, 0.4, 0.44],
+      ].map(([sx, sy, sz, sr], i) => (
+        <mesh key={`step-${i}`} position={[sx, sy, sz]} rotation={[-PI / 2, 0, i * 0.4]}>
+          <circleGeometry args={[sr, 12]} />
+          <meshStandardMaterial color="#68627c" roughness={0.9} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 export function Garden() {
   return (
     <Cell id="lawn" base={<GardenBase />}>
-      {/* front fence with lanterns */}
+      {/* Front fence with soft lanterns */}
       {Array.from({ length: 11 }).map((_, i) => {
         const x = 0.6 + i * 1.68;
         return (
@@ -244,42 +354,53 @@ export function Garden() {
         );
       })}
       <Box p={[9.0, 0.5, 15.85]} s={[16.8, 0.06, 0.06]} c="#4a3a6e" shadow={false} />
-      {/* fountain */}
-      <group position={[4.8, 0, 13.2]}>
-        <mesh position={[0, 0.25, 0]} castShadow><cylinderGeometry args={[1.9, 2.0, 0.5, 28]} /><meshStandardMaterial color="#6f6a86" roughness={0.8} /></mesh>
-        <mesh position={[0, 0.5, 0]}><cylinderGeometry args={[1.65, 1.65, 0.05, 28]} /><meshStandardMaterial color="#27b3ff" emissive="#27b3ff" emissiveIntensity={0.55} toneMapped={false} /></mesh>
-        <mesh position={[0, 0.9, 0]}><cylinderGeometry args={[0.2, 0.3, 0.8, 12]} /><meshStandardMaterial color="#8a84a8" /></mesh>
-        <mesh position={[0, 1.5, 0]}><sphereGeometry args={[0.28, 14, 10]} /><meshBasicMaterial color="#9ae6ff" toneMapped={false} /></mesh>
+
+      {/* Serene Small Stone Pond with lilies and gentle ripple */}
+      <SmallStonePond p={[10.5, 0, 8.2]} r={2.1} />
+
+      {/* Small neat plants around pond (bonsai, succulents, mini planters) */}
+      <Plant p={[7.6, 0, 7.0]} scale={0.65} color="#38bdf8" pot="#d97706" />
+      <Plant p={[13.4, 0, 6.8]} scale={0.7} color="#34d399" pot="#7c3aed" />
+      <Plant p={[8.0, 0, 9.8]} scale={0.6} color="#4ade80" pot="#2563eb" />
+      <Plant p={[13.2, 0, 9.6]} scale={0.7} color="#a3e635" pot="#c026d3" />
+
+      {/* Delicate low flower borders with subtle lavender & daisies */}
+      <FlowerPatch p={[9.0, 0, 4.8]} w={2.4} d={0.7} n={12} colors={['#ffffff', '#a78bfa', '#ec4899']} seed={7} tall={0.35} />
+      <FlowerPatch p={[12.0, 0, 11.6]} w={2.4} d={0.7} n={12} colors={['#fde047', '#fb923c', '#ffffff']} seed={8} tall={0.35} />
+
+      {/* Wooden Garden Bench overlooking the pond */}
+      <Bench p={[2.4, 0, 8.2]} rot={PI / 2} />
+
+      {/* Warm Ambient Garden Lantern */}
+      <FloorLamp p={[1.8, 0, 6.0]} color="#ffe0a0" />
+
+      {/* Cute Wooden Doghouse on the lawn */}
+      <group position={[3.2, 0, 12.8]}>
+        {/* Walls */}
+        <Box p={[0, 0.7, 0]} s={[1.4, 1.2, 1.4]} c="#7c4a1e" r={0.04} />
+        {/* Slanted Roof */}
+        <mesh position={[0, 1.5, 0]} rotation={[0, PI / 4, 0]} castShadow>
+          <coneGeometry args={[1.3, 0.6, 4]} />
+          <meshStandardMaterial color="#b45309" roughness={0.7} />
+        </mesh>
+        {/* Entrance arch cutout effect */}
+        <Box p={[0, 0.45, 0.66]} s={[0.55, 0.8, 0.1]} c="#241407" />
+        {/* Soft mat / cushion in front */}
+        <Box p={[0, 0.05, 0.9]} s={[0.9, 0.08, 0.7]} c="#8b5cf6" r={0.06} />
+        {/* Silver dog food & water bowl with bone */}
+        <mesh position={[0.7, 0.1, 0.9]}>
+          <cylinderGeometry args={[0.18, 0.14, 0.14, 14]} />
+          <meshStandardMaterial color="#e2e8f0" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[0.7, 0.16, 0.9]}>
+          <cylinderGeometry args={[0.15, 0.15, 0.02, 14]} />
+          <meshStandardMaterial color="#b45309" />
+        </mesh>
+        <Box p={[0.7, 0.06, 1.2]} s={[0.22, 0.06, 0.08]} c="#fef08a" r={0.02} rot={0.3} />
       </group>
-      {/* gazebo */}
-      <group position={[14.6, 0, 11.6]}>
-        {[[-2, -2], [2, -2], [-2, 2], [2, 2]].map(([x, z], i) => <Box key={i} p={[x, 1.6, z]} s={[0.22, 3.2, 0.22]} c="#4a3a82" />)}
-        <Box p={[0, 3.3, 0]} s={[4.8, 0.2, 4.8]} c="#5a4a9a" r={0.04} />
-        <mesh position={[0, 3.95, 0]} rotation={[0, PI / 4, 0]} castShadow><coneGeometry args={[3.6, 1.2, 4]} /><meshStandardMaterial color="#ff6fb5" roughness={0.8} /></mesh>
-        <Rug p={[0, 0, 0]} w={3.8} d={3.8} c="#4a3a82" c2="#5d4aa0" />
-        <Table p={[0, 0, 0]} w={1.6} d={1.6} h={0.8} />
-        <BeanBag p={[-1.2, 0, 1.2]} color="#4fa8ff" glow={NEON_CYAN} />
-        <BeanBag p={[1.2, 0, -1.2]} color="#ff7bc0" glow={NEON_PINK} />
-        <Neon p={[0, 3.12, -2]} s={[4.4, 0.05, 0.05]} color={NEON_AMBER} halo={false} />
-      </group>
-      <Jhula p={[10.4, 0, 6.2]} w={2.2} />
-      <Bench p={[1.6, 0, 8.0]} rot={PI / 2} />
-      {/* flower beds + trees */}
-      <FlowerPatch p={[13.6, 0, 4.2]} w={5.0} d={1.8} n={70} colors={MIXED} seed={3} />
-      <FlowerPatch p={[1.6, 0, 12.0]} w={1.7} d={4.2} n={44} colors={SUN} tall={1.1} head={0.28} seed={4} />
-      <FlowerPatch p={[8.6, 0, 9.2]} w={2.6} d={1.4} n={36} colors={ROSES} tall={0.7} seed={5} />
-      <FlowerPatch p={[16.3, 0, 9.0]} w={1.5} d={3.4} n={36} colors={PURPLE} tall={0.8} seed={6} />
-      <VegPatch p={[9.3, 0, 13.2]} />
-      <Hedge p={[9.3, 0, 15.2]} w={3.8} flowers="#ff6fb5" />
-      <Hedge p={[17.4, 0, 12.4]} w={4.2} rot={PI / 2} flowers="#ffcf5a" />
-      <Topiary p={[4.6, 0, 5.4]} scale={0.9} />
-      <Topiary p={[4.6, 0, 8.0]} scale={0.9} />
-      <FlowerArch p={[4.6, 0, 10.4]} rot={PI / 2} />
-      <Tree p={[17.0, 0, 1.2]} scale={1.05} />
-      <Tree p={[12.6, 0, 1.3]} scale={0.85} />
-      <Tree p={[17.3, 0, 7.0]} scale={0.9} />
-      <Plant p={[10.8, 0, 3.0]} scale={1.3} color="#34b36a" />
-      <Plant p={[17.0, 0, 15.0]} scale={1.2} color="#34b36a" />
+
+      {/* Cute 3D Animated Dog patrolling around the pond */}
+      <DogPet3D pathCenter={[10.5, 0, 8.2]} rx={3.4} rz={2.4} speed={0.38} />
     </Cell>
   );
 }

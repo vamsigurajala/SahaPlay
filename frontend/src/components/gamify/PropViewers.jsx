@@ -20,6 +20,7 @@ const SpaceViewer = lazy(() => import('./SpaceViewer'));
 const GameViewer = lazy(() => import('./games'));
 import { ClothArt, BeautyArt, PlantArt } from './viewerArt';
 import { MONA_LISA_IMG } from './props';
+import DogCareView from './DogCareView';
 
 // Full-screen "look closer" views for props in the Gamify house: bookshelf (tap a
 // book to read it), fridge (hover an item for its name), oven (something is baking)
@@ -4174,6 +4175,7 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'puzzles' && <PuzzleGameView />}
         {kind === 'clock' && <LuxuryClockView />}
         {kind === 'monalisa' && <MonaLisaDetailViewer onClose={onClose} />}
+        {kind === 'dog' && <DogCareView onClose={onClose} />}
       </div>
     </div>,
     document.body,

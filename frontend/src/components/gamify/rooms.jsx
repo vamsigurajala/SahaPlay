@@ -193,45 +193,17 @@ export function GameRoomBase() {
   return <group />;
 }
 
-// ── GARDEN + POOL (x 6..16, z 0..10) ────────────────────────────────────────
+// ── GARDEN LAWN BASE ─────────────────────────────────────────────────────────
 export function GardenBase() {
   return (
     <group>
       {/* stone path from the house doorway */}
       {[1.4, 2.7, 4.0, 5.3].map((z, i) => <Box key={z} p={[10.6 + (i % 2) * 0.3, 0.05, z]} s={[1.4, 0.1, 1.0]} c="#6f6a86" r={0.04} shadow={false} />)}
-      {/* pool */}
-      <group position={[12.4, 0, 7.2]}>
-        <Box p={[0, 0.12, 0]} s={[7.4, 0.24, 4.6]} c="#6f6a86" r={0.05} />
-        <Box p={[0, 0.2, 0]} s={[6.6, 0.14, 3.8]} c="#27b3ff" emissive="#27b3ff" ei={0.55} opacity={0.85} rough={0.2} shadow={false} />
-        <Neon p={[0, 0.3, 0]} s={[6.5, 0.02, 3.7]} color="#6fd8ff" halo={false} />
-      </group>
-      {/* loungers + parasol */}
-      {[8.3, 9.4].map((z, i) => (
-        <group key={z} position={[8.0, 0, z + 0.4]}>
-          <Box p={[0, 0.3, 0]} s={[1.8, 0.2, 0.8]} c="#efe7ff" r={0.08} />
-          <Box p={[-0.7, 0.62, 0]} s={[0.6, 0.2, 0.8]} c="#efe7ff" r={0.08} rot={0} />
-          <Box p={[0, 0.15, 0]} s={[1.6, 0.1, 0.6]} c="#2a2140" shadow={false} />
-        </group>
-      ))}
-      <group position={[8.0, 0, 6.6]}>
-        <mesh position={[0, 1.2, 0]}><cylinderGeometry args={[0.05, 0.05, 2.4, 8]} /><meshStandardMaterial color="#2a2140" /></mesh>
-        <mesh position={[0, 2.5, 0]} castShadow><coneGeometry args={[1.5, 0.7, 20]} /><meshStandardMaterial color="#ff6fb5" roughness={0.8} /></mesh>
-      </group>
-      {/* fire pit lounge */}
-      <mesh position={[9.8, 0.05, 2.8]} rotation={[-PI / 2, 0, 0]} receiveShadow><circleGeometry args={[1.9, 32]} /><meshStandardMaterial color="#473a6e" roughness={1} /></mesh>
-      <mesh position={[9.8, 0.25, 2.8]} castShadow><cylinderGeometry args={[0.5, 0.6, 0.5, 14]} /><meshStandardMaterial color="#2a2140" roughness={0.9} /></mesh>
-      <mesh position={[9.8, 0.7, 2.8]}><icosahedronGeometry args={[0.3, 1]} /><meshBasicMaterial color={NEON_AMBER} toneMapped={false} /></mesh>
-      <BeanBag p={[8.2, 0, 2.5]} color="#4fa8ff" glow={NEON_CYAN} />
-      <BeanBag p={[11.4, 0, 2.4]} color="#a56bff" glow={NEON_VIOLET} />
-      <BeanBag p={[9.8, 0, 4.4]} color="#ff7bc0" glow={NEON_PINK} />
-      {/* grill + side table */}
-      <Box p={[14.6, 0.55, 2.0]} s={[1.4, 1.1, 0.9]} c="#1d1740" r={0.06} />
-      <Box p={[14.6, 1.2, 2.0]} s={[1.5, 0.3, 1.0]} c="#2a2140" r={0.12} />
-      <Box p={[14.6, 0.8, 3.3]} s={[1.2, 0.1, 1.2]} c="#3a2d66" />
-      {/* trees, bushes, low fence with lanterns along the front edge */}
-      <Tree p={[15.3, 0, 1.0]} scale={0.95} />
-      <Tree p={[7.0, 0, 1.0]} scale={0.8} />
-      {[7.2, 15.6].map(x => <Plant key={x} p={[x, 0, 0.8]} scale={0.9} color="#34b36a" />)}
+      {/* decorative clean perimeter garden pavers */}
+      {[2.0, 3.6, 5.2].map((x) => <Box key={x} p={[x, 0.04, 5.5]} s={[0.85, 0.08, 0.85]} c="#6f6a86" r={0.04} shadow={false} />)}
+      {/* corner trees */}
+      <Tree p={[16.2, 0, 1.2]} scale={0.9} />
+      <Tree p={[1.8, 0, 1.4]} scale={0.8} />
     </group>
   );
 }

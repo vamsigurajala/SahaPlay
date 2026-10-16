@@ -12282,12 +12282,12 @@ const Room = () => {
               title="Customize Room"
               className="room-theme-btn"
               onMouseEnter={e => { e.currentTarget.style.background = 'rgba(var(--brand-2-rgb),0.75)'; e.currentTarget.style.transform = 'scale(1.1)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.5)'; e.currentTarget.style.transform = 'scale(1)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = showCustomizeModal ? 'rgba(var(--brand-2-rgb),0.55)' : 'rgba(0,0,0,0.45)'; e.currentTarget.style.transform = 'scale(1)'; }}
               style={{
                 position: 'absolute',
                 top: 8, left: 8,
                 zIndex: 100, width: 34, height: 34, borderRadius: '50%',
-                background: roomTheme !== 'default' ? 'rgba(var(--brand-2-rgb),0.55)' : 'rgba(0,0,0,0.45)',
+                background: showCustomizeModal ? 'rgba(var(--brand-2-rgb),0.55)' : 'rgba(0,0,0,0.45)',
                 border: '1px solid rgba(255,255,255,0.18)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', backdropFilter: 'blur(8px)',

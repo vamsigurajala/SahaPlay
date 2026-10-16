@@ -1,6 +1,6 @@
 import { Box, Neon, Plant, Tree, BeanBag, Rug, Table, Stool, FloorLamp, useOpenProp, PropDot } from './parts';
 import { Cell } from './cell';
-import { Charpai, Car, Scooter, Jhula, LampPost, Diya, Rangoli, Pillar, Telescope, Planter, FlowerPatch, VegPatch, Hedge, LotusPond, Banana } from './props';
+import { Charpai, Car, Scooter, Jhula, LampPost, Diya, Rangoli, Pillar, Telescope, Planter, LotusPond, Banana } from './props';
 
 const MARIGOLD = ['#f0a020', '#ff8a2a', '#f6c030'];
 const PINKS = ['#ff6fb5', '#ffffff', '#e0529f', '#a56bff'];
@@ -118,12 +118,12 @@ export function Courtyard() {
       <LotusPond p={[5.8, 0, 4.6]} r={2.0} />
       <Banana p={[1.3, 0, 2.6]} scale={1.1} />
       <Banana p={[17.0, 0, 9.4]} scale={1.0} />
-      <FlowerPatch p={[10.8, 0, 2.6]} w={4.4} d={1.4} n={50} colors={MARIGOLD} seed={11} />
-      <FlowerPatch p={[16.0, 0, 3.2]} w={1.6} d={2.6} n={30} colors={PINKS} seed={12} />
-      <VegPatch p={[2.4, 0, 7.4]} w={2.6} d={3.2} />
-      <Hedge p={[12.6, 0, 0.8]} w={4.4} flowers="#ffffff" />
-      <Planter p={[1.0, 0, 11.4]} scale={1.2} />
-      <Planter p={[17.0, 0, 11.0]} scale={1.2} color="#3bbf74" />
+      {/* Clean, neat small potted plants around courtyard */}
+      <Planter p={[10.8, 0, 2.6]} scale={0.9} color="#34b36a" />
+      <Planter p={[16.0, 0, 3.2]} scale={0.9} color="#2f9e5a" />
+      <Planter p={[2.4, 0, 7.4]} scale={0.9} color="#34b36a" />
+      <Planter p={[1.0, 0, 11.4]} scale={1.0} />
+      <Planter p={[17.0, 0, 11.0]} scale={1.0} color="#3bbf74" />
       <Planter p={[8.6, 0, 15.0]} scale={1.0} />
       <BeanBag p={[9.6, 0, 6.4]} color="#d0592a" glow={NEON_VIOLET} />
     </Cell>
