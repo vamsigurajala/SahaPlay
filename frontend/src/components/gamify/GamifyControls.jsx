@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye } from 'lucide-react';
 import { ALL_ZONES, COLS } from '../../data/gamifyZones';
 import { ZONES_BY_FLOOR } from './GamifyRig';
 import { WEATHER, WEATHER_ORDER } from './environment';
@@ -267,7 +267,7 @@ export default function GamifyControls({
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
-            maxHeight: rightOpen ? 260 : 0,
+            maxHeight: rightOpen ? 320 : 0,
             opacity: rightOpen ? 1 : 0,
             transform: rightOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(24px)',
             transformOrigin: 'bottom center',
@@ -291,6 +291,14 @@ export default function GamifyControls({
             style={{ ...btn, background: flipped ? 'rgba(139,92,255,0.75)' : btn.background }}
           >
             <FlipHorizontal2 size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={onToggleAlwaysDots}
+            title={alwaysDots ? 'Interactive dots: Always on (click to auto-fade)' : 'Interactive dots: Tap to reveal (click for always on)'}
+            style={{ ...btn, background: alwaysDots ? 'rgba(139,92,255,0.85)' : btn.background }}
+          >
+            <Eye size={16} />
           </button>
           <button className="stay-white" onClick={onResetView} title="Back to my room" style={btn}>
             <Maximize2 size={16} />
