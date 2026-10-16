@@ -320,6 +320,9 @@ export function CricketGround({ weather = 'day' }) {
   return (
     <Cell id="cricket">
       {ropeRing}
+      {/* low fence along the road with an open gate in line with the zebra crossing */}
+      {[3.6, 13.4].map(x => <Box key={x} p={[x, 0.45, 0.15]} s={[6.4, 0.9, 0.14]} c="#33343c" metal={0.5} />)}
+      {[0.2, 6.4, 11.6, 17.8].map(x => <Box key={x} p={[x, 0.55, 0.15]} s={[0.22, 1.1, 0.22]} c="#5a5a66" />)}
       {/* advertising boards just inside the rope on the far side */}
       {Array.from({ length: 11 }).map((_, i) => {
         const a = PI * 1.12 + (i / 10) * PI * 0.76;

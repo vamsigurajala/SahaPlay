@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
+import { Supercar3D } from './vehicles';
 import {
   X, Gauge, Play, RotateCcw, Volume2, VolumeX, Eye, Sparkles,
   Zap, Disc, Key, Shield, ArrowRight, Check, Compass, Sliders,
@@ -119,613 +120,30 @@ class SupercarSoundEngine {
 
 const supercarAudio = new SupercarSoundEngine();
 
-// ============================================================================
-// ULTRA-HIGH-END 3D SUPERCAR COCKPIT & SHOWROOM MODEL
-// ============================================================================
-
-function HighEndSupercar3D({
-  rpm,
-  speed,
-  isStarted,
-  lightsOn,
-  doorsOpen,
-  exteriorColor,
-  cameraView,
-  driveMode,
-  gear
-}) {
-  const steeringRef = useRef();
-  const needleRef = useRef();
-  const rpmRatio = Math.min(1, Math.max(0, (rpm - 800) / 8200));
-
-  useFrame((state) => {
-    // Engine idle rumble vibration on steering wheel
-    if (steeringRef.current && isStarted) {
-      const vibIntensity = driveMode === 'CORSA' ? 0.0018 : 0.0009;
-      steeringRef.current.position.y = 0.76 + Math.sin(state.clock.elapsedTime * 48) * vibIntensity;
-      steeringRef.current.position.x = -0.38 + Math.cos(state.clock.elapsedTime * 42) * (vibIntensity * 0.5);
-    }
-    // Tachometer needle sweep animation
-    if (needleRef.current) {
-      const targetAngle = -1.25 + rpmRatio * 2.5;
-      needleRef.current.rotation.z = targetAngle;
-    }
-  });
-
-  const clusterAccentColor = driveMode === 'CORSA' ? '#ef4444' : driveMode === 'SPORT' ? '#f59e0b' : '#38bdf8';
-
-  return (
-    <group position={[0, 0, 0]}>
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* 1. SCULPTED BI-LEVEL ALCANTARA DASHBOARD & AIR CONDITIONING TURBINES */}
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      <group position={[0, 0.74, -0.62]}>
-        {/* Main Upper Dashboard Arch (Curved Alcantara) */}
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[1.82, 0.38, 0.94]} />
-          <meshStandardMaterial color="#18181b" roughness={0.88} />
-        </mesh>
-        {/* Lower Dash Fascia (Matte Carbon Fiber) */}
-        <mesh position={[0, -0.16, 0.22]}>
-          <boxGeometry args={[1.78, 0.16, 0.52]} />
-          <meshStandardMaterial color="#27272a" metalness={0.7} roughness={0.3} />
-        </mesh>
-        {/* Contrast Rosso Corsa Twin Stitching Line */}
-        <mesh position={[0, 0.192, 0.14]}>
-          <boxGeometry args={[1.74, 0.006, 0.02]} />
-          <meshBasicMaterial color="#ef4444" />
-        </mesh>
-        {/* Defrost Vent Grille along Windshield Base */}
-        <mesh position={[0, 0.19, -0.38]}>
-          <boxGeometry args={[1.62, 0.01, 0.08]} />
-          <meshStandardMaterial color="#09090b" roughness={0.9} />
-        </mesh>
-
-        {/* Passenger Dash Side: Polished Silver "SF90 STRADALE" Metal Badge */}
-        <group position={[0.45, 0.05, 0.46]}>
-          <mesh>
-            <boxGeometry args={[0.34, 0.035, 0.015]} />
-            <meshStandardMaterial color="#e2e8f0" metalness={0.95} roughness={0.15} />
-          </mesh>
-          <mesh position={[0, 0, 0.009]}>
-            <boxGeometry args={[0.3, 0.018, 0.002]} />
-            <meshBasicMaterial color="#09090b" />
-          </mesh>
-        </group>
-
-        {/* 4 Circular Turbine Air Conditioning Vents with Chrome Bezels */}
-        {[-0.78, -0.16, 0.16, 0.78].map((vx, i) => (
-          <group key={i} position={[vx, 0.06, 0.47]}>
-            {/* Outer Polished Chrome Ring */}
-            <mesh rotation={[PI / 2, 0, 0]}>
-              <torusGeometry args={[0.048, 0.009, 10, 24]} />
-              <meshStandardMaterial color="#f8fafc" metalness={0.95} roughness={0.15} />
-            </mesh>
-            {/* Inner Black Housing */}
-            <mesh>
-              <cylinderGeometry args={[0.042, 0.042, 0.03, 16]} />
-              <meshStandardMaterial color="#09090b" />
-            </mesh>
-            {/* Directional Cross-Vane Louvers */}
-            <mesh rotation={[0, 0, 0.4]}>
-              <boxGeometry args={[0.076, 0.008, 0.02]} />
-              <meshStandardMaterial color="#94a3b8" metalness={0.8} />
-            </mesh>
-            <mesh rotation={[0, 0, -0.4]}>
-              <boxGeometry args={[0.008, 0.076, 0.02]} />
-              <meshStandardMaterial color="#94a3b8" metalness={0.8} />
-            </mesh>
-          </group>
-        ))}
-
-        {/* Climate Control Digital Display & Hazard Flasher Switch */}
-        <group position={[0, -0.06, 0.47]}>
-          <mesh>
-            <boxGeometry args={[0.22, 0.06, 0.02]} />
-            <meshStandardMaterial color="#09090b" />
-          </mesh>
-          <mesh position={[0, 0, 0.012]}>
-            <planeGeometry args={[0.18, 0.045]} />
-            <meshBasicMaterial color={isStarted ? '#38bdf8' : '#1e293b'} />
-          </mesh>
-          {/* Red Hazard Triangle Button */}
-          <mesh position={[0, 0.045, 0.01]}>
-            <cylinderGeometry args={[0.018, 0.018, 0.012, 12]} />
-            <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={0.6} />
-          </mesh>
-        </group>
-      </group>
-
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* 2. CURVED DIGITAL INSTRUMENT BINNACLE & DYNAMIC TACHOMETER */}
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      <group position={[-0.38, 0.82, -0.44]} rotation={[-0.32, 0, 0]}>
-        {/* Hooded Cowl in Carbon Fiber & Leather */}
-        <mesh position={[0, 0.14, -0.06]} castShadow>
-          <boxGeometry args={[0.62, 0.12, 0.28]} />
-          <meshStandardMaterial color="#27272a" metalness={0.7} roughness={0.3} />
-        </mesh>
-
-        {/* Curved Primary LCD Cluster Panel */}
-        <mesh>
-          <planeGeometry args={[0.56, 0.24]} />
-          <meshBasicMaterial color={isStarted ? '#09090b' : '#18181b'} />
-        </mesh>
-
-        {/* Glowing Central Tachometer Dial Ring */}
-        <mesh position={[0, 0, 0.006]}>
-          <ringGeometry args={[0.078, 0.092, 36, 1, 0.4, 4.4]} />
-          <meshBasicMaterial
-            color={isStarted ? (rpm > 7800 ? '#ef4444' : clusterAccentColor) : '#334155'}
-            toneMapped={false}
-          />
-        </mesh>
-        {/* Redline Gauge Arc (8,000 to 8,500 RPM) */}
-        <mesh position={[0, 0, 0.007]}>
-          <ringGeometry args={[0.078, 0.094, 16, 1, 3.8, 1.0]} />
-          <meshBasicMaterial color={isStarted ? '#ef4444' : '#450a0a'} toneMapped={false} />
-        </mesh>
-
-        {/* Live Sweeping Tachometer Needle */}
-        <group ref={needleRef} position={[0, 0, 0.012]}>
-          <mesh position={[0, 0.042, 0]}>
-            <boxGeometry args={[0.006, 0.084, 0.002]} />
-            <meshBasicMaterial color="#ef4444" toneMapped={false} />
-          </mesh>
-          <mesh>
-            <circleGeometry args={[0.014, 16]} />
-            <meshStandardMaterial color="#f8fafc" metalness={0.9} />
-          </mesh>
-        </group>
-
-        {/* Left Sub-Screen: G-Force Telemetry & Hybrid Battery Level */}
-        <group position={[-0.2, 0, 0.005]}>
-          <mesh>
-            <planeGeometry args={[0.12, 0.18]} />
-            <meshBasicMaterial color={isStarted ? '#0f172a' : '#09090b'} />
-          </mesh>
-          <mesh position={[0, -0.04, 0.002]}>
-            <boxGeometry args={[0.08, 0.018, 0.002]} />
-            <meshBasicMaterial color={isStarted ? '#22c55e' : '#334155'} />
-          </mesh>
-        </group>
-
-        {/* Right Sub-Screen: Digital Speed & Turbo Boost PSI */}
-        <group position={[0.2, 0, 0.005]}>
-          <mesh>
-            <planeGeometry args={[0.12, 0.18]} />
-            <meshBasicMaterial color={isStarted ? '#0f172a' : '#09090b'} />
-          </mesh>
-          <mesh position={[0, -0.04, 0.002]}>
-            <boxGeometry args={[0.08, 0.018, 0.002]} />
-            <meshBasicMaterial color={isStarted ? clusterAccentColor : '#334155'} />
-          </mesh>
-        </group>
-      </group>
-
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* 3. F1 CARBON FIBER STEERING WHEEL WITH SHIFT LIGHTS & MANETTINO */}
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      <group ref={steeringRef} position={[-0.38, 0.76, -0.21]} rotation={[-0.34, 0, 0]}>
-        {/* Flat-Bottom & Flat-Top Racing Steering Rim */}
-        <mesh rotation={[PI / 2, 0, 0]}>
-          <torusGeometry args={[0.21, 0.026, 16, 40]} />
-          <meshStandardMaterial color="#18181b" roughness={0.7} />
-        </mesh>
-        {/* 12 o'clock Italian Red Center Alignment Stripe */}
-        <mesh position={[0, 0.21, 0]} rotation={[PI / 2, 0, 0]}>
-          <torusGeometry args={[0.21, 0.028, 12, 8, 0.28]} />
-          <meshStandardMaterial color="#ef4444" roughness={0.2} />
-        </mesh>
-
-        {/* Carbon Fiber 3-Spoke Center Hub Boss */}
-        <mesh position={[0, 0, -0.01]}>
-          <cylinderGeometry args={[0.075, 0.075, 0.03, 20]} />
-          <meshStandardMaterial color="#09090b" metalness={0.9} roughness={0.2} />
-        </mesh>
-        {/* Raised Prancing Shield Logo in Gold / Enamel */}
-        <mesh position={[0, 0, 0.016]}>
-          <sphereGeometry args={[0.028, 14, 12]} />
-          <meshStandardMaterial color="#eab308" metalness={0.95} roughness={0.15} />
-        </mesh>
-
-        {/* 5-LED Sequential Shift Light Bar on Top Steering Rim */}
-        <group position={[0, 0.176, 0.012]}>
-          {[-0.08, -0.04, 0, 0.04, 0.08].map((lx, idx) => {
-            const lit = isStarted && rpmRatio > (idx + 1) * 0.18;
-            const col = idx < 2 ? '#22c55e' : idx < 4 ? '#eab308' : '#ef4444';
-            return (
-              <mesh key={idx} position={[lx, 0, 0]}>
-                <sphereGeometry args={[0.013, 10, 10]} />
-                <meshBasicMaterial color={lit ? col : '#27272a'} toneMapped={false} />
-              </mesh>
-            );
-          })}
-        </group>
-
-        {/* Red Anodized 'Manettino' Rotary Drive Mode Switch (Lower Right) */}
-        <group position={[0.065, -0.065, 0.015]} rotation={[0, 0, driveMode === 'CORSA' ? 0.8 : driveMode === 'SPORT' ? 0 : -0.8]}>
-          <mesh>
-            <cylinderGeometry args={[0.022, 0.022, 0.018, 12]} />
-            <meshStandardMaterial color="#dc2626" metalness={0.85} roughness={0.2} />
-          </mesh>
-          <mesh position={[0, 0.016, 0]}>
-            <boxGeometry args={[0.006, 0.014, 0.02]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-        </group>
-
-        {/* Engine START / STOP Push Button (Lower Left Spoke) */}
-        <group position={[-0.065, -0.065, 0.015]}>
-          <mesh>
-            <cylinderGeometry args={[0.022, 0.022, 0.016, 16]} />
-            <meshStandardMaterial color="#09090b" metalness={0.8} />
-          </mesh>
-          <mesh position={[0, 0, 0.008]}>
-            <circleGeometry args={[0.016, 16]} />
-            <meshStandardMaterial
-              color="#ef4444"
-              emissive={isStarted ? '#ef4444' : '#7f1d1d'}
-              emissiveIntensity={isStarted ? 1.4 : 0.3}
-            />
-          </mesh>
-        </group>
-
-        {/* Extended Milled Aluminum Paddle Shifters behind Wheel (+ and -) */}
-        {[-0.24, 0.24].map((px, i) => (
-          <group key={i} position={[px, 0.08, -0.045]} rotation={[0, 0, i === 0 ? 0.16 : -0.16]}>
-            <mesh>
-              <boxGeometry args={[0.026, 0.19, 0.008]} />
-              <meshStandardMaterial color="#e2e8f0" metalness={0.95} roughness={0.15} />
-            </mesh>
-            <mesh position={[0, 0.07, 0.005]}>
-              <boxGeometry args={[0.012, 0.012, 0.002]} />
-              <meshBasicMaterial color="#ef4444" />
-            </mesh>
-          </group>
-        ))}
-
-        {/* Steering Column with Indicator Stalks */}
-        <mesh position={[0, 0, -0.12]} rotation={[PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.05, 0.055, 0.22, 16]} />
-          <meshStandardMaterial color="#18181b" roughness={0.8} />
-        </mesh>
-      </group>
-
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* 4. SCULPTED FLOATING CARBON CENTER CONSOLE BRIDGE */}
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      <group position={[0, 0.38, 0.08]}>
-        {/* Main Floating Bridge Structure */}
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[0.38, 0.5, 1.45]} />
-          <meshStandardMaterial color="#18181b" roughness={0.7} metalness={0.4} />
-        </mesh>
-        {/* Open Pass-Through Storage Cavity Underneath */}
-        <mesh position={[0, -0.18, 0.1]}>
-          <boxGeometry args={[0.39, 0.18, 0.7]} />
-          <meshStandardMaterial color="#09090b" />
-        </mesh>
-
-        {/* Slanted Secondary Vertical Infotainment Touchscreen */}
-        <group position={[0, 0.38, -0.42]} rotation={[-0.45, 0, 0]}>
-          <mesh>
-            <boxGeometry args={[0.32, 0.28, 0.02]} />
-            <meshStandardMaterial color="#09090b" metalness={0.8} />
-          </mesh>
-          {/* Live Navigation & Vehicle Telemetry Graphic */}
-          <mesh position={[0, 0, 0.013]}>
-            <planeGeometry args={[0.29, 0.25]} />
-            <meshBasicMaterial color={isStarted ? '#0369a1' : '#0f172a'} />
-          </mesh>
-        </group>
-
-        {/* Classic Gated Metal Transmission Toggles: [ R ] [ AUTO ] [ LC ] */}
-        <group position={[0, 0.27, -0.12]}>
-          <Box p={[0, 0, 0]} s={[0.24, 0.02, 0.28]} c="#334155" metal={0.9} rough={0.2} />
-          {[-0.07, 0, 0.07].map((bx, i) => (
-            <mesh key={i} position={[bx, 0.02, 0]}>
-              <cylinderGeometry args={[0.02, 0.02, 0.025, 12]} />
-              <meshStandardMaterial color="#f8fafc" metalness={0.95} roughness={0.1} />
-            </mesh>
-          ))}
-        </group>
-
-        {/* Red Missile-Style Flip Ignition Switch Cover */}
-        <group position={[0, 0.27, 0.1]}>
-          <mesh position={[0, 0.015, -0.02]} rotation={[0.4, 0, 0]}>
-            <boxGeometry args={[0.06, 0.04, 0.05]} />
-            <meshStandardMaterial color="#dc2626" metalness={0.7} />
-          </mesh>
-          <mesh position={[0, 0.01, 0.01]}>
-            <cylinderGeometry args={[0.02, 0.02, 0.015, 14]} />
-            <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={isStarted ? 1.0 : 0.2} />
-          </mesh>
-        </group>
-
-        {/* Dual Cupholders with Ambient Glow Ring */}
-        <group position={[0, 0.26, 0.32]}>
-          {[-0.06, 0.06].map(cz => (
-            <group key={cz} position={[0, 0, cz]}>
-              <mesh rotation={[PI / 2, 0, 0]}>
-                <cylinderGeometry args={[0.04, 0.04, 0.02, 14]} />
-                <meshStandardMaterial color="#09090b" />
-              </mesh>
-              <mesh position={[0, 0.01, 0]}>
-                <ringGeometry args={[0.038, 0.042, 16]} />
-                <meshBasicMaterial color="#38bdf8" />
-              </mesh>
-            </group>
-          ))}
-        </group>
-
-        {/* Padded Leather Center Armrest with Red Stitching */}
-        <group position={[0, 0.3, 0.6]}>
-          <Box p={[0, 0, 0]} s={[0.34, 0.1, 0.32]} c="#18181b" r={0.03} roughness={0.8} />
-          <mesh position={[0, 0.052, 0]}>
-            <boxGeometry args={[0.3, 0.005, 0.28]} />
-            <meshBasicMaterial color="#ef4444" />
-          </mesh>
-        </group>
-      </group>
-
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* 5. DAYTONA CARBON RACING BUCKET SEATS & 4-POINT HARNESS BELTS */}
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {[-0.38, 0.38].map((sx, i) => (
-        <group key={i} position={[sx, 0.34, 0.36]}>
-          {/* Carbon Fiber Shell Backrest Exterior */}
-          <mesh position={[0, 0.52, -0.28]} rotation={[0.22, 0, 0]}>
-            <boxGeometry args={[0.54, 0.92, 0.08]} />
-            <meshStandardMaterial color="#09090b" metalness={0.9} roughness={0.2} />
-          </mesh>
-          {/* Contoured Alcantara Cushion Base */}
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[0.52, 0.22, 0.62]} />
-            <meshStandardMaterial color="#18181b" roughness={0.85} />
-          </mesh>
-          {/* Contoured Backrest Cushion */}
-          <mesh position={[0, 0.5, -0.22]} rotation={[0.22, 0, 0]} castShadow>
-            <boxGeometry args={[0.48, 0.88, 0.12]} />
-            <meshStandardMaterial color="#18181b" roughness={0.85} />
-          </mesh>
-          {/* High Rosso Corsa Lateral Bolsters (Rib & Thigh Support) */}
-          <mesh position={[-0.24, 0.5, -0.18]} rotation={[0.22, 0, 0]}>
-            <boxGeometry args={[0.07, 0.84, 0.22]} />
-            <meshStandardMaterial color="#dc2626" metalness={0.5} roughness={0.3} />
-          </mesh>
-          <mesh position={[0.24, 0.5, -0.18]} rotation={[0.22, 0, 0]}>
-            <boxGeometry args={[0.07, 0.84, 0.22]} />
-            <meshStandardMaterial color="#dc2626" metalness={0.5} roughness={0.3} />
-          </mesh>
-          {/* Carbon Harness Pass-Through Cutouts on Headrest */}
-          <mesh position={[0, 0.82, -0.14]}>
-            <boxGeometry args={[0.2, 0.07, 0.18]} />
-            <meshStandardMaterial color="#475569" metalness={0.85} />
-          </mesh>
-          {/* 4-Point Red Sabelt Racing Harness Straps */}
-          {[-0.07, 0.07].map(hx => (
-            <mesh key={hx} position={[hx, 0.58, -0.12]} rotation={[0.22, 0, 0]}>
-              <boxGeometry args={[0.045, 0.48, 0.015]} />
-              <meshBasicMaterial color="#dc2626" />
-            </mesh>
-          ))}
-          {/* Central Camlock Circular Quick-Release Buckle */}
-          <mesh position={[0, 0.22, 0.05]} rotation={[0.3, 0, 0]}>
-            <cylinderGeometry args={[0.035, 0.035, 0.02, 14]} />
-            <meshStandardMaterial color="#e2e8f0" metalness={0.95} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* 6. INNER CARBON DOOR CARDS & DOOR SILL KICK PLATES */}
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* Left Driver Door Panel */}
-      <group position={[-0.92, 0.72, 0.2]}>
-        <Box p={[0, 0, 0]} s={[0.08, 0.74, 1.25]} c="#18181b" roughness={0.8} />
-        {/* Sculpted Armrest */}
-        <Box p={[0.04, -0.06, 0.05]} s={[0.06, 0.1, 0.55]} c="#27272a" r={0.02} />
-        {/* Red Nylon Door Pull Loop ("RS Style") */}
-        <mesh position={[0.06, 0.04, -0.08]} rotation={[0, 0, 0.2]}>
-          <boxGeometry args={[0.015, 0.12, 0.03]} />
-          <meshBasicMaterial color="#ef4444" />
-        </mesh>
-        {/* Speaker Grille with Perforated Texture */}
-        <mesh position={[0.045, -0.22, -0.32]}>
-          <circleGeometry args={[0.09, 18]} />
-          <meshStandardMaterial color="#334155" metalness={0.8} />
-        </mesh>
-      </group>
-
-      {/* Right Passenger Door Panel */}
-      <group position={[0.92, 0.72, 0.2]}>
-        <Box p={[0, 0, 0]} s={[0.08, 0.74, 1.25]} c="#18181b" roughness={0.8} />
-        <Box p={[-0.04, -0.06, 0.05]} s={[0.06, 0.1, 0.55]} c="#27272a" r={0.02} />
-        <mesh position={[-0.06, 0.04, -0.08]} rotation={[0, 0, -0.2]}>
-          <boxGeometry args={[0.015, 0.12, 0.03]} />
-          <meshBasicMaterial color="#ef4444" />
-        </mesh>
-        <mesh position={[-0.045, -0.22, -0.32]}>
-          <circleGeometry args={[0.09, 18]} />
-          <meshStandardMaterial color="#334155" metalness={0.8} />
-        </mesh>
-      </group>
-
-      {/* Carbon Fiber Door Sills with Illuminated "STRADALE" Kick Plates */}
-      {[-0.88, 0.88].map(kx => (
-        <group key={kx} position={[kx, 0.24, 0.1]}>
-          <Box p={[0, 0, 0]} s={[0.16, 0.06, 1.1]} c="#09090b" metal={0.85} />
-          <mesh position={[0, 0.032, 0]}>
-            <planeGeometry args={[0.1, 0.45]} />
-            <meshBasicMaterial color="#38bdf8" />
-          </mesh>
-        </group>
-      ))}
-
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* 7. DRILLED ALUMINUM RACING FOOT PEDALS */}
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      <group position={[-0.38, 0.16, -0.88]} rotation={[0.42, 0, 0]}>
-        {/* Footrest Dead Pedal */}
-        <Box p={[-0.14, 0, 0]} s={[0.06, 0.19, 0.012]} c="#94a3b8" metal={0.95} />
-        {/* Wide Stainless Brake Pedal */}
-        <Box p={[-0.03, 0, 0]} s={[0.08, 0.16, 0.012]} c="#cbd5e1" metal={0.95} />
-        {/* Milled Aluminum Accelerator Pedal */}
-        <Box p={[0.08, -0.02, 0]} s={[0.05, 0.18, 0.012]} c="#cbd5e1" metal={0.95} />
-      </group>
-
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* 8. UPPER COCKPIT: REARVIEW MIRROR, SUN VISORS & AMBIENT STRIP */}
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* Frameless Interior Rearview Mirror */}
-      <group position={[0, 1.08, -0.24]}>
-        <mesh position={[0, 0.04, 0]}>
-          <cylinderGeometry args={[0.01, 0.01, 0.08, 6]} />
-          <meshStandardMaterial color="#09090b" />
-        </mesh>
-        <Box p={[0, 0, 0]} s={[0.22, 0.065, 0.02]} c="#09090b" r={0.01} metal={0.8} />
-        <mesh position={[0, 0, 0.012]}>
-          <planeGeometry args={[0.2, 0.05]} />
-          <meshPhysicalMaterial color="#64748b" metalness={0.95} roughness={0.1} />
-        </mesh>
-      </group>
-
-      {/* Twin Sun Visors Tucked against Headliner */}
-      {[-0.38, 0.38].map(vx => (
-        <Box key={vx} p={[vx, 1.15, -0.28]} s={[0.38, 0.018, 0.16]} c="#18181b" roughness={0.85} />
-      ))}
-
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* 9. EXTERIOR SHOWROOM CHASSIS, SCISSOR DOORS & ACTIVE AERO */}
-      {/* ────────────────────────────────────────────────────────────────────── */}
-      {/* Front Nose & Hood with Aerodynamic Air Extraction Ducts */}
-      <mesh position={[0, 0.62, -1.68]} rotation={[0.2, 0, 0]} castShadow>
-        <boxGeometry args={[1.78, 0.15, 1.38]} />
-        <meshStandardMaterial color={exteriorColor} metalness={0.7} roughness={0.2} />
-      </mesh>
-      {/* Low-Slung Carbon-Fiber Front Splitter */}
-      <mesh position={[0, 0.24, -2.38]}>
-        <boxGeometry args={[1.84, 0.06, 0.52]} />
-        <meshStandardMaterial color="#09090b" roughness={0.3} metalness={0.85} />
-      </mesh>
-
-      {/* Tinted Panoramic Curved Windshield */}
-      <mesh position={[0, 0.98, -0.32]} rotation={[0.4, 0, 0]}>
-        <boxGeometry args={[1.68, 0.03, 1.12]} />
-        <meshPhysicalMaterial
-          color="#0f172a"
-          transparent
-          opacity={0.35}
-          roughness={0.04}
-          metalness={0.9}
-        />
-      </mesh>
-      {/* Carbon Roof Canopy */}
-      <mesh position={[0, 1.2, 0.35]}>
-        <boxGeometry args={[1.6, 0.05, 1.28]} />
-        <meshStandardMaterial color="#09090b" roughness={0.3} metalness={0.85} />
-      </mesh>
-
-      {/* Scissor Doors (Left & Right - Open Upwards) */}
-      <group
-        position={[-0.94, 0.7, -0.25]}
-        rotation={[doorsOpen ? -0.95 : 0, 0, doorsOpen ? 0.38 : 0]}
-      >
-        <mesh position={[0, 0, 0.46]}>
-          <boxGeometry args={[0.08, 0.74, 1.22]} />
-          <meshStandardMaterial color={exteriorColor} metalness={0.7} roughness={0.2} />
-        </mesh>
-      </group>
-
-      <group
-        position={[0.94, 0.7, -0.25]}
-        rotation={[doorsOpen ? -0.95 : 0, 0, doorsOpen ? -0.38 : 0]}
-      >
-        <mesh position={[0, 0, 0.46]}>
-          <boxGeometry args={[0.08, 0.74, 1.22]} />
-          <meshStandardMaterial color={exteriorColor} metalness={0.7} roughness={0.2} />
-        </mesh>
-      </group>
-
-      {/* Rear Engine Decklid & Flared Quarters */}
-      <mesh position={[0, 0.86, 1.48]} rotation={[-0.15, 0, 0]} castShadow>
-        <boxGeometry args={[1.88, 0.16, 1.42]} />
-        <meshStandardMaterial color={exteriorColor} metalness={0.7} roughness={0.2} />
-      </mesh>
-
-      {/* Active Carbon Rear Aerodynamic Wing with Stanchions */}
-      <group position={[0, 1.18, 2.18]}>
-        <mesh castShadow>
-          <boxGeometry args={[1.96, 0.06, 0.38]} />
-          <meshStandardMaterial color="#09090b" roughness={0.25} metalness={0.85} />
-        </mesh>
-        {[-0.68, 0.68].map(wx => (
-          <mesh key={wx} position={[wx, -0.16, 0]}>
-            <boxGeometry args={[0.04, 0.32, 0.16]} />
-            <meshStandardMaterial color="#09090b" metalness={0.8} />
-          </mesh>
-        ))}
-      </group>
-
-      {/* High-Mounted Dual Titanium Exhaust Tailpipes */}
-      {[-0.24, 0.24].map(ex => (
-        <mesh key={ex} position={[ex, 0.66, 2.4]} rotation={[PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.085, 0.085, 0.16, 16]} />
-          <meshStandardMaterial
-            color="#475569"
-            metalness={0.95}
-            emissive={isStarted ? (driveMode === 'CORSA' ? '#0284c7' : '#38bdf8') : '#000000'}
-            emissiveIntensity={isStarted ? (rpm > 6000 ? 1.4 : 0.6) : 0}
-          />
-        </mesh>
-      ))}
-
-      {/* Matrix LED Projector Headlights */}
-      {[-0.7, 0.7].map(hx => (
-        <mesh key={hx} position={[hx, 0.58, -2.28]}>
-          <boxGeometry args={[0.36, 0.08, 0.15]} />
-          <meshStandardMaterial
-            color="#ffffff"
-            emissive={lightsOn ? '#ffffff' : '#334155'}
-            emissiveIntensity={lightsOn ? 1.9 : 0.1}
-          />
-        </mesh>
-      ))}
-
-      {/* 4 Staggered Alloy Wheels with Red Brembo Brake Calipers */}
-      {[
-        [-1.04, -1.28],
-        [1.04, -1.28],
-        [-1.06, 1.48],
-        [1.06, 1.48],
-      ].map(([wx, wz], i) => (
-        <group key={i} position={[wx, 0.38, wz]}>
-          <mesh rotation={[0, 0, PI / 2]} castShadow>
-            <cylinderGeometry args={[0.38, 0.38, 0.28, 24]} />
-            <meshStandardMaterial color="#09090b" roughness={0.9} />
-          </mesh>
-          <mesh rotation={[0, 0, PI / 2]}>
-            <cylinderGeometry args={[0.26, 0.26, 0.29, 16]} />
-            <meshStandardMaterial color="#e2e8f0" metalness={0.95} roughness={0.15} />
-          </mesh>
-          <mesh position={[0, 0.14, 0]}>
-            <boxGeometry args={[0.26, 0.12, 0.1]} />
-            <meshStandardMaterial color="#ef4444" metalness={0.7} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
+// Camera presets. The in-car views orbit a point 10 cm ahead of the camera, which
+// turns the orbit controls into a look-around from the driver's seat.
+function cameraFor(view) {
+  let c;
+  switch (view) {
+    case 'cockpit':
+      c = { pos: [-0.38, 1.1, -0.4], target: [-0.38, 0.88, 2.4], fov: 70 };
+      break;
+    case 'cabin':
+      c = { pos: [0.0, 1.12, -0.62], target: [0.0, 0.66, 1.2], fov: 82 };
+      break;
+    case 'gauges':
+      c = { pos: [-0.38, 1.0, -0.05], target: [-0.38, 0.86, 0.7], fov: 52 };
+      break;
+    default:
+      return { pos: [5.4, 2.3, 6.0], target: [0, 0.5, 0], fov: 42, look: [0, 0.5, 0] };
+  }
+  const d = new THREE.Vector3(...c.target).sub(new THREE.Vector3(...c.pos)).normalize().multiplyScalar(0.1);
+  return { ...c, look: [c.pos[0] + d.x, c.pos[1] + d.y, c.pos[2] + d.z] };
 }
-
-// ============================================================================
-// MAIN SUPERCAR VIEWER EXPORT
-// ============================================================================
 
 export default function SupercarViewer({ onClose }) {
   // Camera view presets: 'cockpit' (driver's seat) | 'cabin' (wide cabin) | 'gauges' (close-up) | 'showroom' (360 exterior)
-  const [cameraView, setCameraView] = useState('cockpit');
+  const [cameraView, setCameraView] = useState('cabin');
   const [isStarted, setIsStarted] = useState(false);
   const [rpm, setRpm] = useState(800);
   const [speed, setSpeed] = useState(0);
@@ -735,6 +153,12 @@ export default function SupercarViewer({ onClose }) {
   const [lightsOn, setLightsOn] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [exteriorColor, setExteriorColor] = useState('#dc2626');
+  const [isLight, setIsLight] = useState(() => typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light');
+  useEffect(() => {
+    const obs = new MutationObserver(() => setIsLight(document.documentElement.getAttribute('data-theme') === 'light'));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  }, []);
 
   const colors = [
     { name: 'Rosso Corsa', hex: '#dc2626' },
@@ -840,20 +264,9 @@ export default function SupercarViewer({ onClose }) {
     };
   }, [isStarted, driveMode, rpm, soundEnabled]);
 
-  // Compute camera positions for each preset view
-  const cameraConfig = useMemo(() => {
-    switch (cameraView) {
-      case 'cockpit':
-        return { pos: [-0.38, 0.94, 0.16], target: [-0.38, 0.78, -0.65], fov: 62 };
-      case 'cabin':
-        return { pos: [0, 1.05, 0.52], target: [0, 0.68, -0.5], fov: 66 };
-      case 'gauges':
-        return { pos: [-0.38, 0.88, -0.12], target: [-0.38, 0.81, -0.46], fov: 46 };
-      case 'showroom':
-      default:
-        return { pos: [3.8, 2.2, 4.4], target: [0, 0.6, 0], fov: 50 };
-    }
-  }, [cameraView]);
+  // Camera for the chosen view (the in-car views look around from the seat)
+  const inside = cameraView !== 'showroom';
+  const cameraConfig = useMemo(() => cameraFor(cameraView), [cameraView]);
 
   return (
     <div
@@ -963,52 +376,35 @@ export default function SupercarViewer({ onClose }) {
 
       {/* ── 3D VIEWPORT WITH DYNAMIC LIGHTING ── */}
       <div style={{ flex: 1, position: 'relative', background: '#09090b' }}>
-        <Canvas shadows>
-          <PerspectiveCamera
-            key={cameraView}
-            makeDefault
-            position={cameraConfig.pos}
-            fov={cameraConfig.fov}
-          />
-
+        <Canvas shadows dpr={[1, 1.75]}>
+          <color attach="background" args={[inside ? (isLight ? '#b9d4f0' : '#7aa6d6') : (isLight ? '#dfe6f0' : '#0b0b12')]} />
+          <PerspectiveCamera key={cameraView} makeDefault position={cameraConfig.pos} fov={cameraConfig.fov} near={0.05} />
           <OrbitControls
             enablePan={false}
-            target={cameraConfig.target}
-            minDistance={cameraView === 'showroom' ? 2.6 : 0.25}
-            maxDistance={cameraView === 'showroom' ? 8.0 : 1.6}
+            enableZoom={inside ? false : true}
+            target={cameraConfig.look}
+            minDistance={inside ? 0.1 : 3.2}
+            maxDistance={inside ? 0.1 : 10}
+            maxPolarAngle={inside ? PI : PI / 2 - 0.04}
           />
 
-          {/* BRIGHT STUDIO & COCKPIT LIGHTING */}
-          <ambientLight intensity={1.15} />
-          <directionalLight position={[6, 9, 6]} intensity={1.9} castShadow />
-          <directionalLight position={[-6, 5, -5]} intensity={1.0} color="#38bdf8" />
-          <pointLight position={[0, 1.8, 0]} intensity={1.3} color="#ffffff" />
-          {/* Driver Cockpit Accent Light */}
-          <pointLight
-            position={[-0.38, 0.82, -0.38]}
-            intensity={isStarted ? (driveMode === 'CORSA' ? 1.6 : 1.2) : 0.4}
-            color={driveMode === 'CORSA' ? '#ef4444' : driveMode === 'SPORT' ? '#f59e0b' : '#38bdf8'}
-          />
+          {/* studio lighting: soft sky fill, a key light and a cool rim */}
+          <hemisphereLight args={['#dbeafe', '#3a3a44', isLight ? 1.0 : 0.75]} />
+          <ambientLight intensity={isLight ? 0.55 : 0.4} />
+          <directionalLight position={[6, 9, 5]} intensity={2.1} castShadow shadow-mapSize={[1024, 1024]} />
+          <directionalLight position={[-6, 4, -5]} intensity={0.9} color="#7dd3fc" />
 
-          {/* Showroom Polished Floor Disc */}
-          {cameraView === 'showroom' && (
-            <mesh position={[0, 0, 0]} rotation={[-PI / 2, 0, 0]} receiveShadow>
-              <circleGeometry args={[6.0, 36]} />
-              <meshStandardMaterial color="#1e1e24" roughness={0.3} metalness={0.7} />
-            </mesh>
-          )}
+          {/* showroom floor: a polished disc with an accent ring */}
+          <mesh rotation={[-PI / 2, 0, 0]} receiveShadow position={[0, -0.001, 0]}>
+            <circleGeometry args={[9, 48]} />
+            <meshStandardMaterial color={isLight ? '#c9d1dc' : '#1b1b23'} roughness={0.7} metalness={0.15} />
+          </mesh>
+          <mesh rotation={[-PI / 2, 0, 0]} position={[0, 0.002, 0]}>
+            <ringGeometry args={[3.2, 3.26, 64]} />
+            <meshBasicMaterial color={driveMode === 'CORSA' ? '#ef4444' : driveMode === 'SPORT' ? '#f59e0b' : '#38bdf8'} toneMapped={false} />
+          </mesh>
 
-          <HighEndSupercar3D
-            rpm={rpm}
-            speed={speed}
-            isStarted={isStarted}
-            lightsOn={lightsOn}
-            doorsOpen={doorsOpen}
-            exteriorColor={exteriorColor}
-            cameraView={cameraView}
-            driveMode={driveMode}
-            gear={gear}
-          />
+          <Supercar3D cutaway={inside} color={exteriorColor} lightsOn={lightsOn} doorsOpen={doorsOpen} started={isStarted} spin={isStarted ? speed / 14 : 0} wingUp={isStarted && speed > 60} />
         </Canvas>
 
         {/* ── HUD DASHBOARD TELEMETRY READOUT ── */}

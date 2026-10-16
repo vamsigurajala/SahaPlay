@@ -12,9 +12,10 @@
 export const CELL_W = 18; // along x
 export const CELL_D = 16; // along z
 export const COLS = 3;
-// The house is 3 rows deep; a 4th row in front of it holds the open-air cricket ground.
+// The house is 3 rows deep. In front of it lies a street (row 3) and, across the
+// road, the open-air cricket ground (row 4) — so the ground is not attached to the house.
 export const HOUSE_ROWS = 3;
-export const ROWS = 4;
+export const ROWS = 5;
 export const HOUSE_D = CELL_D * HOUSE_ROWS;
 export const WORLD_W = CELL_W * COLS;
 export const WORLD_D = CELL_D * ROWS;
@@ -60,7 +61,8 @@ export const FLOORPLAN_ZONES = {
   terrace: zone('terrace', 'Terrace', 0, 2),
   frontyard: zone('frontyard', 'Front Yard', 1, 2),
   courtyard: zone('courtyard', 'Courtyard', 2, 2),
-  cricket: zone('cricket', 'Cricket Ground', 1, 3),
+  street: zone('street', 'Street', 1, 3),
+  cricket: zone('cricket', 'Cricket Ground', 1, 4),
 };
 
 // Upstairs: two bedrooms, a living room, a kitchen and a balcony (the
@@ -141,11 +143,15 @@ export const STAIR_LINKS = [
   { from: 'frontyard', to: 'f2hall', label: 'Go to next floor', dir: 'up', chip: { x: yardZ.world.x0 + 13.4, z: yardZ.world.z1 - 2.6 }, entry: { x: f2hallZ.x0 + 4, z: f2hallZ.z0 + 13 } },
   { from: 'f2hall', to: 'hall', label: 'Go downstairs', dir: 'down', chip: { x: f2hallZ.x0 + 3.2, z: f2hallZ.z0 + 12.5 }, entry: { x: hallZ.x0 + 4, z: hallZ.z0 + 13 } },
 ];
-// The front-yard gate opens onto the cricket ground (an open boundary, not a doorway).
+// Open boundaries (gates), not doorways: the front-yard gate onto the street, and the
+// street across the road to the cricket ground.
+const streetZ = FLOORPLAN_ZONES.street;
 const cricketZ = FLOORPLAN_ZONES.cricket;
 export const GATE_LINKS = [
-  { from: 'frontyard', to: 'cricket', label: 'Cricket ground', chip: { x: yardZ.world.x0 + 13.2, z: yardZ.world.z1 - 3.2 }, entry: { x: cricketZ.world.x0 + 9, z: cricketZ.world.z0 + 3 } },
-  { from: 'cricket', to: 'frontyard', label: 'Back to the house', chip: { x: cricketZ.world.x0 + 13.4, z: cricketZ.world.z0 + 2.8 }, entry: { x: yardZ.world.x0 + 9, z: yardZ.world.z1 - 3.4 } },
+  { from: 'frontyard', to: 'street', label: 'Go to the street', chip: { x: yardZ.world.x0 + 13.2, z: yardZ.world.z1 - 3.2 }, entry: { x: streetZ.world.x0 + 9, z: streetZ.world.z0 + 2 } },
+  { from: 'street', to: 'frontyard', label: 'Back to the house', chip: { x: streetZ.world.x0 + 13.4, z: streetZ.world.z0 + 1.8 }, entry: { x: yardZ.world.x0 + 9, z: yardZ.world.z1 - 3.4 } },
+  { from: 'street', to: 'cricket', label: 'Cricket ground', chip: { x: streetZ.world.x0 + 13.4, z: streetZ.world.z1 - 1.8 }, entry: { x: cricketZ.world.x0 + 9, z: cricketZ.world.z0 + 3 } },
+  { from: 'cricket', to: 'street', label: 'Back to the street', chip: { x: cricketZ.world.x0 + 13.4, z: cricketZ.world.z0 + 2.8 }, entry: { x: streetZ.world.x0 + 9, z: streetZ.world.z1 - 2 } },
 ];
 export const ALL_LINKS = [...DOOR_LINKS, ...DOOR_LINKS_F2, ...STAIR_LINKS, ...GATE_LINKS];
 

@@ -4180,8 +4180,8 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'monalisa' && <MonaLisaDetailViewer onClose={onClose} />}
         {kind === 'dog' && <DogCareView onClose={onClose} />}
         {kind === 'pond' && <AquariumViewer onClose={onClose} />}
-        {kind === 'supercar' && <SupercarViewer onClose={onClose} />}
-        {kind === 'garage' && <GarageWorkshopViewer onClose={onClose} />}
+        {kind === 'supercar' && <ViewerBoundary><SupercarViewer onClose={onClose} /></ViewerBoundary>}
+        {kind === 'garage' && <ViewerBoundary><GarageWorkshopViewer onClose={onClose} arg={arg} /></ViewerBoundary>}
       </div>
     </div>,
     document.body,

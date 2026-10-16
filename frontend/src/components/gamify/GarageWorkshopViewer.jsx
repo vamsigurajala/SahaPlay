@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import ToolAnimation from './toolAnimations';
 import {
   Wrench, Gauge, Disc, Zap, Check, AlertCircle, RefreshCw,
   Sliders, Shield, Award, Play, X, BatteryCharging, Cpu,
@@ -10,7 +11,7 @@ import {
 // GARAGE TOOLS & ASSETS DATA ACROSS CARS, BIKES, AND CYCLES
 // ============================================================================
 
-const GARAGE_CATEGORIES = {
+export const GARAGE_CATEGORIES = {
   car: {
     name: 'Supercar Bay',
     subtitle: 'Track-spec tools for Ferrari, Lamborghini & Hypercars',
@@ -204,9 +205,76 @@ const GARAGE_CATEGORIES = {
   }
 };
 
-export default function GarageWorkshopViewer({ onClose }) {
-  const [activeCategory, setActiveCategory] = useState('car');
-  const [selectedItem, setSelectedItem] = useState(GARAGE_CATEGORIES.car.items[0]);
+GARAGE_CATEGORIES.shared = {
+  name: 'Gearbox & Shared Tools',
+  subtitle: 'Equipment that works on supercars, motorbikes and bicycles alike',
+  icon: 'gearbox',
+  color: '#f59e0b',
+  badge: 'ALL VEHICLES',
+  items: [
+    {
+      id: 'shared_gearbox',
+      name: 'Transmission Gearbox Bench',
+      spec: '6-Speed Sequential • Meshing Helical Gears',
+      desc: 'See how a gearbox works: the input gear drives the layshaft and each ratio trades speed for torque. The same principle sits inside a supercar and a superbike.',
+      actionVerb: 'Shift Through the Gears',
+      animationType: 'gearbox',
+      stats: { ratios: '6 Forward', type: 'Helical Gears', fluid: 'Gear Oil 75W-90' },
+    },
+    {
+      id: 'shared_torque',
+      name: 'Click-Type Torque Wrench',
+      spec: '20-200 Nm • Reversible Ratchet',
+      desc: 'Clicks when the set torque is reached so wheel nuts, axle bolts and cockpit bolts are never over-tightened.',
+      actionVerb: 'Torque to Spec',
+      animationType: 'torque_wrench',
+      stats: { range: '20-200 Nm', drive: '1/2 inch Square', accuracy: '+/- 3 %' },
+    },
+    {
+      id: 'shared_compressor',
+      name: 'Portable Air Compressor',
+      spec: '12V • 150 PSI • Auto Shut-Off',
+      desc: 'Inflates car, motorcycle and bicycle tyres, then stops itself at the pressure you set.',
+      actionVerb: 'Inflate Tyres',
+      animationType: 'compressor',
+      stats: { max: '150 PSI', power: '12 V DC', valves: 'Presta + Schrader' },
+    },
+    {
+      id: 'shared_battery',
+      name: 'Smart Battery Charger',
+      spec: '12V • 10A • Trickle Maintenance',
+      desc: 'Brings a flat car or motorcycle battery back to life and keeps it topped up in storage.',
+      actionVerb: 'Charge Battery',
+      animationType: 'battery',
+      stats: { current: '10 A', modes: 'AGM / Lithium', safety: 'Spark-Proof' },
+    },
+    {
+      id: 'shared_meter',
+      name: 'Digital Multimeter',
+      spec: 'Auto-Range • True RMS • CAT III',
+      desc: 'Checks battery voltage, fuses, sensors and lighting circuits on any vehicle with an electrical system.',
+      actionVerb: 'Test the Circuit',
+      animationType: 'multimeter',
+      stats: { volts: '1000 V Max', amps: '10 A', extra: 'Continuity Beep' },
+    },
+    {
+      id: 'shared_grease',
+      name: 'High-Pressure Grease Gun',
+      spec: 'Lithium Complex • 400 g Cartridge',
+      desc: 'Pushes fresh grease into bearings, joints and linkages so moving parts stay smooth and quiet.',
+      actionVerb: 'Grease the Bearings',
+      animationType: 'grease',
+      stats: { pressure: '6,000 PSI', grease: 'Lithium EP2', fit: 'Standard Zerk' },
+    },
+  ],
+};
+
+const CATEGORY_KEYS = ['car', 'bike', 'cycle', 'shared'];
+
+export default function GarageWorkshopViewer({ onClose, arg }) {
+  const startKey = CATEGORY_KEYS.includes(arg) ? arg : 'car';
+  const [activeCategory, setActiveCategory] = useState(startKey);
+  const [selectedItem, setSelectedItem] = useState(GARAGE_CATEGORIES[startKey].items[0]);
   const [isServicing, setIsServicing] = useState(false);
   const [serviceProgress, setServiceProgress] = useState(0);
   const [serviceCompleted, setServiceCompleted] = useState(false);
@@ -274,6 +342,7 @@ export default function GarageWorkshopViewer({ onClose }) {
   const textSub = isLight ? '#475569' : '#94a3b8';
   const innerCardBg = isLight ? 'rgba(241,245,249,0.85)' : 'rgba(255,255,255,0.04)';
   const innerCardBorder = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
+  const toolInk = isLight ? '#0f172a' : '#e2e8f0';
 
   return (
     <div
@@ -390,7 +459,7 @@ export default function GarageWorkshopViewer({ onClose }) {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
           gap: 12,
           padding: '14px 24px',
           borderBottom: `1px solid ${innerCardBorder}`,
@@ -401,6 +470,7 @@ export default function GarageWorkshopViewer({ onClose }) {
           { key: 'car', label: 'Supercar Bay', icon: <Car size={18} />, color: '#ef4444', desc: 'Ferrari & Lambo' },
           { key: 'bike', label: 'Motorbike Bay', icon: <Zap size={18} />, color: '#06b6d4', desc: 'Sports Superbikes' },
           { key: 'cycle', label: 'Bicycle Bay', icon: <Bike size={18} />, color: '#10b981', desc: 'Road & Mountain Bikes' },
+          { key: 'shared', label: 'Gearbox & Shared', icon: <Cpu size={18} />, color: '#f59e0b', desc: 'For every vehicle' },
         ].map(cat => (
           <button
             key={cat.key}
@@ -476,20 +546,17 @@ export default function GarageWorkshopViewer({ onClose }) {
                     {/* Animated Tool Icon Badge */}
                     <div
                       style={{
-                        width: 42,
-                        height: 42,
+                        width: 72,
+                        height: 46,
                         borderRadius: 12,
-                        background: isSelected ? currentCategory.color : `${currentCategory.color}20`,
-                        color: isSelected ? '#fff' : currentCategory.color,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        background: isLight ? '#ffffff' : 'rgba(255,255,255,0.06)',
+                        border: isSelected ? `2px solid ${currentCategory.color}` : `1px solid ${innerCardBorder}`,
+                        overflow: 'hidden',
                         flexShrink: 0,
                         transition: 'all 0.2s',
-                        animation: isSelected ? 'pulse-ring 2.5s infinite' : 'none',
                       }}
                     >
-                      <Wrench size={20} />
+                      <ToolAnimation type={item.animationType} c={currentCategory.color} k={toolInk} height={44} />
                     </div>
 
                     <div>
@@ -573,58 +640,28 @@ export default function GarageWorkshopViewer({ onClose }) {
               ))}
             </div>
 
-            {/* Live Servicing Animation Viewport */}
+            {/* Live animated illustration of the selected tool */}
             <div
               style={{
-                height: 160,
                 borderRadius: 18,
-                background: isLight ? '#f1f5f9' : '#09090b',
+                background: isLight ? '#f8fafc' : '#0b0a14',
                 border: `1px solid ${innerCardBorder}`,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
                 position: 'relative',
                 overflow: 'hidden',
-                padding: '16px',
+                padding: '8px 12px 14px',
               }}
             >
-              {isServicing ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                  {/* Rotating Tool Animation */}
-                  <div style={{ width: 50, height: 50, borderRadius: '50%', background: `${currentCategory.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentCategory.color, animation: 'gear-spin 1.2s linear infinite' }}>
-                    <RefreshCw size={26} />
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: currentCategory.color }}>
-                    Operating {selectedItem.name} ({serviceProgress}%)...
-                  </div>
-                </div>
-              ) : serviceCompleted ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#22c55e20', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#22c55e' }}>
-                    <CheckCircle2 size={30} />
-                  </div>
-                  <div style={{ fontSize: 14, fontWeight: 900, color: '#22c55e' }}>
-                    Servicing Complete!
-                  </div>
-                  <div style={{ fontSize: 11, color: textSub }}>
-                    Vehicle calibrated to track standards
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: 0.8 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: innerCardBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentCategory.color }}>
-                    <Play size={20} />
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: textSub }}>
-                    Tap button below to use on vehicle
-                  </div>
+              <ToolAnimation type={selectedItem.animationType} c={currentCategory.color} k={toolInk} fast={isServicing} height={210} />
+              <div style={{ position: 'absolute', top: 10, left: 12, fontSize: 10, fontWeight: 900, letterSpacing: '0.08em', textTransform: 'uppercase', color: isServicing ? currentCategory.color : textSub }}>
+                {isServicing ? `Working ${serviceProgress}%` : serviceCompleted ? 'Done' : 'Live demo'}
+              </div>
+              {serviceCompleted && (
+                <div style={{ position: 'absolute', top: 8, right: 10, display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 900, color: '#22c55e' }}>
+                  <CheckCircle2 size={16} /> Complete
                 </div>
               )}
-
-              {/* Live Service Progress Bar */}
               {isServicing && (
-                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(255,255,255,0.1)' }}>
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(128,128,128,0.2)' }}>
                   <div style={{ height: '100%', width: `${serviceProgress}%`, background: currentCategory.color, transition: 'width 0.12s linear' }} />
                 </div>
               )}
@@ -665,7 +702,7 @@ export default function GarageWorkshopViewer({ onClose }) {
               }}
             >
               <Wrench size={18} />
-              <span>{isServicing ? 'Servicing Vehicle...' : `USE ON ${activeCategory.toUpperCase()}: ${selectedItem.actionVerb.toUpperCase()}`}</span>
+              <span>{isServicing ? 'Working...' : selectedItem.actionVerb.toUpperCase()}</span>
             </button>
           </div>
         </div>

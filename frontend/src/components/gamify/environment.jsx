@@ -125,8 +125,8 @@ const grassTexture = (() => {
 })();
 
 const TREES = [
-  [-36, -30, 1.3], [-33, -12, 1.1], [-35, 6, 1.4], [-34, 22, 1.2], [-30, 33, 1.0], [-18, -33, 1.2], [-4, -34, 1.5], [12, -33, 1.1], [27, -34, 1.3], [35, -26, 1.2],
-  [36, -8, 1.4], [34, 10, 1.1], [36, 26, 1.3], [24, 34, 1.0], [-12, 35, 1.2],
+  [-36, -30, 1.3], [-33, -12, 1.1], [-35, 6, 1.4], [-30, 33, 1.0], [-18, -33, 1.2], [-4, -34, 1.5], [12, -33, 1.1], [27, -34, 1.3], [35, -26, 1.2],
+  [36, -8, 1.4], [36, 26, 1.3], [24, 34, 1.0], [-14, 35, 1.2], [-22, 46, 1.2], [22, 48, 1.1], [-34, 44, 1.3], [34, 42, 1.2], [0, 54, 1.4],
 ];
 
 // Grass plot with a soil edge, a lane at the front and trees around — so the house
@@ -134,26 +134,18 @@ const TREES = [
 export function Ground({ weather }) {
   const w = WEATHER[weather];
   const tex = useMemo(() => grassTexture(), []);
-  const R = 48;
-  const cz = 8; // the plot reaches past the cricket ground in front of the house
+  const PW = 112; // plot width; it reaches past the street and the cricket ground in front of the house
+  const PD = 124;
+  const cz = 8;
   return (
     <group>
       <mesh position={[0, -3.6, cz]} receiveShadow>
-        <boxGeometry args={[R * 2, 6, R * 2]} />
+        <boxGeometry args={[PW, 6, PD]} />
         <meshStandardMaterial color="#5e4630" roughness={1} />
       </mesh>
       <mesh position={[0, -0.59, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[R * 2, R * 2]} />
+        <planeGeometry args={[PW, PD]} />
         <meshStandardMaterial map={tex} color={w.grass} roughness={1} />
-      </mesh>
-      {/* lane in front of the house */}
-      <mesh position={[0, -0.57, 41]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[R * 2, 5]} />
-        <meshStandardMaterial color="#58585f" roughness={1} />
-      </mesh>
-      <mesh position={[0, -0.56, 41]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[R * 2, 0.18]} />
-        <meshStandardMaterial color="#e8d9a0" roughness={1} />
       </mesh>
       {TREES.map(([x, z, s], i) => <Tree key={i} p={[x, -0.6, z]} scale={s} />)}
     </group>

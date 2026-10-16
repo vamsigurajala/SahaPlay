@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { Box, Neon, Plant, Tree, BeanBag, Rug, Table, Stool, FloorLamp, useOpenProp, PropDot } from './parts';
 import { Cell } from './cell';
 import { NEON_PINK, NEON_VIOLET, NEON_AMBER } from './constants';
+import { Supercar3D, Superbike3D, Bicycle3D } from './vehicles';
 
 const PI = Math.PI;
 
@@ -846,76 +847,24 @@ export function Courtyard() {
 // 1. Top-Model Ferrari / Lamborghini Hypercar (Click to inspect 3D Cockpit!)
 function TopModelSupercar3D({ p, rot = 0 }) {
   const openCar = useOpenProp('supercar');
-
+  const dais = useRef();
+  useFrame((_, dt) => { if (dais.current) dais.current.rotation.y += dt * 0.14; });
   return (
-    <group position={p} rotation={[0, rot, 0]} {...openCar} style={{ cursor: 'pointer' }}>
-      <PropDot position={[0, 1.8, 0]} kind="supercar" />
-
-      {/* Aerodynamic Low-Slung Wedge Body (Ferrari Rosso Corsa) */}
-      <Box p={[0, 0.42, 0]} s={[4.6, 0.65, 2.05]} c="#dc2626" r={0.24} metal={0.7} rough={0.2} shadow />
-      {/* Cockpit Canopy & Black Carbon Roof */}
-      <Box p={[-0.2, 0.95, 0]} s={[2.4, 0.6, 1.62]} c="#18181b" r={0.22} metal={0.8} rough={0.2} shadow />
-      {/* Tinted Windshield & Side Windows */}
-      <Box p={[-0.2, 0.96, 0]} s={[2.42, 0.48, 1.64]} c="#09090b" r={0.18} rough={0.1} metal={0.85} shadow={false} />
-
-      {/* Front Hood with Sculpted Aerodynamic Vent Ducts */}
-      <Box p={[1.25, 0.68, 0]} s={[1.4, 0.12, 1.45]} c="#dc2626" r={0.1} metal={0.7} />
-      {/* Front Carbon-Fiber Splitter */}
-      <Box p={[2.3, 0.22, 0]} s={[0.3, 0.06, 1.95]} c="#09090b" roughness={0.3} />
-
-      {/* Aggressive LED Daytime Running Light Blades */}
-      <Box p={[2.18, 0.52, 0.65]} s={[0.14, 0.08, 0.38]} c="#ffffff" emissive="#ffffff" emissiveIntensity={1.4} shadow={false} />
-      <Box p={[2.18, 0.52, -0.65]} s={[0.14, 0.08, 0.38]} c="#ffffff" emissive="#ffffff" emissiveIntensity={1.4} shadow={false} />
-
-      {/* Side Air Scoop Intakes */}
-      <Box p={[-0.8, 0.54, 1.05]} s={[0.8, 0.34, 0.12]} c="#09090b" />
-      <Box p={[-0.8, 0.54, -1.05]} s={[0.8, 0.34, 0.12]} c="#09090b" />
-
-      {/* Active Aero Rear Wing Spoiler */}
-      <group position={[-2.15, 0.88, 0]}>
-        <Box p={[0, 0, 0]} s={[0.38, 0.06, 1.9]} c="#18181b" metal={0.8} r={0.03} />
-        {[-0.6, 0.6].map(x => (
-          <Box key={x} p={[0, -0.2, x]} s={[0.15, 0.35, 0.04]} c="#09090b" />
-        ))}
-      </group>
-
-      {/* High-Mounted Dual Exhaust Pipes with Heat Glow */}
-      {[-0.2, 0.2].map(z => (
-        <mesh key={z} position={[-2.32, 0.58, z]} rotation={[0, 0, PI / 2]}>
-          <cylinderGeometry args={[0.075, 0.075, 0.12, 14]} />
-          <meshStandardMaterial color="#475569" metalness={0.9} emissive="#0284c7" emissiveIntensity={0.4} />
-        </mesh>
-      ))}
-
-      {/* Rear LED Taillight Lightbar */}
-      <Box p={[-2.3, 0.68, 0]} s={[0.06, 0.08, 1.7]} c="#ef4444" emissive="#ef4444" emissiveIntensity={1.2} shadow={false} />
-
-      {/* 4 Staggered Racing Wheels with Red Brembo Brake Calipers */}
-      {[
-        [-1.45, -1.05],
-        [1.45, -1.05],
-        [-1.45, 1.05],
-        [1.45, 1.05],
-      ].map(([x, z], i) => (
-        <group key={i} position={[x, 0.36, z]}>
-          <mesh rotation={[PI / 2, 0, 0]} castShadow>
-            <cylinderGeometry args={[0.38, 0.38, 0.28, 20]} />
-            <meshStandardMaterial color="#09090b" roughness={0.9} />
-          </mesh>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.27, 0.27, 0.29, 14]} />
-            <meshStandardMaterial color="#27272a" metalness={0.9} roughness={0.2} />
-          </mesh>
-          <Box p={[0.08, 0.15, 0]} s={[0.12, 0.15, 0.26]} c="#ef4444" metal={0.6} />
-        </group>
-      ))}
+    <group position={p} rotation={[0, rot, 0]} {...openCar}>
+      <PropDot position={[0, 2.4, 0]} kind="supercar" />
+      {/* showroom turntable with an LED ring */}
+      <mesh position={[0, 0.06, 0]} receiveShadow><cylinderGeometry args={[3.0, 3.1, 0.12, 40]} /><meshStandardMaterial color="#14141a" roughness={0.4} metalness={0.5} /></mesh>
+      <mesh position={[0, 0.126, 0]} rotation={[-PI / 2, 0, 0]}><ringGeometry args={[2.72, 2.82, 56]} /><meshBasicMaterial color="#38bdf8" toneMapped={false} /></mesh>
+      <mesh position={[0, 0.126, 0]} rotation={[-PI / 2, 0, 0]}><ringGeometry args={[2.35, 2.4, 56]} /><meshBasicMaterial color="#f43f5e" toneMapped={false} /></mesh>
+      <group ref={dais} position={[0, 0.12, 0]}><Supercar3D color="#c8102e" lightsOn interior /></group>
+      <mesh position={[0, 0.9, 0]} visible={false}><boxGeometry args={[2.6, 1.8, 5.2]} /></mesh>
     </group>
   );
 }
 
 // 2. Attached Wall Garage Workshop Bay (Mounted directly to the Top-Left Wall)
 function AttachedGarageWorkshop({ p }) {
-  const openGarage = useOpenProp('garage');
+  const openGarage = useOpenProp('garage', 'shared');
 
   return (
     <group position={p} {...openGarage} style={{ cursor: 'pointer' }}>
@@ -1072,373 +1021,36 @@ function AttachedGarageWorkshop({ p }) {
 
 // 3. Realistic Sports Superbike (Ducati/Ninja Style with Rear Paddock Stand)
 function SportsSuperbike({ p, rot = 0 }) {
-  const openBike = useOpenProp('garage');
-
+  const openBike = useOpenProp('garage', 'bike');
   return (
-    <group position={p} rotation={[0, rot, 0]} {...openBike} style={{ cursor: 'pointer' }}>
-      <PropDot position={[0, 1.45, 0]} kind="garage" />
-
-      {/* Red Tubular Rear Paddock Stand */}
-      <group position={[-0.9, 0, 0]}>
-        <mesh position={[0, 0.15, -0.32]} rotation={[0, 0, PI / 2]}>
-          <cylinderGeometry args={[0.018, 0.018, 0.35, 8]} />
-          <meshStandardMaterial color="#dc2626" metalness={0.8} />
-        </mesh>
-        <mesh position={[0, 0.15, 0.32]} rotation={[0, 0, PI / 2]}>
-          <cylinderGeometry args={[0.018, 0.018, 0.35, 8]} />
-          <meshStandardMaterial color="#dc2626" metalness={0.8} />
-        </mesh>
-        <Box p={[0.1, 0.28, 0]} s={[0.04, 0.45, 0.68]} c="#dc2626" metal={0.7} />
-        {/* Rubber Rollers */}
-        {[-0.34, 0.34].map(rz => (
-          <mesh key={rz} position={[-0.1, 0.05, rz]} rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.05, 0.05, 0.04, 10]} />
-            <meshStandardMaterial color="#09090b" roughness={0.9} />
-          </mesh>
-        ))}
-      </group>
-
-      {/* REAR WHEEL & TIRE */}
-      <group position={[-0.85, 0.34, 0]}>
-        <mesh rotation={[PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[0.34, 0.34, 0.18, 22]} />
-          <meshStandardMaterial color="#09090b" roughness={0.9} />
-        </mesh>
-        <mesh rotation={[PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.24, 0.24, 0.19, 14]} />
-          <meshStandardMaterial color="#18181b" metalness={0.85} roughness={0.2} />
-        </mesh>
-        {/* Gold Rear Drive Sprocket */}
-        <mesh position={[0, 0, -0.1]} rotation={[PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.13, 0.13, 0.012, 16]} />
-          <meshStandardMaterial color="#eab308" metalness={0.85} />
-        </mesh>
-      </group>
-
-      {/* REAR ALUMINUM SWINGARM & MONOSHOCK */}
-      <Box p={[-0.45, 0.38, 0]} s={[0.75, 0.08, 0.24]} c="#475569" metal={0.9} rough={0.2} />
-      <mesh position={[-0.25, 0.46, 0]} rotation={[0.4, 0, 0]}>
-        <cylinderGeometry args={[0.035, 0.035, 0.22, 10]} />
-        <meshStandardMaterial color="#eab308" metalness={0.8} />
-      </mesh>
-
-      {/* 1000cc 4-CYLINDER ENGINE BLOCK & EXPOSED TRELLIS FRAME */}
-      <group position={[-0.05, 0.42, 0]}>
-        <Box p={[0, 0, 0]} s={[0.55, 0.42, 0.38]} c="#1e293b" metal={0.85} rough={0.3} />
-        {/* Bronze Clutch Cover */}
-        <mesh position={[0.08, -0.05, 0.2]} rotation={[PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.09, 0.09, 0.04, 14]} />
-          <meshStandardMaterial color="#b45309" metalness={0.85} roughness={0.2} />
-        </mesh>
-        {/* Red Trellis Upper Frame Tubes */}
-        <Box p={[0, 0.24, 0.16]} s={[0.65, 0.04, 0.04]} c="#dc2626" metal={0.7} />
-        <Box p={[0, 0.24, -0.16]} s={[0.65, 0.04, 0.04]} c="#dc2626" metal={0.7} />
-      </group>
-
-      {/* SCULPTED FUEL TANK (Rosso Red with Black Knee Grips) */}
-      <group position={[0.05, 0.74, 0]}>
-        <Box p={[0, 0, 0]} s={[0.6, 0.32, 0.38]} c="#dc2626" r={0.12} metal={0.7} rough={0.2} shadow />
-        {/* Black Rubber Knee Grip Pads */}
-        <Box p={[-0.05, -0.02, 0.19]} s={[0.3, 0.18, 0.02]} c="#09090b" roughness={0.9} />
-        <Box p={[-0.05, -0.02, -0.19]} s={[0.3, 0.18, 0.02]} c="#09090b" roughness={0.9} />
-        {/* Silver Quick-Release Billet Gas Cap */}
-        <mesh position={[0.06, 0.17, 0]}>
-          <cylinderGeometry args={[0.04, 0.04, 0.015, 12]} />
-          <meshStandardMaterial color="#f8fafc" metalness={0.95} />
-        </mesh>
-      </group>
-
-      {/* SPLIT RIDER & PASSENGER SEAT TAIL SECTION */}
-      <group position={[-0.48, 0.7, 0]}>
-        <Box p={[0, 0, 0]} s={[0.55, 0.14, 0.28]} c="#dc2626" r={0.06} metal={0.7} />
-        {/* Black Alcantara Rider Saddle */}
-        <Box p={[0.12, 0.07, 0]} s={[0.34, 0.05, 0.24]} c="#18181b" r={0.02} roughness={0.8} />
-        {/* Passenger Tail Cowl */}
-        <Box p={[-0.15, 0.09, 0]} s={[0.26, 0.08, 0.18]} c="#dc2626" r={0.04} metal={0.7} />
-        {/* Slim LED Taillight Strip */}
-        <Box p={[-0.29, 0.07, 0]} s={[0.02, 0.04, 0.14]} c="#ef4444" emissive="#ef4444" emissiveIntensity={1.4} shadow={false} />
-      </group>
-
-      {/* UP-SWEPT AKRAPOVIC TITANIUM EXHAUST CANISTER */}
-      <group position={[-0.55, 0.36, 0.22]} rotation={[-0.32, 0.1, 0.35]}>
-        <mesh castShadow>
-          <cylinderGeometry args={[0.055, 0.065, 0.55, 14]} />
-          <meshStandardMaterial color="#64748b" metalness={0.9} roughness={0.2} />
-        </mesh>
-        {/* Heat-Treated Blue Titanium End-Cap */}
-        <mesh position={[0, 0.28, 0]}>
-          <cylinderGeometry args={[0.048, 0.055, 0.06, 14]} />
-          <meshStandardMaterial color="#0284c7" metalness={0.95} emissive="#0284c7" emissiveIntensity={0.3} />
-        </mesh>
-      </group>
-
-      {/* FRONT AERODYNAMIC FAIRING & DUAL LED HEADLIGHTS */}
-      <group position={[0.55, 0.72, 0]}>
-        <Box p={[0, 0, 0]} s={[0.52, 0.42, 0.38]} c="#dc2626" r={0.1} metal={0.7} rough={0.2} shadow />
-        {/* Aggressive Slit Dual Projector LED Headlights */}
-        <Box p={[0.26, -0.06, 0.11]} s={[0.04, 0.05, 0.1]} c="#ffffff" emissive="#ffffff" emissiveIntensity={1.8} shadow={false} />
-        <Box p={[0.26, -0.06, -0.11]} s={[0.04, 0.05, 0.1]} c="#ffffff" emissive="#ffffff" emissiveIntensity={1.8} shadow={false} />
-        {/* Smoked Aerodynamic Bubble Windscreen */}
-        <mesh position={[0.08, 0.22, 0]} rotation={[0.42, 0, 0]}>
-          <boxGeometry args={[0.26, 0.24, 0.02]} />
-          <meshPhysicalMaterial color="#09090b" transparent opacity={0.65} roughness={0.1} />
-        </mesh>
-      </group>
-
-      {/* CLIP-ON HANDLEBARS & COLOR TFT DASH */}
-      <group position={[0.4, 0.82, 0]}>
-        <mesh rotation={[0, 0, PI / 2]}>
-          <cylinderGeometry args={[0.014, 0.014, 0.48, 8]} />
-          <meshStandardMaterial color="#18181b" metalness={0.8} />
-        </mesh>
-        {/* Rubber Grips & Billet Levers */}
-        {[-0.22, 0.22].map(gz => (
-          <group key={gz} position={[0, 0, gz]}>
-            <mesh rotation={[0, 0, PI / 2]}>
-              <cylinderGeometry args={[0.022, 0.022, 0.1, 10]} />
-              <meshStandardMaterial color="#09090b" roughness={0.9} />
-            </mesh>
-            <Box p={[0.04, 0, gz > 0 ? -0.02 : 0.02]} s={[0.08, 0.015, 0.01]} c="#f8fafc" metal={0.9} />
-          </group>
-        ))}
-        {/* Color TFT Instrument Screen */}
-        <Box p={[-0.04, 0.06, 0]} s={[0.08, 0.06, 0.12]} c="#0284c7" emissive="#0284c7" emissiveIntensity={0.6} />
-      </group>
-
-      {/* FRONT INVERTED GOLD FORKS & CARBON FENDER */}
-      <group position={[0.75, 0.45, 0]}>
-        {/* Twin Inverted Gold Stanchions */}
-        {[-0.1, 0.1].map(fz => (
-          <mesh key={fz} position={[0, 0, fz]} rotation={[0, 0, -0.32]}>
-            <cylinderGeometry args={[0.025, 0.025, 0.65, 12]} />
-            <meshStandardMaterial color="#eab308" metalness={0.9} roughness={0.15} />
-          </mesh>
-        ))}
-        {/* Front Carbon Fender */}
-        <Box p={[-0.02, 0.16, 0]} s={[0.36, 0.06, 0.22]} c="#18181b" r={0.03} metal={0.7} />
-      </group>
-
-      {/* FRONT WHEEL & DUAL BREMBO BRAKE ROTORS */}
-      <group position={[0.88, 0.34, 0]}>
-        <mesh rotation={[PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[0.34, 0.34, 0.14, 22]} />
-          <meshStandardMaterial color="#09090b" roughness={0.9} />
-        </mesh>
-        <mesh rotation={[PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.24, 0.24, 0.15, 14]} />
-          <meshStandardMaterial color="#18181b" metalness={0.85} roughness={0.2} />
-        </mesh>
-        {/* Dual Drilled Floating Brake Discs with Red Calipers */}
-        {[-0.08, 0.08].map(dz => (
-          <group key={dz} position={[0, 0, dz]}>
-            <mesh rotation={[PI / 2, 0, 0]}>
-              <ringGeometry args={[0.14, 0.22, 16]} />
-              <meshStandardMaterial color="#94a3b8" metalness={0.95} />
-            </mesh>
-            <Box p={[-0.08, 0.12, 0]} s={[0.08, 0.08, 0.03]} c="#dc2626" metal={0.6} />
-          </group>
-        ))}
-      </group>
+    <group position={p} rotation={[0, rot, 0]} {...openBike}>
+      <PropDot position={[0, 1.9, 0]} kind="garage" arg="bike" />
+      {/* display plinth with paddock-stand strip */}
+      <Box p={[0, 0.06, 0]} s={[1.3, 0.12, 2.9]} c="#17171d" r={0.04} metal={0.4} />
+      <Box p={[0, 0.125, 0]} s={[1.1, 0.01, 0.05]} c="#06b6d4" emissive="#06b6d4" ei={1.5} shadow={false} />
+      <group position={[0, 0.12, 0]}><Superbike3D color="#d1121f" lightsOn /></group>
+      <mesh position={[0, 0.7, 0]} visible={false}><boxGeometry args={[1.0, 1.4, 2.4]} /></mesh>
     </group>
   );
 }
 
 // 4. Pro Bicycle Station (Road Racing Carbon Bike & Full-Suspension MTB on Rack)
 function ProBicycleStation({ p, rot = 0 }) {
-  const openBikeTools = useOpenProp('garage');
-
+  const openBikeTools = useOpenProp('garage', 'cycle');
   return (
-    <group position={p} rotation={[0, rot, 0]} {...openBikeTools} style={{ cursor: 'pointer' }}>
-      <PropDot position={[0, 1.4, 0]} kind="garage" />
-
-      {/* Pro Floor-Standing Anodized Aluminum Bike Parking Rack */}
-      <group position={[0, 0, 0]}>
-        <Box p={[0, 0.04, 0]} s={[1.4, 0.08, 0.85]} c="#334155" metal={0.85} />
-        {[-0.35, 0.35].map(bx => (
-          <group key={bx} position={[bx, 0, 0]}>
-            <Box p={[0, 0.26, -0.28]} s={[0.06, 0.48, 0.06]} c="#475569" metal={0.9} />
-            <Box p={[0, 0.26, 0.28]} s={[0.06, 0.48, 0.06]} c="#475569" metal={0.9} />
-            <Box p={[0, 0.48, 0]} s={[0.06, 0.06, 0.58]} c="#475569" metal={0.9} />
-          </group>
-        ))}
-      </group>
-
-      {/* ── BIKE 1: PRO CARBON AERO ROAD RACING BIKE (Electric Cyan) ── */}
-      <group position={[-0.35, 0, 0]}>
-        {/* Wheels: 60mm Deep-Dish Carbon Aero Rims with Skinny Road Tires */}
-        <group position={[-0.6, 0.34, 0]}>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.34, 0.34, 0.04, 24]} />
-            <meshStandardMaterial color="#09090b" roughness={0.9} />
-          </mesh>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <torusGeometry args={[0.26, 0.035, 8, 20]} />
-            <meshStandardMaterial color="#1e293b" metalness={0.8} />
-          </mesh>
+    <group position={p} rotation={[0, rot, 0]} {...openBikeTools}>
+      <PropDot position={[0, 1.8, 0]} kind="garage" arg="cycle" />
+      {/* anodised parking rack with two bikes on it */}
+      <Box p={[0, 0.04, 0]} s={[2.0, 0.08, 1.9]} c="#2b2d36" r={0.03} metal={0.6} />
+      {[-0.5, 0.5].map(x => (
+        <group key={x} position={[x, 0.08, 0]}>
+          <Box p={[0, 0.16, 0.5]} s={[0.05, 0.32, 0.05]} c="#8b93a1" metal={0.9} />
+          <Box p={[0, 0.3, 0.5]} s={[0.05, 0.04, 0.2]} c="#8b93a1" metal={0.9} />
         </group>
-        <group position={[0.6, 0.34, 0]}>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.34, 0.34, 0.04, 24]} />
-            <meshStandardMaterial color="#09090b" roughness={0.9} />
-          </mesh>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <torusGeometry args={[0.26, 0.035, 8, 20]} />
-            <meshStandardMaterial color="#1e293b" metalness={0.8} />
-          </mesh>
-        </group>
-
-        {/* Lightweight Diamond Aero Frame (Electric Cyan) */}
-        {/* Chainstay */}
-        <Box p={[-0.3, 0.34, 0]} s={[0.6, 0.03, 0.03]} c="#06b6d4" metal={0.7} />
-        {/* Seatstay */}
-        <mesh position={[-0.3, 0.52, 0]} rotation={[0, 0, -0.65]}>
-          <cylinderGeometry args={[0.015, 0.015, 0.45, 8]} />
-          <meshStandardMaterial color="#06b6d4" metalness={0.7} />
-        </mesh>
-        {/* Seat Tube */}
-        <mesh position={[0, 0.54, 0]} rotation={[0, 0, -0.25]}>
-          <cylinderGeometry args={[0.02, 0.02, 0.52, 8]} />
-          <meshStandardMaterial color="#06b6d4" metalness={0.7} />
-        </mesh>
-        {/* Downtube */}
-        <mesh position={[0.2, 0.5, 0]} rotation={[0, 0, 0.6]}>
-          <cylinderGeometry args={[0.025, 0.025, 0.65, 8]} />
-          <meshStandardMaterial color="#06b6d4" metalness={0.7} />
-        </mesh>
-        {/* Toptube */}
-        <Box p={[0.2, 0.72, 0]} s={[0.48, 0.035, 0.03]} c="#06b6d4" metal={0.7} />
-        {/* Front Fork */}
-        <mesh position={[0.52, 0.52, 0]} rotation={[0, 0, -0.28]}>
-          <cylinderGeometry args={[0.018, 0.018, 0.46, 8]} />
-          <meshStandardMaterial color="#06b6d4" metalness={0.7} />
-        </mesh>
-
-        {/* Aero Cutout Racing Saddle on Seatpost */}
-        <group position={[-0.04, 0.82, 0]}>
-          <mesh position={[0, -0.06, 0]}>
-            <cylinderGeometry args={[0.014, 0.014, 0.16, 6]} />
-            <meshStandardMaterial color="#09090b" />
-          </mesh>
-          <Box p={[0, 0, 0]} s={[0.24, 0.025, 0.1]} c="#18181b" r={0.02} roughness={0.8} />
-        </group>
-
-        {/* Drop Handlebars with Wrapped Black Tape & Dual STI Brake Hoods */}
-        <group position={[0.45, 0.76, 0]}>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.012, 0.012, 0.36, 8]} />
-            <meshStandardMaterial color="#09090b" roughness={0.8} />
-          </mesh>
-          {[-0.18, 0.18].map(dz => (
-            <mesh key={dz} position={[0.04, -0.05, dz]} rotation={[0.4, 0, 0]}>
-              <cylinderGeometry args={[0.01, 0.01, 0.12, 6]} />
-              <meshStandardMaterial color="#09090b" />
-            </mesh>
-          ))}
-        </group>
-
-        {/* Hollow Carbon Crankset & Clipless Pedals */}
-        <group position={[0, 0.34, 0]}>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.08, 0.08, 0.015, 12]} />
-            <meshStandardMaterial color="#475569" metalness={0.9} />
-          </mesh>
-          <Box p={[0.07, 0, 0.08]} s={[0.14, 0.02, 0.02]} c="#18181b" />
-        </group>
-      </group>
-
-      {/* ── BIKE 2: FULL-SUSPENSION ENDURO MOUNTAIN BIKE (Blaze Orange) ── */}
-      <group position={[0.35, 0, 0]}>
-        {/* Wheels: 29er Wide Trail Rims with Aggressive Knobby Tires */}
-        <group position={[-0.6, 0.35, 0]}>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.35, 0.35, 0.08, 22]} />
-            <meshStandardMaterial color="#09090b" roughness={0.95} />
-          </mesh>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.26, 0.26, 0.09, 14]} />
-            <meshStandardMaterial color="#18181b" metalness={0.8} />
-          </mesh>
-          {/* Disc Brake Rotor */}
-          <mesh position={[0, 0, 0.05]} rotation={[PI / 2, 0, 0]}>
-            <ringGeometry args={[0.09, 0.13, 14]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.95} />
-          </mesh>
-        </group>
-        <group position={[0.6, 0.35, 0]}>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.35, 0.35, 0.08, 22]} />
-            <meshStandardMaterial color="#09090b" roughness={0.95} />
-          </mesh>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.26, 0.26, 0.09, 14]} />
-            <meshStandardMaterial color="#18181b" metalness={0.8} />
-          </mesh>
-          <mesh position={[0, 0, -0.05]} rotation={[PI / 2, 0, 0]}>
-            <ringGeometry args={[0.09, 0.13, 14]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.95} />
-          </mesh>
-        </group>
-
-        {/* Sloping Enduro Geometry Frame (Blaze Orange & Matte Black) */}
-        <Box p={[-0.28, 0.35, 0]} s={[0.55, 0.04, 0.04]} c="#ea580c" metal={0.6} />
-        {/* Rear Air Shock Unit */}
-        <mesh position={[-0.1, 0.54, 0]} rotation={[0, 0, -0.45]}>
-          <cylinderGeometry args={[0.022, 0.022, 0.18, 10]} />
-          <meshStandardMaterial color="#b45309" metalness={0.9} />
-        </mesh>
-        {/* Main Frame Triangle */}
-        <mesh position={[0.18, 0.52, 0]} rotation={[0, 0, 0.58]}>
-          <cylinderGeometry args={[0.035, 0.035, 0.65, 8]} />
-          <meshStandardMaterial color="#ea580c" metalness={0.6} />
-        </mesh>
-        <Box p={[0.18, 0.7, 0]} s={[0.52, 0.04, 0.04]} c="#ea580c" metal={0.6} />
-
-        {/* Front Long-Travel Suspension Fork with Gold Kashima Stanchions */}
-        <group position={[0.54, 0.52, 0]} rotation={[0, 0, -0.36]}>
-          {[-0.05, 0.05].map(kz => (
-            <mesh key={kz} position={[0, 0, kz]}>
-              <cylinderGeometry args={[0.018, 0.018, 0.5, 10]} />
-              <meshStandardMaterial color="#eab308" metalness={0.9} roughness={0.15} />
-            </mesh>
-          ))}
-        </group>
-
-        {/* 780mm Wide Flat Riser Handlebars with Lock-on Grips */}
-        <group position={[0.46, 0.82, 0]}>
-          <mesh rotation={[PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.015, 0.015, 0.54, 8]} />
-            <meshStandardMaterial color="#09090b" metalness={0.7} />
-          </mesh>
-          {[-0.25, 0.25].map(mz => (
-            <mesh key={mz} position={[0, 0, mz]} rotation={[PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.024, 0.024, 0.09, 10]} />
-              <meshStandardMaterial color="#ea580c" roughness={0.9} />
-            </mesh>
-          ))}
-        </group>
-
-        {/* Reinforced Trail Saddle */}
-        <Box p={[-0.06, 0.8, 0]} s={[0.26, 0.04, 0.13]} c="#09090b" r={0.02} roughness={0.8} />
-      </group>
-
-      {/* Pro Floor Bicycle Pump Standing Nearby */}
-      <group position={[0.82, 0, -0.2]}>
-        <Box p={[0, 0.02, 0]} s={[0.26, 0.04, 0.14]} c="#1e293b" />
-        <mesh position={[0, 0.32, 0]}>
-          <cylinderGeometry args={[0.024, 0.024, 0.6, 10]} />
-          <meshStandardMaterial color="#e2e8f0" metalness={0.9} />
-        </mesh>
-        {/* Top Handle */}
-        <mesh position={[0, 0.63, 0]} rotation={[PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.016, 0.016, 0.22, 8]} />
-          <meshStandardMaterial color="#09090b" />
-        </mesh>
-        {/* Top-Mount Pressure Dial */}
-        <mesh position={[0, 0.48, 0.03]} rotation={[-0.3, 0, 0]}>
-          <cylinderGeometry args={[0.035, 0.035, 0.02, 12]} />
-          <meshStandardMaterial color="#f8fafc" />
-        </mesh>
-      </group>
+      ))}
+      <group position={[-0.5, 0.08, 0]}><Bicycle3D type="road" color="#1d4ed8" /></group>
+      <group position={[0.5, 0.08, 0]}><Bicycle3D type="mtb" color="#16a34a" /></group>
+      <mesh position={[0, 0.5, 0]} visible={false}><boxGeometry args={[1.9, 1.2, 1.9]} /></mesh>
     </group>
   );
 }
@@ -1468,7 +1080,7 @@ export function FrontYard() {
       <SportsSuperbike p={[8.2, 0, 6.2]} rot={-0.35} />
 
       {/* 4. TOP-MODEL FERRARI / LAMBORGHINI SUPERCAR (Right Driveway Bay) */}
-      <TopModelSupercar3D p={[13.0, 0, 8.8]} rot={-PI / 2 + 0.12} />
+      <TopModelSupercar3D p={[13.0, 0, 8.6]} rot={0} />
 
       {/* Modern Architectural Warm LED Wall Sconces for Radiant Illumination */}
       {[2.0, 6.8, 11.5, 16.0].map(wx => (
