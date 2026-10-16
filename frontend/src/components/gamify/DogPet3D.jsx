@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Html } from '@react-three/drei';
 import { useOpenProp } from './parts';
 import { dogState } from './dogState';
 
@@ -250,45 +249,6 @@ export default function DogPet3D({ pathCenter = [10.5, 0, 8.2], rx = 3.6, rz = 2
         </mesh>
       </group>
 
-      {/* Cute Interactive Name & Status Pill above Dog */}
-      <Html position={[0, 0.95, 0]} center distanceFactor={14} style={{ pointerEvents: 'none' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '3px 9px',
-            borderRadius: 99,
-            background: isDirty ? 'rgba(74, 42, 18, 0.88)' : 'rgba(18, 14, 34, 0.85)',
-            border: isDirty ? '1px solid rgba(255, 170, 80, 0.6)' : '1px solid rgba(255, 255, 255, 0.25)',
-            backdropFilter: 'blur(6px)',
-            color: '#fff',
-            fontSize: 11,
-            fontWeight: 800,
-            letterSpacing: '0.02em',
-            boxShadow: isDirty ? '0 4px 12px rgba(120, 60, 20, 0.5)' : '0 4px 12px rgba(0,0,0,0.4)',
-            whiteSpace: 'nowrap',
-            transform: 'scale(1)',
-            transition: 'all 0.3s ease',
-          }}
-        >
-          <span style={{ fontSize: 12 }}>{isDirty ? '🐾' : '🐶'}</span>
-          <span>{pet.name}</span>
-          <span
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              padding: '1px 5px',
-              borderRadius: 6,
-              background: isDirty ? '#f97316' : '#10b981',
-              color: '#fff',
-              marginLeft: 2,
-            }}
-          >
-            {isDirty ? 'Bath Me' : 'Clean'}
-          </span>
-        </div>
-      </Html>
     </group>
   );
 }
