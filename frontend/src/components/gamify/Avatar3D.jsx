@@ -1,10 +1,11 @@
-import { useRef, useMemo, useEffect, useContext } from 'react';
+import { memo, useRef, useMemo, useEffect, useContext } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Crown } from 'lucide-react';
 import Avatar from '../Avatar';
 import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D, CELL_D, FLOOR_Y, ALL_ZONES, zoneForPoint } from '../../data/gamifyZones';
 import { ScaledHtml, ViewContext } from './parts';
+import { EmoteBubble } from './emotes';
 
 const toWorld = (vx, vy) => ({ x: (vx / FLOORPLAN_WIDTH - 0.5) * WORLD_W, z: (vy / FLOORPLAN_HEIGHT - 0.5) * WORLD_D });
 const toVirtual = (wx, wz) => ({ x: (wx / WORLD_W + 0.5) * FLOORPLAN_WIDTH, y: (wz / WORLD_D + 0.5) * FLOORPLAN_HEIGHT });
@@ -20,7 +21,7 @@ const BOUND_Z_UP = -WORLD_D / 2 + 2 * CELL_D - 0.7;
 // inside the (possibly mirrored) scene root, so positions here are always in
 // the un-mirrored local space — a flipped view only changes how they render,
 // never what's sent over the socket (everyone shares the same virtual coords).
-export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zone, onMove, onDrop, dragLockRef }) {
+function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zone, emote, onMove, onDrop, dragLockRef }) {
   const group = useRef();
   const view = useContext(ViewContext);
   const { camera, gl } = useThree();
@@ -28,6 +29,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zo
   const zoneFloor = ALL_ZONES[zone]?.floor || 0;
   const floorRef = useRef(zoneFloor);
   const labelRef = useRef();
+  const shownRef = useRef(true);
   // Remote avatars follow the floor their zone is on; your own changes only when you take the stairs.
   if (!isOwn) floorRef.current = zoneFloor;
   const targetRef = useRef(toWorld(x, y));
@@ -59,7 +61,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zo
     const vw = view.current;
     const shown = floorRef.current === (vw.floor || 0) || vw.cur < 0.8;
     if (g.visible !== shown) g.visible = shown;
-    if (labelRef.current) labelRef.current.style.display = shown ? 'flex' : 'none';
+    if (labelRef.current && shownRef.current !== shown) { shownRef.current = shown; labelRef.current.style.display = shown ? 'flex' : 'none'; }
     const t = targetRef.current;
     // Frame-rate independent glide; a bit slower while the camera is gliding through a door so the walk is visible.
     const k = 1 - Math.exp(-dt * (draggingRef.current ? 48 : view.current.glide ? 6 : 13.4));
@@ -149,6 +151,8 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zo
             cursor: isOwn ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', pointerEvents: 'auto',
           }}
         >
+          <div style={{ position: 'relative' }}>
+          {emote && <EmoteBubble key={emote.n} id={emote.id} />}
           <Avatar
             avatarPath={avatarPath}
             username={username}
@@ -158,6 +162,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zo
               boxShadow: isOwn ? '0 0 0 3px rgba(139,92,255,0.7), 0 6px 14px rgba(0,0,0,0.5)' : '0 6px 14px rgba(0,0,0,0.5)',
             }}
           />
+          </div>
           <span className="stay-white" style={{
             display: 'flex', alignItems: 'center', gap: 3, padding: '2px 9px', borderRadius: 99,
             background: 'rgba(12,10,24,0.72)', backdropFilter: 'blur(4px)', color: '#fff', fontSize: 11, fontWeight: 700,
@@ -171,3 +176,6 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zo
     </group>
   );
 }
+
+// Only re-render when something about this person actually changed.
+export default memo(Avatar3D);

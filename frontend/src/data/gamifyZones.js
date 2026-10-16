@@ -167,6 +167,11 @@ export const worldToVirtual = (wx, wz) => ({
   y: (wz / WORLD_D + 0.5) * FLOORPLAN_HEIGHT,
 });
 
+export const virtualToWorld = (vx, vy) => ({
+  x: (vx / FLOORPLAN_WIDTH - 0.5) * WORLD_W,
+  z: (vy / FLOORPLAN_HEIGHT - 0.5) * WORLD_D,
+});
+
 // Open floor in the living room, in front of the TV area — where an avatar
 // with no known position (brand-new join) is shown by default.
 const hall = FLOORPLAN_ZONES.hall;

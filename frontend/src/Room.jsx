@@ -1422,6 +1422,7 @@ const Room = () => {
   const [visitCode, setVisitCode] = useState('');
   const [gamifyMode, setGamifyMode] = useState(false);
   const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
+  const [avatarEmotes, setAvatarEmotes] = useState({}); // socketId -> {id, n}: the latest quick reaction
   // Warm things Gamify Mode needs once the room has settled: book covers (images and
   // lookups) and the 3D house code, so toggling it on feels instant. Idle-time only.
   useEffect(() => {
@@ -4829,7 +4830,11 @@ const Room = () => {
     // ── Gamify Mode ──
     sock.on('gamify_mode_changed', ({ enabled }) => {
       setGamifyMode(!!enabled);
-      if (!enabled) setAvatarPositions({}); // mirrors the server clearing roomAvatarPositions on turn-off
+      if (!enabled) { setAvatarPositions({}); setAvatarEmotes({}); } // mirrors the server clearing roomAvatarPositions on turn-off
+    });
+    sock.on('avatar_emoted', ({ socketId, emote }) => {
+      if (typeof socketId !== 'string' || typeof emote !== 'string') return;
+      setAvatarEmotes(prev => ({ ...prev, [socketId]: { id: emote, n: Date.now() } }));
     });
     sock.on('avatar_moved', ({ socketId, x, y, zone }) => {
       // Stored as-is; Avatar3D glides toward it every frame, so no
@@ -12339,6 +12344,8 @@ const Room = () => {
                 userList={userList}
                 mySocketId={socket?.id}
                 avatarPositions={avatarPositions}
+                emotes={avatarEmotes}
+                onEmote={(emote) => socket?.emit('avatar_emote', { roomId, emote })}
                 knownAvatars={knownAvatars}
                 hostId={hostId}
                 onMove={(x, y, zone) => socket?.emit('avatar_move', { roomId, x, y, zone })}

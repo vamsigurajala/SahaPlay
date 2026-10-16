@@ -1,4 +1,4 @@
-import { useMemo, useRef, useContext, useState } from 'react';
+import { memo, useMemo, useRef, useContext, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { DoorOpen, LogOut, Shirt, ArrowUp, ArrowDown } from 'lucide-react';
@@ -155,6 +155,7 @@ function RoomSign({ z }) {
 function DoorChip({ link, onGo }) {
   const view = useContext(ViewContext);
   const ref = useRef();
+  const last = useRef(null);
   const dest = ALL_ZONES[link.to];
   const stairs = !!link.dir;
   const base = (ALL_ZONES[link.from].floor || 0) * FLOOR_Y;
@@ -162,6 +163,8 @@ function DoorChip({ link, onGo }) {
     const el = ref.current;
     if (!el) return;
     const on = !getHideLabels() && view.current.focus === link.from && (view.current.alwaysDots || view.current.uiVisible !== false);
+    if (last.current === on) return; // only touch the DOM when something changed
+    last.current = on;
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });
@@ -265,7 +268,7 @@ function LightPool({ lights, neon }) {
   );
 }
 
-export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, weather = 'night' }) {
+function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, weather = 'night' }) {
   const wx = WEATHER[weather];
   const textures = useMemo(() => ({
     hall: canvasTexture(512, (g, n) => {
@@ -482,3 +485,6 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
     </FocusContext.Provider>
   );
 }
+
+// The scene only needs to re-render when its own props change, not on every UI tick.
+export default memo(GamifyScene);

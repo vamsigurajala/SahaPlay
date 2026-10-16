@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle } from 'lucide-react';
 import { useHideLabels, toggleHideLabels } from './labelPrefs';
 import { ALL_ZONES, COLS } from '../../data/gamifyZones';
 import { ZONES_BY_FLOOR } from './GamifyRig';
@@ -30,12 +30,19 @@ export default function GamifyControls({
   onResetView,
   onZoomIn,
   onZoomOut,
+  panel,
+  onPanel,
+  peopleCount = 0,
+  smooth,
+  onToggleSmooth,
+  onTour,
 }) {
   const [rightOpen, setRightOpen] = useState(true);
   const hideLabels = useHideLabels();
   const [leftOpen, setLeftOpen] = useState(true);
 
   const btn = {
+    flex: 'none',
     width: 34,
     height: 34,
     borderRadius: 9,
@@ -274,11 +281,12 @@ export default function GamifyControls({
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
-            maxHeight: rightOpen ? 320 : 0,
+            maxHeight: rightOpen ? 'min(440px, calc(100vh - 170px))' : 0,
+            overflowY: 'auto',
+            scrollbarWidth: 'none',
             opacity: rightOpen ? 1 : 0,
             transform: rightOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(24px)',
             transformOrigin: 'bottom center',
-            overflow: 'hidden',
             transition: 'max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
             pointerEvents: rightOpen ? 'auto' : 'none',
           }}
@@ -308,7 +316,38 @@ export default function GamifyControls({
           >
             {hideLabels ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
-          <button className="stay-white" onClick={onResetView} title="Back to my room" style={btn}>
+          <button
+            className="stay-white"
+            onClick={() => onPanel('people')}
+            aria-pressed={panel === 'people'}
+            title="Who is where"
+            style={{ ...btn, position: 'relative', flex: 'none', background: panel === 'people' ? 'rgba(139,92,255,0.75)' : btn.background }}
+          >
+            <Users size={16} />
+            {peopleCount > 1 && <span style={{ position: 'absolute', top: 1, right: 1, minWidth: 14, height: 14, borderRadius: 8, background: '#8b5cff', fontSize: 9, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>{peopleCount}</span>}
+          </button>
+          <button
+            className="stay-white"
+            onClick={() => onPanel('emote')}
+            aria-pressed={panel === 'emote'}
+            title="Send a reaction"
+            style={{ ...btn, flex: 'none', background: panel === 'emote' ? 'rgba(139,92,255,0.75)' : btn.background }}
+          >
+            <SmilePlus size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={onToggleSmooth}
+            aria-pressed={smooth}
+            title={smooth ? 'Smooth mode is on (lighter graphics). Tap to go back to automatic.' : 'Smooth mode: lighter graphics for slower devices'}
+            style={{ ...btn, flex: 'none', background: smooth ? 'rgba(34,197,94,0.75)' : btn.background }}
+          >
+            <Gauge size={16} />
+          </button>
+          <button className="stay-white" onClick={onTour} title="How this works" style={{ ...btn, flex: 'none' }}>
+            <HelpCircle size={16} />
+          </button>
+          <button className="stay-white" onClick={onResetView} title="Back to my room" style={{ ...btn, flex: 'none' }}>
             <Maximize2 size={16} />
           </button>
           <button className="stay-white" onClick={onZoomIn} title="Zoom in" style={btn}>

@@ -8453,6 +8453,10 @@ function checkChatRate(socketId) {
 // across all connections, same as mediaControlBuckets below — not a fresh,
 // throwaway Map allocated per socket connection.
 const avatarMoveBuckets = new Map(); // socketId -> { count, resetAt }
+// Quick reactions (wave, heart, ...): one every 700ms per socket is plenty. Keep the list in
+// sync with EMOTE_IDS in frontend/src/data/gamifyEmotes.js.
+const AVATAR_EMOTES = ['wave', 'heart', 'laugh', 'thumbs', 'party', 'cheers'];
+const avatarEmoteLast = new Map(); // socketId -> last accepted time
 function checkAvatarMoveRate(socketId) {
   const now = Date.now();
   let b = avatarMoveBuckets.get(socketId);
@@ -8774,6 +8778,7 @@ io.on('connection', (socket) => {
     chatRateBuckets.delete(socket.id);
     mediaControlBuckets.delete(socket.id);
     avatarMoveBuckets.delete(socket.id);
+    avatarEmoteLast.delete(socket.id);
     joinRateBuckets.delete(socket.id);
     lastTypingTime.delete(socket.id);
 
@@ -10877,6 +10882,22 @@ io.on('connection', (socket) => {
       socket.to(roomId).emit('avatar_moved', { socketId: socket.id, x, y, zone });
     } catch (err) {
       console.error('[SOCKET] avatar_move error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  socket.on('avatar_emote', ({ roomId: rawRoomId, emote }) => {
+    try {
+      const roomId = typeof rawRoomId === 'string' ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId) || !rooms.get(roomId).gamifyMode) return;
+      if (!AVATAR_EMOTES.includes(emote)) return;
+      // only people actually in the room may react in it
+      if (!socket.rooms.has(roomId)) return;
+      const now = Date.now();
+      if (now - (avatarEmoteLast.get(socket.id) || 0) < 700) return;
+      avatarEmoteLast.set(socket.id, now);
+      socket.to(roomId).emit('avatar_emoted', { socketId: socket.id, emote });
+    } catch (err) {
+      console.error('[SOCKET] avatar_emote error:', err.message, 'user:', socket.username);
     }
   });
 

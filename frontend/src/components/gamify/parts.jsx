@@ -362,11 +362,14 @@ function ensureDotCss() {
 function PropDotInner({ position, kind, arg, onClick }) {
   const view = useContext(ViewContext);
   const ref = useRef();
+  const last = useRef(null);
   ensureDotCss();
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
     const on = !getHideLabels() && (view.current.alwaysDots || view.current.uiVisible !== false) && !view.current.out;
+    if (last.current === on) return; // only touch the DOM when something changed
+    last.current = on;
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });
@@ -647,10 +650,13 @@ export function Sofa({ p, rot = 0, w = 3.6, c = '#5a4bb5', back = '#4a3c9e' }) {
 export function HotChip({ position, zone, label, icon, onClick }) {
   const view = useContext(ViewContext);
   const ref = useRef();
+  const last = useRef(null);
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
     const on = !getHideLabels() && view.current.focus === zone && (view.current.alwaysDots || view.current.uiVisible !== false);
+    if (last.current === on) return; // only touch the DOM when something changed
+    last.current = on;
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });

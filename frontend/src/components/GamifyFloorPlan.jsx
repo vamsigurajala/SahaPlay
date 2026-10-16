@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { Gamepad2 } from 'lucide-react';
@@ -6,7 +6,7 @@ import GamifyScene from './gamify/GamifyScene';
 const PropViewer = React.lazy(() => import('./gamify/PropViewers'));
 import Avatar3D from './gamify/Avatar3D';
 import { ViewContext } from './gamify/parts';
-import { DEFAULT_SPAWN, ALL_ZONES, STAIR_LINKS, FLOOR_Y } from '../data/gamifyZones';
+import { DEFAULT_SPAWN, ALL_ZONES, STAIR_LINKS, FLOOR_Y, virtualToWorld } from '../data/gamifyZones';
 import { SkyBackdrop, WEATHER, autoWeather, fetchLiveWeather } from './gamify/environment';
 import { stopRadio } from './gamify/radioPlayer';
 import { stopCalm } from './gamify/calmMusic';
@@ -15,9 +15,13 @@ import GamifyRig, { MIN_ZOOM, MAX_ZOOM, clamp } from './gamify/GamifyRig';
 import MirrorRoot from './gamify/GamifyMirror';
 import TvProjector from './gamify/GamifyTvProjector';
 import GamifyControls from './gamify/GamifyControls';
+import GamifyTour, { tourSeen } from './gamify/GamifyTour';
+import GamifyPeople from './gamify/GamifyPeople';
+import EmotePicker from './gamify/EmotePicker';
 
 const FLIP_KEY = 'sp_gamify_flip';
 const WEATHER_KEY = 'sp_gamify_weather';
+const SMOOTH_KEY = 'sp_gamify_smooth';
 
 class WebGLBoundary extends React.Component {
   state = { failed: false };
@@ -48,7 +52,7 @@ const roomCenterTarget = (id, flip) => {
 // Gamify Mode is on (loaded lazily — three.js is the heaviest dependency in
 // the app and only matters to people who turn this on). One room fills the
 // screen at a time; drag to roam to the next, or use a door / the room map.
-export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions, knownAvatars, hostId, onMove, onExitHouse, tvElementRef, onTvReady }) {
+export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions, knownAvatars, hostId, emotes, onMove, onEmote, onExitHouse, tvElementRef, onTvReady }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
   const myZoneRef = useRef(avatarPositions?.[mySocketId]?.zone || DEFAULT_SPAWN.zone);
@@ -92,7 +96,15 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   // Phones/tablets: lighter render settings from the start, and PerformanceMonitor
   // drops further (no shadows, 1x pixels) if the frame rate is still poor.
   const coarse = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
-  const [lowQ, setLowQ] = useState(false);
+  const [autoLow, setAutoLow] = useState(false);
+  // Smooth mode: the person asked for lighter graphics. Otherwise it is automatic.
+  const [smooth, setSmooth] = useState(() => { try { return localStorage.getItem(SMOOTH_KEY) === '1'; } catch { return false; } });
+  const lowQ = smooth || autoLow;
+  const toggleSmooth = () => setSmooth(prev => { const next = !prev; try { localStorage.setItem(SMOOTH_KEY, next ? '1' : '0'); } catch { /* ignore */ } return next; });
+  const [panel, setPanel] = useState(null); // 'people' | 'emote' | null
+  const togglePanel = (name) => setPanel(p => (p === name ? null : name));
+  const [tourOpen, setTourOpen] = useState(false);
+  const [ownEmote, setOwnEmote] = useState(null);
 
   // Sync alwaysDots to viewRef
   useEffect(() => {
@@ -276,6 +288,54 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     try { localStorage.setItem(FLIP_KEY, next ? '1' : '0'); } catch { /* private mode etc. */ }
   };
 
+  // Walk over to someone: bring the camera to their room and stand beside them.
+  const goToPerson = (person) => {
+    const pos = avatarPositions?.[person.socketId];
+    if (!pos) return;
+    const w = virtualToWorld(pos.x, pos.y);
+    const f = ALL_ZONES[pos.zone]?.floor || 0;
+    const myFloor = ALL_ZONES[myZoneRef.current]?.floor || 0;
+    focusRoom(pos.zone);
+    viewRef.current.walk = { x: w.x + 1.1, z: w.z + 0.7, floor: f, snap: f !== myFloor };
+    setPanel(null);
+  };
+  const sendEmote = (id) => {
+    setOwnEmote({ id, n: Date.now() });
+    if (onEmote) onEmote(id);
+    setPanel(null);
+  };
+
+  // People for the "who is where" panel.
+  const people = useMemo(() => userList.map(u => ({
+    socketId: u.socketId,
+    username: u.username,
+    avatarPath: knownAvatars?.[u.username] || u.avatarPath,
+    isHost: u.isHost || u.socketId === hostId,
+    own: u.socketId === mySocketId,
+    zone: u.socketId === mySocketId ? myZone : (avatarPositions?.[u.socketId]?.zone || DEFAULT_SPAWN.zone),
+  })), [userList, knownAvatars, hostId, mySocketId, myZone, avatarPositions]);
+
+  // The first visit gets a short tour once the house has appeared.
+  useEffect(() => {
+    if (!ready || tourSeen()) return undefined;
+    const t = setTimeout(() => setTourOpen(true), 1200);
+    return () => clearTimeout(t);
+  }, [ready]);
+
+  // The scene is memoised, so it is given callbacks that never change identity.
+  const goRef = useRef(null);
+  const exitRef = useRef(null);
+  goRef.current = goThroughDoor;
+  exitRef.current = onExitHouse;
+  const stableGo = useCallback((link) => goRef.current?.(link), []);
+  const stableExit = useCallback(() => exitRef.current?.(), []);
+  const moveRef = useRef(null);
+  const dropRef = useRef(null);
+  moveRef.current = handleMove;
+  dropRef.current = handleDrop;
+  const stableMove = useCallback((x, y, zone) => moveRef.current?.(x, y, zone), []);
+  const stableDrop = useCallback((zone) => dropRef.current?.(zone), []);
+
   const counts = useMemo(() => {
     const c = {};
     // Your own moves are not echoed back through avatarPositions, so use the live local zone for you.
@@ -294,15 +354,17 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
           orthographic
           shadows={!lowQ}
           dpr={lowQ ? 1 : [1, coarse ? 1.25 : 1.5]}
+          // A full-screen viewer (a game, a shop) covers the house, so stop drawing it behind.
+          frameloop={viewer ? 'never' : 'always'}
           camera={{ position: [18, 15.5, 18], zoom: 30, near: -120, far: 320 }}
-          gl={{ antialias: true, alpha: true }}
+          gl={{ antialias: !coarse, alpha: true, powerPreference: 'high-performance' }}
           style={{ position: 'absolute', inset: 0 }}
         >
           <ViewContext.Provider value={viewRef}>
-            <PerformanceMonitor onDecline={() => setLowQ(true)} flipflops={2} />
+            <PerformanceMonitor onDecline={() => setAutoLow(true)} flipflops={2} />
             <GamifyRig viewRef={viewRef} dragLockRef={dragLockRef} onFocusChange={setFocus} onOutChange={setZoomedOut} onInChange={setZoomedIn} onReady={() => setReady(true)} />
             <MirrorRoot>
-              <GamifyScene onGoToRoom={goThroughDoor} onExitHouse={onExitHouse} focus={ready ? focus : null} zoomedOut={ready && zoomedOut} lowQ={lowQ} coarse={coarse} weather={weather} />
+              <GamifyScene onGoToRoom={stableGo} onExitHouse={stableExit} focus={ready ? focus : null} zoomedOut={ready && zoomedOut} lowQ={lowQ} coarse={coarse} weather={weather} />
               {ready && userList.map(user => {
                 const pos = avatarPositions?.[user.socketId] || DEFAULT_SPAWN;
                 const own = user.socketId === mySocketId;
@@ -316,8 +378,9 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
                     x={pos.x}
                     y={pos.y}
                     zone={own ? myZone : pos.zone}
-                    onMove={own ? handleMove : undefined}
-                    onDrop={own ? handleDrop : undefined}
+                    emote={own ? ownEmote : emotes?.[user.socketId]}
+                    onMove={own ? stableMove : undefined}
+                    onDrop={own ? stableDrop : undefined}
                     dragLockRef={dragLockRef}
                   />
                 );
@@ -354,7 +417,16 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         onResetView={resetView}
         onZoomIn={() => zoomBy(1.3)}
         onZoomOut={() => zoomBy(1 / 1.3)}
+        panel={panel}
+        onPanel={togglePanel}
+        peopleCount={userList.length}
+        smooth={smooth}
+        onToggleSmooth={toggleSmooth}
+        onTour={() => { setPanel(null); setTourOpen(true); }}
       />
+      {panel === 'people' && <GamifyPeople people={people} onGo={goToPerson} onClose={() => setPanel(null)} />}
+      {panel === 'emote' && <EmotePicker onPick={sendEmote} />}
+      <GamifyTour open={tourOpen} onClose={() => setTourOpen(false)} />
 
       {viewer && (
         <React.Suspense fallback={null}>
