@@ -33,6 +33,8 @@ import SubtitleSettingsModal from './components/SubtitleSettingsModal';
 // app, which only matters to people who actually turn Gamify Mode on — it must
 // never add to the cost of just opening a room. preloadGamify() is also kicked
 // off when the toggle button is hovered so the first click is near-instant.
+import { registerCalmShare, receiveInvite } from './components/gamify/calmMusic';
+import { registerDailySender, setDailyBoard } from './components/gamify/dailyGame';
 const gamifyChunk = () => import('./components/GamifyFloorPlan');
 const GamifyFloorPlan = React.lazy(gamifyChunk);
 const preloadGamify = () => { gamifyChunk(); };
@@ -1423,6 +1425,13 @@ const Room = () => {
   const [gamifyMode, setGamifyMode] = useState(false);
   const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
   const [avatarEmotes, setAvatarEmotes] = useState({}); // socketId -> {id, n}: the latest quick reaction
+  // While the house is open, "listen together" and the game-of-the-day scores go out over the room's socket.
+  useEffect(() => {
+    if (!socket || !gamifyMode) return undefined;
+    registerCalmShare(({ desc, title, by }) => socket.emit('calm_share', { roomId, desc, title, by }));
+    registerDailySender((m) => (m.type === 'score' ? socket.emit('daily_score', { roomId, game: m.game, score: m.score }) : socket.emit('daily_board_request', { roomId })));
+    return () => { registerCalmShare(null); registerDailySender(null); };
+  }, [socket, roomId, gamifyMode]);
   // Warm things Gamify Mode needs once the room has settled: book covers (images and
   // lookups) and the 3D house code, so toggling it on feels instant. Idle-time only.
   useEffect(() => {
@@ -4832,6 +4841,8 @@ const Room = () => {
       setGamifyMode(!!enabled);
       if (!enabled) { setAvatarPositions({}); setAvatarEmotes({}); } // mirrors the server clearing roomAvatarPositions on turn-off
     });
+    sock.on('calm_shared', ({ from, desc, title, by }) => receiveInvite(from, desc, title, by));
+    sock.on('daily_board', (payload) => setDailyBoard(payload));
     sock.on('avatar_emoted', ({ socketId, emote }) => {
       if (typeof socketId !== 'string' || typeof emote !== 'string') return;
       setAvatarEmotes(prev => ({ ...prev, [socketId]: { id: emote, n: Date.now() } }));

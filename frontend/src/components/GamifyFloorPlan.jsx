@@ -10,6 +10,11 @@ import { DEFAULT_SPAWN, ALL_ZONES, STAIR_LINKS, FLOOR_Y, virtualToWorld } from '
 import { SkyBackdrop, WEATHER, autoWeather, fetchLiveWeather } from './gamify/environment';
 import { stopRadio } from './gamify/radioPlayer';
 import { stopCalm } from './gamify/calmMusic';
+import { setAmbienceZone, stopAmbience, resumeAmbience } from './gamify/ambience';
+import QuickAccess from './gamify/QuickAccess';
+import AmbiencePanel from './gamify/AmbiencePanel';
+import DailyPanel from './gamify/DailyPanel';
+import { gameOfTheDay } from './gamify/dailyGame';
 import CalmMusicDock from './gamify/CalmMusicDock';
 import GamifyRig, { MIN_ZOOM, MAX_ZOOM, clamp } from './gamify/GamifyRig';
 import MirrorRoot from './gamify/GamifyMirror';
@@ -22,6 +27,7 @@ import EmotePicker from './gamify/EmotePicker';
 const FLIP_KEY = 'sp_gamify_flip';
 const WEATHER_KEY = 'sp_gamify_weather';
 const SMOOTH_KEY = 'sp_gamify_smooth';
+const LAST_ZONE_KEY = 'sp_gamify_last_zone';
 
 class WebGLBoundary extends React.Component {
   state = { failed: false };
@@ -63,7 +69,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     viewRef.current = { uiVisible: true, alwaysDots: false, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, floor: floor0, py: floor0 * FLOOR_Y, flip, focus: myZoneRef.current, doors: {}, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
   }
   const dragLockRef = useRef(false);
-  useEffect(() => () => { stopRadio(); stopCalm(); }, []); // the radio and the calm music only play while you are in the house
+  useEffect(() => () => { stopRadio(); stopCalm(); stopAmbience(); }, []); // the radio and the calm music only play while you are in the house
   const [flipped, setFlipped] = useState(() => viewRef.current.flip);
   const [focus, setFocus] = useState(() => viewRef.current.focus);
   const [zoomedOut, setZoomedOut] = useState(false);
@@ -105,6 +111,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const togglePanel = (name) => setPanel(p => (p === name ? null : name));
   const [tourOpen, setTourOpen] = useState(false);
   const [ownEmote, setOwnEmote] = useState(null);
+  const myName = userList.find(u => u.socketId === mySocketId)?.username;
 
   // Sync alwaysDots to viewRef
   useEffect(() => {
@@ -257,7 +264,10 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     }
   };
   const handleMove = (x, y, zone) => {
-    if (zone !== myZoneRef.current) { myZoneRef.current = zone; setMyZone(zone); } // keeps the room map's head-count live
+    if (zone !== myZoneRef.current) {
+      myZoneRef.current = zone; setMyZone(zone); // keeps the room map's head-count live
+      try { localStorage.setItem(LAST_ZONE_KEY, zone); } catch { /* ignore */ }
+    }
     if (onMove) onMove(x, y, zone);
   };
   // Dropping your avatar into another room brings the camera along.
@@ -321,6 +331,22 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     const t = setTimeout(() => setTourOpen(true), 1200);
     return () => clearTimeout(t);
   }, [ready]);
+
+  // Come back to the room you were last in (only when the house has no position for you yet).
+  useEffect(() => {
+    if (!ready) return;
+    resumeAmbience();
+    let saved = null;
+    try { saved = localStorage.getItem(LAST_ZONE_KEY); } catch { /* ignore */ }
+    if (!saved || !ALL_ZONES[saved] || avatarPositions?.[mySocketId] || saved === myZoneRef.current) return;
+    const c = ALL_ZONES[saved].center;
+    const f = ALL_ZONES[saved].floor || 0;
+    focusRoom(saved);
+    viewRef.current.walk = { x: c.x, z: c.z, floor: f, snap: true };
+  }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Room sounds follow the room the camera is in.
+  useEffect(() => { setAmbienceZone(focus); }, [focus]);
 
   // The scene is memoised, so it is given callbacks that never change identity.
   const goRef = useRef(null);
@@ -426,6 +452,9 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       />
       {panel === 'people' && <GamifyPeople people={people} onGo={goToPerson} onClose={() => setPanel(null)} />}
       {panel === 'emote' && <EmotePicker onPick={sendEmote} />}
+      {panel === 'sound' && <AmbiencePanel onClose={() => setPanel(null)} />}
+      {panel === 'daily' && <DailyPanel me={myName} onPlay={() => { setPanel(null); viewRef.current.openProp?.('game', gameOfTheDay()); }} onClose={() => setPanel(null)} />}
+      <QuickAccess onOpen={(kind, arg) => viewRef.current.openProp?.(kind, arg)} onDaily={() => togglePanel('daily')} dailyOpen={panel === 'daily'} />
       <GamifyTour open={tourOpen} onClose={() => setTourOpen(false)} />
 
       {viewer && (

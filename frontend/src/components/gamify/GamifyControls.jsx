@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX } from 'lucide-react';
+import { useAmbience } from './ambience';
 import { useHideLabels, toggleHideLabels } from './labelPrefs';
 import { ALL_ZONES, COLS } from '../../data/gamifyZones';
 import { ZONES_BY_FLOOR } from './GamifyRig';
@@ -39,6 +40,7 @@ export default function GamifyControls({
 }) {
   const [rightOpen, setRightOpen] = useState(true);
   const hideLabels = useHideLabels();
+  const sound = useAmbience();
   const [leftOpen, setLeftOpen] = useState(true);
 
   const btn = {
@@ -334,6 +336,15 @@ export default function GamifyControls({
             style={{ ...btn, flex: 'none', background: panel === 'emote' ? 'rgba(139,92,255,0.75)' : btn.background }}
           >
             <SmilePlus size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={() => onPanel('sound')}
+            aria-pressed={panel === 'sound'}
+            title="Room sounds"
+            style={{ ...btn, background: panel === 'sound' ? 'rgba(139,92,255,0.75)' : sound.on ? 'rgba(34,197,94,0.6)' : btn.background }}
+          >
+            {sound.on ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
           <button
             className="stay-white"

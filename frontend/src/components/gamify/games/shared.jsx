@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, RotateCcw, Trophy } from 'lucide-react';
+import { reportScore } from '../dailyGame';
 
 // Shared pieces for the Game Room games: best-score storage, the frame every game
 // sits in, a requestAnimationFrame loop, canvas scaling and touch/keyboard input.
@@ -15,6 +16,7 @@ export function getBest(id) {
 export function useBest(id, lowerIsBetter = false) {
   const [best, setBest] = useState(() => getBest(id));
   const submit = useCallback((score) => {
+    if (!lowerIsBetter) reportScore(id, score); // feeds the game-of-the-day board
     setBest((b) => {
       const better = lowerIsBetter ? (b === 0 || score < b) : score > b;
       if (!better) return b;

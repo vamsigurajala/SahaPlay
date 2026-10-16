@@ -8457,6 +8457,43 @@ const avatarMoveBuckets = new Map(); // socketId -> { count, resetAt }
 // sync with EMOTE_IDS in frontend/src/data/gamifyEmotes.js.
 const AVATAR_EMOTES = ['wave', 'heart', 'laugh', 'thumbs', 'party', 'cheers'];
 const avatarEmoteLast = new Map(); // socketId -> last accepted time
+
+// Gamify: "listen together" invites and the game-of-the-day board. Only ids and short text
+// are accepted and relayed, never a URL. Keep DAILY_GAMES and the day maths in step with
+// frontend/src/components/gamify/dailyGame.js.
+const DAILY_GAMES = ['snake', 'breakout', 'tetris', 'invaders', 'flappy', 'g2048', 'whack'];
+const dailyDayNumber = () => Math.floor(Date.now() / 86400000);
+const dailyGameToday = () => DAILY_GAMES[dailyDayNumber() % DAILY_GAMES.length];
+const dailyDateKey = () => new Date(dailyDayNumber() * 86400000).toISOString().slice(0, 10);
+const roomDailyScores = new Map(); // roomId -> { day, scores: Map(username -> best) }
+const gamifyShareLast = new Map(); // socketId -> last calm_share time
+const gamifyScoreLast = new Map(); // socketId -> last daily_score time
+const YT_ID_RE = /^[A-Za-z0-9_-]{11}$/;
+const YT_LIST_RE = /^[A-Za-z0-9_-]{10,60}$/;
+const SP_ID_RE = /^[A-Za-z0-9]{22}$/;
+const SP_TYPES = ['track', 'album', 'playlist', 'artist', 'episode', 'show'];
+function cleanShareDesc(d) {
+  if (!d || typeof d !== 'object') return null;
+  if (d.provider === 'youtube') {
+    const out = { provider: 'youtube' };
+    if (typeof d.video === 'string' && YT_ID_RE.test(d.video)) out.video = d.video;
+    if (typeof d.list === 'string' && YT_LIST_RE.test(d.list)) out.list = d.list;
+    if (Array.isArray(d.ids)) out.ids = d.ids.filter(x => typeof x === 'string' && YT_ID_RE.test(x)).slice(0, 12);
+    return (out.video || out.list || (out.ids && out.ids.length)) ? out : null;
+  }
+  if (d.provider === 'spotify') {
+    return (SP_TYPES.includes(d.type) && typeof d.id === 'string' && SP_ID_RE.test(d.id)) ? { provider: 'spotify', type: d.type, id: d.id } : null;
+  }
+  return null;
+}
+const cleanShareText = (t) => (typeof t === 'string' ? t.split('').map(ch => (ch.charCodeAt(0) < 32 ? ' ' : ch)).join('').trim().slice(0, 80) : '');
+function dailyBoardFor(roomId) {
+  let r = roomDailyScores.get(roomId);
+  if (!r || r.day !== dailyDayNumber()) { r = { day: dailyDayNumber(), scores: new Map() }; roomDailyScores.set(roomId, r); }
+  if (roomDailyScores.size > 2000) roomDailyScores.delete(roomDailyScores.keys().next().value);
+  const board = Array.from(r.scores.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, score]) => ({ name, score }));
+  return { date: dailyDateKey(), game: dailyGameToday(), board };
+}
 function checkAvatarMoveRate(socketId) {
   const now = Date.now();
   let b = avatarMoveBuckets.get(socketId);
@@ -8779,6 +8816,8 @@ io.on('connection', (socket) => {
     mediaControlBuckets.delete(socket.id);
     avatarMoveBuckets.delete(socket.id);
     avatarEmoteLast.delete(socket.id);
+    gamifyShareLast.delete(socket.id);
+    gamifyScoreLast.delete(socket.id);
     joinRateBuckets.delete(socket.id);
     lastTypingTime.delete(socket.id);
 
@@ -10898,6 +10937,53 @@ io.on('connection', (socket) => {
       socket.to(roomId).emit('avatar_emoted', { socketId: socket.id, emote });
     } catch (err) {
       console.error('[SOCKET] avatar_emote error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  // Someone offers to listen to their song together; the others decide whether to join.
+  socket.on('calm_share', ({ roomId: rawRoomId, desc, title, by } = {}) => {
+    try {
+      const roomId = typeof rawRoomId === 'string' ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId) || !rooms.get(roomId).gamifyMode || !socket.rooms.has(roomId)) return;
+      const now = Date.now();
+      if (now - (gamifyShareLast.get(socket.id) || 0) < 3000) return;
+      const clean = cleanShareDesc(desc);
+      if (!clean) return;
+      gamifyShareLast.set(socket.id, now);
+      socket.to(roomId).emit('calm_shared', { from: cleanShareText(socket.username) || 'Someone', desc: clean, title: cleanShareText(title), by: cleanShareText(by) });
+    } catch (err) {
+      console.error('[SOCKET] calm_share error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  // Game of the day: a score for today's game, then the room's board goes to everyone in it.
+  socket.on('daily_score', ({ roomId: rawRoomId, game, score } = {}) => {
+    try {
+      const roomId = typeof rawRoomId === 'string' ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId) || !socket.rooms.has(roomId)) return;
+      if (game !== dailyGameToday()) return;
+      if (typeof score !== 'number' || !Number.isFinite(score) || score <= 0 || score > 10000000) return;
+      const now = Date.now();
+      if (now - (gamifyScoreLast.get(socket.id) || 0) < 200) return;
+      gamifyScoreLast.set(socket.id, now);
+      dailyBoardFor(roomId); // makes sure today's record exists
+      const r = roomDailyScores.get(roomId);
+      const name = cleanShareText(socket.username) || 'Player';
+      if (score > (r.scores.get(name) || 0)) {
+        r.scores.set(name, Math.floor(score));
+        io.to(roomId).emit('daily_board', dailyBoardFor(roomId));
+      }
+    } catch (err) {
+      console.error('[SOCKET] daily_score error:', err.message, 'user:', socket.username);
+    }
+  });
+  socket.on('daily_board_request', ({ roomId: rawRoomId } = {}) => {
+    try {
+      const roomId = typeof rawRoomId === 'string' ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId) || !socket.rooms.has(roomId)) return;
+      socket.emit('daily_board', dailyBoardFor(roomId));
+    } catch (err) {
+      console.error('[SOCKET] daily_board_request error:', err.message, 'user:', socket.username);
     }
   });
 

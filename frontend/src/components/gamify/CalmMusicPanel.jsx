@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Play, Square, Youtube, Music2, AlertCircle, Headphones, Check, ExternalLink, LogOut } from 'lucide-react';
-import { SONGS, MUSIC_APPS, parseYouTube, parseSpotify, playCalm, spotifyEmbed, stopCalm, useCalmMusic, youTubeEmbed, youTubeQueue, setCalmSlot, setAppLinked } from './calmMusic';
+import { Play, Square, Youtube, Music2, AlertCircle, Headphones, Check, ExternalLink, LogOut, Users } from 'lucide-react';
+import { SONGS, MUSIC_APPS, parseYouTube, parseSpotify, playCalm, spotifyEmbed, stopCalm, useCalmMusic, youTubeEmbed, youTubeQueue, setCalmSlot, setAppLinked, shareCurrentMusic } from './calmMusic';
 import { stopRadio } from './radioPlayer';
 import { CONTENT, SPOTIFY_PLAYLISTS } from './breakupLang';
 import { SpotifyLogo, YouTubeMusicLogo, YouTubeLogo } from './MusicLogos';
@@ -20,6 +20,7 @@ const STRINGS = {
     openHere: 'Play here', playlists: 'Playlists for tonight', playAll: 'Play all three songs', openApp: 'Open the full app',
     yt: 'YouTube', ytm: 'YouTube Music', sp: 'Spotify',
     spLine: 'Songs, albums and playlists', ytmLine: 'Sign in with Google', ytLine: 'Videos and playlists',
+    listen: 'Listen together', listenDone: 'Invite sent to everyone in the house', listenNote: 'Sends an invite to the others in the house. They choose whether to join.',
     nowPlaying: 'Now playing', stop: 'Stop', nothing: 'Pick a song, or link an app above, and the player opens here.',
     own: 'Play your own', ytPlace: 'Paste a YouTube song or playlist link', spPlace: 'Paste a Spotify song, album or playlist link',
     ytBtn: 'Play from YouTube', spBtn: 'Play from Spotify',
@@ -36,6 +37,7 @@ const STRINGS = {
     openHere: 'यहीं सुनो', playlists: 'आज की रात के लिए प्लेलिस्ट', playAll: 'तीनों गीत एक साथ चलाओ', openApp: 'पूरा ऐप खोलो',
     yt: 'YouTube', ytm: 'YouTube Music', sp: 'Spotify',
     spLine: 'गीत, एल्बम और प्लेलिस्ट', ytmLine: 'Google से साइन इन', ytLine: 'वीडियो और प्लेलिस्ट',
+    listen: 'साथ में सुनो', listenDone: 'घर में सबको न्योता भेज दिया', listenNote: 'घर के बाकी लोगों को न्योता जाता है। जुड़ना या न जुड़ना उनकी मर्ज़ी है।',
     nowPlaying: 'अभी बज रहा है', stop: 'रोको', nothing: 'कोई गीत चुनो या ऊपर से कोई ऐप जोड़ो, प्लेयर यहीं खुलेगा।',
     own: 'अपना गीत चलाओ', ytPlace: 'YouTube गीत या प्लेलिस्ट का लिंक चिपकाओ', spPlace: 'Spotify गीत, एल्बम या प्लेलिस्ट का लिंक चिपकाओ',
     ytBtn: 'YouTube से चलाओ', spBtn: 'Spotify से चलाओ',
@@ -52,6 +54,7 @@ const STRINGS = {
     openHere: 'ఇక్కడే వినండి', playlists: 'ఈ రాత్రికి ప్లేలిస్టులు', playAll: 'మూడు పాటలూ వరుసగా వినండి', openApp: 'పూర్తి యాప్ తెరవండి',
     yt: 'YouTube', ytm: 'YouTube Music', sp: 'Spotify',
     spLine: 'పాటలు, ఆల్బమ్‌లు, ప్లేలిస్టులు', ytmLine: 'Googleతో సైన్ ఇన్', ytLine: 'వీడియోలు, ప్లేలిస్టులు',
+    listen: 'కలిసి వినండి', listenDone: 'ఇంట్లో అందరికీ ఆహ్వానం పంపాము', listenNote: 'ఇంట్లో మిగతావారికి ఆహ్వానం వెళ్తుంది. చేరాలా వద్దా అన్నది వారి ఇష్టం.',
     nowPlaying: 'ఇప్పుడు వినిపిస్తోంది', stop: 'ఆపు', nothing: 'ఒక పాట ఎంచుకోండి లేదా పైన ఒక యాప్ కలపండి, ప్లేయర్ ఇక్కడే తెరుచుకుంటుంది.',
     own: 'మీ సొంత పాట', ytPlace: 'YouTube పాట లేదా ప్లేలిస్ట్ లింక్ అతికించండి', spPlace: 'Spotify పాట, ఆల్బమ్ లేదా ప్లేలిస్ట్ లింక్ అతికించండి',
     ytBtn: 'YouTube నుంచి వినండి', spBtn: 'Spotify నుంచి వినండి',
@@ -68,7 +71,9 @@ export default function CalmMusicPanel({ lang = 'en', ink, muted, card, border, 
   const s = STRINGS[lang] || STRINGS.en;
   const tx = CONTENT[lang] || CONTENT.en;
   const songs = SONGS[SONG_KEY[lang] || 'english'].songs;
-  const { current, linked } = useCalmMusic();
+  const { current, linked, shareReady } = useCalmMusic();
+  const [shared, setShared] = useState(false);
+  useEffect(() => { setShared(false); }, [current?.src]);
   const [yt, setYt] = useState('');
   const [sp, setSp] = useState('');
   const [err, setErr] = useState({ yt: '', sp: '', app: '' });
@@ -76,20 +81,20 @@ export default function CalmMusicPanel({ lang = 'en', ink, muted, card, border, 
   useEffect(() => () => { Object.values(pollers.current).forEach(clearInterval); }, []);
 
   const start = (item) => { stopRadio(); playCalm(item); };
-  const playSong = (song) => start({ provider: 'youtube', title: song.title, by: song.by, src: youTubeEmbed({ video: song.yt }) });
-  const playQueue = (title) => start({ provider: 'youtube', title, by: '', src: youTubeQueue(songs.map(x => x.yt)) });
-  const playSpotifyList = (pl) => start({ provider: 'spotify', title: pl.title, by: 'Spotify', src: spotifyEmbed({ type: 'playlist', id: pl.id }) });
+  const playSong = (song) => start({ provider: 'youtube', title: song.title, by: song.by, src: youTubeEmbed({ video: song.yt }), desc: { provider: 'youtube', video: song.yt } });
+  const playQueue = (title) => start({ provider: 'youtube', title, by: '', src: youTubeQueue(songs.map(x => x.yt)), desc: { provider: 'youtube', ids: songs.map(x => x.yt) } });
+  const playSpotifyList = (pl) => start({ provider: 'spotify', title: pl.title, by: 'Spotify', src: spotifyEmbed({ type: 'playlist', id: pl.id }), desc: { provider: 'spotify', type: 'playlist', id: pl.id } });
   const playYt = () => {
     const p = parseYouTube(yt);
     if (!p) { setErr(e => ({ ...e, yt: s.ytErr })); return; }
     setErr(e => ({ ...e, yt: '' }));
-    start({ provider: 'youtube', title: p.list && !p.video ? 'YouTube playlist' : 'YouTube', by: '', src: youTubeEmbed(p) });
+    start({ provider: 'youtube', title: p.list && !p.video ? 'YouTube playlist' : 'YouTube', by: '', src: youTubeEmbed(p), desc: { provider: 'youtube', video: p.video || undefined, list: p.list || undefined } });
   };
   const playSp = () => {
     const p = parseSpotify(sp);
     if (!p) { setErr(e => ({ ...e, sp: s.spErr })); return; }
     setErr(e => ({ ...e, sp: '' }));
-    start({ provider: 'spotify', title: `Spotify ${p.type}`, by: '', src: spotifyEmbed(p) });
+    start({ provider: 'spotify', title: `Spotify ${p.type}`, by: '', src: spotifyEmbed(p), desc: { provider: 'spotify', type: p.type, id: p.id } });
   };
 
   // Open the service's own sign-in page in a small window; when it closes, the app is linked.
@@ -133,6 +138,9 @@ export default function CalmMusicPanel({ lang = 'en', ink, muted, card, border, 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
               <Music2 size={16} color="#818cf8" />
               <span style={{ flex: 1, minWidth: 0, fontWeight: 800, fontSize: 13.5, color: ink }}>{s.nowPlaying}: {current.title}{current.by ? `, ${current.by}` : ''}</span>
+              {shareReady && current.desc && (
+                <button onClick={() => { if (shareCurrentMusic()) setShared(true); }} disabled={shared} title={s.listenNote} style={{ ...btn(shared ? '#16a34a' : '#6366f1'), opacity: shared ? 0.9 : 1 }}>{shared ? <Check size={13} /> : <Users size={13} />}{shared ? s.listenDone : s.listen}</button>
+              )}
               <button onClick={stopCalm} style={btn('#64748b')}><Square size={13} />{s.stop}</button>
             </div>
             <div ref={setCalmSlot} style={{ width: '100%', maxWidth: 640, margin: '0 auto', height: playSlotHeight, aspectRatio: playSlotHeight ? undefined : '16 / 9', maxHeight: 380, borderRadius: 16, background: '#0e0c1a' }} />

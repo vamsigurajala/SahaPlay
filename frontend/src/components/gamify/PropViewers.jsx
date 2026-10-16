@@ -7,8 +7,9 @@ import {
   Brain, Compass, Flame, Gamepad2, Heart, Sparkles,
   HelpCircle, Check, Clock, RefreshCw, Shuffle, Lightbulb,
   Maximize2, Laptop, Home, Lock, Eye, ZoomIn, Info, Layers,
-  CheckCircle2, AlertCircle, Utensils, UtensilsCrossed, ShieldAlert, Award, Play, Filter, Target
+  CheckCircle2, AlertCircle, Utensils, UtensilsCrossed, ShieldAlert, Award, Play, Filter, Target, Star
 } from 'lucide-react';
+import { useFavs, toggleFav, isFav, favLabel, FAV_MAX } from './favorites';
 import { GENRES, SHELVES, FRIDGE_SHELVES, FRIDGE_SHELVES_UP, DISHES, DISHES_UP, OVEN_ITEMS, OVEN_ITEMS_UP } from '../../data/gamifyBooks';
 import { WARDROBES, COSMETICS, GARDEN } from '../../data/gamifyItems';
 import { useBookCover, preloadImage, coverUrl } from '../../data/bookCovers';
@@ -4213,6 +4214,11 @@ export default function PropViewer({ kind, arg, onClose }) {
   const { t } = useTranslation();
   const [book, setBook] = useState(null);
   const narrow = useNarrow();
+  useFavs(); // re-render when the pin changes
+  const [pinNote, setPinNote] = useState('');
+  const pinItem = { kind, arg };
+  const pinned = isFav(pinItem);
+  const togglePin = () => { const ok = toggleFav(pinItem); setPinNote(ok ? '' : `You can pin up to ${FAV_MAX}. Unpin one first.`); };
   const scrollRef = useRef(null);
   const pull = useRef({ y: 0, x: 0, on: false, dy: 0 });
   useEscape(onClose);
@@ -4249,6 +4255,8 @@ export default function PropViewer({ kind, arg, onClose }) {
     <div className="gcw-force-dark" style={overlay}>
       <style>{CSS}</style>
       {narrow && <div aria-hidden="true" className="stay-white" style={{ position: 'absolute', top: 'max(8px, env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)', width: 44, height: 5, borderRadius: 9, background: 'rgba(255,255,255,0.45)', pointerEvents: 'none', zIndex: 4 }} />}
+      <button onClick={togglePin} className="stay-white" aria-pressed={pinned} title={pinned ? `Unpin ${favLabel(pinItem)} from quick access` : `Pin ${favLabel(pinItem)} to quick access`} aria-label={pinned ? 'Unpin from quick access' : 'Pin to quick access'} style={{ ...closeBtn, right: 64, background: pinned ? 'rgba(251,191,36,0.25)' : closeBtn.background, border: pinned ? '1px solid rgba(251,191,36,0.8)' : closeBtn.border }}><Star size={20} color="#fbbf24" fill={pinned ? '#fbbf24' : 'none'} /></button>
+      {pinNote && <div className="stay-white" role="status" style={{ position: 'absolute', top: 'max(60px, calc(env(safe-area-inset-top) + 56px))', right: 12, zIndex: 6, maxWidth: 240, padding: '6px 10px', borderRadius: 10, background: 'rgba(12,10,24,0.92)', border: '1px solid rgba(251,191,36,0.6)', fontSize: 12, fontWeight: 700 }}>{pinNote}</div>}
       <button onClick={onClose} className="stay-white" style={closeBtn} title={t('gamify.close', 'Close')} aria-label={t('gamify.close', 'Close')}><X size={22} /></button>
       <div
         ref={scrollRef}

@@ -375,7 +375,7 @@ function PropDotInner({ position, kind, arg, onClick }) {
   });
   return (
     <ScaledHtml position={position} zIndexRange={[33, 0]}>
-      <div ref={ref} style={{ transition: 'opacity .25s' }}>
+      <div ref={ref} style={{ opacity: 0, pointerEvents: 'none', transition: 'opacity .25s' }}>
         <button
           aria-label="Look closer"
           onPointerDown={e => e.stopPropagation()}
@@ -398,7 +398,22 @@ export function PropDot(props) {
 
 // Two door leaves that stay shut until someone goes through (view.doors[key] holds
 // the time until which the door stays open).
+// The scene provides this so a tap on a doorway itself walks you through it, even when the
+// door buttons are hidden. It is called with the two rooms the door joins.
+export const DoorNavContext = createContext(null);
+
 export function DoorLeaves({ along, doorKey, color, handle = '#d9c48a' }) {
+  const nav = useContext(DoorNavContext);
+  const tap = {
+    onClick: (e) => {
+      if (e.delta > 6 || !nav || !doorKey) return;
+      e.stopPropagation();
+      const [a, b] = doorKey.split('|');
+      nav(a, b);
+    },
+    onPointerOver: () => { try { document.body.style.cursor = 'pointer'; } catch { /* non-browser */ } },
+    onPointerOut: () => { try { document.body.style.cursor = ''; } catch { /* non-browser */ } },
+  };
   const view = useContext(ViewContext);
   const l = useRef();
   const r = useRef();
@@ -413,6 +428,8 @@ export function DoorLeaves({ along, doorKey, color, handle = '#d9c48a' }) {
   });
   return (
     <group rotation={[0, along ? 0 : Math.PI / 2, 0]}>
+      {/* an invisible target covering the whole doorway, so the door is easy to tap */}
+      <mesh position={[0, 1.55, 0]} visible={false} {...tap}><boxGeometry args={[3.4, 3.1, 0.7]} /></mesh>
       <group ref={l} position={[-1.6, 0, 0]}>
         <Box p={[0.8, 1.5, 0]} s={[1.6, 3.0, 0.1]} c={color} r={0.03} />
         <Box p={[1.4, 1.5, 0.08]} s={[0.1, 0.1, 0.05]} c={handle} shadow={false} />
@@ -662,7 +679,7 @@ export function HotChip({ position, zone, label, icon, onClick }) {
   });
   return (
     <ScaledHtml position={position} zIndexRange={[34, 0]}>
-      <div ref={ref} style={{ transition: 'opacity .18s' }}>
+      <div ref={ref} style={{ opacity: 0, pointerEvents: 'none', transition: 'opacity .18s' }}>
         <button
           className="stay-white"
           onClick={onClick}

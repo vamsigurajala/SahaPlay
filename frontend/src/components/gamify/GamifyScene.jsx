@@ -1,8 +1,8 @@
-import { memo, useMemo, useRef, useContext, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useContext, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { DoorOpen, LogOut, Shirt, ArrowUp, ArrowDown } from 'lucide-react';
-import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip, FocusContext } from './parts';
+import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip, FocusContext, DoorNavContext } from './parts';
 import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden, Veranda, FrontYard, Courtyard } from './placedRooms';
 import { CricketGround, CricketFloor } from './cricket';
 import { Street } from './street';
@@ -162,15 +162,20 @@ function DoorChip({ link, onGo }) {
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
-    const on = !getHideLabels() && view.current.focus === link.from && (view.current.alwaysDots || view.current.uiVisible !== false);
-    if (last.current === on) return; // only touch the DOM when something changed
-    last.current = on;
+    const here = view.current.focus === link.from;
+    const hidden = getHideLabels();
+    const on = !hidden && here && (view.current.alwaysDots || view.current.uiVisible !== false);
+    // With names hidden the button is invisible but still works, so a tap where it was still goes through.
+    const tappable = on || (hidden && here);
+    const key = (on ? 1 : 0) + (tappable ? 2 : 0);
+    if (last.current === key) return; // only touch the DOM when something changed
+    last.current = key;
     el.style.opacity = on ? '1' : '0';
-    el.style.pointerEvents = on ? 'auto' : 'none';
+    el.style.pointerEvents = tappable ? 'auto' : 'none';
   });
   return (
     <ScaledHtml position={[link.chip.x, base + 2.3, link.chip.z]} zIndexRange={[35, 0]}>
-      <div ref={ref} style={{ transition: 'opacity .18s' }}>
+      <div ref={ref} style={{ opacity: 0, pointerEvents: 'none', transition: 'opacity .18s' }}>
         <button
           className="stay-white"
           onClick={() => onGo(link)}
@@ -270,6 +275,14 @@ function LightPool({ lights, neon }) {
 
 function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, weather = 'night' }) {
   const wx = WEATHER[weather];
+  const sceneView = useContext(ViewContext);
+  // Tapping a doorway: go through it from the room you are looking at (or from its first room).
+  const tapDoor = useCallback((a, b) => {
+    const here = sceneView.current.focus;
+    const joins = (l) => !l.dir && ((l.from === a && l.to === b) || (l.from === b && l.to === a));
+    const link = ALL_LINKS.find(l => joins(l) && l.from === here) || ALL_LINKS.find(l => joins(l) && l.from === a);
+    if (link) onGoToRoom(link);
+  }, [sceneView, onGoToRoom]);
   const textures = useMemo(() => ({
     hall: canvasTexture(512, (g, n) => {
       g.fillStyle = '#3b2a66'; g.fillRect(0, 0, n, n);
@@ -414,6 +427,7 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
 
   return (
     <FocusContext.Provider value={focus}>
+    <DoorNavContext.Provider value={tapDoor}>
     <group>
       {/* ── Lighting (tinted by the weather) ── */}
       <ambientLight intensity={wx.ambient[1]} color={wx.ambient[0]} />
@@ -482,6 +496,7 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
       {focus === 'frontyard' && <ExitChip onExit={onExitHouse} />}
       {ALL_LINKS.filter(l => l.from === focus).map(l => <DoorChip key={`${l.from}-${l.to}`} link={l} onGo={onGoToRoom} />)}
     </group>
+    </DoorNavContext.Provider>
     </FocusContext.Provider>
   );
 }

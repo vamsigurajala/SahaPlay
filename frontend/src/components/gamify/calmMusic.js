@@ -108,7 +108,7 @@ function readLinked() {
 }
 
 // ---------------------------------------------------------------- the player state
-let state = { current: null, small: false, slot: null, linked: readLinked() };
+let state = { current: null, small: false, slot: null, linked: readLinked(), invite: null, shareReady: false };
 const listeners = new Set();
 const set = (patch) => { state = { ...state, ...patch }; listeners.forEach(l => l()); };
 
@@ -127,4 +127,46 @@ export function setAppLinked(app, on) {
   const linked = { ...state.linked, [app]: !!on };
   try { localStorage.setItem(LINK_KEY, JSON.stringify(linked)); } catch { /* ignore */ }
   set({ linked });
+}
+
+// ---------------------------------------------------------------- listening together
+// What travels between people is a small description (ids only), never an address. The
+// receiver rebuilds the player address from it with the same functions used above, so a
+// crafted message can never put an arbitrary page in someone's player.
+const clean = (t) => String(t || '').split('').map(ch => (ch.charCodeAt(0) < 32 ? ' ' : ch)).join('').trim().slice(0, 80);
+
+export function itemFromDescriptor(d, title, by) {
+  if (!d || typeof d !== 'object') return null;
+  let src = null;
+  if (d.provider === 'youtube') {
+    const ids = Array.isArray(d.ids) ? d.ids.filter(x => typeof x === 'string' && YT_ID.test(x)).slice(0, 12) : [];
+    const video = typeof d.video === 'string' && YT_ID.test(d.video) ? d.video : null;
+    const list = typeof d.list === 'string' && YT_LIST.test(d.list) ? d.list : null;
+    if (ids.length) src = youTubeQueue(ids);
+    else if (video || list) src = youTubeEmbed({ video, list });
+  } else if (d.provider === 'spotify') {
+    if (SP_TYPES.includes(d.type) && typeof d.id === 'string' && SP_ID.test(d.id)) src = spotifyEmbed({ type: d.type, id: d.id });
+  }
+  if (!src) return null;
+  return { provider: d.provider, title: clean(title) || 'Shared song', by: clean(by), src, desc: d };
+}
+
+// Room.jsx tells us how to send a share over the socket.
+let shareFn = null;
+export function registerCalmShare(fn) { shareFn = fn; set({ shareReady: !!fn }); }
+export function shareCurrentMusic() {
+  const c = state.current;
+  if (!c || !c.desc || !shareFn) return false;
+  shareFn({ desc: c.desc, title: c.title, by: c.by });
+  return true;
+}
+export function receiveInvite(from, d, title, by) {
+  const item = itemFromDescriptor(d, title, by);
+  if (item) set({ invite: { from: clean(from) || 'Someone', item } });
+}
+export function dismissInvite() { if (state.invite) set({ invite: null }); }
+export function joinInvite() {
+  const inv = state.invite;
+  if (!inv) return;
+  set({ invite: null, current: inv.item, small: false });
 }

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Music2, X, ChevronDown, ChevronUp } from 'lucide-react';
-import { useCalmMusic, stopCalm, setCalmSmall } from './calmMusic';
+import { Music2, X, ChevronDown, ChevronUp, Users } from 'lucide-react';
+import { useCalmMusic, stopCalm, setCalmSmall, joinInvite, dismissInvite } from './calmMusic';
+import { stopRadio } from './radioPlayer';
 
 // One player for the whole room. Normally it is a small card in the top-right corner of
 // the house. While the Calm Music panel is open it is drawn over the empty box the panel
@@ -38,16 +39,37 @@ function useTrackedRect(slot, anchor) {
   return rect;
 }
 
+// Someone in the house is playing a song and asks you to listen with them. It only plays if you say yes.
+function InviteCard({ invite }) {
+  return (
+    <div className="stay-white" role="alert" style={{ position: 'absolute', top: 10, right: 10, zIndex: 72, width: 'min(300px, calc(100% - 24px))', padding: 12, borderRadius: 16, background: 'rgba(14,12,30,0.95)', border: '1px solid rgba(139,92,255,0.7)', boxShadow: '0 12px 36px rgba(0,0,0,0.55), 0 0 22px rgba(139,92,255,0.3)', backdropFilter: 'blur(10px)', color: '#fff' }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <span style={{ width: 34, height: 34, flex: 'none', borderRadius: 11, background: 'linear-gradient(145deg,#8b5cff,#4f46e5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Users size={17} /></span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 13 }}>{invite.from} wants to listen together</div>
+          <div style={{ fontSize: 12, opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{invite.item.title}{invite.item.by ? `, ${invite.item.by}` : ''}</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, justifyContent: 'flex-end' }}>
+        <button onClick={dismissInvite} style={{ padding: '7px 12px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', background: 'transparent', color: '#fff', fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>Not now</button>
+        <button onClick={() => { stopRadio(); joinInvite(); }} style={{ padding: '7px 14px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#8b5cff,#4f46e5)', color: '#fff', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}>Listen</button>
+      </div>
+    </div>
+  );
+}
+
 export default function CalmMusicDock() {
-  const { current, small, slot } = useCalmMusic();
+  const { current, small, slot, invite } = useCalmMusic();
   const [anchor, setAnchor] = useState(null);
   const anchorRef = useRef(null);
   useEffect(() => { setAnchor(anchorRef.current); }, []);
   const rect = useTrackedRect(slot, anchor);
   const yt = current && current.provider === 'youtube';
 
+  // The same children in the same order in every return, so the anchor and the player keep their place.
   const anchorEl = <div ref={anchorRef} aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />;
-  if (!current || !rect) return anchorEl;
+  const inviteEl = invite ? <InviteCard invite={invite} /> : null;
+  if (!current || !rect) return <>{anchorEl}{inviteEl}{null}</>;
 
   const inSlot = rect.mode === 'slot';
   const box = inSlot
@@ -58,6 +80,7 @@ export default function CalmMusicDock() {
   return (
     <>
       {anchorEl}
+      {inviteEl}
       {createPortal(
         <div className="stay-white" style={box}>
           {!inSlot && (
