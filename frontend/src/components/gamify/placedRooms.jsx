@@ -231,77 +231,152 @@ export function GameRoom() {
   );
 }
 
-function SmallStonePond({ p = [10.5, 0, 8.2], r = 2.1 }) {
+// Animated 3D Swimming & Splashing Koi Fish inside the Pond
+function PondKoiFish({ index, orbitR = 1.3, speed = 1.2, color = '#ffffff', patch = '#ef4444' }) {
+  const fishRef = useRef();
+  const splashRef = useRef();
+  const [splashing, setSplashing] = useState(false);
+
+  useFrame((_, delta) => {
+    if (!fishRef.current) return;
+    const time = Date.now() * 0.001 * speed + index * (Math.PI / 2);
+    const fx = Math.cos(time) * orbitR;
+    const fz = Math.sin(time) * orbitR;
+
+    // Periodic splash / leap jump
+    const leapPhase = (time * 0.4) % (Math.PI * 2);
+    const isLeaping = leapPhase > 5.5 && leapPhase < 6.1;
+    const leapY = isLeaping ? Math.sin((leapPhase - 5.5) / 0.6 * Math.PI) * 0.22 : 0;
+
+    if (isLeaping && !splashing) setSplashing(true);
+    if (!isLeaping && splashing) setSplashing(false);
+
+    fishRef.current.position.set(fx, 0.25 + leapY, fz);
+    // Heading tangent to circle
+    fishRef.current.rotation.y = -time + Math.PI / 2;
+    // Body / tail swish
+    fishRef.current.rotation.z = Math.sin(time * 8) * 0.15;
+  });
+
+  return (
+    <group ref={fishRef}>
+      {/* Streamlined Koi Body */}
+      <mesh castShadow>
+        <cylinderGeometry args={[0.045, 0.065, 0.28, 8]} />
+        <meshStandardMaterial color={color} roughness={0.3} />
+      </mesh>
+      {/* Characteristic color patch on back */}
+      <mesh position={[0, 0.035, 0.02]}>
+        <sphereGeometry args={[0.04, 8, 8]} />
+        <meshStandardMaterial color={patch} roughness={0.35} />
+      </mesh>
+      {/* Swishing caudal tail fin */}
+      <mesh position={[0, 0, -0.16]} rotation={[0, 0, 0.2]}>
+        <coneGeometry args={[0.05, 0.12, 4]} />
+        <meshStandardMaterial color={color} transparent opacity={0.85} roughness={0.4} />
+      </mesh>
+      {/* Side pectoral fins */}
+      <mesh position={[-0.05, -0.01, 0.04]} rotation={[0, 0, -0.5]}>
+        <boxGeometry args={[0.06, 0.01, 0.05]} />
+        <meshStandardMaterial color={color} transparent opacity={0.8} />
+      </mesh>
+      <mesh position={[0.05, -0.01, 0.04]} rotation={[0, 0, 0.5]}>
+        <boxGeometry args={[0.06, 0.01, 0.05]} />
+        <meshStandardMaterial color={color} transparent opacity={0.8} />
+      </mesh>
+
+      {/* Splash ring when leaping */}
+      {splashing && (
+        <mesh position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[0.08, 0.18, 16]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.7} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+// Serene Small Stone Pond with sparkling clear water, swimming/splashing Koi, and click-to-view aquarium
+function SmallStonePond({ p = [10.5, 0, 8.2], r = 2.2 }) {
   const [x, y, z] = p;
-  const stones = [
+  const openAquarium = useOpenProp('pond');
+
+  const stones = useMemo(() => [
     { a: 0, col: '#6e6882' }, { a: 0.39, col: '#7d7694' }, { a: 0.78, col: '#5f5973' },
     { a: 1.18, col: '#8a83a0' }, { a: 1.57, col: '#6e6882' }, { a: 1.96, col: '#7d7694' },
     { a: 2.35, col: '#5f5973' }, { a: 2.75, col: '#8a83a0' }, { a: 3.14, col: '#6e6882' },
     { a: 3.53, col: '#7d7694' }, { a: 3.93, col: '#5f5973' }, { a: 4.32, col: '#8a83a0' },
     { a: 4.71, col: '#6e6882' }, { a: 5.10, col: '#7d7694' }, { a: 5.50, col: '#5f5973' },
     { a: 5.89, col: '#8a83a0' },
-  ];
+  ], []);
 
   return (
-    <group position={[x, y, z]}>
-      {/* Pond stone basin */}
-      <mesh position={[0, 0.14, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[r + 0.24, r + 0.3, 0.28, 32]} />
-        <meshStandardMaterial color="#58526d" roughness={0.9} />
+    <group position={[x, y, z]} {...openAquarium}>
+      {/* Stone pond basin base */}
+      <mesh position={[0, 0.1, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[r + 0.22, r + 0.28, 0.2, 32]} />
+        <meshStandardMaterial color="#4a445d" roughness={0.9} />
       </mesh>
 
-      {/* Outer natural river stones along rim */}
+      {/* River stone coping rim */}
       {stones.map((s, i) => {
-        const sr = r + 0.16 + (i % 2 === 0 ? 0.08 : -0.04);
+        const sr = r + 0.14 + (i % 2 === 0 ? 0.08 : -0.04);
         const sx = Math.cos(s.a) * sr;
         const sz = Math.sin(s.a) * sr;
         return (
-          <mesh key={i} position={[sx, 0.22, sz]} rotation={[0, s.a, 0]} castShadow>
-            <sphereGeometry args={[0.22, 10, 8]} />
+          <mesh key={i} position={[sx, 0.2, sz]} rotation={[0, s.a, 0]} castShadow>
+            <sphereGeometry args={[0.22, 12, 10]} />
             <meshStandardMaterial color={s.col} roughness={0.85} />
           </mesh>
         );
       })}
 
-      {/* Crystal Clear Aquamarine Water */}
-      <mesh position={[0, 0.24, 0]}>
-        <cylinderGeometry args={[r, r, 0.04, 32]} />
+      {/* VIBRANT, CRYSTALLINE AQUAMARINE POND WATER (clearly visible above stone rim) */}
+      <mesh position={[0, 0.25, 0]}>
+        <cylinderGeometry args={[r, r, 0.05, 32]} />
         <meshStandardMaterial
-          color="#1aa8ea"
-          emissive="#0284c7"
-          emissiveIntensity={0.4}
-          roughness={0.12}
+          color="#0284c7"
+          emissive="#0369a1"
+          emissiveIntensity={0.65}
+          roughness={0.06}
+          metalness={0.15}
           transparent
-          opacity={0.88}
+          opacity={0.92}
         />
       </mesh>
 
-      {/* Gentle center water ripple rings */}
-      <mesh position={[0, 0.25, 0]} rotation={[-PI / 2, 0, 0]}>
-        <ringGeometry args={[0.3, 0.42, 24]} />
-        <meshBasicMaterial color="#7dd3fc" transparent opacity={0.6} />
+      {/* Shimmering surface water ripple rings */}
+      <mesh position={[0, 0.278, 0]} rotation={[-PI / 2, 0, 0]}>
+        <ringGeometry args={[0.35, 0.48, 24]} />
+        <meshBasicMaterial color="#7dd3fc" transparent opacity={0.65} />
       </mesh>
-      <mesh position={[0, 0.25, 0]} rotation={[-PI / 2, 0, 0]}>
-        <ringGeometry args={[0.7, 0.8, 24]} />
-        <meshBasicMaterial color="#38bdf8" transparent opacity={0.35} />
+      <mesh position={[0, 0.278, 0]} rotation={[-PI / 2, 0, 0]}>
+        <ringGeometry args={[0.85, 0.96, 24]} />
+        <meshBasicMaterial color="#38bdf8" transparent opacity={0.4} />
       </mesh>
 
-      {/* Small center bubbling fountain stone */}
+      {/* Small center bubbling rock */}
       <mesh position={[0, 0.32, 0]} castShadow>
-        <cylinderGeometry args={[0.18, 0.26, 0.2, 10]} />
+        <cylinderGeometry args={[0.18, 0.26, 0.16, 10]} />
         <meshStandardMaterial color="#645e78" roughness={0.9} />
       </mesh>
-      <mesh position={[0, 0.44, 0]}>
-        <sphereGeometry args={[0.09, 10, 8]} />
-        <meshBasicMaterial color="#bae6fd" />
+      <mesh position={[0, 0.42, 0]}>
+        <sphereGeometry args={[0.08, 10, 8]} />
+        <meshBasicMaterial color="#e0f2fe" />
       </mesh>
 
-      {/* Water Lily Pads & Lotus Blossoms */}
+      {/* SWIMMING & SPLASHING 3D KOI FISH */}
+      <PondKoiFish index={0} orbitR={1.3} speed={1.2} color="#ffffff" patch="#ef4444" />
+      <PondKoiFish index={1} orbitR={1.0} speed={1.4} color="#f59e0b" patch="#fbbf24" />
+      <PondKoiFish index={2} orbitR={1.5} speed={1.0} color="#ffffff" patch="#18181b" />
+      <PondKoiFish index={3} orbitR={0.7} speed={1.5} color="#ea580c" patch="#fdba74" />
+
+      {/* Water Lily Pads & Floating Lotus Blossoms */}
       {[
-        [-0.9, 0.25, -0.6, 0.32, 0.4],
-        [0.8, 0.25, -0.5, 0.28, 1.8],
-        [-0.5, 0.25, 0.8, 0.35, 3.2],
-        [0.9, 0.25, 0.6, 0.26, 4.6],
+        [-0.9, 0.26, -0.6, 0.32, 0.4],
+        [0.8, 0.26, -0.5, 0.28, 1.8],
+        [-0.5, 0.26, 0.8, 0.35, 3.2],
+        [0.9, 0.26, 0.6, 0.26, 4.6],
       ].map(([lx, ly, lz, lr, rot], idx) => (
         <group key={idx} position={[lx, ly, lz]} rotation={[0, rot, 0]}>
           <mesh rotation={[-PI / 2, 0, 0]}>
@@ -336,6 +411,107 @@ function SmallStonePond({ p = [10.5, 0, 8.2], r = 2.1 }) {
           <meshStandardMaterial color="#68627c" roughness={0.9} />
         </mesh>
       ))}
+
+      {/* Floating indicator tag above pond */}
+      <group position={[0, 1.0, 0]}>
+        <mesh position={[0, 0, 0]}>
+          <sphereGeometry args={[0.08, 12, 12]} />
+          <meshBasicMaterial color="#38bdf8" />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// Romantic Couple's Garden Lounge Nook for peaceful talks
+function CoupleLoungeNook({ p = [2.8, 0, 8.2] }) {
+  const [x, y, z] = p;
+  return (
+    <group position={[x, y, z]}>
+      {/* Wooden Trellis Pergola Frame */}
+      {[[-1.4, -0.7], [1.4, -0.7], [-1.4, 0.7], [1.4, 0.7]].map(([px, pz], i) => (
+        <Box key={i} p={[px, 1.5, pz]} s={[0.12, 3.0, 0.12]} c="#5c3a1e" r={0.02} />
+      ))}
+      {/* Top Arched Lattice Trellis */}
+      <Box p={[0, 3.05, 0]} s={[3.1, 0.1, 1.6]} c="#7a4d26" r={0.03} />
+      {[-0.5, 0, 0.5].map((offZ, idx) => (
+        <Box key={idx} p={[0, 3.12, offZ]} s={[3.0, 0.06, 0.08]} c="#8f5b2e" />
+      ))}
+
+      {/* Romantic Hanging Fairy Lanterns */}
+      {[-0.9, 0.9].map((lx, idx) => (
+        <group key={idx} position={[lx, 2.7, 0]}>
+          <mesh position={[0, 0.12, 0]}><cylinderGeometry args={[0.01, 0.01, 0.25, 4]} /><meshBasicMaterial color="#332" /></mesh>
+          <mesh position={[0, -0.04, 0]}><sphereGeometry args={[0.1, 10, 8]} /><meshBasicMaterial color="#ffb347" toneMapped={false} /></mesh>
+          <pointLight position={[0, -0.04, 0]} color="#ffe0a0" intensity={25} distance={5} decay={2} />
+        </group>
+      ))}
+
+      {/* Comfortable Double Love-Seat Sofa Cushion */}
+      <Box p={[0, 0.38, 0]} s={[2.4, 0.45, 1.1]} c="#ede9fe" r={0.12} />
+      {/* Backrest Cushion */}
+      <Box p={[0, 0.85, -0.42]} s={[2.4, 0.65, 0.24]} c="#ddd6fe" r={0.1} />
+
+      {/* Couple Accent Throw Pillows */}
+      <Box p={[-0.6, 0.75, -0.32]} s={[0.55, 0.45, 0.2]} c="#ff758f" r={0.08} rot={0.1} />
+      <Box p={[0.6, 0.75, -0.32]} s={[0.55, 0.45, 0.2]} c="#fef08a" r={0.08} rot={-0.1} />
+
+      {/* Small Chic Round Tea Table between/in front */}
+      <group position={[0, 0, 1.15]}>
+        <mesh position={[0, 0.25, 0]} castShadow>
+          <cylinderGeometry args={[0.42, 0.42, 0.5, 20]} />
+          <meshStandardMaterial color="#7a4d26" roughness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.51, 0]}>
+          <cylinderGeometry args={[0.48, 0.48, 0.04, 20]} />
+          <meshStandardMaterial color="#8f5b2e" roughness={0.6} />
+        </mesh>
+        {/* Two hot ceramic teacups with steam */}
+        {[-0.14, 0.14].map((tx, idx) => (
+          <group key={idx} position={[tx, 0.58, 0]}>
+            <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.05, 0.035, 0.09, 10]} /><meshStandardMaterial color="#ffffff" roughness={0.2} /></mesh>
+            <mesh position={[0, 0.07, 0]}><sphereGeometry args={[0.02, 6, 6]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.6} /></mesh>
+          </group>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+// Dog Agility Play Bridge (slanted approach, elevated deck, slanted exit ramp)
+function DogAgilityBridge({ p = [6.4, 0, 4.8] }) {
+  const [x, y, z] = p;
+  return (
+    <group position={[x, y, z]}>
+      {/* Elevated center platform */}
+      <Box p={[0, 0.38, 0]} s={[1.4, 0.1, 0.75]} c="#93c5fd" r={0.04} />
+      {/* Bridge legs */}
+      {[[-0.6, -0.3], [0.6, -0.3], [-0.6, 0.3], [0.6, 0.3]].map(([lx, lz], i) => (
+        <Box key={i} p={[lx, 0.19, lz]} s={[0.08, 0.38, 0.08]} c="#3b82f6" />
+      ))}
+      {/* Left Incline Ramp */}
+      <group position={[-1.1, 0.19, 0]} rotation={[0, 0, -0.32]}>
+        <Box p={[0, 0, 0]} s={[0.9, 0.08, 0.7]} c="#60a5fa" r={0.03} />
+        {/* Anti-slip cleats */}
+        {[-0.2, 0.2].map((cx, idx) => (
+          <Box key={idx} p={[cx, 0.05, 0]} s={[0.04, 0.02, 0.6]} c="#1d4ed8" />
+        ))}
+      </group>
+      {/* Right Decline Ramp */}
+      <group position={[1.1, 0.19, 0]} rotation={[0, 0, 0.32]}>
+        <Box p={[0, 0, 0]} s={[0.9, 0.08, 0.7]} c="#60a5fa" r={0.03} />
+        {/* Anti-slip cleats */}
+        {[-0.2, 0.2].map((cx, idx) => (
+          <Box key={idx} p={[cx, 0.05, 0]} s={[0.04, 0.02, 0.6]} c="#1d4ed8" />
+        ))}
+      </group>
+      {/* Colorful guide posts */}
+      {[-0.65, 0.65].map((px, idx) => (
+        <mesh key={idx} position={[px, 0.55, 0.36]}>
+          <sphereGeometry args={[0.05, 8, 8]} />
+          <meshBasicMaterial color="#f43f5e" />
+        </mesh>
+      ))}
     </group>
   );
 }
@@ -355,8 +531,33 @@ export function Garden() {
       })}
       <Box p={[9.0, 0.5, 15.85]} s={[16.8, 0.06, 0.06]} c="#4a3a6e" shadow={false} />
 
-      {/* Serene Small Stone Pond with lilies and gentle ripple */}
-      <SmallStonePond p={[10.5, 0, 8.2]} r={2.1} />
+      {/* Serene Small Stone Pond with crystal-clear water, swimming/splashing Koi fish, and click-to-view aquarium */}
+      <SmallStonePond p={[10.5, 0, 8.2]} r={2.2} />
+
+      {/* Romantic Couple's Garden Lounge Nook for peaceful conversations */}
+      <CoupleLoungeNook p={[2.8, 0, 8.2]} />
+
+      {/* Dog Agility Play Bridge (dog runs up, across, and down!) */}
+      <DogAgilityBridge p={[6.4, 0, 4.8]} />
+
+      {/* Dog Play Toys on the Lawn */}
+      {/* Neon Yellow Tennis Ball */}
+      <mesh position={[8.6, 0.1, 4.0]} castShadow>
+        <sphereGeometry args={[0.1, 14, 14]} />
+        <meshStandardMaterial color="#eab308" roughness={0.4} />
+      </mesh>
+      {/* Red Chew Bone */}
+      <group position={[9.4, 0.04, 4.3]} rotation={[0, 0.4, 0]}>
+        <Box p={[0, 0, 0]} s={[0.22, 0.05, 0.07]} c="#ef4444" r={0.02} />
+        {[-0.1, 0.1].map(bx => (
+          <mesh key={bx} position={[bx, 0, 0]}>
+            <sphereGeometry args={[0.04, 8, 8]} />
+            <meshStandardMaterial color="#ef4444" />
+          </mesh>
+        ))}
+      </group>
+      {/* Braided Tug Rope */}
+      <Box p={[7.4, 0.04, 3.8]} s={[0.35, 0.05, 0.06]} c="#8b5cf6" r={0.02} rot={-0.3} />
 
       {/* Small neat plants around pond (bonsai, succulents, mini planters) */}
       <Plant p={[7.6, 0, 7.0]} scale={0.65} color="#38bdf8" pot="#d97706" />
@@ -368,39 +569,38 @@ export function Garden() {
       <FlowerPatch p={[9.0, 0, 4.8]} w={2.4} d={0.7} n={12} colors={['#ffffff', '#a78bfa', '#ec4899']} seed={7} tall={0.35} />
       <FlowerPatch p={[12.0, 0, 11.6]} w={2.4} d={0.7} n={12} colors={['#fde047', '#fb923c', '#ffffff']} seed={8} tall={0.35} />
 
-      {/* Wooden Garden Bench overlooking the pond */}
-      <Bench p={[2.4, 0, 8.2]} rot={PI / 2} />
-
       {/* Warm Ambient Garden Lantern */}
-      <FloorLamp p={[1.8, 0, 6.0]} color="#ffe0a0" />
+      <FloorLamp p={[1.6, 0, 5.6]} color="#ffe0a0" />
 
-      {/* Cute Wooden Doghouse on the lawn */}
-      <group position={[3.2, 0, 12.8]}>
-        {/* Walls */}
-        <Box p={[0, 0.7, 0]} s={[1.4, 1.2, 1.4]} c="#7c4a1e" r={0.04} />
-        {/* Slanted Roof */}
-        <mesh position={[0, 1.5, 0]} rotation={[0, PI / 4, 0]} castShadow>
-          <coneGeometry args={[1.3, 0.6, 4]} />
+      {/* PET HOUSE MOVED TO TOP-RIGHT CORNER (dog trots inside and rests!) */}
+      <group position={[14.2, 0, 3.2]} rotation={[0, -0.6, 0]}>
+        {/* Wooden Cabin Walls */}
+        <Box p={[0, 0.7, 0]} s={[1.5, 1.25, 1.5]} c="#7c4a1e" r={0.04} />
+        {/* Slanted Gabled Roof */}
+        <mesh position={[0, 1.55, 0]} rotation={[0, PI / 4, 0]} castShadow>
+          <coneGeometry args={[1.4, 0.65, 4]} />
           <meshStandardMaterial color="#b45309" roughness={0.7} />
         </mesh>
-        {/* Entrance arch cutout effect */}
-        <Box p={[0, 0.45, 0.66]} s={[0.55, 0.8, 0.1]} c="#241407" />
-        {/* Soft mat / cushion in front */}
-        <Box p={[0, 0.05, 0.9]} s={[0.9, 0.08, 0.7]} c="#8b5cf6" r={0.06} />
-        {/* Silver dog food & water bowl with bone */}
-        <mesh position={[0.7, 0.1, 0.9]}>
+        {/* Spacious Entrance Doorway Cutout */}
+        <Box p={[0, 0.5, 0.71]} s={[0.65, 0.9, 0.1]} c="#1e1106" />
+        {/* Cozy Soft Bed Cushion inside doghouse */}
+        <Box p={[0, 0.08, 0]} s={[1.1, 0.12, 1.0]} c="#a855f7" r={0.06} />
+        {/* Soft porch mat in front */}
+        <Box p={[0, 0.04, 0.95]} s={[0.95, 0.06, 0.6]} c="#8b5cf6" r={0.04} />
+        {/* Silver dog food & water bowl with bone outside doorway */}
+        <mesh position={[0.75, 0.1, 0.9]}>
           <cylinderGeometry args={[0.18, 0.14, 0.14, 14]} />
           <meshStandardMaterial color="#e2e8f0" metalness={0.7} roughness={0.3} />
         </mesh>
-        <mesh position={[0.7, 0.16, 0.9]}>
+        <mesh position={[0.75, 0.16, 0.9]}>
           <cylinderGeometry args={[0.15, 0.15, 0.02, 14]} />
           <meshStandardMaterial color="#b45309" />
         </mesh>
-        <Box p={[0.7, 0.06, 1.2]} s={[0.22, 0.06, 0.08]} c="#fef08a" r={0.02} rot={0.3} />
+        <Box p={[0.75, 0.06, 1.2]} s={[0.22, 0.06, 0.08]} c="#fef08a" r={0.02} rot={0.3} />
       </group>
 
-      {/* Cute 3D Animated Dog patrolling around the pond */}
-      <DogPet3D pathCenter={[10.5, 0, 8.2]} rx={3.4} rz={2.4} speed={0.38} />
+      {/* Ultra-Cute 3D Animated Dog with multi-phase adventure (pond -> agility bridge -> toys -> inside doghouse!) */}
+      <DogPet3D />
     </Cell>
   );
 }

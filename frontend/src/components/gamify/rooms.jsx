@@ -63,18 +63,18 @@ export function LivingRoomBase({ weather = 'night' }) {
         <meshBasicMaterial color="#0a0a18" />
       </mesh>
 
-      {/* TV Console Table */}
-      <Box p={[TV_LOCAL.cx, 0.5, -9.35]} s={[7.2, 1.0, 1.2]} c="#1e1830" r={0.06} />
-      <Neon p={[TV_LOCAL.cx, 1.03, -8.8]} s={[7.0, 0.04, 0.04]} color={NEON_CYAN} />
+      {/* TV Console Table - Extended length to accommodate speakers cleanly in front without screen overlay */}
+      <Box p={[TV_LOCAL.cx, 0.5, -9.15]} s={[9.4, 1.0, 1.35]} c="#1e1830" r={0.06} />
+      <Neon p={[TV_LOCAL.cx, 1.03, -8.5]} s={[9.2, 0.04, 0.04]} color={NEON_CYAN} />
 
-      {/* Realistic HiFi Speakers flanking TV + SoundBar underneath with vivid Neon accents */}
-      <HiFiSpeaker p={[-3.1, 1.02, -9.35]} neon="#3ee8ff" />
-      <HiFiSpeaker p={[3.1, 1.02, -9.35]} neon="#ff4fd8" />
-      <SoundBar p={[0, 1.02, -9.1]} neon="#3ee8ff" />
+      {/* Realistic HiFi Speakers placed in front of screen on extended console, clear of TV projection */}
+      <HiFiSpeaker p={[-3.8, 1.02, -8.7]} neon="#3ee8ff" />
+      <HiFiSpeaker p={[3.8, 1.02, -8.7]} neon="#ff4fd8" />
+      <SoundBar p={[0, 1.02, -8.6]} neon="#3ee8ff" />
 
       {/* 3 Sleek Lights on Left and 3 Lights on Right side of TV */}
-      <TrioTVLights p={[-2.75, 0, -9.9]} />
-      <TrioTVLights p={[2.75, 0, -9.9]} />
+      <TrioTVLights p={[-3.4, 0, -9.9]} />
+      <TrioTVLights p={[3.4, 0, -9.9]} />
 
       {/* Mona Lisa Painting on the TV wall (replaces the black/green screen) */}
       <MonaLisaPainting p={[-4.3, 2.9, -9.9]} w={2.2} h={2.4} />

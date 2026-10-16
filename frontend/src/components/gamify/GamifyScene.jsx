@@ -303,11 +303,22 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       const t = n / 4;
       for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#d49a6a' : '#be7d4c'; g.fillRect(i * t + 2, j * t + 2, t - 4, t - 4); }
     }, [5.4, 4.8]),
-    lawn: canvasTexture(256, (g, n) => {
-      g.fillStyle = '#2b7a47'; g.fillRect(0, 0, n, n);
-      for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.04)'; g.fillRect(0, i * (n / 8), n, n / 8); }
-      for (let k = 0; k < 500; k++) { g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(Math.random() * n, Math.random() * n, 1, 3); }
-    }, [5.4, 4]),
+    lawn: canvasTexture(512, (g, n) => {
+      // Smooth realistic meadow grass with organic dappled shading
+      g.fillStyle = '#256335'; g.fillRect(0, 0, n, n);
+      const shades = ['#2b733e', '#1f532c', '#318247', '#1b4a26', '#399151'];
+      for (let p = 0; p < 28; p++) {
+        g.fillStyle = shades[p % shades.length];
+        g.beginPath();
+        g.arc(Math.random() * n, Math.random() * n, 25 + Math.random() * 45, 0, Math.PI * 2);
+        g.fill();
+      }
+      for (let k = 0; k < 2500; k++) {
+        const bright = Math.random() > 0.45;
+        g.fillStyle = bright ? 'rgba(120, 230, 150, 0.12)' : 'rgba(10, 40, 18, 0.15)';
+        g.fillRect(Math.random() * n, Math.random() * n, 1.5, 2.5);
+      }
+    }, [4, 3.5]),
   }), []);
 
   const zones = Object.values(FLOORPLAN_ZONES);
