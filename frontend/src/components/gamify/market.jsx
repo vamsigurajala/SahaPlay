@@ -7,6 +7,7 @@ import { Cell } from './cell';
 import { lampsOn } from './street';
 import { FLOORPLAN_ZONES, CELL_W, CELL_D } from '../../data/gamifyZones';
 import { SHOPS } from '../../data/gamifyShops';
+import { useHideLabels } from './labelPrefs';
 import { PI, WOOD_DARK, tapper, Cyl, Rod } from './shopParts';
 
 // The Market: a paved plaza to the east of the cricket ground with a row of shops
@@ -192,6 +193,7 @@ function Interior({ id }) {
 }
 
 function Shop({ x, id, say }) {
+  const hideNames = useHideLabels();
   const shop = SHOPS[id];
   const open = useOpenProp('shop', id);
   const focus = useContext(FocusContext);
@@ -222,7 +224,7 @@ function Shop({ x, id, say }) {
       {/* a generous invisible target so a tap anywhere on the shop opens it */}
       <mesh position={[0, 1.8, 0]} visible={false}><boxGeometry args={[SHOP_W, 3.6, SHOP_D]} /></mesh>
       <PropDot position={[0, 3.2, SHOP_D / 2 + 0.2]} kind="shop" arg={id} />
-      {here && (
+      {here && !hideNames && (
         <ScaledHtml position={[0, 3.7, SHOP_D / 2 + 0.2]} pointerEvents="none">
           <div className="stay-white" style={{ padding: '2px 10px', borderRadius: 6, background: 'rgba(10,8,20,0.9)', border: `1px solid ${shop.accent}`, color: '#fff', fontWeight: 900, fontSize: 11, letterSpacing: 1.2, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{shop.name}</div>
         </ScaledHtml>
@@ -234,6 +236,7 @@ function Shop({ x, id, say }) {
 // ---------------------------------------------------------------- chai tapri
 const POUR_S = 2.4;
 function ChaiStall({ p, rot = 0, say }) {
+  const hideNames = useHideLabels();
   const kettle = useRef();
   const stream = useRef();
   const liquid = useRef();
@@ -315,7 +318,7 @@ function ChaiStall({ p, rot = 0, say }) {
         <mesh key={i} ref={(m) => { steam.current[i] = m; }}><sphereGeometry args={[1, 8, 6]} /><meshBasicMaterial color="#ffffff" transparent opacity={0} depthWrite={false} /></mesh>
       ))}
       <PropDot position={[0, 1.9, 0.9]} onClick={pour.onClick} />
-      {here && (
+      {here && !hideNames && (
         <ScaledHtml position={[0, 2.35, 0.1]} pointerEvents="none">
           <div className="stay-white" style={{ padding: '2px 10px', borderRadius: 6, background: '#0f2630', border: '1px solid #f6e7c8', color: '#f6e7c8', fontWeight: 900, fontSize: 11, letterSpacing: 1.5, whiteSpace: 'nowrap' }}>
             CHAI TAPRI{served ? ` | ${served} SERVED` : ''}

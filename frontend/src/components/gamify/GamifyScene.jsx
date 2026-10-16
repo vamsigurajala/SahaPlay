@@ -10,6 +10,7 @@ import { Market, MarketFloor } from './market';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { WORLD_W, WORLD_D, HOUSE_D, CELL_W, CELL_D, COLS, HOUSE_ROWS, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, DOORWAYS, ALL_LINKS } from '../../data/gamifyZones';
 import Floor2 from './floor2';
+import { getHideLabels } from './labelPrefs';
 import { WEATHER, Ground, Clouds, Rain } from './environment';
 
 export const WALL_H = 4.8;
@@ -139,7 +140,7 @@ function FollowLight({ shadows, size, sun }) {
 function RoomSign({ z }) {
   const view = useContext(ViewContext);
   const ref = useRef();
-  useFrame(() => { if (ref.current) ref.current.style.opacity = view.current.cur < 0.8 ? '1' : '0'; });
+  useFrame(() => { if (ref.current) ref.current.style.opacity = !getHideLabels() && view.current.cur < 0.8 ? '1' : '0'; });
   return (
     <ScaledHtml position={[z.center.x, 0.3 + (z.floor || 0) * FLOOR_Y, z.center.z]} pointerEvents="none">
       <div ref={ref} className="stay-white" style={{
@@ -160,7 +161,7 @@ function DoorChip({ link, onGo }) {
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
-    const on = view.current.focus === link.from && (view.current.alwaysDots || view.current.uiVisible !== false);
+    const on = !getHideLabels() && view.current.focus === link.from && (view.current.alwaysDots || view.current.uiVisible !== false);
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });

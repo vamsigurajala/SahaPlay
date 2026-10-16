@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff } from 'lucide-react';
+import { useHideLabels, toggleHideLabels } from './labelPrefs';
 import { ALL_ZONES, COLS } from '../../data/gamifyZones';
 import { ZONES_BY_FLOOR } from './GamifyRig';
 import { WEATHER, WEATHER_ORDER } from './environment';
@@ -31,6 +32,7 @@ export default function GamifyControls({
   onZoomOut,
 }) {
   const [rightOpen, setRightOpen] = useState(true);
+  const hideLabels = useHideLabels();
   const [leftOpen, setLeftOpen] = useState(true);
 
   const btn = {
@@ -58,12 +60,16 @@ export default function GamifyControls({
     <>
       {/* Current room + hint + stairs button */}
       <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
-        <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>
-          {ALL_ZONES[focus]?.label || focus}
-        </div>
-        <div className="stay-white" style={{ transition: 'opacity .2s', fontSize: 11, opacity: uiShown ? 0.7 : 0, textShadow: '0 1px 3px #000' }}>
-          Drag to look around, tap a door to go through
-        </div>
+        {!hideLabels && (
+          <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>
+            {ALL_ZONES[focus]?.label || focus}
+          </div>
+        )}
+        {!hideLabels && (
+          <div className="stay-white" style={{ transition: 'opacity .2s', fontSize: 11, opacity: uiShown ? 0.7 : 0, textShadow: '0 1px 3px #000' }}>
+            Drag to look around, tap a door to go through
+          </div>
+        )}
         <button
           className="stay-white"
           onClick={onChangeFloor}
@@ -268,7 +274,7 @@ export default function GamifyControls({
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
-            maxHeight: rightOpen ? 270 : 0,
+            maxHeight: rightOpen ? 320 : 0,
             opacity: rightOpen ? 1 : 0,
             transform: rightOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(24px)',
             transformOrigin: 'bottom center',
@@ -292,6 +298,15 @@ export default function GamifyControls({
             style={{ ...btn, background: flipped ? 'rgba(139,92,255,0.75)' : btn.background }}
           >
             <FlipHorizontal2 size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={toggleHideLabels}
+            aria-pressed={hideLabels}
+            title={hideLabels ? 'Show names and dots' : 'Hide names and dots'}
+            style={{ ...btn, background: hideLabels ? 'rgba(139,92,255,0.75)' : btn.background }}
+          >
+            {hideLabels ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
           <button className="stay-white" onClick={onResetView} title="Back to my room" style={btn}>
             <Maximize2 size={16} />

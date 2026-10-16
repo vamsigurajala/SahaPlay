@@ -4,6 +4,7 @@ import { Html } from '@react-three/drei';
 import { RoundedBoxGeometry } from 'three-stdlib';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useFrame } from '@react-three/fiber';
+import { getHideLabels } from './labelPrefs';
 import { NEON_CYAN } from './constants';
 
 // Shared, mutable camera/view state ({ zoom, cur, tx, tz, flip }) provided
@@ -365,7 +366,7 @@ function PropDotInner({ position, kind, arg, onClick }) {
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
-    const on = (view.current.alwaysDots || view.current.uiVisible !== false) && !view.current.out;
+    const on = !getHideLabels() && (view.current.alwaysDots || view.current.uiVisible !== false) && !view.current.out;
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });
@@ -649,7 +650,7 @@ export function HotChip({ position, zone, label, icon, onClick }) {
   useFrame(() => {
     const el = ref.current;
     if (!el) return;
-    const on = view.current.focus === zone && (view.current.alwaysDots || view.current.uiVisible !== false);
+    const on = !getHideLabels() && view.current.focus === zone && (view.current.alwaysDots || view.current.uiVisible !== false);
     el.style.opacity = on ? '1' : '0';
     el.style.pointerEvents = on ? 'auto' : 'none';
   });
