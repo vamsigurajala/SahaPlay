@@ -94,16 +94,28 @@ function GapHeader({ axis, at, g, tallFor }) {
   return <group ref={ref} position={[0, 3.45, 0]} visible={false}><Box p={pos} s={sz} c="#33265a" shadow={false} /></group>;
 }
 
+// A run that crosses from one room into the next is cut at the boundary, so each piece rises
+// and lowers with the room it belongs to (otherwise half a wall stays low while you stand in
+// the room that owns the other half).
+function cutAtBoundaries(segs, splits) {
+  let out = segs;
+  splits.forEach(sp => {
+    out = out.flatMap(([a, b]) => (sp > a + 0.01 && sp < b - 0.01 ? [[a, sp], [sp, b]] : [[a, b]]));
+  });
+  return out;
+}
+
 // Interior wall with doorway gaps. axis 'x' runs along x at z=at; 'z' runs along
 // z at x=at.
-function Divider({ axis, at, from, to, gaps = [], color, tallForAt }) {
-  const segs = [];
+function Divider({ axis, at, from, to, gaps = [], color, tallForAt, splits = [] }) {
+  let segs = [];
   let cursor = from;
   [...gaps].sort((p, q) => p - q).forEach(g => {
     if (g - GAP > cursor) segs.push([cursor, g - GAP]);
     cursor = g + GAP;
   });
   if (to > cursor) segs.push([cursor, to]);
+  segs = cutAtBoundaries(segs, splits);
   return (
     <group>
       {segs.map(([a, b], i) => <WallSeg key={i} axis={axis} at={at} a={a} b={b} color={color} tallFor={tallForAt((a + b) / 2)} />)}
@@ -498,12 +510,12 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
 
       {/* ── Interior walls with doorways + door frames ── */}
       {vLines.map((x, i) => (
-        <Divider key={`v${x}`} axis="z" at={x} from={-halfD} to={houseFront} color={DOOR_COLORS[i % 4]}
+        <Divider key={`v${x}`} axis="z" at={x} from={-halfD} to={houseFront} color={DOOR_COLORS[i % 4]} splits={hLines}
           gaps={DOORWAYS.filter(d => d.axis === 'v' && d.x === x).map(d => d.z)}
           tallForAt={(m) => zoneAt(i + 1, Math.min(HOUSE_ROWS - 1, Math.max(0, Math.floor((m + halfD) / CELL_D)))).id} />
       ))}
       {hLines.map((z, i) => (
-        <Divider key={`h${z}`} axis="x" at={z} from={-halfW} to={halfW} color={DOOR_COLORS[(i + 2) % 4]}
+        <Divider key={`h${z}`} axis="x" at={z} from={-halfW} to={halfW} color={DOOR_COLORS[(i + 2) % 4]} splits={vLines}
           gaps={DOORWAYS.filter(d => d.axis === 'h' && d.z === z).map(d => d.x)}
           tallForAt={(m) => zoneAt(Math.min(COLS - 1, Math.max(0, Math.floor((m + halfW) / CELL_W))), i + 1).id} />
       ))}

@@ -98,14 +98,25 @@ function Header2({ axis, at, g, tallFor }) {
   return <group ref={ref} position={[0, 3.45, 0]} visible={false}><Box p={pos} s={sz} c={WALL} shadow={false} /></group>;
 }
 
-function Divider2({ axis, at, from, to, gaps = [], tallForAt }) {
-  const segs = [];
+function cutAtBoundaries(segs, splits) {
+  let out = segs;
+  splits.forEach(sp => {
+    out = out.flatMap(([a, b]) => (sp > a + 0.01 && sp < b - 0.01 ? [[a, sp], [sp, b]] : [[a, b]]));
+  });
+  return out;
+}
+
+// Interior wall runs are cut where one room ends and the next begins, so each piece rises and
+// lowers with its own room.
+function Divider2({ axis, at, from, to, gaps = [], tallForAt, splits = [] }) {
+  let segs = [];
   let cursor = from;
   [...gaps].sort((p, q) => p - q).forEach(g => {
     if (g - GAP > cursor) segs.push([cursor, g - GAP]);
     cursor = g + GAP;
   });
   if (to > cursor) segs.push([cursor, to]);
+  segs = cutAtBoundaries(segs, splits);
   return (
     <group>
       {segs.map(([a, b], i) => <Wall2 key={i} axis={axis} at={at} a={a} b={b} tallFor={tallForAt((a + b) / 2)} />)}
@@ -351,10 +362,10 @@ export default function Floor2() {
       <Box p={[x0 - 0.15, WALL_H + 0.05, (z0 + zEnd) / 2]} s={[0.4, 0.14, zEnd - z0 + 0.7]} c={TRIM} shadow={false} />
 
       {/* interior walls with doorways */}
-      <Divider2 axis="z" at={-9} from={z0} to={zEnd} gaps={vGaps(-9)}
+      <Divider2 axis="z" at={-9} from={z0} to={zEnd} gaps={vGaps(-9)} splits={[mz]}
         tallForAt={(m) => (m < mz ? 'f2hall' : 'f2balcony')} />
-      <Divider2 axis="z" at={9} from={z0} to={zEnd} gaps={vGaps(9)} tallForAt={(m) => (m < mz ? 'f2bed2' : 'f2breakup')} />
-      <Divider2 axis="x" at={mz} from={x0} to={x1} gaps={hGaps(mz)} tallForAt={(m) => (m < -9 ? 'f2kitchen' : m < 9 ? 'f2balcony' : 'f2breakup')} />
+      <Divider2 axis="z" at={9} from={z0} to={zEnd} gaps={vGaps(9)} splits={[mz]} tallForAt={(m) => (m < mz ? 'f2bed2' : 'f2breakup')} />
+      <Divider2 axis="x" at={mz} from={x0} to={x1} gaps={hGaps(mz)} splits={[-9, 9]} tallForAt={(m) => (m < -9 ? 'f2kitchen' : m < 9 ? 'f2balcony' : 'f2breakup')} />
       {DOORWAYS_F2.map((d, i) => <Door2 key={i} p={[d.x, 0, d.z]} axis={d.axis === 'v' ? 'z' : 'x'} doorKey={[d.a, d.b].sort().join('|')} />)}
 
       {/* railings along the open front edge */}
