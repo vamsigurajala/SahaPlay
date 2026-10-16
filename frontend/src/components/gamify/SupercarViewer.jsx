@@ -987,7 +987,7 @@ export default function SupercarViewer({ onClose }) {
           <pointLight
             position={[-0.38, 0.82, -0.38]}
             intensity={isStarted ? (driveMode === 'CORSA' ? 1.6 : 1.2) : 0.4}
-            color={clusterAccentColor}
+            color={driveMode === 'CORSA' ? '#ef4444' : driveMode === 'SPORT' ? '#f59e0b' : '#38bdf8'}
           />
 
           {/* Showroom Polished Floor Disc */}
