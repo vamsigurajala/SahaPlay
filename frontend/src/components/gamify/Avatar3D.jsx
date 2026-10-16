@@ -6,6 +6,7 @@ import Avatar from '../Avatar';
 import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D, CELL_D, FLOOR_Y, ALL_ZONES, zoneForPoint } from '../../data/gamifyZones';
 import { ScaledHtml, ViewContext } from './parts';
 import { EmoteBubble } from './emotes';
+import { freeSpot } from './avatarSpacing';
 
 const toWorld = (vx, vy) => ({ x: (vx / FLOORPLAN_WIDTH - 0.5) * WORLD_W, z: (vy / FLOORPLAN_HEIGHT - 0.5) * WORLD_D });
 const toVirtual = (wx, wz) => ({ x: (wx / WORLD_W + 0.5) * FLOORPLAN_WIDTH, y: (wz / WORLD_D + 0.5) * FLOORPLAN_HEIGHT });
@@ -21,7 +22,7 @@ const BOUND_Z_UP = -WORLD_D / 2 + 2 * CELL_D - 0.7;
 // inside the (possibly mirrored) scene root, so positions here are always in
 // the un-mirrored local space — a flipped view only changes how they render,
 // never what's sent over the socket (everyone shares the same virtual coords).
-function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zone, emote, onMove, onDrop, dragLockRef }) {
+function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, x, y, zone, emote, onMove, onDrop, dragLockRef }) {
   const group = useRef();
   const view = useContext(ViewContext);
   const { camera, gl } = useThree();
@@ -40,6 +41,29 @@ function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zone, emote, onMo
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
   const hit = useMemo(() => new THREE.Vector3(), []);
 
+  // Where everyone is standing (or heading), so nobody lands on top of anybody else.
+  const spot = useRef({ x: 0, z: 0, floor: 0 });
+  useEffect(() => {
+    const spots = view.current.spots || (view.current.spots = {});
+    spots[avatarId] = spot.current;
+    spot.current.x = targetRef.current.x; spot.current.z = targetRef.current.z; spot.current.floor = floorRef.current;
+    return () => { delete spots[avatarId]; };
+  }, [avatarId, view]);
+  // keeps a spot inside the house (and out of the open-air corner upstairs)
+  const limit = (wx, wz) => {
+    const x = clamp(wx, -BOUND_X, BOUND_X);
+    let z = clamp(wz, -BOUND_Z, floorRef.current ? BOUND_Z_UP : BOUND_Z);
+    if (floorRef.current && x > WORLD_W / 6 - 0.3 && z > -WORLD_D / 2 + CELL_D - 0.7) z = -WORLD_D / 2 + CELL_D - 0.7;
+    return { x, z };
+  };
+  // The nearest free place to (wx, wz): beside whoever is already there.
+  const place = (wx, wz) => {
+    const spots = view.current.spots || {};
+    const others = Object.keys(spots).filter(k => k !== avatarId && spots[k].floor === floorRef.current).map(k => spots[k]);
+    const r = freeSpot({ x: wx, z: wz }, others, limit);
+    return limit(r.x, r.z);
+  };
+
   useEffect(() => {
     if (!draggingRef.current) targetRef.current = toWorld(x, y);
   }, [x, y]);
@@ -52,9 +76,10 @@ function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zone, emote, onMo
     if (walk && !draggingRef.current) {
       view.current.walk = null;
       if (walk.floor != null) floorRef.current = walk.floor;
-      targetRef.current = { x: walk.x, z: walk.z };
-      if (walk.snap) { g.position.x = walk.x; g.position.z = walk.z; }
-      emit(walk.x, walk.z);
+      const r = place(walk.x, walk.z);
+      targetRef.current = r;
+      if (walk.snap) { g.position.x = r.x; g.position.z = r.z; }
+      emit(r.x, r.z);
     }
     // Climb to the floor you are on, and only show people on a floor that is being drawn.
     g.position.y += (floorRef.current * FLOOR_Y - g.position.y) * (1 - Math.exp(-dt * 5));
@@ -63,6 +88,7 @@ function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zone, emote, onMo
     if (g.visible !== shown) g.visible = shown;
     if (labelRef.current && shownRef.current !== shown) { shownRef.current = shown; labelRef.current.style.display = shown ? 'flex' : 'none'; }
     const t = targetRef.current;
+    spot.current.x = t.x; spot.current.z = t.z; spot.current.floor = floorRef.current;
     // Frame-rate independent glide; a bit slower while the camera is gliding through a door so the walk is visible.
     const k = 1 - Math.exp(-dt * (draggingRef.current ? 48 : view.current.glide ? 6 : 13.4));
     g.position.x += (t.x - g.position.x) * k;
@@ -112,17 +138,18 @@ function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zone, emote, onMo
     const move = (ev) => {
       const p = pointToGround(ev.clientX, ev.clientY);
       if (!p) return;
-      const wx = clamp(p.x + off.x, -BOUND_X, BOUND_X);
-      let wz = clamp(p.z + off.z, -BOUND_Z, floorRef.current ? BOUND_Z_UP : BOUND_Z);
-      // the front-right cell upstairs is open air
-      if (floorRef.current && wx > WORLD_W / 6 - 0.3 && wz > -WORLD_D / 2 + CELL_D - 0.7) wz = -WORLD_D / 2 + CELL_D - 0.7;
+      const { x: wx, z: wz } = limit(p.x + off.x, p.z + off.z);
       targetRef.current = { x: wx, z: wz };
       emitThrottled(wx, wz);
     };
     const up = () => {
       draggingRef.current = false;
       if (dragLockRef) dragLockRef.current = false;
-      if (pendingRef.current) { emit(pendingRef.current.wx, pendingRef.current.wz); pendingRef.current = null; }
+      // let go on someone's spot and you settle right beside them
+      const settled = place(targetRef.current.x, targetRef.current.z);
+      targetRef.current = settled;
+      pendingRef.current = null;
+      emit(settled.x, settled.z);
       if (onDrop) {
         const v = toVirtual(targetRef.current.x, targetRef.current.z);
         onDrop(zoneForPoint(clamp(v.x, 0, FLOORPLAN_WIDTH), clamp(v.y, 0, FLOORPLAN_HEIGHT), floorRef.current));

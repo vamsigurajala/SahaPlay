@@ -332,17 +332,23 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     return () => clearTimeout(t);
   }, [ready]);
 
-  // Come back to the room you were last in (only when the house has no position for you yet).
+  // First time in the house (no position yet): go to the room you were last in, or the
+  // living room. Either way you are placed beside anyone already standing there, and that
+  // spot is sent out so everyone sees you where you are instead of stacked at the spawn.
   useEffect(() => {
     if (!ready) return;
     resumeAmbience();
+    if (avatarPositions?.[mySocketId]) return;
     let saved = null;
     try { saved = localStorage.getItem(LAST_ZONE_KEY); } catch { /* ignore */ }
-    if (!saved || !ALL_ZONES[saved] || avatarPositions?.[mySocketId] || saved === myZoneRef.current) return;
-    const c = ALL_ZONES[saved].center;
-    const f = ALL_ZONES[saved].floor || 0;
-    focusRoom(saved);
-    viewRef.current.walk = { x: c.x, z: c.z, floor: f, snap: true };
+    if (saved && ALL_ZONES[saved] && saved !== myZoneRef.current) {
+      const c = ALL_ZONES[saved].center;
+      focusRoom(saved);
+      viewRef.current.walk = { x: c.x, z: c.z, floor: ALL_ZONES[saved].floor || 0, snap: true };
+    } else {
+      const w = virtualToWorld(DEFAULT_SPAWN.x, DEFAULT_SPAWN.y);
+      viewRef.current.walk = { x: w.x, z: w.z, floor: ALL_ZONES[myZoneRef.current]?.floor || 0, snap: true };
+    }
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Room sounds follow the room the camera is in.
@@ -397,6 +403,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
                 return (
                   <Avatar3D
                     key={user.socketId}
+                    avatarId={user.socketId}
                     username={user.username}
                     avatarPath={knownAvatars?.[user.username] || user.avatarPath}
                     isHost={user.isHost || user.socketId === hostId}
