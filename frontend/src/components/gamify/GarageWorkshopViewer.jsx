@@ -1,105 +1,216 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Wrench, Gauge, Disc, Zap, Check, AlertCircle, RefreshCw,
   Sliders, Shield, Award, Play, X, BatteryCharging, Cpu,
-  Search, Info, Flame, ChevronRight, Activity
+  Search, Info, Flame, ChevronRight, Activity, Bike, Car,
+  Sparkles, CheckCircle2, RotateCcw
 } from 'lucide-react';
 
-const MECHANIC_TOOLS = [
-  {
-    id: 'torque',
-    name: 'Digital Precision Torque Wrench',
-    category: 'Assembly & Safety',
-    spec: '20 - 250 Nm • 1/2" Drive • ±1% Accuracy',
-    desc: 'Crucial for torquing lightweight magnesium center-lock wheel nuts and cylinder head studs to exact manufacturer tolerances.',
-    icon: 'wrench',
-    actionText: 'Torque Center-Lock Nut (140 Nm)',
+// ============================================================================
+// GARAGE TOOLS & ASSETS DATA ACROSS CARS, BIKES, AND CYCLES
+// ============================================================================
+
+const GARAGE_CATEGORIES = {
+  car: {
+    name: 'Supercar Bay',
+    subtitle: 'Track-spec tools for Ferrari, Lamborghini & Hypercars',
+    icon: 'car',
+    color: '#ef4444',
+    badge: '1,000 HP SPECS',
+    items: [
+      {
+        id: 'car_impact',
+        name: 'Pneumatic 1/2" Impact Wrench',
+        spec: '1,400 ft-lb • 8,500 RPM • Twin-Hammer',
+        desc: 'Lightning-fast removal and torqueing of magnesium center-lock wheel nuts.',
+        actionVerb: 'Torque Wheel Nut',
+        animationType: 'spin_impact',
+        stats: { speed: '0.8s Nut Removal', torque: '1,400 ft-lb', pressure: '90 PSI Air' }
+      },
+      {
+        id: 'car_jack',
+        name: 'Low-Profile Racing Floor Jack',
+        spec: '3-Ton • 75mm Ultra-Low Clearance',
+        desc: 'Quick-pump hydraulic dual-piston lift engineered for low-slung carbon splitters.',
+        actionVerb: 'Lift Chassis',
+        animationType: 'jack_lift',
+        stats: { capacity: '3,000 kg', liftHeight: '510 mm', pumps: '3 Rapid Pumps' }
+      },
+      {
+        id: 'car_oil',
+        name: 'Motul 300V 10W-60 Synthetic Oil',
+        spec: 'Ester Core Technology • 300°C Flashpoint',
+        desc: 'High-shear racing oil providing unyielding film strength under extreme V8/V12 RPM.',
+        actionVerb: 'Replenish Racing Oil',
+        animationType: 'oil_pour',
+        stats: { grade: '10W-60 Ester', capacity: '9.5 Liters', endurance: '5,000 Track km' }
+      },
+      {
+        id: 'car_polisher',
+        name: 'Dual-Action Orbital Paint Buffer',
+        spec: '21mm Orbit • 4,800 OPM • Microfiber Pad',
+        desc: 'Restores mirror-like wet reflections on Rosso Corsa & Giallo clear coats.',
+        actionVerb: 'Polish Paint to Mirror Gloss',
+        animationType: 'paint_polish',
+        stats: { orbit: '21mm Throw', cut: 'Compound & Finish', gloss: '99.8 GU Mirror' }
+      },
+      {
+        id: 'car_scanner',
+        name: 'OBD-II Wireless ECU Scanner',
+        spec: 'CAN-FD / DoIP • Live 120Hz Telemetry',
+        desc: 'Monitors fuel trims, turbo boost PSI, and hybrid battery cell voltages.',
+        actionVerb: 'Run Full ECU Diagnostics',
+        animationType: 'ecu_scan',
+        stats: { protocols: 'CAN-FD / DoIP', sensors: '148 Live PIDs', errors: '0 DTC Faults' }
+      },
+      {
+        id: 'car_brakes',
+        name: 'Ceramic Caliper Vacuum Bleeder',
+        spec: 'Brembo Monobloc • DOT 5.1 Fluid',
+        desc: 'Purges micro air bubbles from 6-piston front calipers for rock-firm pedal feel.',
+        actionVerb: 'Bleed Hydraulic Line',
+        animationType: 'brake_bleed',
+        stats: { pressure: '2.5 Bar', fluid: 'DOT 5.1 High Temp', boilPoint: '310°C Dry' }
+      },
+    ]
   },
-  {
-    id: 'impact',
-    name: 'Twin-Hammer Pneumatic Impact Gun',
-    category: 'Rapid Wheel Service',
-    spec: '1,400 ft-lb Breakaway Torque • 8,500 RPM',
-    desc: 'Heavy-duty air-powered gun used in pit stops for lightning-fast tire changes and stubborn suspension fasteners.',
-    icon: 'zap',
-    actionText: 'Spin Off Wheel Fastener',
+
+  bike: {
+    name: 'Motorbike Bay',
+    subtitle: 'Precision paddock equipment for Sports Superbikes',
+    icon: 'bike',
+    color: '#06b6d4',
+    badge: 'SUPERBIKE SPEC',
+    items: [
+      {
+        id: 'bike_paddock',
+        name: 'Rear Paddock Spool Stand',
+        spec: 'Heavy-Duty 35mm Steel • Rubber Coated Rollers',
+        desc: 'Lifts the rear swingarm effortlessly for wheel changes, chain adjustments, and cleaning.',
+        actionVerb: 'Engage Paddock Stand',
+        animationType: 'paddock_lift',
+        stats: { liftType: 'V-Hook Spool', clearance: '120mm Lift', load: '350 kg' }
+      },
+      {
+        id: 'bike_chain',
+        name: 'High-Tack O-Ring Chain Lube & Brush',
+        spec: 'PTFE Synthetic • Anti-Fling Formula',
+        desc: 'Penetrates deep into 525 O-ring links to protect against friction at 14,000 RPM.',
+        actionVerb: 'Clean & Lubricate Chain',
+        animationType: 'chain_spray',
+        stats: { chainType: '520 / 525 O-Ring', tempRange: '-30°C to 240°C', flingRating: 'Zero Fling' }
+      },
+      {
+        id: 'bike_tpms',
+        name: 'Digital Motorcycle Tire Pressure Gauge',
+        spec: '0-100 PSI • 0.1 PSI Accuracy • 90° Chuck',
+        desc: 'Essential 90-degree angled brass chuck designed to clear dual front brake rotors.',
+        actionVerb: 'Calibrate Tire Pressures',
+        animationType: 'tire_gauge',
+        stats: { frontPsi: '34.0 PSI Track', rearPsi: '38.0 PSI Track', bleedValve: 'Micro-Bleed' }
+      },
+      {
+        id: 'bike_spark',
+        name: 'Laser-Iridium Spark Plug Tester',
+        spec: 'High-Energy Coil • 25kV Test Arc',
+        desc: 'Simulates high-RPM spark pulse to ensure perfect ignition without spark blowout.',
+        actionVerb: 'Fire Ignition Arc',
+        animationType: 'spark_fire',
+        stats: { gap: '0.7mm Micro', voltage: '25,000 Volts', electrode: '0.6mm Iridium' }
+      },
+      {
+        id: 'bike_lever',
+        name: 'CNC Folding Clutch & Brake Levers',
+        spec: 'Billet 6061-T6 Aluminum • 6-Way Clicker',
+        desc: 'Allows fine on-the-fly reach adjustment for instantaneous braking response.',
+        actionVerb: 'Adjust Lever Reach',
+        animationType: 'lever_click',
+        stats: { material: 'Billet 6061-T6', adjustment: '6 Position Clicker', design: 'Pivot Fold' }
+      },
+      {
+        id: 'bike_balancer',
+        name: 'High-Precision Wheel Balancer',
+        spec: 'Twin Low-Friction Bearings • Carbon Steel Axle',
+        desc: 'Detects gram-level imbalance on lightweight forged alloy motorcycle wheels.',
+        actionVerb: 'Balance Wheel Assembly',
+        animationType: 'wheel_balance',
+        stats: { sensitivity: '0.5 Grams', maxWheel: '21 Inch Front/Rear', axle: '12mm Ground' }
+      },
+    ]
   },
-  {
-    id: 'scanner',
-    name: 'OBD-II Advanced ECU Telemetry Scanner',
-    category: 'Diagnostics & Tuning',
-    spec: 'CAN-FD / DoIP Protocols • Live 120Hz Telemetry',
-    desc: 'Connects directly to the twin-turbo V8 hybrid ECU to read fuel trim, turbo boost pressure, and clear fault codes.',
-    icon: 'cpu',
-    actionText: 'Scan ECU Telemetry',
-  },
-  {
-    id: 'jack',
-    name: '3-Ton Ultra Low-Profile Racing Floor Jack',
-    category: 'Lifting & Rigging',
-    spec: '75mm Minimum Clearance • Dual Rapid Pump',
-    desc: 'Engineered specifically for slammed supercars with ground clearance under 80mm to lift safely on chassis jack points.',
-    icon: 'sliders',
-    actionText: 'Pump Chassis Lift',
-  },
-  {
-    id: 'brake_bleeder',
-    name: 'Pneumatic Brake Bleeding & Vacuum Kit',
-    category: 'Hydraulics',
-    spec: 'Vacuum Reservoir • 3.0 Bar DOT 5.1 Pressure',
-    desc: 'Flushes high-temperature racing brake fluid through 6-piston monobloc Brembo calipers, purging air bubbles.',
-    icon: 'disc',
-    actionText: 'Bleed Brake Line',
-  },
-  {
-    id: 'spark_gauge',
-    name: 'Iridium Spark Plug Feeler & Gap Gauge',
-    category: 'Ignition Tuning',
-    spec: '0.02 - 1.00 mm • Micro-Metric Steel Blades',
-    desc: 'Calibrates the electrode gap on twin-turbo spark plugs to prevent ignition blowout under 2.2 bar boost.',
-    icon: 'flame',
-    actionText: 'Calibrate Electrode Gap',
-  },
-  {
-    id: 'multimeter',
-    name: 'Hybrid Automotive True-RMS Multimeter',
-    category: 'Electrical & 48V Hybrid',
-    spec: '1,000V CAT III • Insulation Resistance • 100A Clamp',
-    desc: 'Safely measures high-voltage hybrid lithium battery cells and electric motor regenerative braking currents.',
-    icon: 'battery',
-    actionText: 'Test Hybrid Battery Cell',
-  },
-  {
-    id: 'sockets',
-    name: 'Titanium-Alloy Hex & Torx Socket Set',
-    category: 'Hand Tools',
-    spec: 'T10 - T60 Torx • 8mm - 36mm Thin-Wall Hex',
-    desc: 'Magnetic thin-wall sockets designed to access recessed titanium bolts in engine bays without marring finishes.',
-    icon: 'wrench',
-    actionText: 'Inspect Fasteners',
-  },
-];
+
+  cycle: {
+    name: 'Bicycle Bay',
+    subtitle: 'Pro workshop tools for Road, Gravel & Mountain Bikes',
+    icon: 'cycle',
+    color: '#10b981',
+    badge: 'PRO PELOTON',
+    items: [
+      {
+        id: 'cycle_pump',
+        name: 'Pro High-Pressure Floor Pump',
+        spec: '160 PSI / 11 Bar • Dual Presta/Schrader SmartHead',
+        desc: 'Aluminum barrel with oversized base and calibrated top-mount analog pressure dial.',
+        actionVerb: 'Pump Tire to 110 PSI',
+        animationType: 'pump_cycle',
+        stats: { maxPressure: '160 PSI', valveType: 'Presta & Schrader', strokes: '12 Quick Pumps' }
+      },
+      {
+        id: 'cycle_multitool',
+        name: '20-in-1 Carbon Torque Multi-Tool',
+        spec: '2-8mm Hex • T25 Torx • Chain Breaker • Tire Lever',
+        desc: 'Compact lightweight workshop multi-tool forged from hardened chrome-vanadium steel.',
+        actionVerb: 'Tune Cockpit & Seatpost',
+        animationType: 'hex_tighten',
+        stats: { bits: '20 Hardened Bits', weight: '142 Grams', torqueMax: '15 Nm' }
+      },
+      {
+        id: 'cycle_chain_tool',
+        name: 'Precision Chain Breaker & Wear Gauge',
+        spec: 'Compatible with 8-12 Speed Chains • 0.5% & 0.75% Gauge',
+        desc: 'Accurately tests chain link stretch and easily drives out master pins for replacements.',
+        actionVerb: 'Check Chain Stretch',
+        animationType: 'chain_breaker',
+        stats: { wearReading: '0.45% (Healthy)', speeds: '8, 9, 10, 11, 12 Speed', pin: 'Hardened Tool Steel' }
+      },
+      {
+        id: 'cycle_patch',
+        name: 'Glueless Inner Tube Patch Kit',
+        spec: '6 Vulcanizing Adhesive Patches • Stainless Scuffer',
+        desc: 'Instantly seals punctures without messy liquid glue tubes within 30 seconds.',
+        actionVerb: 'Apply Vulcanizing Patch',
+        animationType: 'patch_repair',
+        stats: { cureTime: 'Instant Bond', elasticity: 'High Stretch', patches: '6 Round Patches' }
+      },
+      {
+        id: 'cycle_lube',
+        name: 'Ceramic Dry Lube & Degreaser',
+        spec: 'Nano-Ceramic Particles • Wax Emulsion',
+        desc: 'Repels road dust, sand, and moisture for silent, frictionless pedaling efficiency.',
+        actionVerb: 'Apply Nano-Ceramic Lube',
+        animationType: 'dry_lube',
+        stats: { formula: 'Wax & Nano-Ceramic', friction: '-4.5 Watts Drag', conditions: 'Dry & Dusty Road' }
+      },
+      {
+        id: 'cycle_stand',
+        name: 'Adjustable 360° Workshop Repair Stand',
+        spec: 'Quick-Release Cam Clamp • 35kg Max Weight',
+        desc: 'Suspends the bicycle at optimal eye level to adjust derailleurs and true wheels easily.',
+        actionVerb: 'Clamp Bike into Workstand',
+        animationType: 'stand_clamp',
+        stats: { rotation: '360° Swivel', clamp: 'Rubber-Jawed Cam', height: '100 - 160 cm' }
+      },
+    ]
+  }
+};
 
 export default function GarageWorkshopViewer({ onClose }) {
-  const [activeTab, setActiveTab] = useState('tools'); // 'tools' | 'service' | 'dyno'
-  const [selectedTool, setSelectedTool] = useState(MECHANIC_TOOLS[0]);
-  const [toolActionActive, setToolActionActive] = useState(false);
-  const [actionFeedback, setActionFeedback] = useState('');
-
-  // Service Bay State
-  const [oilLevel, setOilLevel] = useState(65);
-  const [brakePadLife, setBrakePadLife] = useState(72);
-  const [frontPsi, setFrontPsi] = useState(28);
-  const [rearPsi, setRearPsi] = useState(30);
-  const [ecuErrorsCleared, setEcuErrorsCleared] = useState(false);
-  const [serviceMessage, setServiceMessage] = useState('');
-
-  // Dyno Test State
-  const [isDynoRunning, setIsDynoRunning] = useState(false);
-  const [dynoRpm, setDynoRpm] = useState(0);
-  const [dynoHp, setDynoHp] = useState(0);
-  const [dynoTorque, setDynoTorque] = useState(0);
-  const [dynoDone, setDynoDone] = useState(false);
+  const [activeCategory, setActiveCategory] = useState('car');
+  const [selectedItem, setSelectedItem] = useState(GARAGE_CATEGORIES.car.items[0]);
+  const [isServicing, setIsServicing] = useState(false);
+  const [serviceProgress, setServiceProgress] = useState(0);
+  const [serviceCompleted, setServiceCompleted] = useState(false);
+  const [actionLog, setActionLog] = useState('');
 
   const [isLight, setIsLight] = useState(() => {
     return typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'light';
@@ -113,51 +224,51 @@ export default function GarageWorkshopViewer({ onClose }) {
     return () => obs.disconnect();
   }, []);
 
-  const triggerToolAction = () => {
-    setToolActionActive(true);
-    setActionFeedback(`Executing: ${selectedTool.actionText}...`);
-    setTimeout(() => {
-      setToolActionActive(false);
-      setActionFeedback(`Complete! ${selectedTool.name} calibrated successfully.`);
-    }, 1400);
+  // When changing category, switch selected item automatically
+  const handleCategorySwitch = (catKey) => {
+    setActiveCategory(catKey);
+    setSelectedItem(GARAGE_CATEGORIES[catKey].items[0]);
+    setIsServicing(false);
+    setServiceProgress(0);
+    setServiceCompleted(false);
+    setActionLog('');
   };
 
-  const runDynoTest = () => {
-    if (isDynoRunning) return;
-    setIsDynoRunning(true);
-    setDynoDone(false);
-    setDynoRpm(1000);
-    setDynoHp(80);
-    setDynoTorque(180);
+  const handleSelectItem = (item) => {
+    setSelectedItem(item);
+    setIsServicing(false);
+    setServiceProgress(0);
+    setServiceCompleted(false);
+    setActionLog('');
+  };
 
-    let step = 0;
+  // Trigger interactive servicing simulation
+  const handleUseTool = () => {
+    if (isServicing) return;
+    setIsServicing(true);
+    setServiceProgress(0);
+    setServiceCompleted(false);
+    setActionLog(`Engaging ${selectedItem.name}...`);
+
+    let p = 0;
     const interval = setInterval(() => {
-      step++;
-      const currentRpm = 1000 + step * 250;
-      setDynoRpm(currentRpm);
-
-      // Dyno curve simulation
-      const progress = step / 32;
-      const calculatedHp = Math.round(100 + Math.sin(progress * Math.PI * 0.9) * 915);
-      const calculatedTorque = Math.round(200 + Math.sin(progress * Math.PI * 0.8) * 620);
-      setDynoHp(calculatedHp);
-      setDynoTorque(calculatedTorque);
-
-      if (step >= 32) {
+      p += 10;
+      setServiceProgress(p);
+      if (p >= 100) {
         clearInterval(interval);
-        setIsDynoRunning(false);
-        setDynoDone(true);
-        setDynoRpm(8500);
-        setDynoHp(1015);
-        setDynoTorque(820);
+        setIsServicing(false);
+        setServiceCompleted(true);
+        setActionLog(`Success! ${selectedItem.actionVerb} completed with pro accuracy.`);
       }
-    }, 90);
+    }, 120);
   };
 
-  // Styling theme tokens
+  const currentCategory = GARAGE_CATEGORIES[activeCategory];
+
+  // Theme-adaptive palettes
   const cardBg = isLight
     ? 'linear-gradient(165deg, rgba(255,255,255,0.98), rgba(245,247,252,0.99))'
-    : 'linear-gradient(165deg, rgba(22,18,36,0.97), rgba(10,8,18,0.99))';
+    : 'linear-gradient(165deg, rgba(20,16,32,0.97), rgba(10,8,18,0.99))';
   const cardBorder = isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)';
   const textTitle = isLight ? '#0f172a' : '#ffffff';
   const textSub = isLight ? '#475569' : '#94a3b8';
@@ -169,15 +280,15 @@ export default function GarageWorkshopViewer({ onClose }) {
       onClick={e => e.stopPropagation()}
       style={{
         width: '100%',
-        maxWidth: 960,
+        maxWidth: 980,
         height: '88vh',
-        maxHeight: 780,
+        maxHeight: 800,
         borderRadius: 24,
         background: cardBg,
         border: `1px solid ${cardBorder}`,
         boxShadow: isLight
-          ? '0 24px 60px rgba(0,0,0,0.18)'
-          : '0 24px 60px rgba(0,0,0,0.7), 0 0 50px rgba(239,68,68,0.18)',
+          ? '0 24px 60px rgba(0,0,0,0.16)'
+          : `0 24px 60px rgba(0,0,0,0.7), 0 0 50px ${currentCategory.color}25`,
         backdropFilter: 'blur(16px)',
         overflow: 'hidden',
         color: textTitle,
@@ -186,6 +297,26 @@ export default function GarageWorkshopViewer({ onClose }) {
         animation: 'gp-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
+      <style>{`
+        @keyframes gear-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes pump-bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        @keyframes spark-flicker {
+          0%, 100% { opacity: 0.2; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+        @keyframes pulse-ring {
+          0% { transform: scale(0.95); opacity: 0.8; }
+          50% { transform: scale(1.05); opacity: 1; }
+          100% { transform: scale(0.95); opacity: 0.8; }
+        }
+      `}</style>
+
       {/* ── Top Header Bar ── */}
       <div
         style={{
@@ -202,403 +333,342 @@ export default function GarageWorkshopViewer({ onClose }) {
               width: 40,
               height: 40,
               borderRadius: 12,
-              background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+              background: `linear-gradient(135deg, ${currentCategory.color}, #09090b)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#fff',
-              boxShadow: '0 4px 16px rgba(239,68,68,0.4)',
+              boxShadow: `0 4px 16px ${currentCategory.color}50`,
             }}
           >
             <Wrench size={22} />
           </div>
           <div>
             <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 8 }}>
-              Supercar Mechanic Workshop &amp; Garage Station
-              <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 99, background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>
-                PRO PIT LANE
+              Multi-Vehicle Workshop &amp; Garage Station
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: 99,
+                  background: `${currentCategory.color}20`,
+                  color: currentCategory.color,
+                  border: `1px solid ${currentCategory.color}40`,
+                }}
+              >
+                {currentCategory.badge}
               </span>
             </div>
             <div style={{ fontSize: 12, color: textSub }}>
-              Precision tools, diagnostics scanner &amp; dyno tuning bay for hypercars
+              Interactive mechanical tools and servicing assets for Supercars, Motorbikes &amp; Bicycles
             </div>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {[
-            { id: 'tools', label: 'Mechanic Tools', icon: <Wrench size={14} /> },
-            { id: 'service', label: 'Service Bay', icon: <Disc size={14} /> },
-            { id: 'dyno', label: 'Dyno Pull Test', icon: <Gauge size={14} /> },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                padding: '8px 14px',
-                borderRadius: 12,
-                border: activeTab === tab.id ? '1px solid #ef4444' : `1px solid ${innerCardBorder}`,
-                background: activeTab === tab.id ? '#ef4444' : innerCardBg,
-                color: activeTab === tab.id ? '#fff' : textTitle,
-                fontSize: 12,
-                fontWeight: 800,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                transition: 'all 0.15s',
-              }}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
-
-          <button
-            onClick={onClose}
-            title="Close"
-            style={{
-              marginLeft: 8,
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              border: `1px solid ${innerCardBorder}`,
-              background: innerCardBg,
-              color: textTitle,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <X size={18} />
-          </button>
-        </div>
+        <button
+          onClick={onClose}
+          title="Close"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 10,
+            border: `1px solid ${innerCardBorder}`,
+            background: innerCardBg,
+            color: textTitle,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <X size={18} />
+        </button>
       </div>
 
-      {/* ── Main Tab View Area ── */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
-        {/* TAB 1: MECHANIC TOOLS INVENTORY */}
-        {activeTab === 'tools' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.8fr', gap: 20, height: '100%' }}>
-            {/* Left: Tool Selection List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: textSub, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                Workshop Equipment ({MECHANIC_TOOLS.length})
+      {/* ── Category Switcher: Supercars, Motorbikes, Bicycles ── */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 12,
+          padding: '14px 24px',
+          borderBottom: `1px solid ${innerCardBorder}`,
+          background: isLight ? 'rgba(241,245,249,0.5)' : 'rgba(0,0,0,0.2)',
+        }}
+      >
+        {[
+          { key: 'car', label: 'Supercar Bay', icon: <Car size={18} />, color: '#ef4444', desc: 'Ferrari & Lambo' },
+          { key: 'bike', label: 'Motorbike Bay', icon: <Zap size={18} />, color: '#06b6d4', desc: 'Sports Superbikes' },
+          { key: 'cycle', label: 'Bicycle Bay', icon: <Bike size={18} />, color: '#10b981', desc: 'Road & Mountain Bikes' },
+        ].map(cat => (
+          <button
+            key={cat.key}
+            onClick={() => handleCategorySwitch(cat.key)}
+            style={{
+              padding: '10px 16px',
+              borderRadius: 14,
+              border: activeCategory === cat.key ? `2px solid ${cat.color}` : `1px solid ${innerCardBorder}`,
+              background: activeCategory === cat.key ? `${cat.color}15` : innerCardBg,
+              color: textTitle,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              textAlign: 'left',
+              transition: 'all 0.2s',
+            }}
+          >
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                background: activeCategory === cat.key ? cat.color : isLight ? '#cbd5e1' : 'rgba(255,255,255,0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: activeCategory === cat.key ? '#fff' : textTitle,
+              }}
+            >
+              {cat.icon}
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: activeCategory === cat.key ? cat.color : textTitle }}>
+                {cat.label}
               </div>
-              {MECHANIC_TOOLS.map(t => (
+              <div style={{ fontSize: 11, color: textSub }}>{cat.desc}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Main Content Area: Grid of Animated Assets on Left + Live Workstation on Right ── */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1.2fr 1.3fr', overflow: 'hidden' }}>
+        {/* Left Column: Animated Assets & Tool Cards Grid */}
+        <div style={{ padding: '18px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Available Mechanical Assets ({currentCategory.items.length})
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+            {currentCategory.items.map(item => {
+              const isSelected = selectedItem.id === item.id;
+              return (
                 <div
-                  key={t.id}
-                  onClick={() => setSelectedTool(t)}
+                  key={item.id}
+                  onClick={() => handleSelectItem(item)}
                   style={{
-                    padding: '12px 14px',
-                    borderRadius: 14,
-                    background: selectedTool.id === t.id
-                      ? isLight ? 'rgba(239,68,68,0.1)' : 'rgba(239,68,68,0.18)'
-                      : innerCardBg,
-                    border: selectedTool.id === t.id
-                      ? '1px solid #ef4444'
-                      : `1px solid ${innerCardBorder}`,
+                    padding: '14px 16px',
+                    borderRadius: 16,
+                    background: isSelected ? `${currentCategory.color}15` : innerCardBg,
+                    border: isSelected ? `2px solid ${currentCategory.color}` : `1px solid ${innerCardBorder}`,
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    gap: 12,
                     transition: 'all 0.15s',
+                    boxShadow: isSelected ? `0 4px 20px ${currentCategory.color}25` : 'none',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
-                      <Wrench size={16} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    {/* Animated Tool Icon Badge */}
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 12,
+                        background: isSelected ? currentCategory.color : `${currentCategory.color}20`,
+                        color: isSelected ? '#fff' : currentCategory.color,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        transition: 'all 0.2s',
+                        animation: isSelected ? 'pulse-ring 2.5s infinite' : 'none',
+                      }}
+                    >
+                      <Wrench size={20} />
                     </div>
+
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: selectedTool.id === t.id ? '#ef4444' : textTitle }}>
-                        {t.name}
+                      <div style={{ fontSize: 14, fontWeight: 900, color: isSelected ? currentCategory.color : textTitle }}>
+                        {item.name}
                       </div>
-                      <div style={{ fontSize: 11, color: textSub }}>{t.category}</div>
+                      <div style={{ fontSize: 11, color: '#38bdf8', fontWeight: 700, marginTop: 2 }}>
+                        {item.spec}
+                      </div>
                     </div>
                   </div>
-                  <ChevronRight size={16} color={selectedTool.id === t.id ? '#ef4444' : textSub} />
+
+                  <ChevronRight size={18} color={isSelected ? currentCategory.color : textSub} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right Column: Live Interactive Mechanical Workstation */}
+        <div
+          style={{
+            padding: '24px',
+            borderLeft: `1px solid ${innerCardBorder}`,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            background: isLight ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.25)',
+            overflowY: 'auto',
+          }}
+        >
+          {/* Upper Section: Details & Animated Asset Showcase */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  padding: '3px 10px',
+                  borderRadius: 99,
+                  background: `${currentCategory.color}20`,
+                  color: currentCategory.color,
+                  textTransform: 'uppercase',
+                }}
+              >
+                {currentCategory.name}
+              </span>
+              <span style={{ fontSize: 11, color: textSub, fontWeight: 700 }}>
+                STATUS: READY TO DEPLOY
+              </span>
+            </div>
+
+            <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.02em', marginBottom: 6 }}>
+              {selectedItem.name}
+            </div>
+
+            <div style={{ fontSize: 13, color: textSub, lineHeight: 1.6, marginBottom: 18 }}>
+              {selectedItem.desc}
+            </div>
+
+            {/* Animated Asset Feature Specs */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 }}>
+              {Object.entries(selectedItem.stats).map(([k, v]) => (
+                <div
+                  key={k}
+                  style={{
+                    background: innerCardBg,
+                    border: `1px solid ${innerCardBorder}`,
+                    borderRadius: 12,
+                    padding: '10px 12px',
+                    textAlign: 'center',
+                  }}
+                >
+                  <div style={{ fontSize: 10, fontWeight: 800, color: textSub, textTransform: 'uppercase' }}>
+                    {k}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: textTitle, marginTop: 4 }}>
+                    {v}
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Right: Detailed Tool Inspection & Action Bay */}
+            {/* Live Servicing Animation Viewport */}
             <div
               style={{
-                background: innerCardBg,
+                height: 160,
+                borderRadius: 18,
+                background: isLight ? '#f1f5f9' : '#09090b',
                 border: `1px solid ${innerCardBorder}`,
-                borderRadius: 20,
-                padding: '24px',
                 display: 'flex',
                 flexDirection: 'column',
-                justifyContent: 'space-between',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                padding: '16px',
               }}
             >
-              <div>
-                <div style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', marginBottom: 12 }}>
-                  {selectedTool.category}
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.02em', marginBottom: 8 }}>
-                  {selectedTool.name}
-                </div>
-                <div style={{ fontSize: 13, color: '#38bdf8', fontWeight: 700, marginBottom: 16 }}>
-                  SPEC: {selectedTool.spec}
-                </div>
-                <div style={{ fontSize: 14, lineHeight: 1.6, color: textSub, marginBottom: 24 }}>
-                  {selectedTool.desc}
-                </div>
-
-                {/* Technical Features Specs */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-                  <div style={{ background: isLight ? '#fff' : 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: 12, border: `1px solid ${innerCardBorder}` }}>
-                    <div style={{ fontSize: 11, color: textSub, fontWeight: 700 }}>MATERIAL GRADE</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: textTitle, marginTop: 3 }}>Chrome-Vanadium &bull; Titanium</div>
+              {isServicing ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                  {/* Rotating Tool Animation */}
+                  <div style={{ width: 50, height: 50, borderRadius: '50%', background: `${currentCategory.color}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentCategory.color, animation: 'gear-spin 1.2s linear infinite' }}>
+                    <RefreshCw size={26} />
                   </div>
-                  <div style={{ background: isLight ? '#fff' : 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: 12, border: `1px solid ${innerCardBorder}` }}>
-                    <div style={{ fontSize: 11, color: textSub, fontWeight: 700 }}>CERTIFICATION</div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: textTitle, marginTop: 3 }}>FIA Pit Lane Spec &bull; ISO 6789</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: currentCategory.color }}>
+                    Operating {selectedItem.name} ({serviceProgress}%)...
                   </div>
                 </div>
-              </div>
-
-              {/* Action Button & Feedback */}
-              <div>
-                {actionFeedback && (
-                  <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 700, color: '#22c55e', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Check size={16} />
-                    <span>{actionFeedback}</span>
+              ) : serviceCompleted ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#22c55e20', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#22c55e' }}>
+                    <CheckCircle2 size={30} />
                   </div>
-                )}
+                  <div style={{ fontSize: 14, fontWeight: 900, color: '#22c55e' }}>
+                    Servicing Complete!
+                  </div>
+                  <div style={{ fontSize: 11, color: textSub }}>
+                    Vehicle calibrated to track standards
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, opacity: 0.8 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: '50%', background: innerCardBg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: currentCategory.color }}>
+                    <Play size={20} />
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: textSub }}>
+                    Tap button below to use on vehicle
+                  </div>
+                </div>
+              )}
 
-                <button
-                  onClick={triggerToolAction}
-                  disabled={toolActionActive}
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    borderRadius: 14,
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                    color: '#fff',
-                    fontSize: 14,
-                    fontWeight: 900,
-                    letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                    cursor: toolActionActive ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    boxShadow: '0 4px 16px rgba(239,68,68,0.4)',
-                    transition: 'all 0.2s',
-                  }}
-                >
-                  <Wrench size={18} />
-                  <span>{toolActionActive ? 'Operating Tool...' : selectedTool.actionText}</span>
-                </button>
-              </div>
+              {/* Live Service Progress Bar */}
+              {isServicing && (
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: 'rgba(255,255,255,0.1)' }}>
+                  <div style={{ height: '100%', width: `${serviceProgress}%`, background: currentCategory.color, transition: 'width 0.12s linear' }} />
+                </div>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* TAB 2: SERVICE & MAINTENANCE BAY */}
-        {activeTab === 'service' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {serviceMessage && (
-              <div style={{ padding: '10px 16px', borderRadius: 12, background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Check size={16} />
-                <span>{serviceMessage}</span>
+            {actionLog && (
+              <div style={{ marginTop: 12, fontSize: 12, fontWeight: 700, color: serviceCompleted ? '#22c55e' : textSub, textAlign: 'center' }}>
+                {actionLog}
               </div>
             )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-              {/* Oil Service */}
-              <div style={{ background: innerCardBg, border: `1px solid ${innerCardBorder}`, borderRadius: 18, padding: '18px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={{ fontSize: 15, fontWeight: 800 }}>Engine Racing Lubricant (10W-60)</span>
-                  <span style={{ fontSize: 15, fontWeight: 900, color: oilLevel > 80 ? '#22c55e' : '#f59e0b' }}>{oilLevel}%</span>
-                </div>
-                <div style={{ height: 8, borderRadius: 99, background: 'rgba(255,255,255,0.1)', overflow: 'hidden', marginBottom: 16 }}>
-                  <div style={{ height: '100%', width: `${oilLevel}%`, background: 'linear-gradient(90deg, #f59e0b, #22c55e)', transition: 'width 0.4s' }} />
-                </div>
-                <button
-                  onClick={() => {
-                    setOilLevel(100);
-                    setServiceMessage('Fresh Motul 300V 10W-60 synthetic oil replenished. Filter replaced!');
-                  }}
-                  style={{ width: '100%', padding: '10px', borderRadius: 12, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
-                >
-                  Drain &amp; Refill Racing Oil
-                </button>
-              </div>
-
-              {/* Brake Pad Wear */}
-              <div style={{ background: innerCardBg, border: `1px solid ${innerCardBorder}`, borderRadius: 18, padding: '18px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={{ fontSize: 15, fontWeight: 800 }}>Carbon Ceramic Brake Pads</span>
-                  <span style={{ fontSize: 15, fontWeight: 900, color: brakePadLife > 80 ? '#22c55e' : '#f59e0b' }}>{brakePadLife}%</span>
-                </div>
-                <div style={{ height: 8, borderRadius: 99, background: 'rgba(255,255,255,0.1)', overflow: 'hidden', marginBottom: 16 }}>
-                  <div style={{ height: '100%', width: `${brakePadLife}%`, background: 'linear-gradient(90deg, #ef4444, #22c55e)', transition: 'width 0.4s' }} />
-                </div>
-                <button
-                  onClick={() => {
-                    setBrakePadLife(100);
-                    setServiceMessage('High-friction Brembo ceramic pads installed and bedded in!');
-                  }}
-                  style={{ width: '100%', padding: '10px', borderRadius: 12, border: 'none', background: '#8b5cf6', color: '#fff', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
-                >
-                  Bed-In New Racing Brake Pads
-                </button>
-              </div>
-
-              {/* Tire Pressure System */}
-              <div style={{ background: innerCardBg, border: `1px solid ${innerCardBorder}`, borderRadius: 18, padding: '18px' }}>
-                <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>Tire Pressure Monitoring (TPMS)</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-                  <div style={{ textAlign: 'center', padding: '8px', borderRadius: 10, background: isLight ? '#fff' : 'rgba(0,0,0,0.3)' }}>
-                    <div style={{ fontSize: 11, color: textSub }}>FRONT WHEELS</div>
-                    <div style={{ fontSize: 18, fontWeight: 900, color: frontPsi >= 32 ? '#22c55e' : '#f59e0b' }}>{frontPsi} PSI</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: '8px', borderRadius: 10, background: isLight ? '#fff' : 'rgba(0,0,0,0.3)' }}>
-                    <div style={{ fontSize: 11, color: textSub }}>REAR WHEELS</div>
-                    <div style={{ fontSize: 18, fontWeight: 900, color: rearPsi >= 34 ? '#22c55e' : '#f59e0b' }}>{rearPsi} PSI</div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setFrontPsi(32);
-                    setRearPsi(34);
-                    setServiceMessage('All 4 Michelin Pilot Sport Cup 2 tires calibrated to track pressures!');
-                  }}
-                  style={{ width: '100%', padding: '10px', borderRadius: 12, border: 'none', background: '#06b6d4', color: '#fff', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
-                >
-                  Inflate to Track Spec (32 / 34 PSI)
-                </button>
-              </div>
-
-              {/* OBD-II Fault Codes */}
-              <div style={{ background: innerCardBg, border: `1px solid ${innerCardBorder}`, borderRadius: 18, padding: '18px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <span style={{ fontSize: 15, fontWeight: 800 }}>ECU System Diagnostics</span>
-                  <span style={{ fontSize: 12, fontWeight: 800, color: ecuErrorsCleared ? '#22c55e' : '#ef4444' }}>
-                    {ecuErrorsCleared ? '0 DTC Codes' : '1 Minor Code: P0133'}
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: textSub, marginBottom: 16, lineHeight: 1.5 }}>
-                  {ecuErrorsCleared
-                    ? 'All 6 micro-controllers online: Engine, Dual-Clutch Transmission, Active Aero, Hybrid Inverter.'
-                    : 'Fault Code P0133: Bank 1 O2 sensor response slow due to cold track session.'}
-                </div>
-                <button
-                  onClick={() => {
-                    setEcuErrorsCleared(true);
-                    setServiceMessage('OBD-II scanner cleared all DTC codes. ECU reset to factory performance map!');
-                  }}
-                  style={{ width: '100%', padding: '10px', borderRadius: 12, border: 'none', background: '#10b981', color: '#fff', fontWeight: 800, fontSize: 12, cursor: 'pointer' }}
-                >
-                  Clear Codes &amp; Reset ECU
-                </button>
-              </div>
-            </div>
           </div>
-        )}
 
-        {/* TAB 3: DYNO PERFORMANCE TEST */}
-        {activeTab === 'dyno' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-              <div style={{ background: innerCardBg, border: `1px solid ${innerCardBorder}`, borderRadius: 18, padding: '18px', textAlign: 'center' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: textSub, textTransform: 'uppercase' }}>ENGINE RPM</div>
-                <div style={{ fontSize: 38, fontWeight: 900, color: dynoRpm > 7500 ? '#ef4444' : '#fff', marginTop: 4 }}>
-                  {dynoRpm}
-                </div>
-              </div>
-              <div style={{ background: innerCardBg, border: `1px solid ${innerCardBorder}`, borderRadius: 18, padding: '18px', textAlign: 'center' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: textSub, textTransform: 'uppercase' }}>MAX HORSEPOWER</div>
-                <div style={{ fontSize: 38, fontWeight: 900, color: '#f59e0b', marginTop: 4 }}>
-                  {dynoHp} <span style={{ fontSize: 18 }}>BHP</span>
-                </div>
-              </div>
-              <div style={{ background: innerCardBg, border: `1px solid ${innerCardBorder}`, borderRadius: 18, padding: '18px', textAlign: 'center' }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: textSub, textTransform: 'uppercase' }}>TORQUE OUTPUT</div>
-                <div style={{ fontSize: 38, fontWeight: 900, color: '#38bdf8', marginTop: 4 }}>
-                  {dynoTorque} <span style={{ fontSize: 18 }}>NM</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Dyno Visual Graph */}
-            <div
-              style={{
-                height: 220,
-                background: isLight ? '#fff' : 'rgba(0,0,0,0.4)',
-                border: `1px solid ${innerCardBorder}`,
-                borderRadius: 18,
-                padding: '16px',
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'flex-end',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{ position: 'absolute', top: 12, left: 16, fontSize: 12, fontWeight: 800, color: textSub }}>
-                CHASSIS DYNAMOMETER TELEMETRY GRAPH
-              </div>
-
-              {/* Simulated Dyno Curve Bars */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 140, width: '100%' }}>
-                {Array.from({ length: 28 }).map((_, i) => {
-                  const barH = isDynoRunning || dynoDone
-                    ? Math.sin((i / 28) * Math.PI * 0.85) * (dynoHp / 1015) * 100
-                    : 10;
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        flex: 1,
-                        height: `${Math.max(6, barH)}%`,
-                        borderRadius: '4px 4px 0 0',
-                        background: i > 22 ? '#ef4444' : i > 14 ? '#f59e0b' : '#3b82f6',
-                        transition: 'height 0.1s ease-out',
-                      }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Start Dyno Pull Button */}
+          {/* Bottom Interactive Action Button */}
+          <div style={{ marginTop: 20 }}>
             <button
-              onClick={runDynoTest}
-              disabled={isDynoRunning}
+              onClick={handleUseTool}
+              disabled={isServicing}
               style={{
-                padding: '16px',
+                width: '100%',
+                padding: '14px',
                 borderRadius: 16,
                 border: 'none',
-                background: isDynoRunning
-                  ? 'rgba(239,68,68,0.3)'
-                  : 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                background: isServicing
+                  ? 'rgba(255,255,255,0.1)'
+                  : `linear-gradient(135deg, ${currentCategory.color}, #09090b)`,
                 color: '#fff',
-                fontSize: 15,
+                fontSize: 14,
                 fontWeight: 900,
-                letterSpacing: '0.05em',
+                letterSpacing: '0.04em',
                 textTransform: 'uppercase',
-                cursor: isDynoRunning ? 'not-allowed' : 'pointer',
+                cursor: isServicing ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 10,
-                boxShadow: isDynoRunning ? 'none' : '0 4px 20px rgba(239,68,68,0.5)',
+                boxShadow: isServicing ? 'none' : `0 6px 20px ${currentCategory.color}45`,
+                transition: 'all 0.2s',
               }}
             >
-              <Gauge size={20} />
-              <span>{isDynoRunning ? 'Running Wide-Open Throttle Dyno Pull...' : dynoDone ? 'Re-Run Dyno Test' : 'Start Wide-Open Throttle Dyno Test'}</span>
+              <Wrench size={18} />
+              <span>{isServicing ? 'Servicing Vehicle...' : `USE ON ${activeCategory.toUpperCase()}: ${selectedItem.actionVerb.toUpperCase()}`}</span>
             </button>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

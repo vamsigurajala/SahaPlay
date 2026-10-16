@@ -4,8 +4,9 @@ import { useFrame } from '@react-three/fiber';
 import { DoorOpen, LogOut, Shirt, ArrowUp, ArrowDown } from 'lucide-react';
 import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip, FocusContext } from './parts';
 import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden, Terrace, FrontYard, Courtyard } from './placedRooms';
+import { CricketGround, CricketFloor } from './cricket';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
-import { WORLD_W, WORLD_D, CELL_W, CELL_D, COLS, ROWS, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, DOORWAYS, ALL_LINKS } from '../../data/gamifyZones';
+import { WORLD_W, WORLD_D, HOUSE_D, CELL_W, CELL_D, COLS, HOUSE_ROWS, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, DOORWAYS, ALL_LINKS } from '../../data/gamifyZones';
 import Floor2 from './floor2';
 import { WEATHER, Ground, Clouds, Rain } from './environment';
 
@@ -294,27 +295,35 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(${i % 2 ? '255,255,255,0.06' : '0,0,0,0.12'})`; g.fillRect(0, i * (n / 6), n, n / 6 - 2); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, i * (n / 6) + n / 6 - 2, n, 2); }
     }, [5.4, 4.8]),
     frontyard: canvasTexture(512, (g, n) => {
-      // Modern interlocking granite cobblestone driveway paving
-      g.fillStyle = '#1e1c24';
+      // Bright, high-end supercar garage showroom epoxy & granite tiles
+      g.fillStyle = '#94a3b8'; // crisp light grout
       g.fillRect(0, 0, n, n);
-      const rows = 12;
-      const cols = 12;
+      const rows = 8;
+      const cols = 8;
       const rowH = n / rows;
       const colW = n / cols;
-      const cobbleTones = ['#5a5766', '#4e4c5a', '#646170', '#444250', '#565362'];
+      const tileTones = ['#cbd5e1', '#d8e2ec', '#c2ccd8', '#e2e8f0', '#b8c4d2'];
       for (let r = 0; r < rows; r++) {
         const offset = (r % 2) * (colW / 2);
         for (let c = -1; c <= cols; c++) {
           const x = c * colW + offset;
           const y = r * rowH;
-          const toneIdx = Math.abs((r * 11 + c * 17) % cobbleTones.length);
-          g.fillStyle = cobbleTones[toneIdx];
-          g.fillRect(x + 1.5, y + 1.5, colW - 3, rowH - 3);
-          g.fillStyle = 'rgba(255, 255, 255, 0.06)';
-          g.fillRect(x + 1.5, y + 1.5, colW - 3, 1.5);
-          g.fillStyle = 'rgba(0, 0, 0, 0.12)';
-          g.fillRect(x + 1.5, y + rowH - 3, colW - 3, 1.5);
+          const toneIdx = Math.abs((r * 7 + c * 13) % tileTones.length);
+          g.fillStyle = tileTones[toneIdx];
+          g.fillRect(x + 2, y + 2, colW - 4, rowH - 4);
+          // Glossy highlight on top & left
+          g.fillStyle = 'rgba(255, 255, 255, 0.22)';
+          g.fillRect(x + 2, y + 2, colW - 4, 3);
+          g.fillRect(x + 2, y + 2, 3, rowH - 4);
+          // Subtle shadow on bottom & right
+          g.fillStyle = 'rgba(0, 0, 0, 0.08)';
+          g.fillRect(x + 2, y + rowH - 5, colW - 4, 3);
         }
+      }
+      // Micro-grain polish flecks
+      for (let k = 0; k < 1200; k++) {
+        g.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.1)' : 'rgba(100,116,139,0.08)';
+        g.fillRect(Math.random() * n, Math.random() * n, 1.5, 1.5);
       }
     }, [4.5, 4.0]),
     courtyard: canvasTexture(512, (g, n) => {
@@ -368,12 +377,14 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
     }, [4, 3.5]),
   }), []);
 
-  const zones = Object.values(FLOORPLAN_ZONES);
+  const zones = Object.values(FLOORPLAN_ZONES).filter(z => z.row < HOUSE_ROWS);
   const halfW = WORLD_W / 2;
   const halfD = WORLD_D / 2;
+  const houseFront = -halfD + HOUSE_D; // the cricket ground lies beyond this line
+  const houseMid = -halfD + HOUSE_D / 2;
   const roomLights = [
     ['study', NEON_CYAN, 3.4, 44], ['hall', NEON_PINK, 3.6, 60], ['bedroom', NEON_VIOLET, 3.4, 48],
-    ['kitchen', '#ffd9a0', 3.4, 40], ['gameroom', NEON_CYAN, 3.2, 52], ['lawn', NEON_AMBER, 2.2, 30], ['terrace', '#ffb98a', 3.0, 34], ['frontyard', '#ffe0a0', 3.4, 36], ['courtyard', NEON_AMBER, 2.6, 38],
+    ['kitchen', '#ffd9a0', 3.4, 40], ['gameroom', NEON_CYAN, 3.2, 52], ['lawn', NEON_AMBER, 2.2, 30], ['terrace', '#ffb98a', 3.0, 34], ['frontyard', '#fff6e5', 3.6, 68], ['courtyard', NEON_AMBER, 2.8, 44], ['cricket', '#fff6e5', 5.5, 80],
   ];
   const allLights = [
     ...roomLights.map(([id, color, y, intensity]) => ({ id, color, y, intensity, x: FLOORPLAN_ZONES[id].center.x, z: FLOORPLAN_ZONES[id].center.z, floor: 0 })),
@@ -382,7 +393,7 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
   const vLines = [];
   for (let c = 1; c < COLS; c++) vLines.push(-halfW + c * CELL_W);
   const hLines = [];
-  for (let r = 1; r < ROWS; r++) hLines.push(-halfD + r * CELL_D);
+  for (let r = 1; r < HOUSE_ROWS; r++) hLines.push(-halfD + r * CELL_D);
 
   return (
     <FocusContext.Provider value={focus}>
@@ -397,8 +408,8 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       <Ground weather={weather} />
       <Clouds weather={weather} />
       {wx.rain && <Rain />}
-      <mesh position={[0, -0.25, 0]} receiveShadow>
-        <boxGeometry args={[WORLD_W + 0.8, 0.5, WORLD_D + 0.8]} />
+      <mesh position={[0, -0.25, houseMid]} receiveShadow>
+        <boxGeometry args={[WORLD_W + 0.8, 0.5, HOUSE_D + 0.8]} />
         <meshStandardMaterial color="#1b1430" roughness={0.9} />
       </mesh>
       {zones.map(z => (
@@ -410,17 +421,17 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
 
       {/* ── Back + left outer walls (cutaway: the two nearest the camera are omitted) ── */}
       <Box p={[0, WALL_H / 2, -halfD - 0.15]} s={[WORLD_W + 0.6, WALL_H, 0.3]} c="#3a2a62" />
-      <Box p={[-halfW - 0.15, WALL_H / 2, 0]} s={[0.3, WALL_H, WORLD_D + 0.6]} c="#33265a" />
+      <Box p={[-halfW - 0.15, WALL_H / 2, houseMid]} s={[0.3, WALL_H, HOUSE_D + 0.6]} c="#33265a" />
       <Neon p={[0, WALL_H - 0.15, -halfD + 0.05]} s={[WORLD_W, 0.07, 0.07]} color={NEON_PINK} />
-      <Neon p={[-halfW + 0.05, WALL_H - 0.15, 0]} s={[0.07, 0.07, WORLD_D]} color={NEON_CYAN} />
+      <Neon p={[-halfW + 0.05, WALL_H - 0.15, houseMid]} s={[0.07, 0.07, HOUSE_D]} color={NEON_CYAN} />
       <Neon p={[0, 0.12, -halfD + 0.05]} s={[WORLD_W, 0.05, 0.05]} color={NEON_VIOLET} />
-      <Neon p={[-halfW + 0.05, 0.12, 0]} s={[0.05, 0.05, WORLD_D]} color={NEON_VIOLET} />
+      <Neon p={[-halfW + 0.05, 0.12, houseMid]} s={[0.05, 0.05, HOUSE_D]} color={NEON_VIOLET} />
 
       {/* ── Interior walls with doorways + door frames ── */}
       {vLines.map((x, i) => (
-        <Divider key={`v${x}`} axis="z" at={x} from={-halfD} to={halfD} color={DOOR_COLORS[i % 4]}
+        <Divider key={`v${x}`} axis="z" at={x} from={-halfD} to={houseFront} color={DOOR_COLORS[i % 4]}
           gaps={DOORWAYS.filter(d => d.axis === 'v' && d.x === x).map(d => d.z)}
-          tallForAt={(m) => zoneAt(i + 1, Math.min(ROWS - 1, Math.max(0, Math.floor((m + halfD) / CELL_D)))).id} />
+          tallForAt={(m) => zoneAt(i + 1, Math.min(HOUSE_ROWS - 1, Math.max(0, Math.floor((m + halfD) / CELL_D)))).id} />
       ))}
       {hLines.map((z, i) => (
         <Divider key={`h${z}`} axis="x" at={z} from={-halfW} to={halfW} color={DOOR_COLORS[(i + 2) % 4]}
@@ -441,10 +452,12 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       <Terrace />
       <FrontYard />
       <Courtyard />
+      <CricketFloor weather={weather} />
+      <CricketGround weather={weather} />
       <Floor2 />
 
       {/* ── Room signs + door hotspots ── */}
-      {zoomedOut && zones.filter(z => z.row === 2).map(z => <RoomSign key={z.id} z={z} />)}
+      {zoomedOut && zones.filter(z => z.row === 2).concat(FLOORPLAN_ZONES.cricket).map(z => <RoomSign key={z.id} z={z} />)}
       {zoomedOut && Object.values(ALL_ZONES).filter(z => z.floor === 1).map(z => <RoomSign key={z.id} z={z} />)}
       {focus === 'frontyard' && <ExitChip onExit={onExitHouse} />}
       {ALL_LINKS.filter(l => l.from === focus).map(l => <DoorChip key={`${l.from}-${l.to}`} link={l} onGo={onGoToRoom} />)}
