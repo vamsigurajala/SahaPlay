@@ -2080,6 +2080,44 @@
         "d3": "Raffael war bei einem Besuch in Leonardos Werkstatt so fasziniert, dass er ihre Hände skizzierte; diese Pose wurde jahrhundertelang zum Goldstandard der europäischen Porträtmalerei.",
         "discovery": "Strukturanalyse des Louvre & Giorgio Vasaris „Lebensbeschreibungen der Künstler“ (1550)"
       }
+    },
+    "tour": {
+      "label": "Haus-Tour",
+      "skip": "Tour überspringen",
+      "step": "Schritt {{n}} von {{total}}",
+      "back": "Zurück",
+      "next": "Weiter",
+      "gotIt": "Verstanden",
+      "t1": "Umschauen und gehen",
+      "b1": "Zieh den leeren Boden, um dich umzusehen. Zieh deinen eigenen Avatar, den mit dem weißen Ring, um zu gehen. Zum Zoomen zwicken oder scrollen, zum Rauszoomen doppeltippen.",
+      "t2": "Tippe auf die leuchtenden Punkte",
+      "b2": "Ein pulsierender Punkt heißt, dass du darauf tippen kannst: Spiele, Läden, Kühlschrank, Radio, Gemälde und mehr. Die Punkte verblassen, wenn du den Bildschirm nicht berührst, und kommen bei jedem Tippen zurück.",
+      "t3": "Türen und Treppen nutzen",
+      "b3": "Tippe auf einen Türknopf, um in den nächsten Raum zu gehen. „Nach oben“ bringt dich ins Obergeschoss mit Trennungsraum, Küche und oberem Wohnzimmer.",
+      "t4": "Das Menü rechts",
+      "b4": "Dort siehst du, wer in welchem Raum ist, kannst eine schnelle Reaktion senden, Namen und Punkte ausblenden, das Wetter wechseln, das Haus spiegeln und den Flüssig-Modus einschalten, wenn es ruckelt.",
+      "t5": "Spring in jeden Raum",
+      "b5": "Das Feld unten links listet jeden Raum mit der Zahl der Personen darin. Tippe auf einen, um direkt hinzugehen.",
+      "t6": "Spiel des Tages und deine Kurzbefehle",
+      "b6": "Unter den zwei runden Knöpfen oben links siehst du das heutige Spiel für alle. Tippe in einem Fenster, etwa einem Spiel, dem Radio oder einem Laden, auf den Stern, dann ist es dort angeheftet und mit einem Tipp wieder offen."
+    },
+    "daily": {
+      "tip": "Spiel des Tages und heutige Punkte",
+      "today": "Heute: {{game}}",
+      "title": "Spiel des Tages",
+      "play": "Spielen",
+      "best": "Dein Bestes heute: {{score}}",
+      "notPlayed": "Du hast es heute nicht gespielt",
+      "house": "Heute in diesem Haus",
+      "none": "Noch keine Punkte. Sei der Erste.",
+      "you": "du",
+      "note": "Jeden Tag wird ein neues Spiel gewählt. Die Punkte gelten für die Leute in diesem Haus heute.",
+      "open": "{{name}} öffnen",
+      "pinFull": "Du kannst bis zu {{max}} anheften. Entferne zuerst eines.",
+      "pinTip": "{{name}} an Schnellzugriff anheften",
+      "unpinTip": "{{name}} vom Schnellzugriff lösen",
+      "pin": "An Schnellzugriff anheften",
+      "unpin": "Vom Schnellzugriff lösen"
     }
   }
 }

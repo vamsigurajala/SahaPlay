@@ -2082,6 +2082,44 @@
         "d3": "Raffaello, in visita alla bottega di Leonardo, ne fu così affascinato da schizzarne le mani, e questa posa divenne per secoli il modello del ritratto europeo.",
         "discovery": "Analisi strutturale del Louvre e «Le Vite» di Giorgio Vasari (1550)"
       }
+    },
+    "tour": {
+      "label": "Tour della casa",
+      "skip": "Salta il tour",
+      "step": "Passo {{n}} di {{total}}",
+      "back": "Indietro",
+      "next": "Avanti",
+      "gotIt": "Capito",
+      "t1": "Guarda intorno e cammina",
+      "b1": "Trascina il pavimento vuoto per guardarti intorno. Trascina il tuo avatar, quello con l'anello bianco, per camminare. Pizzica o scorri per ingrandire e tocca due volte per rimpicciolire.",
+      "t2": "Tocca i punti luminosi",
+      "b2": "Un punto che pulsa significa che puoi toccare quell'oggetto: giochi, negozi, frigo, radio, quadri e altro. I punti svaniscono se smetti di toccare lo schermo e tornano toccando ovunque.",
+      "t3": "Usa porte e scale",
+      "b3": "Tocca il pulsante di una porta per entrare nella stanza accanto. \"Vai su\" ti porta al piano di sopra, dove ci sono la Stanza della Rottura, la cucina e il soggiorno superiore.",
+      "t4": "Il menu a destra",
+      "b4": "Lì vedi chi è in quale stanza, invii una reazione rapida, nascondi nomi e punti, cambi il meteo, rovesci la casa e attivi la modalità Fluida se va lento.",
+      "t5": "Vai in qualsiasi stanza",
+      "b5": "Il pannello in basso a sinistra elenca ogni stanza con quante persone ci sono dentro. Tocca una per andarci subito.",
+      "t6": "Gioco del giorno e le tue scorciatoie",
+      "b6": "Sotto i due pulsanti rotondi in alto a sinistra vedi il gioco di oggi per tutti. Tocca la stella in una finestra, come un gioco, la radio o un negozio, e resterà fissata lì per riaprirla con un tocco."
+    },
+    "daily": {
+      "tip": "Gioco del giorno e punteggi di oggi",
+      "today": "Oggi: {{game}}",
+      "title": "Gioco del giorno",
+      "play": "Gioca",
+      "best": "Il tuo migliore oggi: {{score}}",
+      "notPlayed": "Oggi non ci hai giocato",
+      "house": "Oggi in questa casa",
+      "none": "Ancora nessun punteggio. Sii il primo.",
+      "you": "tu",
+      "note": "Ogni giorno viene scelto un nuovo gioco. I punteggi sono delle persone di questa casa oggi.",
+      "open": "Apri {{name}}",
+      "pinFull": "Puoi fissarne fino a {{max}}. Rimuovine prima uno.",
+      "pinTip": "Fissa {{name}} nell'accesso rapido",
+      "unpinTip": "Rimuovi {{name}} dall'accesso rapido",
+      "pin": "Fissa nell'accesso rapido",
+      "unpin": "Rimuovi dall'accesso rapido"
     }
   }
 }

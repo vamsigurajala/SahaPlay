@@ -2080,6 +2080,44 @@
         "d3": "Raphaël, charmé lors d'une visite à l'atelier de Léonard, a dessiné ses mains, et cette pose est restée pendant des siècles la référence du portrait européen.",
         "discovery": "Analyse structurelle du Louvre et « Vies des meilleurs peintres » de Giorgio Vasari (1550)"
       }
+    },
+    "tour": {
+      "label": "Visite de la maison",
+      "skip": "Passer la visite",
+      "step": "Étape {{n}} sur {{total}}",
+      "back": "Retour",
+      "next": "Suivant",
+      "gotIt": "Compris",
+      "t1": "Regardez autour et marchez",
+      "b1": "Faites glisser le sol vide pour regarder autour. Faites glisser votre avatar, celui avec l'anneau blanc, pour marcher. Pincez ou faites défiler pour zoomer, et touchez deux fois pour dézoomer.",
+      "t2": "Touchez les points lumineux",
+      "b2": "Un point qui pulse signifie que vous pouvez toucher cet objet : jeux, boutiques, frigo, radio, tableaux et plus. Les points s'estompent quand vous arrêtez de toucher l'écran et reviennent au toucher.",
+      "t3": "Utilisez portes et escaliers",
+      "b3": "Touchez le bouton d'une porte pour passer dans la pièce suivante. « Monter » vous mène à l'étage, où se trouvent la Salle de Rupture, la cuisine et le salon du haut.",
+      "t4": "Le menu de droite",
+      "b4": "Vous y voyez qui est dans quelle pièce, envoyez une réaction rapide, masquez noms et points, changez la météo, retournez la maison et activez le mode Fluide si ça rame.",
+      "t5": "Allez dans n'importe quelle pièce",
+      "b5": "Le panneau en bas à gauche liste chaque pièce avec le nombre de personnes à l'intérieur. Touchez-en une pour y aller directement.",
+      "t6": "Jeu du jour et vos raccourcis",
+      "b6": "Sous les deux boutons ronds en haut à gauche, vous verrez le jeu du jour pour tout le monde. Touchez l'étoile dans une fenêtre, comme un jeu, la radio ou une boutique, et elle y sera épinglée pour la rouvrir d'un toucher."
+    },
+    "daily": {
+      "tip": "Jeu du jour et scores du jour",
+      "today": "Aujourd'hui : {{game}}",
+      "title": "Jeu du jour",
+      "play": "Jouer",
+      "best": "Votre meilleur aujourd'hui : {{score}}",
+      "notPlayed": "Vous n'y avez pas joué aujourd'hui",
+      "house": "Aujourd'hui dans cette maison",
+      "none": "Pas encore de score. Soyez le premier.",
+      "you": "vous",
+      "note": "Un nouveau jeu est choisi chaque jour. Les scores sont ceux des gens de cette maison aujourd'hui.",
+      "open": "Ouvrir {{name}}",
+      "pinFull": "Vous pouvez épingler jusqu'à {{max}}. Retirez-en un d'abord.",
+      "pinTip": "Épingler {{name}} à l'accès rapide",
+      "unpinTip": "Retirer {{name}} de l'accès rapide",
+      "pin": "Épingler à l'accès rapide",
+      "unpin": "Retirer de l'accès rapide"
     }
   }
 }

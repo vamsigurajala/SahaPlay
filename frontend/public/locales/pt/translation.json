@@ -2082,6 +2082,44 @@
         "d3": "Rafael ficou tão encantado ao visitar a oficina de Leonardo que desenhou as suas mãos, e esta pose tornou-se durante séculos o padrão de ouro do retrato europeu.",
         "discovery": "Análise estrutural do Louvre e «Vidas dos Artistas» de Giorgio Vasari (1550)"
       }
+    },
+    "tour": {
+      "label": "Tour da casa",
+      "skip": "Pular tour",
+      "step": "Passo {{n}} de {{total}}",
+      "back": "Voltar",
+      "next": "Próximo",
+      "gotIt": "Entendi",
+      "t1": "Olhe ao redor e ande",
+      "b1": "Arraste o chão vazio para olhar ao redor. Arraste seu avatar, o do anel branco, para andar. Use pinça ou role para dar zoom e toque duas vezes para afastar.",
+      "t2": "Toque nos pontos brilhantes",
+      "b2": "Um ponto pulsando significa que você pode tocar naquilo: jogos, lojas, geladeira, rádio, quadros e mais. Os pontos somem quando você para de tocar na tela e voltam ao tocar em qualquer lugar.",
+      "t3": "Use portas e escadas",
+      "b3": "Toque no botão de uma porta para ir à próxima sala. \"Subir\" leva ao andar de cima, onde ficam a Sala do Término, a cozinha e a sala de estar de cima.",
+      "t4": "O menu da direita",
+      "b4": "Lá você vê quem está em qual sala, envia uma reação rápida, esconde nomes e pontos, muda o clima, inverte a casa e ativa o modo Suave se estiver lento.",
+      "t5": "Vá para qualquer sala",
+      "b5": "O painel no canto inferior esquerdo lista cada sala com quantas pessoas há dentro. Toque em uma para ir direto.",
+      "t6": "Jogo do dia e seus atalhos",
+      "b6": "Abaixo dos dois botões redondos no canto superior esquerdo você vê o jogo de hoje para todos. Toque na estrela dentro de qualquer janela, como um jogo, o rádio ou uma loja, e ela fica fixada ali para abrir de novo com um toque."
+    },
+    "daily": {
+      "tip": "Jogo do dia e pontuações de hoje",
+      "today": "Hoje: {{game}}",
+      "title": "Jogo do dia",
+      "play": "Jogar",
+      "best": "Seu melhor hoje: {{score}}",
+      "notPlayed": "Você não jogou hoje",
+      "house": "Hoje nesta casa",
+      "none": "Ainda sem pontuações. Seja o primeiro.",
+      "you": "você",
+      "note": "Um novo jogo é escolhido todo dia. As pontuações são das pessoas desta casa hoje.",
+      "open": "Abrir {{name}}",
+      "pinFull": "Você pode fixar até {{max}}. Remova um primeiro.",
+      "pinTip": "Fixar {{name}} no acesso rápido",
+      "unpinTip": "Remover {{name}} do acesso rápido",
+      "pin": "Fixar no acesso rápido",
+      "unpin": "Remover do acesso rápido"
     }
   }
 }

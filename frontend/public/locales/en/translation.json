@@ -2037,6 +2037,44 @@
         "d3": "Raphael was so captivated when visiting Leonardo's workshop that he sketched her hands, establishing this pose as the gold standard for European portraiture for centuries.",
         "discovery": "Louvre Structural Analysis & Giorgio Vasari \"Lives of the Artists\" (1550)"
       }
+    },
+    "tour": {
+      "label": "House tour",
+      "skip": "Skip tour",
+      "step": "Step {{n}} of {{total}}",
+      "back": "Back",
+      "next": "Next",
+      "gotIt": "Got it",
+      "t1": "Look around and walk",
+      "b1": "Drag the empty floor to look around. Drag your own avatar, the one with the white ring, to walk. Pinch or scroll to zoom, and double-tap to zoom back out.",
+      "t2": "Tap the glowing dots",
+      "b2": "A pulsing dot means you can tap that thing: games, shops, the fridge, the radio, paintings and more. Dots fade when you stop touching the screen, and tapping anywhere brings them back.",
+      "t3": "Use doors and stairs",
+      "b3": "Tap a door button to walk into the next room. \"Go upstairs\" takes you to the upper floor, where the Breakup Room, the kitchen and the upstairs living room are.",
+      "t4": "The menu on the right",
+      "b4": "There you can see who is in which room, send a quick reaction, hide the names and dots, switch weather, flip the house and turn on Smooth mode if things feel slow.",
+      "t5": "Jump to any room",
+      "b5": "The panel at the bottom left lists every room with how many people are inside. Tap one to go straight there.",
+      "t6": "Game of the day and your shortcuts",
+      "b6": "Under the two round buttons at the top left you will see today's game for everyone. Tap the star inside any window, like a game, the radio or a shop, and it is pinned there so you can open it again in one tap."
+    },
+    "daily": {
+      "tip": "Game of the day and today's scores",
+      "today": "Today: {{game}}",
+      "title": "Game of the day",
+      "play": "Play",
+      "best": "Your best today: {{score}}",
+      "notPlayed": "You have not played it today",
+      "house": "Today in this house",
+      "none": "No scores yet. Be the first.",
+      "you": "you",
+      "note": "A new game is picked every day. Scores are for the people in this house today.",
+      "open": "Open {{name}}",
+      "pinFull": "You can pin up to {{max}}. Unpin one first.",
+      "pinTip": "Pin {{name}} to quick access",
+      "unpinTip": "Unpin {{name}} from quick access",
+      "pin": "Pin to quick access",
+      "unpin": "Unpin from quick access"
     }
   }
 }
