@@ -37,6 +37,9 @@ const RadioViewer = lazy(() => import('./RadioViewer'));
 // The overlay itself never scrolls (so the close button stays put); the scroller inside it does.
 const overlay = {
   position: 'fixed', inset: 0, zIndex: 100000,
+  // The backdrop is dark in both themes, so text must be white here: in light mode the page's own
+  // dark text colour would otherwise be inherited by everything inside.
+  color: '#ffffff',
   background: 'radial-gradient(circle at 50% 30%, rgba(40,26,80,0.97), rgba(8,6,20,0.99))', backdropFilter: 'blur(8px)',
   animation: 'gp-fade .2s ease-out', overflow: 'hidden',
 };
