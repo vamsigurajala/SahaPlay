@@ -7,6 +7,8 @@ import { Teddy, FairyLights } from './props';
 import { PaintingFrame, SoftCouch } from './livingProps';
 import { Cyl, Rod, PI } from './shopParts';
 import { getCalmMusic } from './calmMusic';
+import { useBreakupLang } from './breakupLang';
+import { ROOM_PAINTING } from '../../data/gamifyIndianPaintings';
 
 // The Breakup Room: a quiet, warm corner for people who are hurting. Soft light, a deep
 // couch and cushions, candles, a cup of tea, a desk for unsent letters and a record
@@ -138,6 +140,44 @@ function TableLampLite({ p }) {
   );
 }
 
+// A small music player on the low table: tap it to open the music panel. Its speaker
+// cones pulse and its level bars dance while something is playing.
+function TablePlayer({ p, rot = 0 }) {
+  const open = useOpenProp('breakup', 'music');
+  const cones = useRef([]);
+  const bars = useRef([]);
+  const led = useRef();
+  useFrame((state) => {
+    const on = !!getCalmMusic().current;
+    const t = state.clock.elapsedTime;
+    cones.current.forEach((c, i) => { if (c) c.scale.setScalar(on ? 1 + 0.08 * Math.sin(t * (10 + i * 3)) : 1); });
+    bars.current.forEach((b, i) => { if (b) b.scale.y = on ? 0.35 + 0.65 * Math.abs(Math.sin(t * (4 + i * 1.7) + i)) : 0.15; });
+    if (led.current) led.current.material.color.set(on ? '#5cff9d' : '#ff6a5c');
+  });
+  return (
+    <group position={p} rotation={[0, rot, 0]}>
+      <group {...open}>
+        <Box p={[0, 0.17, 0]} s={[0.78, 0.34, 0.3]} c="#2b2b33" r={0.04} />
+        <Box p={[0, 0.355, 0]} s={[0.5, 0.03, 0.04]} c="#9a9aa6" metal={0.7} shadow={false} />
+        {[-0.28, 0.28].map((x, i) => (
+          <group key={x} ref={(m) => { cones.current[i] = m; }} position={[x, 0.17, 0.155]}>
+            <Cyl p={[0, 0, 0]} r={0.1} h={0.02} c="#15151a" rot={[PI / 2, 0, 0]} shadow={false} />
+            <Cyl p={[0, 0, 0.012]} r={0.04} h={0.02} c="#3a3a44" rot={[PI / 2, 0, 0]} shadow={false} />
+          </group>
+        ))}
+        {/* level bars and a status light */}
+        {[0, 1, 2, 3, 4].map(i => (
+          <mesh key={i} ref={(m) => { bars.current[i] = m; }} position={[-0.1 + i * 0.05, 0.2, 0.156]} scale={[1, 0.15, 1]}>
+            <boxGeometry args={[0.03, 0.14, 0.01]} /><meshBasicMaterial color="#7dd3fc" toneMapped={false} />
+          </mesh>
+        ))}
+        <mesh ref={led} position={[0.2, 0.28, 0.156]}><sphereGeometry args={[0.014, 8, 6]} /><meshBasicMaterial color="#ff6a5c" toneMapped={false} /></mesh>
+      </group>
+      <PropDot position={[0, 0.8, 0.1]} kind="breakup" arg="music" />
+    </group>
+  );
+}
+
 // The low table with candles, tea, tissues and the journal.
 function LowTable({ p }) {
   const openJournal = useOpenProp('breakup', 'burn');
@@ -150,11 +190,12 @@ function LowTable({ p }) {
       <Candle p={[0.12, 0.46, -0.12]} seed={1} h={0.18} />
       <Candle p={[0.02, 0.46, 0.28]} seed={2} h={0.12} />
       <TeaMug p={[0.5, 0.46, 0.2]} />
+      <TablePlayer p={[0.1, 0.46, -0.55]} rot={0.15} />
       {/* tissues */}
       <Box p={[-0.5, 0.55, 0.3]} s={[0.36, 0.16, 0.2]} c="#cfe3ef" r={0.03} shadow={false} />
       <Box p={[-0.5, 0.66, 0.3]} s={[0.14, 0.1, 0.1]} c="#ffffff" r={0.04} rot={0.4} shadow={false} />
       {/* the journal */}
-      <group position={[-0.1, 0.48, -0.55]} rotation={[0, 0.4, 0]} {...openJournal}>
+      <group position={[-0.62, 0.48, -0.1]} rotation={[0, 0.9, 0]} {...openJournal}>
         <Box p={[0, 0.02, 0]} s={[0.5, 0.05, 0.36]} c="#5a4a7a" r={0.015} />
         <Box p={[0, 0.052, 0]} s={[0.46, 0.012, 0.32]} c="#f6efe2" shadow={false} />
         <Box p={[0.12, 0.07, 0.05]} s={[0.22, 0.012, 0.012]} c="#1d4ed8" rot={0.5} shadow={false} />
@@ -182,6 +223,7 @@ function FloorCushion({ p, c, r = 0.42 }) {
 }
 
 export function BreakupRoom() {
+  const lang = useBreakupLang();
   const focus = useContext(FocusContext);
   const zone = useContext(ZoneContext);
   const here = focus === zone;
@@ -191,7 +233,7 @@ export function BreakupRoom() {
 
       <MusicCorner p={[0.7, 0, 13.0]} rot={PI / 2} />
       <LetterDesk p={[3.0, 0, 0.9]} />
-      <PaintingFrame p={[13.6, 3.4, 0.12]} id="separation" maxW={2.7} maxH={1.9} />
+      <PaintingFrame p={[13.6, 3.3, 0.12]} id={ROOM_PAINTING[lang]} maxW={2.4} maxH={2.3} />
 
       {/* the deep couch against the back wall, with a blanket and cushions */}
       <SoftCouch p={[13.8, 0, 2.1]} rot={0} w={3.6} c="#8aa0b8" seat="#a3b6cb" pillow="#f2e6d0" />

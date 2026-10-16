@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Heart, Quote, Eye, Brush } from 'lucide-react';
 import { PAINTINGS, PAINTING_IDS } from '../../data/gamifyPaintings';
+import { INDIAN_IDS, localizedPainting } from '../../data/gamifyIndianPaintings';
+import { useBreakupLang } from './breakupLang';
 import { useIsLight } from './useIsLight';
 
 // A close look at one of the sad love paintings in the upstairs living room: the
@@ -14,6 +16,12 @@ const CSS = `
 .art-thumb:hover { transform: translateY(-2px); opacity: 1 !important; }
 `;
 
+const LABELS = {
+  en: { why: 'Why it was painted', story: 'The story', behind: 'Behind the canvas', look: 'Look closer' },
+  hi: { why: 'यह चित्र क्यों बना', story: 'कथा', behind: 'चित्र के पीछे', look: 'ज़रा ग़ौर से देखो' },
+  te: { why: 'ఈ చిత్రం ఎందుకు గీశారు', story: 'కథ', behind: 'చిత్రం వెనుక', look: 'జాగ్రత్తగా చూడండి' },
+};
+
 const palette = (light) => (light
   ? { card: '#fbf7ee', border: 'rgba(60,40,10,0.18)', ink: '#1f1a14', muted: '#5b5247', accent: '#8a5a00', chipBg: 'rgba(190,40,90,0.1)', chipBorder: 'rgba(190,40,90,0.45)', chipInk: '#8f1d47', shadow: '0 18px 50px rgba(0,0,0,0.4)' }
   : { card: 'rgba(22,17,40,0.82)', border: 'rgba(255,255,255,0.16)', ink: '#ffffff', muted: 'rgba(255,255,255,0.78)', accent: '#ffd36b', chipBg: 'rgba(255,90,138,0.18)', chipBorder: 'rgba(255,90,138,0.45)', chipInk: '#ffffff', shadow: '0 18px 50px rgba(0,0,0,0.5)' });
@@ -24,10 +32,15 @@ export default function PaintingViewer({ id }) {
   const c = palette(light);
   const sectionTitle = { display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: c.accent, margin: '0 0 6px' };
   const para = { margin: 0, fontSize: 14.5, lineHeight: 1.6, color: c.ink };
+  const lang = useBreakupLang();
   const [cur, setCur] = useState(PAINTINGS[id] ? id : PAINTING_IDS[0]);
-  const p = PAINTINGS[cur];
-  const i = PAINTING_IDS.indexOf(cur);
-  const go = (d) => setCur(PAINTING_IDS[(i + d + PAINTING_IDS.length) % PAINTING_IDS.length]);
+  // the Breakup Room's Indian paintings are browsed together; the living room's five together
+  const ids = INDIAN_IDS.includes(cur) ? INDIAN_IDS : PAINTING_IDS;
+  const indian = INDIAN_IDS.includes(cur);
+  const p = localizedPainting(PAINTINGS[cur], lang);
+  const L = indian ? (LABELS[lang] || LABELS.en) : null;
+  const i = ids.indexOf(cur);
+  const go = (d) => setCur(ids[(i + d + ids.length) % ids.length]);
 
   return (
     <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 1100, color: '#fff', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -39,7 +52,7 @@ export default function PaintingViewer({ id }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button onClick={() => go(-1)} aria-label="Previous painting" style={navBtn}><ChevronLeft size={18} /></button>
-            <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.8)', minWidth: 70, textAlign: 'center' }}>{i + 1} / {PAINTING_IDS.length}</span>
+            <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.8)', minWidth: 70, textAlign: 'center' }}>{i + 1} / {ids.length}</span>
             <button onClick={() => go(1)} aria-label="Next painting" style={navBtn}><ChevronRight size={18} /></button>
           </div>
         </div>
@@ -55,19 +68,19 @@ export default function PaintingViewer({ id }) {
           </div>
 
           <div>
-            <div style={sectionTitle}><Brush size={13} />{t('gamify.art.why', 'Why the artist painted it')}</div>
+            <div style={sectionTitle}><Brush size={13} />{L ? L.why : t('gamify.art.why', 'Why the artist painted it')}</div>
             <div style={para}>{p.why}</div>
           </div>
           <div>
-            <div style={sectionTitle}><Quote size={13} />{t('gamify.art.story', 'The story')}</div>
+            <div style={sectionTitle}><Quote size={13} />{L ? L.story : t('gamify.art.story', 'The story')}</div>
             <div style={para}>{p.story}</div>
           </div>
           <div>
-            <div style={sectionTitle}><Brush size={13} />{t('gamify.art.behind', 'Behind the canvas')}</div>
+            <div style={sectionTitle}><Brush size={13} />{L ? L.behind : t('gamify.art.behind', 'Behind the canvas')}</div>
             <div style={para}>{p.behind}</div>
           </div>
           <div>
-            <div style={sectionTitle}><Eye size={13} />{t('gamify.art.look', 'Look closer')}</div>
+            <div style={sectionTitle}><Eye size={13} />{L ? L.look : t('gamify.art.look', 'Look closer')}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {p.look.map(l => <div key={l} style={{ display: 'flex', gap: 8, fontSize: 14, lineHeight: 1.5, color: c.ink }}><span aria-hidden="true" style={{ color: c.accent, flex: 'none' }}>-</span><span>{l}</span></div>)}
             </div>
@@ -76,13 +89,13 @@ export default function PaintingViewer({ id }) {
       </div>
 
       <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', paddingTop: 4 }}>
-        {PAINTING_IDS.map(k => (
+        {ids.map(k => (
           <button key={k} className="art-thumb" onClick={() => setCur(k)} aria-label={PAINTINGS[k].title} style={{ padding: 0, width: 92, height: 68, borderRadius: 8, overflow: 'hidden', cursor: 'pointer', opacity: k === cur ? 1 : 0.55, border: `2px solid ${k === cur ? '#ffd36b' : 'rgba(255,255,255,0.2)'}`, background: '#150f0a' }}>
             <img src={PAINTINGS[k].img} alt="" loading="lazy" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           </button>
         ))}
       </div>
-      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.6)', textAlign: 'center' }}>{t('gamify.art.credit', 'Public-domain paintings, shown with short retellings of their stories.')}</div>
+      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.6)', textAlign: 'center' }}>{p.credit || t('gamify.art.credit', 'Public-domain paintings, shown with short retellings of their stories.')}</div>
     </div>
   );
 }

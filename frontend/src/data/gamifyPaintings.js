@@ -2,7 +2,9 @@
 // works (the artists died long ago) and the images are bundled in /images/gamify/art.
 // The stories are short retellings, in our own words, of why each was painted.
 
-export const PAINTINGS = {
+import { INDIAN_PAINTINGS } from './gamifyIndianPaintings';
+
+const WESTERN = {
   ophelia: {
     id: 'ophelia',
     title: 'Ophelia',
@@ -100,4 +102,6 @@ export const PAINTINGS = {
   },
 };
 
-export const PAINTING_IDS = Object.keys(PAINTINGS);
+export const PAINTINGS = { ...WESTERN, ...INDIAN_PAINTINGS };
+// The living-room set; the Indian paintings are browsed from the Breakup Room.
+export const PAINTING_IDS = Object.keys(WESTERN);

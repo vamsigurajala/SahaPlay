@@ -82,8 +82,33 @@ export function parseSpotify(input) {
 
 export const spotifyEmbed = ({ type, id }) => `https://open.spotify.com/embed/${type}/${id}?utm_source=generator&theme=0`;
 
+// A queue of songs for YouTube's own player: the first id plays, the rest follow.
+export function youTubeQueue(ids) {
+  const clean = (ids || []).filter(id => YT_ID.test(id));
+  if (!clean.length) return null;
+  const [first, ...rest] = clean;
+  const q = ['autoplay=1', 'rel=0', 'playsinline=1'];
+  if (rest.length) q.push(`playlist=${rest.join(',')}`);
+  return `https://www.youtube-nocookie.com/embed/${first}?${q.join('&')}`;
+}
+
+// ---------------------------------------------------------------- linked music apps
+// Spotify, YouTube Music and Google do not allow their sign-in pages (or their full apps)
+// to be shown inside another site, and we never ask for anyone's password. "Linking"
+// opens the service's own sign-in page in a small window, where email and password or
+// Google are both offered, and then plays that service's official player in the room.
+export const MUSIC_APPS = {
+  spotify: { name: 'Spotify', login: 'https://accounts.spotify.com/en/login', home: 'https://open.spotify.com/' },
+  ytmusic: { name: 'YouTube Music', login: 'https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F', home: 'https://music.youtube.com/' },
+  youtube: { name: 'YouTube', login: 'https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fwww.youtube.com%2F', home: 'https://www.youtube.com/' },
+};
+const LINK_KEY = 'sp_calm_linked';
+function readLinked() {
+  try { const v = JSON.parse(localStorage.getItem(LINK_KEY) || '{}'); return Object.fromEntries(Object.keys(MUSIC_APPS).map(k => [k, !!v[k]])); } catch { return {}; }
+}
+
 // ---------------------------------------------------------------- the player state
-let state = { current: null, small: false };
+let state = { current: null, small: false, slot: null, linked: readLinked() };
 const listeners = new Set();
 const set = (patch) => { state = { ...state, ...patch }; listeners.forEach(l => l()); };
 
@@ -94,3 +119,12 @@ export const useCalmMusic = () => useSyncExternalStore((fn) => { listeners.add(f
 export function playCalm(current) { set({ current, small: false }); }
 export function stopCalm() { if (state.current) set({ current: null }); }
 export function setCalmSmall(small) { set({ small }); }
+// The panel hands over an empty box; the dock then draws the (single, never re-created)
+// player over it so the song keeps playing when the panel closes.
+export function setCalmSlot(slot) { if (state.slot !== slot) set({ slot }); }
+export function setAppLinked(app, on) {
+  if (!MUSIC_APPS[app]) return;
+  const linked = { ...state.linked, [app]: !!on };
+  try { localStorage.setItem(LINK_KEY, JSON.stringify(linked)); } catch { /* ignore */ }
+  set({ linked });
+}

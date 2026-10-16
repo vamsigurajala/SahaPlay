@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import CalmMusicPanel from './CalmMusicPanel';
+import { CONTENT, BREAKUP_LANGS, useBreakupLang, setBreakupLang } from './breakupLang';
+import { INDIAN_PAINTINGS, ROOM_PAINTING, localizedPainting } from '../../data/gamifyIndianPaintings';
 import {
   Heart, HeartCrack, Volume2, VolumeX, Flame, BookOpen, Sparkles,
   Send, RefreshCw, X, Check, Shield, Feather, Music, CloudRain,
-  MessageCircle, CornerDownRight, Quote
+  MessageCircle, CornerDownRight, Quote, Brush, Languages
 } from 'lucide-react';
 
 // ============================================================================
@@ -116,79 +118,17 @@ class MelancholySoundEngine {
 const soundEngine = new MelancholySoundEngine();
 
 // ============================================================================
-// UNSENT LETTERS & BROKEN HEART STORIES
-// ============================================================================
-
-const UNSENT_LETTERS = [
-  {
-    id: 1,
-    title: "To the person I thought I'd grow old with",
-    author: "Written at 3:14 AM",
-    time: "Rainy Midnight",
-    preview: "I still instinctively reach for my phone every time something good happens...",
-    content: `I still reach for my phone whenever something funny happens on the street, or when our favorite song comes on in a crowded store. For a second, my thumb hovers over your name before the silence hits me all over again.
-
-We had a whole universe built in our whispers, inside jokes, and plans for years we will never see. How do two people go from knowing every secret scar on each other's souls to becoming complete strangers who pretend not to look when they cross paths?
-
-I don't hate you. I think that's the hardest part. If I hated you, this ache would have an edge. But it's just quiet grief. I hope you find whatever you felt was missing in my love.`,
-    tags: ["Silence", "Longing", "Memory"]
-  },
-  {
-    id: 2,
-    title: "The day you unpacked your things",
-    author: "Sleepless Night",
-    time: "Autumn Evening",
-    preview: "The closet looks too big now. The apartment has echoes I never noticed before...",
-    content: `The closet looks twice as big now that your jackets aren't crowding mine. There is an echo in this apartment I never noticed when you were here.
-
-You took your books, your mugs, your laundry hamper. But you left behind the ghost of your laugh in the kitchen, the way you leaned against the counter waiting for the kettle to boil, and every promise that started with "someday".
-
-I spent three days sleeping only on my side of the bed because rolling over to the empty cold sheets felt like breaking my own ribs again. I am slowly learning how to breathe without checking if you're breathing beside me.`,
-    tags: ["Empty Spaces", "Echoes", "Unpacking"]
-  },
-  {
-    id: 3,
-    title: "Why couldn't love be enough?",
-    author: "Torn Page from a Journal",
-    time: "Dawn",
-    preview: "They say if love is strong, it survives. But love didn't save us from growing apart...",
-    content: `They always say love conquers all. But love didn't conquer the timing, the unspoken fears, the quiet resentments that grew like weeds while we both smiled and pretended everything was fine.
-
-I loved you until my hands shook with it. I loved you through your hardest days, and I wanted to be the safe harbor you ran to. But you can't save someone who is already looking for the exit door.
-
-I'm starting to accept that someone can be the love of a chapter without being the love of the whole book. Thank you for the chapter. It was the sweetest one I'll ever read.`,
-    tags: ["Acceptance", "Grief", "Letting Go"]
-  },
-  {
-    id: 4,
-    title: "Forgiving what was never apologized for",
-    author: "Quiet Solitude",
-    time: "Late Night",
-    preview: "Waiting for an apology was like keeping the wound open with my own fingernails...",
-    content: `I waited months for you to text me and say you realized what you threw away. I replayed our last conversation a thousand times in the shower, searching for the sentence that could have fixed it.
-
-Then one evening, watching the rain run down the windowpane, I realized: you weren't thinking about it at all. You were moving forward, while I was building a museum out of our wreckage.
-
-So tonight, I forgive you. Not because you asked for it, but because I deserve peace in the rooms of my own mind. I release you from my future.`,
-    tags: ["Healing", "Peace", "Moving On"]
-  }
-];
-
-const HEALING_AFFIRMATIONS = [
-  "Crying is not weakness; it is your heart washing away the dust of what could not be.",
-  "You did not lose your capacity to love. You only proved how deeply and fearlessly you can give it.",
-  "Healing is not linear. Some days you will feel completely free, and some days the scent of rain will bring tears. Both days are progress.",
-  "One day, you will tell the story of how you survived this, and it will be someone else's survival guide.",
-  "You are not empty. You are simply making room for a love that doesn't require you to beg to be chosen.",
-];
-
-// ============================================================================
 // MAIN BREAKUP ROOM VIEWER EXPORT
 // ============================================================================
 
 export default function BreakupRoomViewer({ onClose, arg }) {
-  const [activeTab, setActiveTab] = useState(['music', 'letters', 'burn', 'healing'].includes(arg) ? arg : 'music'); // 'music' | 'letters' | 'burn' | 'healing'
-  const [selectedLetter, setSelectedLetter] = useState(UNSENT_LETTERS[0]);
+  const [activeTab, setActiveTab] = useState(['music', 'letters', 'burn', 'healing', 'art'].includes(arg) ? arg : 'music'); // 'music' | 'letters' | 'burn' | 'healing'
+  const lang = useBreakupLang();
+  const tx = CONTENT[lang];
+  const ui = tx.ui;
+  const [letterId, setLetterId] = useState(1);
+  const selectedLetter = tx.letters.find(l => l.id === letterId) || tx.letters[0];
+  const art = localizedPainting(INDIAN_PAINTINGS[ROOM_PAINTING[lang]], lang);
   const [isRaining, setIsRaining] = useState(false);
   const [burnText, setBurnText] = useState('');
   const [isBurning, setIsBurning] = useState(false);
@@ -317,7 +257,7 @@ export default function BreakupRoomViewer({ onClose, arg }) {
           </div>
           <div>
             <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              The Breakup Room &amp; Solitude Sanctuary
+              {ui.title}
               <span
                 style={{
                   fontSize: 10.5,
@@ -329,16 +269,22 @@ export default function BreakupRoomViewer({ onClose, arg }) {
                   border: '1px solid rgba(99,102,241,0.3)',
                 }}
               >
-                HEALING &bull; EMOTIONAL RELEASE
+                {ui.badge}
               </span>
             </div>
             <div style={{ fontSize: 12, color: textSub }}>
-              A safe, quiet place to grieve, read unspoken words, listen to the rain, and let go.
+              {ui.subtitle}
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div role="group" aria-label="Language" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: 3, borderRadius: 12, border: `1px solid ${innerCardBorder}`, background: innerCardBg }}>
+            <Languages size={14} color={textSub} style={{ margin: '0 4px 0 6px' }} />
+            {BREAKUP_LANGS.map(l => (
+              <button key={l.code} onClick={() => setBreakupLang(l.code)} aria-pressed={lang === l.code} style={{ padding: '6px 10px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 800, background: lang === l.code ? '#6366f1' : 'transparent', color: lang === l.code ? '#ffffff' : textSub }}>{l.label}</button>
+            ))}
+          </div>
           {/* Ambient Rain Sound Toggle */}
           <button
             onClick={toggleRainSound}
@@ -358,7 +304,7 @@ export default function BreakupRoomViewer({ onClose, arg }) {
             }}
           >
             <CloudRain size={16} />
-            <span>{isRaining ? 'Mute Window Rain' : 'Play Soothing Rain'}</span>
+            <span>{isRaining ? ui.rainOff : ui.rainOn}</span>
           </button>
 
           <button
@@ -394,10 +340,11 @@ export default function BreakupRoomViewer({ onClose, arg }) {
         }}
       >
         {[
-          { id: 'music', label: 'Calm Music', icon: <Music size={15} /> },
-          { id: 'letters', label: 'Unsent Letters', icon: <Feather size={15} /> },
-          { id: 'burn', label: 'Burn & Release Journal', icon: <Flame size={15} /> },
-          { id: 'healing', label: 'Comfort & Healing Words', icon: <Sparkles size={15} /> },
+          { id: 'music', label: ui.tabs.music, icon: <Music size={15} /> },
+          { id: 'letters', label: ui.tabs.letters, icon: <Feather size={15} /> },
+          { id: 'burn', label: ui.tabs.burn, icon: <Flame size={15} /> },
+          { id: 'healing', label: ui.tabs.healing, icon: <Sparkles size={15} /> },
+          { id: 'art', label: ui.tabs.art, icon: <Brush size={15} /> },
         ].map(tab => (
           <button
             key={tab.id}
@@ -424,10 +371,10 @@ export default function BreakupRoomViewer({ onClose, arg }) {
       </div>
 
       {/* ── Main Tab Content ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+      <div data-calm-scroll style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
         {/* TAB 0: CALM MUSIC */}
         {activeTab === 'music' && (
-          <CalmMusicPanel onClose={onClose} ink={textTitle} muted={textSub} card={innerCardBg} border={innerCardBorder} isLight={isLight} />
+          <CalmMusicPanel lang={lang} ink={textTitle} muted={textSub} card={innerCardBg} border={innerCardBorder} isLight={isLight} />
         )}
 
         {/* TAB 1: UNSENT LETTERS */}
@@ -436,14 +383,14 @@ export default function BreakupRoomViewer({ onClose, arg }) {
             {/* Left: Letters Index */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: textSub, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Letters Left in the Night Drawer ({UNSENT_LETTERS.length})
+                {ui.lettersHead} ({tx.letters.length})
               </div>
-              {UNSENT_LETTERS.map(letter => {
+              {tx.letters.map(letter => {
                 const isSelected = selectedLetter.id === letter.id;
                 return (
                   <div
                     key={letter.id}
-                    onClick={() => setSelectedLetter(letter)}
+                    onClick={() => setLetterId(letter.id)}
                     style={{
                       padding: '14px 16px',
                       borderRadius: 16,
@@ -502,7 +449,7 @@ export default function BreakupRoomViewer({ onClose, arg }) {
                     lineHeight: 1.8,
                     whiteSpace: 'pre-line',
                     fontFamily: 'serif',
-                    fontStyle: 'italic',
+                    fontStyle: lang === 'en' ? 'italic' : 'normal',
                   }}
                 >
                   {selectedLetter.content}
@@ -543,7 +490,7 @@ export default function BreakupRoomViewer({ onClose, arg }) {
                   }}
                 >
                   <Music size={14} />
-                  <span>Strum Sad Chord</span>
+                  <span>{ui.chord}</span>
                 </button>
               </div>
             </div>
@@ -556,11 +503,10 @@ export default function BreakupRoomViewer({ onClose, arg }) {
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                 <Flame size={26} color="#f97316" />
-                <span>The Burn &amp; Release Ritual</span>
+                <span>{ui.burnTitle}</span>
               </div>
               <div style={{ fontSize: 13, color: textSub, lineHeight: 1.6 }}>
-                Write the words you never got to say, the hurt you carry, or the memories you need to release.
-                When you are ready, burn this digital letter into ashes and let the night take it.
+                {ui.burnIntro}
               </div>
             </div>
 
@@ -581,7 +527,7 @@ export default function BreakupRoomViewer({ onClose, arg }) {
                 <textarea
                   value={burnText}
                   onChange={e => setBurnText(e.target.value)}
-                  placeholder="Type your sorrow, your angry thoughts, or your goodbye here... Nobody will ever read this but the night."
+                  placeholder={ui.burnHint}
                   disabled={isBurning}
                   style={{
                     width: '100%',
@@ -601,7 +547,7 @@ export default function BreakupRoomViewer({ onClose, arg }) {
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: 11, color: textSub }}>
-                    {burnText.length} characters &bull; Private &amp; Untracked
+                    {burnText.length} {ui.burnCount}
                   </span>
 
                   <button
@@ -624,7 +570,7 @@ export default function BreakupRoomViewer({ onClose, arg }) {
                     }}
                   >
                     <Flame size={18} />
-                    <span>{isBurning ? 'BURNING TO ASHES...' : 'BURN LETTER & RELEASE'}</span>
+                    <span>{isBurning ? ui.burnBusy : ui.burnBtn}</span>
                   </button>
                 </div>
               </div>
@@ -659,12 +605,11 @@ export default function BreakupRoomViewer({ onClose, arg }) {
                 </div>
 
                 <div style={{ fontSize: 20, fontWeight: 900, color: textTitle }}>
-                  Your Words Have Turned to Dust &amp; Stars
+                  {ui.burnDoneTitle}
                 </div>
 
                 <div style={{ fontSize: 13, color: textSub, maxWidth: 500, lineHeight: 1.7 }}>
-                  "You loved deeply, bravely, and with your whole heart. That is something to be proud of, not ashamed of.
-                  Take a slow, deep breath. The weight you set down tonight does not need to be picked back up tomorrow."
+                  {ui.burnDoneBody}
                 </div>
 
                 <button
@@ -685,7 +630,7 @@ export default function BreakupRoomViewer({ onClose, arg }) {
                   }}
                 >
                   <RefreshCw size={14} />
-                  <span>Write Another Release</span>
+                  <span>{ui.burnAgain}</span>
                 </button>
               </div>
             )}
@@ -695,7 +640,7 @@ export default function BreakupRoomViewer({ onClose, arg }) {
         {/* TAB 3: COMFORT & HEALING WORDS */}
         {activeTab === 'healing' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-            {HEALING_AFFIRMATIONS.map((aff, i) => (
+            {tx.healing.map((aff, i) => (
               <div
                 key={i}
                 style={{
@@ -710,18 +655,56 @@ export default function BreakupRoomViewer({ onClose, arg }) {
                 }}
               >
                 <Quote size={24} color="#818cf8" style={{ opacity: 0.5, marginBottom: 12 }} />
-                <div style={{ fontSize: 14, fontWeight: 700, color: textTitle, lineHeight: 1.7, fontStyle: 'italic' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: textTitle, lineHeight: 1.7, fontStyle: lang === 'en' ? 'italic' : 'normal' }}>
                   "{aff}"
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 16 }}>
                   <Heart size={14} color="#f43f5e" />
-                  <span style={{ fontSize: 11, color: textSub, fontWeight: 800 }}>Gentle Reminder #{i + 1}</span>
+                  <span style={{ fontSize: 11, color: textSub, fontWeight: 800 }}>{ui.healingHead} {i + 1}</span>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* TAB 4: THE PAINTING ON THE WALL */}
+        {activeTab === 'art' && art && (
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <div style={{ flex: '1 1 260px', maxWidth: 380, margin: '0 auto' }}>
+              <div style={{ padding: 10, borderRadius: 6, background: 'linear-gradient(135deg,#e6c36a,#9a7420 45%,#d9b455)', boxShadow: '0 18px 44px rgba(0,0,0,0.45)' }}>
+                <img src={art.img} alt={`${art.title}, ${art.artist}`} draggable={false} style={{ display: 'block', width: '100%', height: 'auto', maxHeight: '58vh', objectFit: 'contain', background: '#150f0a' }} />
+              </div>
+              <div style={{ fontSize: 11.5, color: textSub, marginTop: 8, textAlign: 'center' }}>{art.credit}</div>
+            </div>
+            <div style={{ flex: '1 1 320px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {art.mood.map(m => <span key={m} style={{ padding: '3px 10px', borderRadius: 99, background: 'rgba(99,102,241,0.16)', border: '1px solid rgba(99,102,241,0.4)', color: isLight ? '#4338ca' : '#c7d2fe', fontSize: 12, fontWeight: 700 }}>{m}</span>)}
+                </div>
+                <div style={{ fontSize: 'clamp(22px,4.5vw,30px)', fontWeight: 900, lineHeight: 1.2, color: textTitle }}>{art.title}</div>
+                <div style={{ fontSize: 14, color: textSub, marginTop: 4 }}>{art.artist}, {art.year}</div>
+                <div style={{ fontSize: 12.5, color: textSub, marginTop: 2 }}>{art.place}</div>
+              </div>
+              {[['why', art.why], ['story', art.story], ['behind', art.behind]].map(([k, text]) => (
+                <div key={k}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: isLight ? '#4338ca' : '#a5b4fc', marginBottom: 4 }}>{ART_LABELS[lang][k]}</div>
+                  <div style={{ fontSize: 14.5, lineHeight: 1.75, color: isLight ? '#334155' : '#cbd5e1' }}>{text}</div>
+                </div>
+              ))}
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: isLight ? '#4338ca' : '#a5b4fc', marginBottom: 4 }}>{ART_LABELS[lang].look}</div>
+                {art.look.map(l => <div key={l} style={{ fontSize: 14, lineHeight: 1.7, color: isLight ? '#334155' : '#cbd5e1' }}>- {l}</div>)}
+              </div>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
+
+const ART_LABELS = {
+  en: { why: 'Why it was painted', story: 'The story', behind: 'Behind the canvas', look: 'Look closer' },
+  hi: { why: 'यह चित्र क्यों बना', story: 'कथा', behind: 'चित्र के पीछे', look: 'ज़रा ग़ौर से देखो' },
+  te: { why: 'ఈ చిత్రం ఎందుకు గీశారు', story: 'కథ', behind: 'చిత్రం వెనుక', look: 'జాగ్రత్తగా చూడండి' },
+};
