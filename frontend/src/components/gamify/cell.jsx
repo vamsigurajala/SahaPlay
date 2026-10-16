@@ -33,7 +33,7 @@ export function Cell({ id, base, children }) {
     if (g.visible !== show) g.visible = show;
   });
   return (
-    <group ref={gate} position={[w.x0, 0, w.z0]}>
+    <group ref={gate} position={[w.x0, 0, w.z0]} userData={{ zone: id }}>
       <ZoneContext.Provider value={id}>
         {base && <group position={[-ox, 0, -oz]}>{base}</group>}
         {children}

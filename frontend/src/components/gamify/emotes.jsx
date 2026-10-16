@@ -28,9 +28,9 @@ export function SayBubble({ text }) {
   if (!text) return null;
   ensureCss();
   return (
-    <span className="stay-white" style={{ position: 'absolute', left: '50%', bottom: 'calc(100% + 8px)', width: 'max-content', maxWidth: 180, padding: '6px 10px', borderRadius: 12, background: 'rgba(255,255,255,0.96)', color: '#14121f', WebkitTextFillColor: '#14121f', fontSize: 12.5, fontWeight: 700, lineHeight: 1.35, textAlign: 'center', overflowWrap: 'anywhere', pointerEvents: 'none', animation: 'gp-say 6s ease-out forwards', boxShadow: '0 6px 18px rgba(0,0,0,0.45)', zIndex: 3 }}>
+    <span className="stay-white" style={{ position: 'absolute', left: '50%', bottom: 'calc(100% + 8px)', width: 'max-content', maxWidth: 180, padding: '6px 10px', borderRadius: 12, background: 'rgba(14,12,30,0.95)', border: '1px solid rgba(255,255,255,0.35)', color: '#fff', fontSize: 12.5, fontWeight: 700, lineHeight: 1.35, textAlign: 'center', overflowWrap: 'anywhere', pointerEvents: 'none', animation: 'gp-say 6s ease-out forwards', boxShadow: '0 6px 18px rgba(0,0,0,0.45)', zIndex: 3 }}>
       {text}
-      <span style={{ position: 'absolute', left: '50%', bottom: -5, width: 10, height: 10, background: 'rgba(255,255,255,0.96)', transform: 'translateX(-50%) rotate(45deg)' }} />
+      <span style={{ position: 'absolute', left: '50%', bottom: -5, width: 10, height: 10, background: 'rgba(14,12,30,0.95)', borderRight: '1px solid rgba(255,255,255,0.35)', borderBottom: '1px solid rgba(255,255,255,0.35)', transform: 'translateX(-50%) rotate(45deg)' }} />
     </span>
   );
 }

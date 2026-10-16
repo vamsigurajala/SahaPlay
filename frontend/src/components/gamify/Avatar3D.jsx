@@ -53,11 +53,10 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, 
     spot.current.x = targetRef.current.x; spot.current.z = targetRef.current.z; spot.current.floor = floorRef.current;
     return () => { delete spots[avatarId]; };
   }, [avatarId, view]);
-  // keeps a spot inside the house (and out of the open-air corner upstairs)
+  // keeps a spot inside the house (upstairs covers the back two rows, Breakup Room included)
   const limit = (wx, wz) => {
     const x = clamp(wx, -BOUND_X, BOUND_X);
-    let z = clamp(wz, -BOUND_Z, floorRef.current ? BOUND_Z_UP : BOUND_Z);
-    if (floorRef.current && x > WORLD_W / 6 - 0.3 && z > -WORLD_D / 2 + CELL_D - 0.7) z = -WORLD_D / 2 + CELL_D - 0.7;
+    const z = clamp(wz, -BOUND_Z, floorRef.current ? BOUND_Z_UP : BOUND_Z);
     return { x, z };
   };
   // The nearest free place to (wx, wz): beside whoever is already there.
@@ -137,9 +136,10 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, 
   };
 
   const onPointerDown = (e) => {
+    // never let a press on someone's face fall through to whatever is behind them in the house
+    e.stopPropagation();
     if (!isOwn) return;
     e.preventDefault();
-    e.stopPropagation();
     const start = pointToGround(e.clientX, e.clientY);
     if (!start) return;
     draggingRef.current = true;

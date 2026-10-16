@@ -40,11 +40,15 @@ export function getStandardMaterial(c, rough = 0.75, metal = 0, emissive, ei = 1
 // on phones.
 export function useOpenProp(kind, arg) {
   const view = useContext(ViewContext);
+  const zone = useContext(ZoneContext);
   return {
     onClick: (e) => {
       if (e.delta > 6) return;
+      // a prop in a room you are not looking at can lie behind the spot you tapped
+      const v = view.current;
+      if (zone && !v.out && v.cur >= 0.8 && v.focus && v.focus !== zone) return;
       e.stopPropagation();
-      view.current.openProp?.(kind, arg);
+      v.openProp?.(kind, arg);
     },
     onPointerOver: () => { try { document.body.style.cursor = 'pointer'; } catch { /* non-browser */ } },
     onPointerOut: () => { try { document.body.style.cursor = ''; } catch { /* non-browser */ } },
@@ -403,18 +407,22 @@ export function PropDot(props) {
 export const DoorNavContext = createContext(null);
 
 export function DoorLeaves({ along, doorKey, color, handle = '#d9c48a' }) {
+  const view = useContext(ViewContext);
   const nav = useContext(DoorNavContext);
   const tap = {
     onClick: (e) => {
       if (e.delta > 6 || !nav || !doorKey) return;
-      e.stopPropagation();
       const [a, b] = doorKey.split('|');
+      // only the doors of the room you are looking at: a door in another room (or on another floor)
+      // can sit behind this one along the line of the tap
+      const v = view.current;
+      if (!v.out && v.cur >= 0.8 && v.focus !== a && v.focus !== b) return;
+      e.stopPropagation();
       nav(a, b);
     },
     onPointerOver: () => { try { document.body.style.cursor = 'pointer'; } catch { /* non-browser */ } },
     onPointerOut: () => { try { document.body.style.cursor = ''; } catch { /* non-browser */ } },
   };
-  const view = useContext(ViewContext);
   const l = useRef();
   const r = useRef();
   const a = useRef(0);
