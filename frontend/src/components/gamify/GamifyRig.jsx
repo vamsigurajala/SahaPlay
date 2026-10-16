@@ -37,8 +37,21 @@ export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // Room.jsx.
 export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onInChange, onReady }) {
   const readyRef = useRef(false);
-  const { camera, gl, size } = useThree();
+  const { camera, gl, size, events } = useThree();
   const target = useMemo(() => new THREE.Vector3(), []);
+
+  // three.js starts an orthographic pointer ray at the camera plane, so anything above
+  // and in front of it (the drifting clouds) could never be tapped. Start the ray well
+  // behind the camera instead; hit order is unchanged.
+  useEffect(() => {
+    const prev = events.compute;
+    events.compute = (event, state) => {
+      state.pointer.set((event.offsetX / state.size.width) * 2 - 1, -(event.offsetY / state.size.height) * 2 + 1);
+      state.raycaster.setFromCamera(state.pointer, state.camera);
+      if (state.camera.isOrthographicCamera) state.raycaster.ray.origin.addScaledVector(state.raycaster.ray.direction, -90);
+    };
+    return () => { events.compute = prev; };
+  }, [events]);
 
   useEffect(() => {
     const el = gl.domElement;

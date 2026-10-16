@@ -15,7 +15,8 @@ import IndianKitchen from './indianKitchen';
 import DogPet3D from './DogPet3D';
 
 const PI = Math.PI;
-export { Terrace, FrontYard, Courtyard } from './outdoorRooms';
+export { FrontYard, Courtyard } from './outdoorRooms';
+export { Veranda } from './veranda';
 
 function DeskSet({ p, mon, chair }) {
   const [x, , z] = p;

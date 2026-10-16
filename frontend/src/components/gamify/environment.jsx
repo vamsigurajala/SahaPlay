@@ -124,9 +124,14 @@ const grassTexture = (() => {
   };
 })();
 
+// The house fills x -27..27, z -40..8, with the street and the cricket ground in front
+// (z 8..40). Trees stay well outside that box - behind the house, beyond its side
+// walls and past the cricket ground - so none ever grows through a room.
 const TREES = [
-  [-36, -30, 1.3], [-33, -12, 1.1], [-35, 6, 1.4], [-30, 33, 1.0], [-18, -33, 1.2], [-4, -34, 1.5], [12, -33, 1.1], [27, -34, 1.3], [35, -26, 1.2],
-  [36, -8, 1.4], [36, 26, 1.3], [24, 34, 1.0], [-14, 35, 1.2], [-22, 46, 1.2], [22, 48, 1.1], [-34, 44, 1.3], [34, 42, 1.2], [0, 54, 1.4],
+  [-48, -50, 1.3], [-37, -52, 1.5], [-24, -49, 1.2], [-11, -53, 1.4], [3, -50, 1.1], [16, -52, 1.5], [29, -49, 1.2], [41, -52, 1.4], [51, -48, 1.2],
+  [-41, -32, 1.3], [-47, -14, 1.2], [-41, 1, 1.5], [-48, 16, 1.1], [-42, 31, 1.3], [-48, 46, 1.2],
+  [43, -34, 1.2], [49, -14, 1.4], [44, 3, 1.1], [50, 22, 1.3], [44, 39, 1.2], [49, 54, 1.4],
+  [-30, 58, 1.2], [-12, 62, 1.4], [8, 59, 1.1], [27, 63, 1.3],
 ];
 
 // Grass plot with a soil edge, a lane at the front and trees around — so the house
@@ -158,39 +163,74 @@ const CLOUD_SPOTS = Array.from({ length: 16 }).map((_, i) => {
   return { x: Math.cos(a) * r, z: Math.sin(a) * r, y: 20 + (i % 5) * 3, s: 1.4 + (i % 3) * 0.7, v: 0.25 + (i % 4) * 0.12 };
 });
 
-// A drifting cloud. Tap or click it and it shrinks away (so it never hides what is
-// behind it); a while later it drifts back in from the edge of the plot.
+// A drifting cloud. Tap or click it and it bursts into puffs and droplets (so it never
+// hides what is behind it); a while later a new one drifts back in from the edge.
+const FLECKS = Array.from({ length: 9 }).map((_, i) => {
+  const a = (i / 9) * Math.PI * 2;
+  return { dx: Math.cos(a), dz: Math.sin(a), up: 2 + (i % 3), r: 0.45 + (i % 3) * 0.15 };
+});
+const BURST_MS = 650;
+
 function Cloud({ spot, color }) {
   const ref = useRef();
-  const life = useRef({ s: 1, gone: false, back: 0 });
+  const mats = useRef([]);
+  const flecks = useRef([]);
+  const life = useRef({ gone: false, t0: 0, back: 0 });
   useFrame((_, dt) => {
     const g = ref.current;
     if (!g) return;
     const L = life.current;
     const now = performance.now();
-    g.position.x += spot.v * dt;
+    if (L.gone) {
+      const tb = Math.min(1, (now - L.t0) / BURST_MS);
+      if (tb < 1) {
+        // the puffs swell and fade, droplets fly outwards and fall
+        g.scale.setScalar(spot.s * (1 + 0.55 * tb));
+        mats.current.forEach(m => { if (m) m.opacity = 1 - tb; });
+        flecks.current.forEach((m, i) => {
+          if (!m) return;
+          const f = FLECKS[i];
+          m.visible = true;
+          m.position.set(f.dx * tb * 7, f.up * tb * 3 - tb * tb * 6, f.dz * tb * 7);
+          m.scale.setScalar(f.r * (1 - tb * 0.7));
+        });
+      } else {
+        if (g.visible) { g.visible = false; flecks.current.forEach(m => { if (m) m.visible = false; }); L.back = now + 25000; }
+        if (L.back && now > L.back) { L.gone = false; L.back = 0; g.position.x = -100 + Math.random() * 25; }
+      }
+      return;
+    }
+    if (!g.visible) { g.visible = true; mats.current.forEach(m => { if (m) m.opacity = 1; }); }
+    g.scale.setScalar(spot.s);
+    g.position.x += spot.v * Math.min(dt, 0.1);
     if (g.position.x > 100) g.position.x = -100;
-    if (L.gone && L.s < 0.02 && !L.back) L.back = now + 25000;
-    if (L.gone && L.back && now > L.back) { L.gone = false; L.back = 0; g.position.x = -100 + Math.random() * 25; }
-    L.s += ((L.gone ? 0 : 1) - L.s) * (1 - Math.exp(-Math.min(dt, 0.1) * 7));
-    g.scale.setScalar(spot.s * Math.max(L.s, 0.0001));
-    const show = L.s > 0.01;
-    if (g.visible !== show) g.visible = show;
   });
   const puffs = [[0, 0, 0, 3.2], [3, -0.4, 0.8, 2.5], [-3, -0.3, -0.6, 2.4]];
+  const pop = (e) => {
+    if (e.delta > 6) return;
+    e.stopPropagation();
+    const L = life.current;
+    if (!L.gone) { L.gone = true; L.t0 = performance.now(); }
+  };
   return (
     <group
       ref={ref}
       position={[spot.x, spot.y, spot.z]}
       scale={spot.s}
-      onClick={(e) => { e.stopPropagation(); life.current.gone = true; }}
+      onClick={pop}
       onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
       onPointerOut={() => { document.body.style.cursor = ''; }}
     >
       {puffs.map(([x, y, z, r], i) => (
         <mesh key={i} position={[x, y, z]} scale={[1, 0.6, 1]}>
           <sphereGeometry args={[r, 8, 6]} />
-          <meshLambertMaterial color={color} />
+          <meshLambertMaterial ref={(m) => { mats.current[i] = m; }} color={color} transparent />
+        </mesh>
+      ))}
+      {FLECKS.map((f, i) => (
+        <mesh key={'f' + i} ref={(m) => { flecks.current[i] = m; }} visible={false}>
+          <sphereGeometry args={[1, 6, 5]} />
+          <meshBasicMaterial color={color} />
         </mesh>
       ))}
     </group>

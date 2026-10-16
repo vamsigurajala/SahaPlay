@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { DoorOpen, LogOut, Shirt, ArrowUp, ArrowDown } from 'lucide-react';
 import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip, FocusContext } from './parts';
-import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden, Terrace, FrontYard, Courtyard } from './placedRooms';
+import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden, Veranda, FrontYard, Courtyard } from './placedRooms';
 import { CricketGround, CricketFloor } from './cricket';
 import { Street } from './street';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
@@ -292,8 +292,11 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * n / 4, 0); g.lineTo(i * n / 4, n); g.stroke(); g.beginPath(); g.moveTo(0, i * n / 4); g.lineTo(n, i * n / 4); g.stroke(); }
     }, [5.4, 4.8]),
     terrace: canvasTexture(256, (g, n) => {
-      g.fillStyle = '#9a7a56'; g.fillRect(0, 0, n, n);
-      for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(${i % 2 ? '255,255,255,0.06' : '0,0,0,0.12'})`; g.fillRect(0, i * (n / 6), n, n / 6 - 2); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, i * (n / 6) + n / 6 - 2, n, 2); }
+      // terracotta tiles
+      g.fillStyle = '#7a3f22'; g.fillRect(0, 0, n, n);
+      const t = n / 4;
+      const tones = ['#c2653a', '#b85a31', '#cf7448', '#bb5f36'];
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = tones[(i * 3 + j * 5) % 4]; g.fillRect(i * t + 2, j * t + 2, t - 4, t - 4); }
     }, [5.4, 4.8]),
     frontyard: canvasTexture(512, (g, n) => {
       // Bright, high-end supercar garage showroom epoxy & granite tiles
@@ -450,7 +453,7 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       <Kitchen />
       <GameRoom />
       <Garden />
-      <Terrace />
+      <Veranda />
       <FrontYard />
       <Courtyard />
       <Street weather={weather} />

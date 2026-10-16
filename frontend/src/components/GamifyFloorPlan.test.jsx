@@ -39,7 +39,7 @@ vi.mock('./gamify/GamifyRig', async () => {
   const React = await import('react');
   const zones = await vi.importActual('../data/gamifyZones');
   return {
-    default: ({ onReady }) => {
+    default: function MockRig({ onReady }) {
       React.useEffect(() => {
         if (onReady) onReady();
       }, [onReady]);
@@ -104,7 +104,7 @@ describe('Gamify Mode End-to-End Test Suite', () => {
       return null;
     });
 
-    global.fetch = vi.fn((url) => {
+    globalThis.fetch = vi.fn((url) => {
       const u = String(url);
       if (u.includes('stars.json')) {
         return Promise.resolve({

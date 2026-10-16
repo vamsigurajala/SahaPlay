@@ -9,8 +9,8 @@ import { Supercar3D, Superbike3D, Bicycle3D } from './vehicles';
 const PI = Math.PI;
 
 // Compound wall along the street edge of a cell (cell-local z = 15.8), so the
-// Terrace and the Courtyard are closed off from the road just like the Front Yard.
-function StreetWall({ color = '#27272a', cap = '#3f3f46', lamp = NEON_AMBER }) {
+// Veranda and the Courtyard are closed off from the road just like the Front Yard.
+export function StreetWall({ color = '#27272a', cap = '#3f3f46', lamp = NEON_AMBER }) {
   return (
     <group>
       <Box p={[9, 0.9, 15.8]} s={[18, 1.8, 0.38]} c={color} r={0.03} />
@@ -23,56 +23,6 @@ function StreetWall({ color = '#27272a', cap = '#3f3f46', lamp = NEON_AMBER }) {
         </group>
       ))}
     </group>
-  );
-}
-
-// ============================================================================
-// TERRACE (Upstairs Open Roof Lounge)
-// ============================================================================
-export function Terrace() {
-  return (
-    <Cell id="terrace">
-      <Box p={[9, 0.4, 15.85]} s={[18, 0.8, 0.3]} c="#a8896a" r={0.03} />
-      <Rug p={[4.2, 0, 6.4]} w={6.2} d={7.6} c="#d0592a" c2="#e8844a" />
-      <group position={[4.2, 0, 4.2]}>
-        <Box p={[0, 0.3, 0]} s={[2.2, 0.6, 1.2]} c="#8a5a34" r={0.04} />
-        <Box p={[-0.8, 0.7, 0]} s={[0.5, 0.2, 0.7]} c="#ff6fb5" r={0.08} />
-      </group>
-      <group position={[4.2, 0, 8.6]}>
-        <Box p={[0, 0.3, 0]} s={[2.2, 0.6, 1.2]} c="#8a5a34" r={0.04} />
-        <Box p={[-0.8, 0.7, 0]} s={[0.5, 0.2, 0.7]} c="#3ee8ff" r={0.08} />
-      </group>
-      <Table p={[8.0, 0, 6.4]} w={1.4} d={1.4} h={0.7} c="#8a5a34" leg="#4a2f1a" />
-      <mesh position={[8.0, 0.95, 6.4]}>
-        <cylinderGeometry args={[0.16, 0.2, 0.32, 12]} />
-        <meshStandardMaterial color="#c8ccd6" metalness={0.85} roughness={0.3} />
-      </mesh>
-      {[-0.3, 0.3].map(dx => (
-        <mesh key={dx} position={[8.0 + dx, 0.82, 6.9]}>
-          <cylinderGeometry args={[0.09, 0.07, 0.12, 10]} />
-          <meshStandardMaterial color="#f4f1e8" />
-        </mesh>
-      ))}
-      <Stool p={[8.0, 0, 5.2]} c="#d0592a" />
-      <Stool p={[8.0, 0, 7.6]} c="#2f8f9d" />
-      <group position={[13.4, 0, 12.4]}>
-        <Box p={[0, 0.9, 0]} s={[2.2, 0.14, 0.9]} c="#b0773f" r={0.04} />
-        <Box p={[0, 1.4, -0.4]} s={[2.2, 0.8, 0.1]} c="#b0773f" r={0.04} />
-      </group>
-      <group position={[16.4, 0, 1.8]}>
-        {[[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]].map(([x, z], i) => (
-          <Box key={i} p={[x, 0.5, z]} s={[0.12, 1.0, 0.12]} c="#6f6a86" />
-        ))}
-        <Box p={[0, 1.05, 0]} s={[1.4, 0.1, 1.4]} c="#6f6a86" />
-        <mesh position={[0, 1.95, 0]} castShadow>
-          <cylinderGeometry args={[0.7, 0.7, 1.6, 20]} />
-          <meshStandardMaterial color="#22212c" roughness={0.6} />
-        </mesh>
-      </group>
-      <BeanBag p={[14.6, 0, 7.4]} color="#d0592a" glow={NEON_AMBER} />
-      <FloorLamp p={[1.2, 0, 1.6]} />
-      <StreetWall />
-    </Cell>
   );
 }
 

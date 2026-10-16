@@ -58,7 +58,7 @@ export const FLOORPLAN_ZONES = {
   kitchen: zone('kitchen', 'Kitchen', 0, 1),
   gameroom: zone('gameroom', 'Game Room', 1, 1),
   lawn: zone('lawn', 'Garden', 2, 1),
-  terrace: zone('terrace', 'Terrace', 0, 2),
+  terrace: zone('terrace', 'Veranda', 0, 2),
   frontyard: zone('frontyard', 'Front Yard', 1, 2),
   courtyard: zone('courtyard', 'Courtyard', 2, 2),
   street: zone('street', 'Street', 1, 3),
