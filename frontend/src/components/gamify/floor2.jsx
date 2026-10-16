@@ -1,7 +1,7 @@
 import { useContext, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Box, Plant, Chair, Table, Rug, Sofa, BeanBag, TableLamp, FloorLamp, Monitor, Bookshelf, Wardrobe, WallWindow, ViewContext, DoorLeaves } from './parts';
+import { Box, Plant, Chair, Table, Rug, Sofa, BeanBag, TableLamp, FloorLamp, Monitor, Bookshelf, Wardrobe, WallWindow, ViewContext, DoorLeaves, useOpenProp, PropDot } from './parts';
 import { Cell } from './cell';
 import { Telescope, Jhula, Vanity, FairyLights, Curtain, FlowerPatch, Teddy, Stairs } from './props';
 import IndianKitchen from './indianKitchen';
@@ -294,6 +294,318 @@ function Balcony() {
   );
 }
 
+
+// ============================================================================
+// BREAKUP & HEARTBREAK ROOM (Solitude, Melancholy & Grief)
+// ============================================================================
+
+function BreakupRoom() {
+  const openBreakup = useOpenProp('breakup');
+
+  return (
+    <Cell id="f2breakup">
+      {/* ── 1. MOODY COLD LIGHTING & SHADOW RUGS ── */}
+      <Rug p={[12.5, 0, 5.0]} w={7.5} d={7.8} c="#1e2230" c2="#161924" />
+      <Rug p={[4.2, 0, 12.0]} w={4.2} d={4.2} c="#181a24" c2="#12141c" />
+
+      {/* ── 2. THE DISHEVELED LOW PLATFORM BED OF TEARS & INSOMNIA ── */}
+      <group position={[13.2, 0, 4.6]}>
+        {/* Dark Ebony Wood Low Platform Bed Frame */}
+        <Box p={[0, 0.22, 0]} s={[4.6, 0.44, 5.8]} c="#181a22" r={0.04} />
+        {/* Mattress with Faded Navy Fitted Sheet */}
+        <Box p={[0, 0.52, 0.05]} s={[4.2, 0.26, 5.4]} c="#1e2433" r={0.06} />
+        {/* Tangled, Rumpled Dark Charcoal / Midnight Duvet Thrown to the Side */}
+        <Box p={[-0.45, 0.68, 0.4]} s={[2.9, 0.18, 4.0]} c="#272b38" r={0.08} />
+        {/* Crumpled Heavy Weighted Wool Blanket Fallen Halfway off the Bed onto Floor */}
+        <Box p={[1.2, 0.36, 1.4]} s={[2.2, 0.22, 2.8]} c="#181b24" r={0.1} />
+
+        {/* Two Pillows: One Indented with Dark Tear-Stained Hollow */}
+        <Box p={[-1.1, 0.72, -2.0]} s={[1.7, 0.2, 1.0]} c="#1a1e29" r={0.12} />
+        <group position={[1.1, 0.72, -2.0]}>
+          <Box p={[0, 0, 0]} s={[1.7, 0.16, 1.0]} c="#161822" r={0.12} />
+          {/* Tear-stain darker spot */}
+          <mesh position={[0.15, 0.09, 0.05]}>
+            <circleGeometry args={[0.22, 14]} />
+            <meshBasicMaterial color="#0f1118" />
+          </mesh>
+        </group>
+
+        {/* Headboard in Distressed Black Wood */}
+        <Box p={[0, 1.4, -2.8]} s={[4.8, 2.0, 0.2]} c="#11131a" r={0.04} />
+
+        {/* Abandoned Smartphone Face-Up with Soft Glowing Screen ("No New Messages") */}
+        <group position={[0.4, 0.66, 0.7]} rotation={[0, 0.25, 0]}>
+          <Box p={[0, 0.015, 0]} s={[0.3, 0.02, 0.6]} c="#09090b" r={0.02} />
+          <mesh position={[0, 0.028, 0]}>
+            <planeGeometry args={[0.26, 0.54]} />
+            <meshBasicMaterial color="#38bdf8" toneMapped={false} />
+          </mesh>
+        </group>
+      </group>
+
+      {/* ── 3. MELANCHOLIC RAIN-STREAKED PICTURE WINDOW ON RIGHT WALL ── */}
+      <group position={[17.85, 2.3, 8.0]}>
+        <Box p={[0, 0, 0]} s={[0.1, 4.4, 6.2]} c="#0f121a" />
+        <Box p={[0, 0, 0]} s={[0.12, 4.2, 0.1]} c="#1e2230" />
+        <Box p={[0, 0, 0]} s={[0.12, 0.1, 6.0]} c="#1e2230" />
+        {/* Tinted Rain Glass with Blue Cold Moonlight Filter */}
+        <mesh position={[-0.01, 0, 0]} rotation={[0, PI / 2, 0]}>
+          <planeGeometry args={[5.8, 4.0]} />
+          <meshPhysicalMaterial
+            color="#38bdf8"
+            transparent
+            opacity={0.35}
+            roughness={0.1}
+            transmission={0.8}
+          />
+        </mesh>
+        {/* Cold Blue Moonlight Beam on Floor */}
+        <Box p={[-3.6, -2.28, 0]} s={[7.0, 0.015, 5.6]} c="#182236" shadow={false} />
+      </group>
+
+      {/* ── 4. WRITING DESK OF BURNED LETTERS & BROKEN MEMORIES (Interactive Prop!) ── */}
+      <group position={[4.2, 0, 3.4]} {...openBreakup} style={{ cursor: 'pointer' }}>
+        <PropDot position={[0, 1.45, 0]} kind="breakup" />
+
+        {/* Vintage Dark Walnut Writing Bureau */}
+        <Box p={[0, 0.52, 0]} s={[3.0, 1.04, 1.6]} c="#1c1622" r={0.04} />
+        <Box p={[0, 1.05, -0.6]} s={[3.0, 0.45, 0.4]} c="#15101a" />
+
+        {/* Wooden Spindle-Back Chair Pushed Back Awkwardly */}
+        <group position={[0, 0, 1.25]} rotation={[0, 0.24, 0]}>
+          <Box p={[0, 0.26, -0.2]} s={[0.08, 0.52, 0.08]} c="#1a141f" />
+          <Box p={[0, 0.26, 0.2]} s={[0.08, 0.52, 0.08]} c="#1a141f" />
+          <Box p={[-0.4, 0.26, 0]} s={[0.08, 0.52, 0.08]} c="#1a141f" />
+          <Box p={[0.4, 0.26, 0]} s={[0.08, 0.52, 0.08]} c="#1a141f" />
+          <Box p={[0, 0.54, 0]} s={[0.9, 0.06, 0.85]} c="#231a2a" r={0.04} />
+          <Box p={[0, 1.02, 0.38]} s={[0.9, 0.9, 0.08]} c="#1a141f" r={0.04} />
+        </group>
+
+        {/* The Heartbreak Memory Box & Journal (Embossed Leather) */}
+        <group position={[0, 1.07, 0]}>
+          <Box p={[0, 0.04, 0]} s={[0.7, 0.08, 0.9]} c="#4a1525" r={0.03} />
+          <mesh position={[0, 0.085, 0]} rotation={[-PI / 2, 0, 0]}>
+            <circleGeometry args={[0.12, 16]} />
+            <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.2} />
+          </mesh>
+        </group>
+
+        {/* Melting Taper Candle with Dripping Wax & Fragile Flickering Flame */}
+        <group position={[-1.1, 1.05, -0.2]}>
+          <mesh position={[0, 0.03, 0]}>
+            <cylinderGeometry args={[0.08, 0.1, 0.06, 12]} />
+            <meshStandardMaterial color="#b45309" metalness={0.8} />
+          </mesh>
+          <mesh position={[0, 0.24, 0]}>
+            <cylinderGeometry args={[0.024, 0.028, 0.36, 10]} />
+            <meshStandardMaterial color="#fef3c7" roughness={0.6} />
+          </mesh>
+          <mesh position={[0, 0.44, 0]}>
+            <coneGeometry args={[0.022, 0.07, 8]} />
+            <meshBasicMaterial color="#f59e0b" toneMapped={false} />
+          </mesh>
+        </group>
+
+        {/* Scattered Crumpled Handwritten Letters on Desk */}
+        {[
+          [-0.6, 1.06, 0.3, 0.35],
+          [0.7, 1.06, 0.2, -0.4],
+          [-0.2, 1.06, -0.25, 0.15],
+          [0.8, 1.06, -0.3, 0.6],
+        ].map(([px, py, pz, prot], idx) => (
+          <mesh key={idx} position={[px, py, pz]} rotation={[-PI / 2, 0, prot]}>
+            <planeGeometry args={[0.26, 0.35]} />
+            <meshStandardMaterial color="#fefce8" roughness={0.9} />
+          </mesh>
+        ))}
+
+        {/* Small Ash Bowl with Charred Edges of Burnt Letters */}
+        <group position={[1.1, 1.05, 0.2]}>
+          <mesh position={[0, 0.03, 0]}>
+            <cylinderGeometry args={[0.12, 0.08, 0.06, 12]} />
+            <meshStandardMaterial color="#1e222d" />
+          </mesh>
+          <mesh position={[0, 0.062, 0]} rotation={[-PI / 2, 0, 0]}>
+            <circleGeometry args={[0.09, 12]} />
+            <meshBasicMaterial color="#09090b" />
+          </mesh>
+        </group>
+
+        {/* Face-Down Framed Couple Photo */}
+        <group position={[-0.8, 1.06, 0.4]} rotation={[0, 0.6, 0]}>
+          <Box p={[0, 0.015, 0]} s={[0.34, 0.03, 0.45]} c="#332211" />
+          <Box p={[0, 0.032, 0]} s={[0.28, 0.005, 0.39]} c="#1e1822" />
+        </group>
+
+        {/* Cold Coffee Mug */}
+        <group position={[-1.0, 1.05, 0.5]}>
+          <mesh position={[0, 0.08, 0]}>
+            <cylinderGeometry args={[0.06, 0.05, 0.16, 12]} />
+            <meshStandardMaterial color="#334155" />
+          </mesh>
+        </group>
+      </group>
+
+      {/* ── 5. THE DEAD BLACK ROSE & TOPPLED VASE IN SPILLED WATER ── */}
+      <group position={[8.8, 0, 8.2]}>
+        <mesh position={[0, 0.42, 0]}>
+          <cylinderGeometry args={[0.55, 0.55, 0.84, 16]} />
+          <meshStandardMaterial color="#1a1420" roughness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.85, 0]}>
+          <cylinderGeometry args={[0.62, 0.62, 0.04, 18]} />
+          <meshStandardMaterial color="#231b2b" roughness={0.6} />
+        </mesh>
+
+        {/* Spilled Water Puddle */}
+        <mesh position={[0.1, 0.875, 0]} rotation={[-PI / 2, 0, 0]}>
+          <circleGeometry args={[0.3, 16]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.4} />
+        </mesh>
+
+        {/* Toppled Glass Vase */}
+        <mesh position={[0, 0.92, -0.1]} rotation={[0, 0, PI / 2]}>
+          <cylinderGeometry args={[0.07, 0.11, 0.32, 12]} />
+          <meshPhysicalMaterial color="#94a3b8" transmission={0.9} transparent opacity={0.5} roughness={0.1} />
+        </mesh>
+
+        {/* Drooping Withered Crimson / Black Rose with Fallen Petals */}
+        <group position={[0.15, 0.9, 0.1]}>
+          <mesh position={[0, 0, 0]} rotation={[0.4, 0.2, 1.2]}>
+            <cylinderGeometry args={[0.008, 0.008, 0.38, 6]} />
+            <meshStandardMaterial color="#1c1917" />
+          </mesh>
+          <mesh position={[0.18, -0.02, 0.08]}>
+            <sphereGeometry args={[0.06, 8, 8]} />
+            <meshStandardMaterial color="#4c0519" roughness={0.8} />
+          </mesh>
+          {[-0.15, 0.05, 0.2, -0.08].map((px, i) => (
+            <mesh key={i} position={[px, 0.88, 0.08 + (i % 2) * 0.1]} rotation={[-PI / 2, 0, Math.random() * PI]}>
+              <circleGeometry args={[0.035, 6]} />
+              <meshBasicMaterial color="#881337" />
+            </mesh>
+          ))}
+        </group>
+      </group>
+
+      {/* ── 6. THE WEEPING VELVET ARMCHAIR & COMFORT CORNER ── */}
+      <group position={[3.8, 0, 12.6]}>
+        <Box p={[0, 0.45, 0]} s={[1.9, 0.9, 1.8]} c="#151726" r={0.1} />
+        <Box p={[0, 0.65, 0.1]} s={[1.4, 0.28, 1.3]} c="#1e2238" r={0.08} />
+        <Box p={[0, 1.2, -0.7]} s={[1.9, 1.1, 0.38]} c="#151726" r={0.08} />
+        <Box p={[-0.85, 0.88, 0]} s={[0.32, 0.55, 1.7]} c="#121420" r={0.06} />
+        <Box p={[0.85, 0.88, 0]} s={[0.32, 0.55, 1.7]} c="#121420" r={0.06} />
+
+        {/* Giant Heavy Knit Comfort Blanket Bundled on Armchair */}
+        <Box p={[0.2, 0.86, 0.1]} s={[1.1, 0.34, 1.1]} c="#2e3548" r={0.14} />
+
+        {/* Small Stool with Tissue Box */}
+        <group position={[1.5, 0, 0.2]}>
+          <Box p={[0, 0.25, 0]} s={[0.7, 0.5, 0.7]} c="#12141c" r={0.04} />
+          <Box p={[0, 0.58, 0]} s={[0.38, 0.16, 0.24]} c="#475569" r={0.02} />
+          <Box p={[0, 0.68, 0]} s={[0.1, 0.08, 0.08]} c="#f8fafc" />
+        </group>
+
+        {/* Crumpled Tissues Discarded on Floor Rug */}
+        {[
+          [0.8, 0.04, 1.2],
+          [1.3, 0.04, 0.9],
+          [-0.6, 0.04, 1.1],
+          [0.2, 0.04, 1.4],
+        ].map(([tx, ty, tz], i) => (
+          <mesh key={i} position={[tx, ty, tz]}>
+            <sphereGeometry args={[0.055, 6, 6]} />
+            <meshStandardMaterial color="#f1f5f9" roughness={0.9} />
+          </mesh>
+        ))}
+
+        {/* Lonely Teddy Bear Slumped against Chair */}
+        <group position={[-1.2, 0, 0.6]} rotation={[0, 0.4, 0]}>
+          <Teddy p={[0, 0, 0]} c="#453123" />
+          <mesh position={[0, 0.35, 0.24]} rotation={[-0.4, 0, 0]}>
+            <planeGeometry args={[0.16, 0.12]} />
+            <meshBasicMaterial color="#fef08a" />
+          </mesh>
+        </group>
+
+        {/* Half-Eaten Ice Cream Tub with Spoon on Floor */}
+        <group position={[1.4, 0, 1.1]}>
+          <mesh position={[0, 0.08, 0]}>
+            <cylinderGeometry args={[0.09, 0.08, 0.16, 12]} />
+            <meshStandardMaterial color="#3b82f6" />
+          </mesh>
+          <mesh position={[0.04, 0.18, 0]} rotation={[0.4, 0, 0.3]}>
+            <cylinderGeometry args={[0.008, 0.008, 0.2, 6]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.9} />
+          </mesh>
+        </group>
+      </group>
+
+      {/* ── 7. THE VINTAGE TURNTABLE PLAYING SAD RECORDS ON REPEAT ── */}
+      <group position={[14.2, 0, 12.6]}>
+        <Box p={[0, 0.44, 0]} s={[3.4, 0.88, 1.4]} c="#1c1622" r={0.04} />
+        <Box p={[-0.4, 0.94, 0]} s={[1.2, 0.14, 1.0]} c="#271d30" r={0.03} />
+        <mesh position={[-0.4, 1.02, 0]} rotation={[-PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.38, 0.38, 0.015, 24]} />
+          <meshStandardMaterial color="#09090b" roughness={0.3} metalness={0.4} />
+        </mesh>
+        <mesh position={[-0.4, 1.03, 0]} rotation={[-PI / 2, 0, 0]}>
+          <circleGeometry args={[0.12, 16]} />
+          <meshBasicMaterial color="#991b1b" />
+        </mesh>
+        <group position={[-0.05, 1.04, 0.25]} rotation={[0, 0.4, 0]}>
+          <mesh rotation={[PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.01, 0.01, 0.4, 6]} />
+            <meshStandardMaterial color="#e2e8f0" metalness={0.9} />
+          </mesh>
+        </group>
+
+        {/* Stack of Sad Vinyl Record Sleeves on Table & Floor */}
+        <Box p={[0.8, 0.95, -0.1]} s={[0.8, 0.08, 0.8]} c="#1e1828" r={0.02} />
+        <Box p={[0.8, 1.02, -0.1]} s={[0.78, 0.06, 0.78]} c="#2b1a38" r={0.02} />
+        <mesh position={[1.4, 0.35, 0.6]} rotation={[-0.2, -0.4, 0.1]}>
+          <boxGeometry args={[0.65, 0.65, 0.03]} />
+          <meshStandardMaterial color="#1e1b2b" />
+        </mesh>
+        <Box p={[-1.2, 0.93, 0.1]} s={[0.5, 0.16, 0.7]} c="#334155" />
+      </group>
+
+      {/* ── 8. THE WALL OF UNSPOKEN ECHOES & FADED POLAROIDS ── */}
+      <group position={[9.0, 3.2, 0.15]}>
+        <mesh position={[0, 0, 0]} rotation={[0, 0, PI / 2]}>
+          <cylinderGeometry args={[0.006, 0.006, 6.4, 6]} />
+          <meshStandardMaterial color="#94a3b8" />
+        </mesh>
+        {[-2.4, -1.2, 0, 1.2, 2.4].map((px, i) => (
+          <group key={i} position={[px, -0.22, 0]} rotation={[0, 0, (i % 2 === 0 ? 0.08 : -0.08)]}>
+            <mesh>
+              <planeGeometry args={[0.38, 0.46]} />
+              <meshStandardMaterial color="#f8fafc" roughness={0.8} />
+            </mesh>
+            <mesh position={[0, 0.04, 0.005]}>
+              <planeGeometry args={[0.3, 0.3]} />
+              <meshBasicMaterial color={i === 2 ? '#450a0a' : '#1e293b'} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+
+      {/* Minimalist Wall Framed Art: "Kintsugi Shattered Heart" */}
+      <group position={[14.5, 2.8, 0.15]}>
+        <Box p={[0, 0, 0]} s={[1.8, 2.4, 0.06]} c="#0f121a" />
+        <mesh position={[0, 0, 0.035]}>
+          <planeGeometry args={[1.6, 2.2]} />
+          <meshBasicMaterial color="#181c28" />
+        </mesh>
+        <mesh position={[0, 0.1, 0.04]}>
+          <ringGeometry args={[0.35, 0.4, 16]} />
+          <meshStandardMaterial color="#fbbf24" metalness={0.9} roughness={0.2} />
+        </mesh>
+      </group>
+    </Cell>
+  );
+}
+
 export default function Floor2() {
   const view = useContext(ViewContext);
   const root = useRef();
@@ -304,6 +616,7 @@ export default function Floor2() {
     f2bed2: tex(256, planks('#bd9a6c', '60,40,20'), [4.4, 4]),
     f2hall: tex(256, planks('#c9a77a', '60,40,20'), [4.4, 4]),
     f2balcony: tex(256, planks('#9a7650', '40,24,10'), [4.4, 4]),
+    f2breakup: tex(256, planks('#2c303c', '16,20,28'), [4.4, 4]),
     f2kitchen: tex(256, (g, n) => {
       const t = n / 4;
       for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#d9cfba' : '#ece4d2'; g.fillRect(i * t, j * t, t, t); }
@@ -338,32 +651,33 @@ export default function Floor2() {
         </group>
       ))}
 
-      {/* outer walls: back and left are always full height; the near edges are railings */}
+      {/* outer walls: back, left, and right outer walls */}
       <Box p={[0, WALL_H / 2, z0 - 0.15]} s={[x1 - x0 + 0.6, WALL_H, 0.3]} c={WALL} />
       <Box p={[x0 - 0.15, WALL_H / 2, (z0 + zEnd) / 2]} s={[0.3, WALL_H, zEnd - z0 + 0.6]} c={WALL} />
+      <Box p={[x1 + 0.15, WALL_H / 2, (z0 + zEnd) / 2]} s={[0.3, WALL_H, zEnd - z0 + 0.6]} c={WALL} />
       <Box p={[0, 0.2, z0 + 0.1]} s={[x1 - x0, 0.4, 0.08]} c={TRIM} shadow={false} />
       <Box p={[x0 + 0.1, 0.2, (z0 + zEnd) / 2]} s={[0.08, 0.4, zEnd - z0]} c={TRIM} shadow={false} />
+      <Box p={[x1 - 0.1, 0.2, (z0 + zEnd) / 2]} s={[0.08, 0.4, zEnd - z0]} c={TRIM} shadow={false} />
       <Box p={[0, WALL_H + 0.05, z0 - 0.15]} s={[x1 - x0 + 0.7, 0.14, 0.4]} c={TRIM} shadow={false} />
       <Box p={[x0 - 0.15, WALL_H + 0.05, (z0 + zEnd) / 2]} s={[0.4, 0.14, zEnd - z0 + 0.7]} c={TRIM} shadow={false} />
+      <Box p={[x1 + 0.15, WALL_H + 0.05, (z0 + zEnd) / 2]} s={[0.4, 0.14, zEnd - z0 + 0.7]} c={TRIM} shadow={false} />
 
       {/* interior walls with doorways */}
       <Divider2 axis="z" at={-9} from={z0} to={zEnd} gaps={vGaps(-9)}
         tallForAt={(m) => (m < mz ? 'f2hall' : 'f2balcony')} />
-      <Divider2 axis="z" at={9} from={z0} to={mz} gaps={vGaps(9)} tallForAt={() => 'f2bed2'} />
-      <Divider2 axis="x" at={mz} from={x0} to={9} gaps={hGaps(mz)} tallForAt={(m) => (m < -9 ? 'f2kitchen' : 'f2balcony')} />
+      <Divider2 axis="z" at={9} from={z0} to={zEnd} gaps={vGaps(9)} tallForAt={(m) => (m < mz ? 'f2bed2' : 'f2breakup')} />
+      <Divider2 axis="x" at={mz} from={x0} to={x1} gaps={hGaps(mz)} tallForAt={(m) => (m < -9 ? 'f2kitchen' : m < 9 ? 'f2balcony' : 'f2breakup')} />
       {DOORWAYS_F2.map((d, i) => <Door2 key={i} p={[d.x, 0, d.z]} axis={d.axis === 'v' ? 'z' : 'x'} doorKey={[d.a, d.b].sort().join('|')} />)}
 
-      {/* railings along the open edges */}
-      <Railing axis="x" at={zEnd} from={x0} to={9} />
-      <Railing axis="z" at={9} from={mz} to={zEnd} />
-      <Railing axis="z" at={x1} from={z0} to={mz} />
-      <Railing axis="x" at={mz} from={9} to={x1} />
+      {/* railings along the open front edge */}
+      <Railing axis="x" at={zEnd} from={x0} to={x1} />
 
       <MasterBedroom />
       <UpstairsHall />
       <GuestBedroom />
       <UpstairsKitchen />
       <Balcony />
+      <BreakupRoom />
     </group>
   );
 }

@@ -24,6 +24,7 @@ import DogCareView from './DogCareView';
 import AquariumViewer from './AquariumViewer';
 import SupercarViewer from './SupercarViewer';
 import GarageWorkshopViewer from './GarageWorkshopViewer';
+import BreakupRoomViewer from './BreakupRoomViewer';
 import ShopViewer from './ShopViewer';
 import PaintingViewer from './PaintingViewer';
 const RadioViewer = lazy(() => import('./RadioViewer'));
@@ -4188,6 +4189,7 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'radio' && <ViewerBoundary><Suspense fallback={<div className="stay-white" style={{ marginTop: 120, fontWeight: 700 }}>Warming up the radio...</div>}><RadioViewer /></Suspense></ViewerBoundary>}
         {kind === 'shop' && <ViewerBoundary><ShopViewer id={arg} onClose={onClose} /></ViewerBoundary>}
         {kind === 'garage' && <ViewerBoundary><GarageWorkshopViewer onClose={onClose} arg={arg} /></ViewerBoundary>}
+        {kind === 'breakup' && <ViewerBoundary><BreakupRoomViewer onClose={onClose} /></ViewerBoundary>}
       </div>
     </div>,
     document.body,

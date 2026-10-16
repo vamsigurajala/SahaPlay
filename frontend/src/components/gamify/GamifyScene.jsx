@@ -393,7 +393,15 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
   ];
   const allLights = [
     ...roomLights.map(([id, color, y, intensity]) => ({ id, color, y, intensity, x: FLOORPLAN_ZONES[id].center.x, z: FLOORPLAN_ZONES[id].center.z, floor: 0 })),
-    ...Object.values(ALL_ZONES).filter(z => z.floor === 1).map(z => ({ id: z.id, color: '#ffe8c4', y: FLOOR_Y + 3.4, intensity: 26, x: z.center.x, z: z.center.z, floor: 1 })),
+    ...Object.values(ALL_ZONES).filter(z => z.floor === 1).map(z => ({
+      id: z.id,
+      color: z.id === 'f2breakup' ? '#5b6b82' : '#ffe8c4',
+      y: FLOOR_Y + 3.4,
+      intensity: z.id === 'f2breakup' ? 22 : 26,
+      x: z.center.x,
+      z: z.center.z,
+      floor: 1
+    })),
   ];
   const vLines = [];
   for (let c = 1; c < COLS; c++) vLines.push(-halfW + c * CELL_W);

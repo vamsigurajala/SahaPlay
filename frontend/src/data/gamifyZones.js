@@ -76,6 +76,7 @@ export const FLOOR2_ZONES = {
   f2bed2: zone('f2bed2', 'Guest Bedroom', 2, 0, 1),
   f2kitchen: zone('f2kitchen', 'Upstairs Kitchen', 0, 1, 1),
   f2balcony: zone('f2balcony', 'Balcony', 1, 1, 1),
+  f2breakup: zone('f2breakup', 'Breakup Room', 2, 1, 1),
 };
 export const ALL_ZONES = { ...FLOORPLAN_ZONES, ...FLOOR2_ZONES };
 export const ZONE_IDS = Object.keys(ALL_ZONES);
@@ -120,8 +121,10 @@ const F2_DOORS = [
   { axis: 'v', x: -9, z: -WORLD_D / 2 + 6, a: 'f2bed1', b: 'f2hall' },
   { axis: 'v', x: 9, z: -WORLD_D / 2 + 6, a: 'f2hall', b: 'f2bed2' },
   { axis: 'v', x: -9, z: -WORLD_D / 2 + CELL_D + 12.5, a: 'f2kitchen', b: 'f2balcony' },
+  { axis: 'v', x: 9, z: -WORLD_D / 2 + CELL_D + 8, a: 'f2balcony', b: 'f2breakup' },
   { axis: 'h', x: -27 + 8.5, z: -WORLD_D / 2 + CELL_D, a: 'f2bed1', b: 'f2kitchen' },
   { axis: 'h', x: 0, z: -WORLD_D / 2 + CELL_D, a: 'f2hall', b: 'f2balcony' },
+  { axis: 'h', x: 18, z: -WORLD_D / 2 + CELL_D, a: 'f2bed2', b: 'f2breakup' },
 ];
 export const DOORWAYS_F2 = F2_DOORS;
 const linksFor = (d) => (d.axis === 'v'
