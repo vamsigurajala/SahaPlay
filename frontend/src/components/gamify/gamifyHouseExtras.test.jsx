@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import serverSrc from '../../../../backend/server.js?raw';
+import { SayBubble, SAY_MAX } from './emotes';
 import { SEATS, seatsIn } from './seats';
 import { ALL_ZONES } from '../../data/gamifyZones';
 import { CELL_W, CELL_D } from '../../data/gamifyZones';
@@ -33,10 +36,26 @@ describe('house words in every language', () => {
 
   it.each(LANGS)('%s has all the same keys and placeholders', (c) => {
     const g = locale(c).gamify;
-    leaves({ zones: en.zones, link: en.link, goTo: en.goTo, tour: en.tour, daily: en.daily, seat: en.seat, join: en.join, photo: en.photo, speaking: en.speaking, games: { snake: en.games.snake }, kinds: en.kinds }).forEach(([k, v]) => {
+    leaves({ zones: en.zones, link: en.link, goTo: en.goTo, tour: en.tour, daily: en.daily, seat: en.seat, join: en.join, photo: en.photo, speaking: en.speaking, say: en.say, wave: en.wave, games: { snake: en.games.snake }, kinds: en.kinds }).forEach(([k, v]) => {
       const mine = get(g, k);
       expect(mine, `${c} ${k}`).toBeTruthy();
       expect(holes(mine), `${c} ${k}`).toBe(holes(v));
     });
+  });
+});
+
+describe('chat bubbles and waves', () => {
+  it('shows the message over the avatar, and nothing for an empty one', () => {
+    const { container, rerender } = render(<SayBubble text="Anyone for a game?" />);
+    expect(screen.getByText('Anyone for a game?')).toBeTruthy();
+    rerender(<SayBubble text="" />);
+    expect(container.textContent).toBe('');
+  });
+  it('the server cuts messages at the same length and only waves at people in the room', () => {
+    expect(serverSrc).toContain(`const SAY_MAX = ${SAY_MAX};`);
+    expect(serverSrc).toContain("socket.on('avatar_say'");
+    expect(serverSrc).toContain('cleanSayText(text)');
+    expect(serverSrc).toContain("socket.on('avatar_wave'");
+    expect(serverSrc).toContain('members.has(to)');
   });
 });

@@ -1424,6 +1424,8 @@ const Room = () => {
   const [visitCode, setVisitCode] = useState('');
   const [gamifyMode, setGamifyMode] = useState(false);
   const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
+  const [avatarSays, setAvatarSays] = useState({}); // socketId -> {text, n}: the latest chat bubble
+  const [incomingWave, setIncomingWave] = useState(null); // {from, name, n}: someone waved at you
   const [avatarEmotes, setAvatarEmotes] = useState({}); // socketId -> {id, n}: the latest quick reaction
   // While the house is open, "listen together" and the game-of-the-day scores go out over the room's socket.
   useEffect(() => {
@@ -4839,10 +4841,18 @@ const Room = () => {
     // ── Gamify Mode ──
     sock.on('gamify_mode_changed', ({ enabled }) => {
       setGamifyMode(!!enabled);
-      if (!enabled) { setAvatarPositions({}); setAvatarEmotes({}); } // mirrors the server clearing roomAvatarPositions on turn-off
+      if (!enabled) { setAvatarPositions({}); setAvatarEmotes({}); setAvatarSays({}); } // mirrors the server clearing roomAvatarPositions on turn-off
     });
     sock.on('calm_shared', ({ from, desc, title, by }) => receiveInvite(from, desc, title, by));
     sock.on('daily_board', (payload) => setDailyBoard(payload));
+    sock.on('avatar_said', ({ socketId, text }) => {
+      if (typeof socketId !== 'string' || typeof text !== 'string' || !text) return;
+      setAvatarSays(prev => ({ ...prev, [socketId]: { text: text.slice(0, 80), n: Date.now() } }));
+    });
+    sock.on('avatar_waved', ({ from, name }) => {
+      if (typeof from !== 'string') return;
+      setIncomingWave({ from, name: typeof name === 'string' ? name.slice(0, 40) : '', n: Date.now() });
+    });
     sock.on('avatar_emoted', ({ socketId, emote }) => {
       if (typeof socketId !== 'string' || typeof emote !== 'string') return;
       setAvatarEmotes(prev => ({ ...prev, [socketId]: { id: emote, n: Date.now() } }));
@@ -12356,6 +12366,10 @@ const Room = () => {
                 mySocketId={socket?.id}
                 avatarPositions={avatarPositions}
                 emotes={avatarEmotes}
+                says={avatarSays}
+                wave={incomingWave}
+                onSay={(text) => socket?.emit('avatar_say', { roomId, text })}
+                onWave={(to) => socket?.emit('avatar_wave', { roomId, to })}
                 speakingIds={speakingIds}
                 onEmote={(emote) => socket?.emit('avatar_emote', { roomId, emote })}
                 knownAvatars={knownAvatars}

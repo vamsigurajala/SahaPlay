@@ -8457,6 +8457,19 @@ const avatarMoveBuckets = new Map(); // socketId -> { count, resetAt }
 // sync with EMOTE_IDS in frontend/src/data/gamifyEmotes.js.
 const AVATAR_EMOTES = ['wave', 'heart', 'laugh', 'thumbs', 'party', 'cheers'];
 const avatarEmoteLast = new Map(); // socketId -> last accepted time
+const avatarSayLast = new Map(); // socketId -> last accepted chat bubble
+const avatarWaveLast = new Map(); // socketId -> last accepted wave
+// Chat bubble text: plain text only, no control characters, one line, at most 80 characters.
+const SAY_MAX = 80;
+function cleanSayText(t) {
+  if (typeof t !== 'string') return '';
+  let out = '';
+  for (const ch of t.slice(0, 400)) {
+    const c = ch.charCodeAt(0);
+    out += (c < 32 || c === 127) ? ' ' : ch;
+  }
+  return out.replace(/\s+/g, ' ').trim().slice(0, SAY_MAX);
+}
 
 // Gamify: "listen together" invites and the game-of-the-day board. Only ids and short text
 // are accepted and relayed, never a URL. Keep DAILY_GAMES and the day maths in step with
@@ -8816,6 +8829,8 @@ io.on('connection', (socket) => {
     mediaControlBuckets.delete(socket.id);
     avatarMoveBuckets.delete(socket.id);
     avatarEmoteLast.delete(socket.id);
+    avatarSayLast.delete(socket.id);
+    avatarWaveLast.delete(socket.id);
     gamifyShareLast.delete(socket.id);
     gamifyScoreLast.delete(socket.id);
     joinRateBuckets.delete(socket.id);
@@ -10937,6 +10952,42 @@ io.on('connection', (socket) => {
       socket.to(roomId).emit('avatar_emoted', { socketId: socket.id, emote });
     } catch (err) {
       console.error('[SOCKET] avatar_emote error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  // A short message that floats over someone's head for a few seconds.
+  socket.on('avatar_say', ({ roomId: rawRoomId, text } = {}) => {
+    try {
+      const roomId = typeof rawRoomId === 'string' ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId) || !rooms.get(roomId).gamifyMode) return;
+      if (!socket.rooms.has(roomId)) return;
+      const clean = cleanSayText(text);
+      if (!clean) return;
+      const now = Date.now();
+      if (now - (avatarSayLast.get(socket.id) || 0) < 1200) return;
+      avatarSayLast.set(socket.id, now);
+      socket.to(roomId).emit('avatar_said', { socketId: socket.id, text: clean });
+    } catch (err) {
+      console.error('[SOCKET] avatar_say error:', err.message, 'user:', socket.username);
+    }
+  });
+
+  // Tap on someone to wave at them: they get a notice, everyone sees a hand over your head.
+  socket.on('avatar_wave', ({ roomId: rawRoomId, to } = {}) => {
+    try {
+      const roomId = typeof rawRoomId === 'string' ? rawRoomId.toLowerCase() : null;
+      if (!roomId || !rooms.has(roomId) || !rooms.get(roomId).gamifyMode) return;
+      if (!socket.rooms.has(roomId)) return;
+      if (typeof to !== 'string' || to === socket.id) return;
+      const members = io.sockets.adapter.rooms.get(roomId);
+      if (!members || !members.has(to)) return; // only someone who is really in this room
+      const now = Date.now();
+      if (now - (avatarWaveLast.get(socket.id) || 0) < 3000) return;
+      avatarWaveLast.set(socket.id, now);
+      io.to(to).emit('avatar_waved', { from: socket.id, name: String(socket.username || '').slice(0, 40) });
+      socket.to(roomId).emit('avatar_emoted', { socketId: socket.id, emote: 'wave' });
+    } catch (err) {
+      console.error('[SOCKET] avatar_wave error:', err.message, 'user:', socket.username);
     }
   });
 

@@ -2,10 +2,11 @@ import { memo, useRef, useMemo, useEffect, useContext } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Crown, Mic } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import Avatar from '../Avatar';
 import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D, CELL_D, FLOOR_Y, ALL_ZONES, zoneForPoint } from '../../data/gamifyZones';
 import { ScaledHtml, ViewContext } from './parts';
-import { EmoteBubble } from './emotes';
+import { EmoteBubble, SayBubble } from './emotes';
 import { freeSpot } from './avatarSpacing';
 import { playSfx } from './ambience';
 
@@ -23,8 +24,9 @@ const BOUND_Z_UP = -WORLD_D / 2 + 2 * CELL_D - 0.7;
 // inside the (possibly mirrored) scene root, so positions here are always in
 // the un-mirrored local space — a flipped view only changes how they render,
 // never what's sent over the socket (everyone shares the same virtual coords).
-function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, y, zone, emote, onMove, onDrop, dragLockRef }) {
+function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, y, zone, emote, say, onWave, onMove, onDrop, dragLockRef }) {
   const group = useRef();
+  const { t } = useTranslation();
   const view = useContext(ViewContext);
   const { camera, gl } = useThree();
   const draggingRef = useRef(false);
@@ -182,13 +184,16 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, 
         <div
           ref={labelRef}
           onPointerDown={onPointerDown}
+          onClick={!isOwn && onWave ? () => onWave(avatarId) : undefined}
+          title={!isOwn && onWave ? t('gamify.wave.tip', { defaultValue: 'Wave at {{name}}', name: username }) : undefined}
           style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-            cursor: isOwn ? 'grab' : 'default', touchAction: 'none', userSelect: 'none', pointerEvents: 'auto',
+            cursor: isOwn ? 'grab' : onWave ? 'pointer' : 'default', touchAction: 'none', userSelect: 'none', pointerEvents: 'auto',
           }}
         >
           <div style={{ position: 'relative' }}>
           {emote && <EmoteBubble key={emote.n} id={emote.id} />}
+          {say && <SayBubble key={say.n} text={say.text} />}
           <Avatar
             avatarPath={avatarPath}
             username={username}

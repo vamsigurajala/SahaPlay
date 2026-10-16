@@ -2209,6 +2209,17 @@
     },
     "speaking": {
       "tip": "{{name}} está hablando"
+    },
+    "say": {
+      "title": "Di algo",
+      "placeholder": "Di algo...",
+      "send": "Enviar"
+    },
+    "wave": {
+      "tip": "Saludar a {{name}}",
+      "sent": "Saludaste a {{name}}",
+      "got": "{{name}} te saludó",
+      "back": "Devolver el saludo"
     }
   }
 }

@@ -2166,6 +2166,17 @@
     },
     "speaking": {
       "tip": "{{name}} is speaking"
+    },
+    "say": {
+      "title": "Say something",
+      "placeholder": "Say something...",
+      "send": "Send"
+    },
+    "wave": {
+      "tip": "Wave at {{name}}",
+      "sent": "You waved at {{name}}",
+      "got": "{{name}} waved at you",
+      "back": "Wave back"
     }
   }
 }

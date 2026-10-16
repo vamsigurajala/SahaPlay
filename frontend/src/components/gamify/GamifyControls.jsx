@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX, Camera } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX, Camera, MessageCircle } from 'lucide-react';
 import { useAmbience } from './ambience';
 import { useHideLabels, toggleHideLabels } from './labelPrefs';
 import { ALL_ZONES, COLS } from '../../data/gamifyZones';
@@ -340,6 +340,16 @@ export default function GamifyControls({
             style={{ ...btn, flex: 'none', background: panel === 'emote' ? 'rgba(139,92,255,0.75)' : btn.background }}
           >
             <SmilePlus size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={() => onPanel('say')}
+            aria-pressed={panel === 'say'}
+            title={t('gamify.say.title', 'Say something')}
+            aria-label={t('gamify.say.title', 'Say something')}
+            style={{ ...btn, flex: 'none', background: panel === 'say' ? 'rgba(139,92,255,0.75)' : btn.background }}
+          >
+            <MessageCircle size={16} />
           </button>
           <button
             className="stay-white"

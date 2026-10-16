@@ -2211,6 +2211,17 @@
     },
     "speaking": {
       "tip": "{{name}} está falando"
+    },
+    "say": {
+      "title": "Diga algo",
+      "placeholder": "Diga algo...",
+      "send": "Enviar"
+    },
+    "wave": {
+      "tip": "Acenar para {{name}}",
+      "sent": "Você acenou para {{name}}",
+      "got": "{{name}} acenou para você",
+      "back": "Acenar de volta"
     }
   }
 }

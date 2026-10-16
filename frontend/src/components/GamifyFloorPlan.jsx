@@ -26,6 +26,7 @@ import GamifyControls from './gamify/GamifyControls';
 import GamifyTour, { tourSeen } from './gamify/GamifyTour';
 import GamifyPeople from './gamify/GamifyPeople';
 import EmotePicker from './gamify/EmotePicker';
+import SayBox from './gamify/SayBox';
 
 const FLIP_KEY = 'sp_gamify_flip';
 const WEATHER_KEY = 'sp_gamify_weather';
@@ -61,7 +62,7 @@ const roomCenterTarget = (id, flip) => {
 // Gamify Mode is on (loaded lazily — three.js is the heaviest dependency in
 // the app and only matters to people who turn this on). One room fills the
 // screen at a time; drag to roam to the next, or use a door / the room map.
-export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions, knownAvatars, hostId, emotes, speakingIds, onMove, onEmote, onExitHouse, tvElementRef, onTvReady }) {
+export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions, knownAvatars, hostId, emotes, says, wave, speakingIds, onMove, onEmote, onSay, onWave, onExitHouse, tvElementRef, onTvReady }) {
   const { t } = useTranslation();
   const containerRef = useRef(null);
   const viewRef = useRef(null);
@@ -313,6 +314,27 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     viewRef.current.walk = { x: w.x + 1.1, z: w.z + 0.7, floor: f, snap: f !== myFloor };
     setPanel(null);
   };
+  const [ownSay, setOwnSay] = useState(null);
+  const sendSay = (text) => {
+    setOwnSay({ text, n: Date.now() });
+    if (onSay) onSay(text);
+  };
+  // Tap on someone: wave at them. You see your own hand, they get a notice.
+  const waveAt = (socketId) => {
+    if (onWave) onWave(socketId);
+    setOwnEmote({ id: 'wave', n: Date.now() });
+    const who = userList.find(u => u.socketId === socketId)?.username || '';
+    setNotice({ text: t('gamify.wave.sent', { defaultValue: 'You waved at {{name}}', name: who }) });
+  };
+  const waveRef = useRef(waveAt);
+  waveRef.current = waveAt;
+  const stableWave = useCallback((id) => waveRef.current(id), []);
+  // Someone waved at you: tell them, with buttons to wave back or go to them.
+  useEffect(() => {
+    if (!wave) return;
+    playSfx('join');
+    setNotice({ text: t('gamify.wave.got', { defaultValue: '{{name}} waved at you', name: wave.name || '' }), person: { socketId: wave.from }, back: wave.from });
+  }, [wave]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendEmote = (id) => {
     setOwnEmote({ id, n: Date.now() });
     if (onEmote) onEmote(id);
@@ -457,6 +479,8 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
                     y={pos.y}
                     zone={own ? myZone : pos.zone}
                     emote={own ? ownEmote : emotes?.[user.socketId]}
+                    say={own ? ownSay : says?.[user.socketId]}
+                    onWave={own ? undefined : stableWave}
                     onMove={own ? stableMove : undefined}
                     onDrop={own ? stableDrop : undefined}
                     dragLockRef={dragLockRef}
@@ -506,12 +530,14 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       {notice && (
         <div className="stay-white" role="status" style={{ position: 'absolute', left: '50%', bottom: 'max(14px, env(safe-area-inset-bottom))', transform: 'translateX(-50%)', zIndex: 70, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderRadius: 14, background: 'rgba(14,12,30,0.94)', border: '1px solid rgba(139,92,255,0.6)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', color: '#fff', fontSize: 13, fontWeight: 700, maxWidth: 'calc(100% - 24px)' }}>
           <span style={{ minWidth: 0 }}>{notice.text}</span>
+          {notice.back && <button onClick={() => { waveAt(notice.back); }} style={{ padding: '6px 12px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('gamify.wave.back', 'Wave back')}</button>}
           {notice.person && <button onClick={() => { goToPerson(notice.person); setNotice(null); }} style={{ padding: '6px 12px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#8b5cff,#4f46e5)', color: '#fff', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('gamify.join.go', 'Go to them')}</button>}
           <button onClick={() => setNotice(null)} aria-label={t('gamify.close', 'Close')} style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
       )}
       {panel === 'people' && <GamifyPeople people={people} onGo={goToPerson} onClose={() => setPanel(null)} />}
       {panel === 'emote' && <EmotePicker onPick={sendEmote} />}
+      {panel === 'say' && <SayBox onSend={sendSay} />}
       {panel === 'sound' && <AmbiencePanel onClose={() => setPanel(null)} />}
       {panel === 'daily' && <DailyPanel me={myName} onPlay={() => { setPanel(null); viewRef.current.openProp?.('game', gameOfTheDay()); }} onClose={() => setPanel(null)} />}
       <QuickAccess onOpen={(kind, arg) => viewRef.current.openProp?.(kind, arg)} onDaily={() => togglePanel('daily')} dailyOpen={panel === 'daily'} />

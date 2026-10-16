@@ -2209,6 +2209,17 @@
     },
     "speaking": {
       "tip": "{{name}} spricht"
+    },
+    "say": {
+      "title": "Etwas sagen",
+      "placeholder": "Sag etwas...",
+      "send": "Senden"
+    },
+    "wave": {
+      "tip": "{{name}} zuwinken",
+      "sent": "Du hast {{name}} zugewinkt",
+      "got": "{{name}} hat dir zugewinkt",
+      "back": "Zurückwinken"
     }
   }
 }

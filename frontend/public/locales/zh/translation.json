@@ -2209,6 +2209,17 @@
     },
     "speaking": {
       "tip": "{{name}}正在说话"
+    },
+    "say": {
+      "title": "说点什么",
+      "placeholder": "说点什么...",
+      "send": "发送"
+    },
+    "wave": {
+      "tip": "向{{name}}挥手",
+      "sent": "你向{{name}}挥了手",
+      "got": "{{name}}向你挥手",
+      "back": "挥手回应"
     }
   }
 }
