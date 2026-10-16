@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Box, Plant, Chair, Table, Rug, Sofa, BeanBag, TableLamp, FloorLamp, Monitor, Bookshelf, Wardrobe, WallWindow, ViewContext, DoorLeaves, useOpenProp, PropDot } from './parts';
 import { Cell } from './cell';
-import { Telescope, Jhula, Vanity, FairyLights, Curtain, FlowerPatch, Teddy, Stairs } from './props';
-import IndianKitchen from './indianKitchen';
+import { Telescope, Jhula, FairyLights, Curtain, FlowerPatch, Teddy, Stairs } from './props';
+import ModernKitchen from './modernKitchen';
+import OakVanity from './oakVanity';
 import { BreakupRoom } from './breakupRoom';
 import { PaintingFrame, RetroRadio, WaterBottle, WifiRouter, SmartSpeaker, PhoneCharger, Remote, PhoneFlat, SoftCouch } from './livingProps';
 import { FLOOR_Y, CELL_W, CELL_D, WORLD_D, FLOOR2_ZONES, DOORWAYS_F2 } from '../../data/gamifyZones';
@@ -186,7 +187,7 @@ function MasterBedroom() {
       <Nightstand p={[11.7, 0, 1.2]} />
       <Wardrobe p={[13.9, 0, 0.7]} c={WOOD} id="wd-d" />
       <Wardrobe p={[16.1, 0, 0.7]} c={WOOD} id="wd-e" />
-      <Vanity p={[1.9, 0, 0.8]} />
+      <OakVanity p={[2.3, 0, 0.8]} />
       <Box p={[8, 0.3, 7.3]} s={[3.8, 0.6, 0.9]} c="#b59470" r={0.1} />
       <Box p={[8, 0.66, 7.3]} s={[3.6, 0.12, 0.8]} c="#e9dcc4" r={0.06} shadow={false} />
       <Chair p={[2.6, 0, 12.8]} rot={0.6} c="#c9b08a" />
@@ -269,7 +270,7 @@ function UpstairsHall() {
 function UpstairsKitchen() {
   return (
     <Cell id="f2kitchen">
-      <IndianKitchen natural set="up" />
+      <ModernKitchen set="up" />
     </Cell>
   );
 }
