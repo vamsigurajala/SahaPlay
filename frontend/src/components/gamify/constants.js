@@ -15,7 +15,7 @@ export const TV_NATIVE_H = 270;
 export const TV_H = TV.w * (TV_NATIVE_H / TV_NATIVE_W);
 // The upstairs hall's TV (floor2.jsx): the video plays here instead while you are upstairs.
 const UP = FLOOR2_ZONES.f2hall.world;
-export const TV_UP = { cx: UP.x0 + 9, cy: FLOOR_Y + 2.0, z: UP.z0 + 0.51, w: 3.4 };
+export const TV_UP = { cx: UP.x0 + 9, cy: FLOOR_Y + 2.5, z: UP.z0 + 0.51, w: 5.0 };
 export const TV_UP_H = TV_UP.w * (TV_NATIVE_H / TV_NATIVE_W);
 
 export const NEON_PINK = '#ff4fd8';

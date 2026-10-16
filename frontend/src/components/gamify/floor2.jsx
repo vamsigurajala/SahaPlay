@@ -5,6 +5,7 @@ import { Box, Plant, Chair, Table, Rug, Sofa, TableLamp, FloorLamp, Monitor, Boo
 import { Cell } from './cell';
 import { Telescope, Jhula, Vanity, FairyLights, Curtain, FlowerPatch, Teddy, Stairs } from './props';
 import IndianKitchen from './indianKitchen';
+import { PaintingFrame, RetroRadio, WaterBottle, WifiRouter, SmartSpeaker, PhoneCharger, Remote, PhoneFlat, SoftCouch } from './livingProps';
 import { FLOOR_Y, CELL_W, CELL_D, WORLD_D, FLOOR2_ZONES, DOORWAYS_F2 } from '../../data/gamifyZones';
 
 // The second floor: a plain, natural-coloured home (cream walls, timber floors,
@@ -227,14 +228,28 @@ function GuestBedroom() {
 function UpstairsHall() {
   return (
     <Cell id="f2hall">
-      <Box p={[9, 2.3, 0.08]} s={[6.6, 3.8, 0.1]} c="#d6c6a4" shadow={false} />
-      <Box p={[9, 0.35, 0.8]} s={[5.4, 0.7, 1.0]} c={WOOD} r={0.05} />
-      <Box p={[9, 2.0, 0.42]} s={[4.4, 2.4, 0.12]} c="#14161c" r={0.03} />
-      <Box p={[9, 2.0, 0.49]} s={[4.2, 2.2, 0.02]} c="#232a36" shadow={false} />
-      <Rug p={[9, 0, 7.4]} w={8.6} d={6.4} c="#d8c8a6" c2="#c9b48a" />
+      {/* a wide TV on a long console, with the gadgets that live around it */}
+      <Box p={[9, 2.4, 0.08]} s={[7.6, 4.4, 0.1]} c="#d6c6a4" shadow={false} />
+      <Box p={[9, 0.35, 0.85]} s={[6.8, 0.7, 1.1]} c={WOOD} r={0.05} />
+      <Box p={[9, 2.5, 0.42]} s={[5.3, 3.45, 0.12]} c="#14161c" r={0.03} />
+      <Box p={[9, 2.5, 0.49]} s={[5.08, 3.26, 0.02]} c="#232a36" shadow={false} />
+      <WifiRouter p={[6.5, 0.7, 0.75]} rot={0.1} />
+      <PhoneCharger p={[8.1, 0.7, 0.55]} rot={-0.1} />
+      <SmartSpeaker p={[11.4, 0.7, 0.85]} />
+      <Plant p={[12.3, 0.7, 0.9]} scale={0.45} pot={POT} />
+      <Rug p={[9, 0, 7.4]} w={11.2} d={6.6} c="#d8c8a6" c2="#c9b48a" />
       <Sofa p={[9, 0, 11.0]} rot={PI} w={5.6} c="#d9c9a9" back="#c9b690" />
+      <Sofa p={[5.3, 0, 7.4]} rot={PI / 2} w={3.4} c="#c9d2bf" back="#b4c0a8" />
+      <SoftCouch p={[13.0, 0, 7.4]} rot={-PI / 2} w={2.6} />
       <Table p={[9, 0, 7.4]} w={2.6} d={1.4} h={0.5} c={WOOD} leg={DARK_WOOD} />
+      <Remote p={[8.4, 0.56, 7.2]} rot={0.5} />
+      <PhoneFlat p={[9.6, 0.56, 7.6]} rot={-0.4} />
       <Bookshelf p={[0.45, 0, 2.4]} rot={PI / 2} w={3.0} h={3.2} d={0.7} shelf="up-hall" wood="#a07850" />
+      {/* a console against the wall beside the bookshelf: the radio and some water */}
+      <Table p={[2.9, 0, 0.7]} w={2.2} d={0.8} h={0.9} c={WOOD} leg={DARK_WOOD} />
+      <RetroRadio p={[2.5, 0.96, 0.62]} />
+      <WaterBottle p={[3.55, 0.96, 0.6]} />
+      <WaterBottle p={[3.85, 0.96, 0.7]} c="#bfe3ee" />
       {/* dining set */}
       <Table p={[4.8, 0, 13.0]} w={3.2} d={1.8} h={0.95} c={WOOD} leg={DARK_WOOD} />
       {[3.8, 5.8].map(x => <Chair key={x} p={[x, 0, 11.7]} rot={0} c="#c9b08a" />)}
@@ -242,9 +257,9 @@ function UpstairsHall() {
       <Plant p={[16.8, 0, 1.4]} scale={1.2} pot={POT} />
       <Stairs p={[12.8, 0, 14.2]} dir="down" />
       <Plant p={[1.2, 0, 15.0]} scale={1.0} pot={POT} />
-      <FloorLamp p={[14.6, 0, 9.6]} color="#ffe2b0" />
-      <PictureFrame p={[3.4, 3.1, 0.09]} w={1.3} h={1.0} tint="#c9b8a0" />
-      <PictureFrame p={[14.6, 3.1, 0.09]} w={1.3} h={1.0} tint="#b8c9b0" />
+      <FloorLamp p={[15.2, 0, 10.4]} color="#ffe2b0" />
+      <PaintingFrame p={[3.0, 3.25, 0.12]} id="ophelia" />
+      <PaintingFrame p={[15.0, 3.25, 0.12]} id="shalott" />
     </Cell>
   );
 }

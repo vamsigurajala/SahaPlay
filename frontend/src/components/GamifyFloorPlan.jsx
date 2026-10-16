@@ -8,6 +8,7 @@ import Avatar3D from './gamify/Avatar3D';
 import { ViewContext } from './gamify/parts';
 import { DEFAULT_SPAWN, ALL_ZONES, STAIR_LINKS, FLOOR_Y } from '../data/gamifyZones';
 import { SkyBackdrop, WEATHER, autoWeather, fetchLiveWeather } from './gamify/environment';
+import { stopRadio } from './gamify/radioPlayer';
 import GamifyRig, { MIN_ZOOM, MAX_ZOOM, clamp } from './gamify/GamifyRig';
 import MirrorRoot from './gamify/GamifyMirror';
 import TvProjector from './gamify/GamifyTvProjector';
@@ -56,6 +57,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     viewRef.current = { uiVisible: true, alwaysDots: false, openProp: null, zoom: 1, cur: 1, tx: t.x, tz: t.z, px: t.x, pz: t.z, floor: floor0, py: floor0 * FLOOR_Y, flip, focus: myZoneRef.current, doors: {}, glide: false, walk: null, vel: null, dragging: false, out: false, open: {} };
   }
   const dragLockRef = useRef(false);
+  useEffect(() => stopRadio, []); // the house radio only plays while you are in the house
   const [flipped, setFlipped] = useState(() => viewRef.current.flip);
   const [focus, setFocus] = useState(() => viewRef.current.focus);
   const [zoomedOut, setZoomedOut] = useState(false);
@@ -234,7 +236,8 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const goThroughDoor = (link) => {
     focusRoom(link.to);
     if (!link.dir) { const v = viewRef.current; (v.doors || (v.doors = {}))[[link.from, link.to].sort().join('|')] = performance.now() + 3000; }
-    if (myZoneRef.current === link.from) {
+    // A door only carries you if you are standing in that room; a staircase always does.
+    if (link.dir || myZoneRef.current === link.from) {
       const f = ALL_ZONES[link.to].floor || 0;
       viewRef.current.walk = { x: link.entry.x, z: link.entry.z, floor: f, snap: f !== (ALL_ZONES[link.from].floor || 0) };
     }
@@ -247,13 +250,15 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const handleDrop = (zone) => { if (zone !== viewRef.current.focus) focusRoom(zone, viewRef.current.zoom); };
 
   // Take the stairs from anywhere: camera and your avatar go to the other floor.
-  const changeFloor = () => {
+  const goToFloor = (f) => {
     const v = viewRef.current;
-    const up = v.floor === 0;
-    const link = STAIR_LINKS.find(l => (up ? l.from === 'hall' : l.from === 'f2hall'));
+    // Already on that floor: just bring the camera back to your own room.
+    if ((ALL_ZONES[myZoneRef.current]?.floor || 0) === f) { focusRoom(myZoneRef.current); return; }
+    const link = STAIR_LINKS.find(l => (f ? l.from === 'hall' : l.from === 'f2hall'));
     focusRoom(link.to);
-    v.walk = { x: link.entry.x, z: link.entry.z, floor: up ? 1 : 0, snap: true };
+    v.walk = { x: link.entry.x, z: link.entry.z, floor: f, snap: true };
   };
+  const changeFloor = () => goToFloor(viewRef.current.floor === 0 ? 1 : 0);
   viewRef.current.changeFloor = changeFloor;
   const zoomBy = (ratio) => { const v = viewRef.current; v.zoom = clamp(v.zoom * ratio, MIN_ZOOM, MAX_ZOOM); };
   const resetView = () => focusRoom(myZoneRef.current);
@@ -336,6 +341,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         flipped={flipped}
         alwaysDots={alwaysDots}
         onChangeFloor={changeFloor}
+        onSetFloor={goToFloor}
         onFocusRoom={focusRoom}
         onResetZoom={() => { viewRef.current.zoom = 1; }}
         onToggleWx={() => setWxOpen(o => !o)}

@@ -19,6 +19,7 @@ export default function GamifyControls({
   flipped,
   alwaysDots,
   onChangeFloor,
+  onSetFloor,
   onFocusRoom,
   onResetZoom,
   onToggleWx,
@@ -109,7 +110,7 @@ export default function GamifyControls({
                 <button
                   key={f}
                   className="stay-white"
-                  onClick={() => onFocusRoom(f ? 'f2hall' : 'hall')}
+                  onClick={() => onSetFloor(f)}
                   style={{
                     flex: 1,
                     padding: '5px 6px',

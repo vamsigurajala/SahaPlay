@@ -25,6 +25,8 @@ import AquariumViewer from './AquariumViewer';
 import SupercarViewer from './SupercarViewer';
 import GarageWorkshopViewer from './GarageWorkshopViewer';
 import ShopViewer from './ShopViewer';
+import PaintingViewer from './PaintingViewer';
+const RadioViewer = lazy(() => import('./RadioViewer'));
 
 // Full-screen "look closer" views for props in the Gamify house: bookshelf (tap a
 // book to read it), fridge (hover an item for its name), oven (something is baking)
@@ -4182,6 +4184,8 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'dog' && <DogCareView onClose={onClose} />}
         {kind === 'pond' && <AquariumViewer onClose={onClose} />}
         {kind === 'supercar' && <ViewerBoundary><SupercarViewer onClose={onClose} /></ViewerBoundary>}
+        {kind === 'painting' && <ViewerBoundary><PaintingViewer id={arg} /></ViewerBoundary>}
+        {kind === 'radio' && <ViewerBoundary><Suspense fallback={<div className="stay-white" style={{ marginTop: 120, fontWeight: 700 }}>Warming up the radio...</div>}><RadioViewer /></Suspense></ViewerBoundary>}
         {kind === 'shop' && <ViewerBoundary><ShopViewer id={arg} onClose={onClose} /></ViewerBoundary>}
         {kind === 'garage' && <ViewerBoundary><GarageWorkshopViewer onClose={onClose} arg={arg} /></ViewerBoundary>}
       </div>
