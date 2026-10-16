@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useId, useMemo, useState } from 'react';
+import { Component, lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import {
@@ -34,14 +34,21 @@ const RadioViewer = lazy(() => import('./RadioViewer'));
 // and stove (pick a dish and watch it cook). Plain DOM portals above the whole app,
 // so they behave the same on phones.
 
+// The overlay itself never scrolls (so the close button stays put); the scroller inside it does.
 const overlay = {
-  position: 'fixed', inset: 0, zIndex: 100000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+  position: 'fixed', inset: 0, zIndex: 100000,
   background: 'radial-gradient(circle at 50% 30%, rgba(40,26,80,0.97), rgba(8,6,20,0.99))', backdropFilter: 'blur(8px)',
-  padding: '56px 14px 20px', overflow: 'auto', animation: 'gp-fade .2s ease-out',
+  animation: 'gp-fade .2s ease-out', overflow: 'hidden',
+};
+const scroller = {
+  position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain',
+  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
+  padding: 'max(56px, calc(env(safe-area-inset-top) + 52px)) 14px max(20px, env(safe-area-inset-bottom))',
 };
 const closeBtn = {
-  position: 'fixed', top: 12, right: 12, width: 40, height: 40, borderRadius: 12, border: '1px solid rgba(255,255,255,0.25)',
-  background: 'rgba(12,10,24,0.8)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 3,
+  position: 'absolute', top: 'max(10px, env(safe-area-inset-top))', right: 12, width: 44, height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,0.35)',
+  background: 'rgba(12,10,24,0.88)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 5,
+  boxShadow: '0 4px 16px rgba(0,0,0,0.45)',
 };
 const pill = { background: 'rgba(12,10,24,0.78)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 99, color: '#fff' };
 const btnPill = { ...pill, padding: '9px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 13 };
@@ -4158,15 +4165,102 @@ class ViewerBoundary extends Component {
   }
 }
 
+// True when a click landed on empty backdrop-like space inside a viewer (not on text, a
+// control, a canvas or a card), which should close the viewer like clicking outside it.
+function clickedBlank(target, stopAt) {
+  for (let el = target; el && el !== stopAt; el = el.parentElement) {
+    if (typeof SVGElement !== 'undefined' && el instanceof SVGElement) return false;
+    if (['BUTTON', 'A', 'INPUT', 'TEXTAREA', 'SELECT', 'CANVAS', 'IFRAME', 'IMG', 'VIDEO', 'LABEL', 'OPTION'].includes(el.tagName)) return false;
+    const cs = getComputedStyle(el);
+    if (cs.cursor === 'pointer' || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none') return false;
+    if (!/^(transparent|rgba\(0, 0, 0, 0\))$/.test(cs.backgroundColor)) return false;
+    if (parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== 'none') return false;
+    if (el === target && Array.from(el.childNodes).some(n => n.nodeType === 3 && n.textContent.trim())) return false;
+  }
+  return true;
+}
+
+// Whether a touch that starts here may be used to pull the viewer down to close it:
+// not on a canvas or slider (games use those for their own touch controls), and not
+// inside something that is itself scrolled down.
+function canPullClose(target, scroller) {
+  for (let el = target; el && el !== scroller; el = el.parentElement) {
+    if (['CANVAS', 'INPUT', 'TEXTAREA', 'SELECT', 'IFRAME'].includes(el.tagName)) return false;
+    const cs = getComputedStyle(el);
+    if (cs.touchAction === 'none') return false;
+    if (el.scrollTop > 0) return false;
+    if (/(auto|scroll)/.test(cs.overflowX) && el.scrollWidth > el.clientWidth + 2) return false;
+  }
+  return scroller.scrollTop <= 0;
+}
+
+function useNarrow() {
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 760px), (pointer: coarse)').matches : false);
+  useEffect(() => {
+    if (!window.matchMedia) return undefined;
+    const mq = window.matchMedia('(max-width: 760px), (pointer: coarse)');
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener?.('change', on);
+    return () => mq.removeEventListener?.('change', on);
+  }, []);
+  return narrow;
+}
+
 export default function PropViewer({ kind, arg, onClose }) {
   const { t } = useTranslation();
   const [book, setBook] = useState(null);
+  const narrow = useNarrow();
+  const scrollRef = useRef(null);
+  const pull = useRef({ y: 0, x: 0, on: false, dy: 0 });
   useEscape(onClose);
+
+  // Pull down to close on phones: drag the sheet down from the top and let go.
+  const onTouchStart = (e) => {
+    const t0 = e.touches[0];
+    pull.current = { y: t0.clientY, x: t0.clientX, on: canPullClose(e.target, scrollRef.current), dy: 0 };
+  };
+  const onTouchMove = (e) => {
+    const st = pull.current;
+    if (!st.on) return;
+    const t0 = e.touches[0];
+    const dy = t0.clientY - st.y;
+    const dx = t0.clientX - st.x;
+    if (dy <= 0 || Math.abs(dx) > dy) { if (st.dy) { scrollRef.current.style.transform = ''; st.dy = 0; } return; }
+    st.dy = dy;
+    scrollRef.current.style.transition = 'none';
+    scrollRef.current.style.transform = `translateY(${dy * 0.6}px)`;
+    scrollRef.current.style.opacity = String(Math.max(0.4, 1 - dy / 600));
+  };
+  const onTouchEnd = () => {
+    const st = pull.current;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.style.transition = 'transform .2s ease, opacity .2s ease';
+    el.style.transform = '';
+    el.style.opacity = '';
+    if (st.on && st.dy > 110) onClose();
+    pull.current = { y: 0, x: 0, on: false, dy: 0 };
+  };
+
   return createPortal(
-    <div className="gcw-force-dark" style={overlay} onClick={onClose}>
+    <div className="gcw-force-dark" style={overlay}>
       <style>{CSS}</style>
-      <button onClick={onClose} className="stay-white" style={closeBtn} title={t('gamify.close', 'Close')}><X size={20} /></button>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+      {narrow && <div aria-hidden="true" className="stay-white" style={{ position: 'absolute', top: 'max(8px, env(safe-area-inset-top))', left: '50%', transform: 'translateX(-50%)', width: 44, height: 5, borderRadius: 9, background: 'rgba(255,255,255,0.45)', pointerEvents: 'none', zIndex: 4 }} />}
+      <button onClick={onClose} className="stay-white" style={closeBtn} title={t('gamify.close', 'Close')} aria-label={t('gamify.close', 'Close')}><X size={22} /></button>
+      <div
+        ref={scrollRef}
+        data-viewer-scroll
+        style={scroller}
+        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+      >
+      <div
+        onClick={(e) => { e.stopPropagation(); if (clickedBlank(e.target, e.currentTarget)) onClose(); }}
+        style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
+      >
         {kind === 'books' && (book ? <BookReader book={book} onBack={() => setBook(null)} /> : <BookshelfView shelfId={arg} onPick={setBook} />)}
         {kind === 'fridge' && <FridgeView set={arg} />}
         {kind === 'oven' && <OvenView set={arg} />}
@@ -4190,6 +4284,7 @@ export default function PropViewer({ kind, arg, onClose }) {
         {kind === 'shop' && <ViewerBoundary><ShopViewer id={arg} onClose={onClose} /></ViewerBoundary>}
         {kind === 'garage' && <ViewerBoundary><GarageWorkshopViewer onClose={onClose} arg={arg} /></ViewerBoundary>}
         {kind === 'breakup' && <ViewerBoundary><BreakupRoomViewer onClose={onClose} arg={arg} /></ViewerBoundary>}
+      </div>
       </div>
     </div>,
     document.body,
