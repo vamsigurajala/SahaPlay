@@ -1,4 +1,6 @@
-import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, Keyboard, Dustbin, Bookshelf, Arcade, WallWindow, WallPanel, Rug, Table, Sofa, Wardrobe } from './parts';
+import { useMemo, useRef, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { Box, Neon, Plant, Tree, BeanBag, FloorLamp, TableLamp, Chair, Monitor, Keyboard, Dustbin, Bookshelf, Arcade, WallWindow, WallPanel, Rug, Table, Sofa, Wardrobe, useOpenProp } from './parts';
 import { StudyBase, LivingRoomBase, BedroomBase, GameRoomBase, GardenBase } from './rooms';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Cell } from './cell';
