@@ -2118,6 +2118,97 @@
       "unpinTip": "将{{name}}从快捷入口取消固定",
       "pin": "固定到快捷入口",
       "unpin": "从快捷入口取消固定"
+    },
+    "zones": {
+      "study": "书房",
+      "hall": "客厅",
+      "bedroom": "卧室",
+      "kitchen": "厨房",
+      "gameroom": "游戏室",
+      "lawn": "花园",
+      "terrace": "阳台",
+      "frontyard": "前院",
+      "courtyard": "天井",
+      "street": "街道",
+      "cricket": "板球场",
+      "market": "集市",
+      "f2bed1": "主卧",
+      "f2hall": "楼上大厅",
+      "f2bed2": "客房",
+      "f2kitchen": "楼上厨房",
+      "f2balcony": "露台",
+      "f2breakup": "失恋房"
+    },
+    "link": {
+      "goupstairs": "上楼",
+      "gotonextfloor": "前往下一层",
+      "godownstairs": "下楼",
+      "gotothestreet": "前往街道",
+      "backtothehouse": "回到房子",
+      "backtothestreet": "回到街道"
+    },
+    "goTo": "前往{{room}}",
+    "kinds": {
+      "fridge": "冰箱",
+      "stove": "炉灶",
+      "oven": "烤箱",
+      "books": "书架",
+      "radio": "收音机",
+      "breakup": "失恋房",
+      "telescope": "望远镜",
+      "garden": "花园",
+      "clock": "时钟",
+      "monitor": "电脑",
+      "puzzles": "拼图",
+      "cupboard": "橱柜",
+      "wardrobe": "衣柜",
+      "cosmetics": "梳妆台",
+      "dog": "小狗",
+      "pond": "池塘",
+      "supercar": "超级跑车",
+      "garage": "车库",
+      "monalisa": "蒙娜丽莎",
+      "roti": "烙饼机",
+      "painting": "画作",
+      "shop": "商店",
+      "game": "游戏",
+      "hub": "游戏中心",
+      "console": "游戏机",
+      "upstairs": "{{name}}（楼上）"
+    },
+    "games": {
+      "pool": "8球台球",
+      "pingpong": "乒乓球",
+      "foosball": "桌上足球",
+      "claw": "抓娃娃机",
+      "snake": "贪吃蛇",
+      "breakout": "打砖块",
+      "tetris": "方块堆叠",
+      "invaders": "星际入侵者",
+      "flappy": "像素鸟",
+      "whack": "打地鼠",
+      "mines": "扫雷",
+      "connect4": "四子棋",
+      "racing": "极速赛车",
+      "penalty": "点球大战",
+      "airhockey": "空气曲棍球",
+      "cricket": "手势板球",
+      "dj": "DJ台",
+      "mixbar": "无酒精鸡尾酒吧"
+    },
+    "seat": {
+      "sit": "坐在这里"
+    },
+    "join": {
+      "joined": "{{name}}进入了房子",
+      "go": "去找他们"
+    },
+    "photo": {
+      "take": "给这个房间拍张照片",
+      "saved": "照片已保存"
+    },
+    "speaking": {
+      "tip": "{{name}}正在说话"
     }
   }
 }

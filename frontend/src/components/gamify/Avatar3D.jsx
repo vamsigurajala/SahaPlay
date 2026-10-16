@@ -1,12 +1,13 @@
 import { memo, useRef, useMemo, useEffect, useContext } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Crown } from 'lucide-react';
+import { Crown, Mic } from 'lucide-react';
 import Avatar from '../Avatar';
 import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D, CELL_D, FLOOR_Y, ALL_ZONES, zoneForPoint } from '../../data/gamifyZones';
 import { ScaledHtml, ViewContext } from './parts';
 import { EmoteBubble } from './emotes';
 import { freeSpot } from './avatarSpacing';
+import { playSfx } from './ambience';
 
 const toWorld = (vx, vy) => ({ x: (vx / FLOORPLAN_WIDTH - 0.5) * WORLD_W, z: (vy / FLOORPLAN_HEIGHT - 0.5) * WORLD_D });
 const toVirtual = (wx, wz) => ({ x: (wx / WORLD_W + 0.5) * FLOORPLAN_WIDTH, y: (wz / WORLD_D + 0.5) * FLOORPLAN_HEIGHT });
@@ -22,7 +23,7 @@ const BOUND_Z_UP = -WORLD_D / 2 + 2 * CELL_D - 0.7;
 // inside the (possibly mirrored) scene root, so positions here are always in
 // the un-mirrored local space — a flipped view only changes how they render,
 // never what's sent over the socket (everyone shares the same virtual coords).
-function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, x, y, zone, emote, onMove, onDrop, dragLockRef }) {
+function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, y, zone, emote, onMove, onDrop, dragLockRef }) {
   const group = useRef();
   const view = useContext(ViewContext);
   const { camera, gl } = useThree();
@@ -36,6 +37,7 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, x, y, zone, e
   const targetRef = useRef(toWorld(x, y));
   const initialPos = useMemo(() => { const t = toWorld(x, y); return [t.x, zoneFloor * FLOOR_Y, t.z]; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const lastEmitRef = useRef(0);
+  const stepAt = useRef(0);
   const pendingRef = useRef(null);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const plane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
@@ -91,8 +93,15 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, x, y, zone, e
     spot.current.x = t.x; spot.current.z = t.z; spot.current.floor = floorRef.current;
     // Frame-rate independent glide; a bit slower while the camera is gliding through a door so the walk is visible.
     const k = 1 - Math.exp(-dt * (draggingRef.current ? 48 : view.current.glide ? 6 : 13.4));
-    g.position.x += (t.x - g.position.x) * k;
-    g.position.z += (t.z - g.position.z) * k;
+    const dx = (t.x - g.position.x) * k;
+    const dz = (t.z - g.position.z) * k;
+    g.position.x += dx;
+    g.position.z += dz;
+    // a soft footstep while you walk (only when room sounds are on)
+    if (isOwn && shown && dx * dx + dz * dz > 0.0004) {
+      const now = performance.now();
+      if (now - stepAt.current > 260) { stepAt.current = now; playSfx('step'); }
+    }
   });
 
   // Pointer -> floor position in the scene root's LOCAL space (undoing the
@@ -185,10 +194,11 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, x, y, zone, e
             username={username}
             size={44}
             style={{
-              border: isOwn ? '3px solid #fff' : '3px solid rgba(255,255,255,0.7)',
-              boxShadow: isOwn ? '0 0 0 3px rgba(139,92,255,0.7), 0 6px 14px rgba(0,0,0,0.5)' : '0 6px 14px rgba(0,0,0,0.5)',
+              border: speaking ? '3px solid #22c55e' : isOwn ? '3px solid #fff' : '3px solid rgba(255,255,255,0.7)',
+              boxShadow: speaking ? '0 0 0 4px rgba(34,197,94,0.55), 0 6px 14px rgba(0,0,0,0.5)' : isOwn ? '0 0 0 3px rgba(139,92,255,0.7), 0 6px 14px rgba(0,0,0,0.5)' : '0 6px 14px rgba(0,0,0,0.5)',
             }}
           />
+          {speaking && <span aria-label={username} style={{ position: 'absolute', right: -4, bottom: -2, width: 18, height: 18, borderRadius: '50%', background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #0c0a18' }}><Mic size={10} color="#fff" /></span>}
           </div>
           <span className="stay-white" style={{
             display: 'flex', alignItems: 'center', gap: 3, padding: '2px 9px', borderRadius: 99,

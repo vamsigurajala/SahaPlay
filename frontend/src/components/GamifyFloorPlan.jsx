@@ -1,7 +1,10 @@
 import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
-import { Gamepad2 } from 'lucide-react';
+import { Gamepad2, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import PhotoRig from './gamify/GamifyPhoto';
+import { zoneName } from './gamify/gamifyText';
 import GamifyScene from './gamify/GamifyScene';
 const PropViewer = React.lazy(() => import('./gamify/PropViewers'));
 import Avatar3D from './gamify/Avatar3D';
@@ -10,7 +13,7 @@ import { DEFAULT_SPAWN, ALL_ZONES, STAIR_LINKS, FLOOR_Y, virtualToWorld } from '
 import { SkyBackdrop, WEATHER, autoWeather, fetchLiveWeather } from './gamify/environment';
 import { stopRadio } from './gamify/radioPlayer';
 import { stopCalm } from './gamify/calmMusic';
-import { setAmbienceZone, stopAmbience, resumeAmbience } from './gamify/ambience';
+import { setAmbienceZone, stopAmbience, resumeAmbience, playSfx } from './gamify/ambience';
 import QuickAccess from './gamify/QuickAccess';
 import AmbiencePanel from './gamify/AmbiencePanel';
 import DailyPanel from './gamify/DailyPanel';
@@ -58,7 +61,8 @@ const roomCenterTarget = (id, flip) => {
 // Gamify Mode is on (loaded lazily — three.js is the heaviest dependency in
 // the app and only matters to people who turn this on). One room fills the
 // screen at a time; drag to roam to the next, or use a door / the room map.
-export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions, knownAvatars, hostId, emotes, onMove, onEmote, onExitHouse, tvElementRef, onTvReady }) {
+export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions, knownAvatars, hostId, emotes, speakingIds, onMove, onEmote, onExitHouse, tvElementRef, onTvReady }) {
+  const { t } = useTranslation();
   const containerRef = useRef(null);
   const viewRef = useRef(null);
   const myZoneRef = useRef(avatarPositions?.[mySocketId]?.zone || DEFAULT_SPAWN.zone);
@@ -255,6 +259,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   };
   // A door: glide into the next room and, if that is where you were standing, walk through it.
   const goThroughDoor = (link) => {
+    playSfx('door');
     focusRoom(link.to);
     if (!link.dir) { const v = viewRef.current; (v.doors || (v.doors = {}))[[link.from, link.to].sort().join('|')] = performance.now() + 3000; }
     // A door only carries you if you are standing in that room; a staircase always does.
@@ -300,8 +305,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
 
   // Walk over to someone: bring the camera to their room and stand beside them.
   const goToPerson = (person) => {
-    const pos = avatarPositions?.[person.socketId];
-    if (!pos) return;
+    const pos = avatarPositions?.[person.socketId] || DEFAULT_SPAWN;
     const w = virtualToWorld(pos.x, pos.y);
     const f = ALL_ZONES[pos.zone]?.floor || 0;
     const myFloor = ALL_ZONES[myZoneRef.current]?.floor || 0;
@@ -313,6 +317,45 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     setOwnEmote({ id, n: Date.now() });
     if (onEmote) onEmote(id);
     setPanel(null);
+  };
+
+  // A small notice at the bottom: someone arrived, a photo was saved.
+  const [notice, setNotice] = useState(null); // { text, person? }
+  useEffect(() => {
+    if (!notice) return undefined;
+    const id = setTimeout(() => setNotice(null), notice.person ? 8000 : 2500);
+    return () => clearTimeout(id);
+  }, [notice]);
+  // Somebody new walked into the house: say so, with a button to go to them.
+  const seenRef = useRef(null);
+  useEffect(() => {
+    const ids = new Set(userList.map(u => u.socketId));
+    const prev = seenRef.current;
+    seenRef.current = ids;
+    if (!prev) return;
+    const fresh = userList.find(u => !prev.has(u.socketId) && u.socketId !== mySocketId);
+    if (fresh) {
+      playSfx('join');
+      setNotice({ text: t('gamify.join.joined', { defaultValue: '{{name}} joined the house', name: fresh.username }), person: { socketId: fresh.socketId } });
+    }
+  }, [userList]); // eslint-disable-line react-hooks/exhaustive-deps
+  const takePhoto = async () => {
+    const v = viewRef.current;
+    if (!v.snap) return;
+    const names = {};
+    userList.forEach(u => { names[u.socketId] = u.username; });
+    const blob = await v.snap({ names, me: mySocketId, room: zoneName(ALL_ZONES[v.focus]), date: new Date().toLocaleDateString() });
+    if (!blob) return;
+    const file = new File([blob], 'sahaplay-house.png', { type: 'image/png' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+    } catch { /* cancelled or not allowed: fall back to a download */ }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    setNotice({ text: t('gamify.photo.saved', 'Photo saved') });
   };
 
   // People for the "who is where" panel.
@@ -393,6 +436,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
           style={{ position: 'absolute', inset: 0 }}
         >
           <ViewContext.Provider value={viewRef}>
+            <PhotoRig />
             <PerformanceMonitor onDecline={() => setAutoLow(true)} flipflops={2} />
             <GamifyRig viewRef={viewRef} dragLockRef={dragLockRef} onFocusChange={setFocus} onOutChange={setZoomedOut} onInChange={setZoomedIn} onReady={() => setReady(true)} />
             <MirrorRoot>
@@ -408,6 +452,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
                     avatarPath={knownAvatars?.[user.username] || user.avatarPath}
                     isHost={user.isHost || user.socketId === hostId}
                     isOwn={own}
+                    speaking={speakingIds ? speakingIds.has(own ? 'local' : user.socketId) : false}
                     x={pos.x}
                     y={pos.y}
                     zone={own ? myZone : pos.zone}
@@ -456,7 +501,15 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         smooth={smooth}
         onToggleSmooth={toggleSmooth}
         onTour={() => { setPanel(null); setTourOpen(true); }}
+        onPhoto={takePhoto}
       />
+      {notice && (
+        <div className="stay-white" role="status" style={{ position: 'absolute', left: '50%', bottom: 'max(14px, env(safe-area-inset-bottom))', transform: 'translateX(-50%)', zIndex: 70, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderRadius: 14, background: 'rgba(14,12,30,0.94)', border: '1px solid rgba(139,92,255,0.6)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', color: '#fff', fontSize: 13, fontWeight: 700, maxWidth: 'calc(100% - 24px)' }}>
+          <span style={{ minWidth: 0 }}>{notice.text}</span>
+          {notice.person && <button onClick={() => { goToPerson(notice.person); setNotice(null); }} style={{ padding: '6px 12px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#8b5cff,#4f46e5)', color: '#fff', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('gamify.join.go', 'Go to them')}</button>}
+          <button onClick={() => setNotice(null)} aria-label={t('gamify.close', 'Close')} style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+        </div>
+      )}
       {panel === 'people' && <GamifyPeople people={people} onGo={goToPerson} onClose={() => setPanel(null)} />}
       {panel === 'emote' && <EmotePicker onPick={sendEmote} />}
       {panel === 'sound' && <AmbiencePanel onClose={() => setPanel(null)} />}

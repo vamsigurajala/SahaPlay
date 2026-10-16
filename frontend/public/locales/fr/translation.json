@@ -2118,6 +2118,97 @@
       "unpinTip": "Retirer {{name}} de l'accès rapide",
       "pin": "Épingler à l'accès rapide",
       "unpin": "Retirer de l'accès rapide"
+    },
+    "zones": {
+      "study": "Bureau",
+      "hall": "Salon",
+      "bedroom": "Chambre",
+      "kitchen": "Cuisine",
+      "gameroom": "Salle de jeux",
+      "lawn": "Jardin",
+      "terrace": "Véranda",
+      "frontyard": "Cour avant",
+      "courtyard": "Cour intérieure",
+      "street": "Rue",
+      "cricket": "Terrain de cricket",
+      "market": "Marché",
+      "f2bed1": "Chambre principale",
+      "f2hall": "Salle du haut",
+      "f2bed2": "Chambre d'amis",
+      "f2kitchen": "Cuisine du haut",
+      "f2balcony": "Balcon",
+      "f2breakup": "Salle de Rupture"
+    },
+    "link": {
+      "goupstairs": "Monter",
+      "gotonextfloor": "Aller à l'étage suivant",
+      "godownstairs": "Descendre",
+      "gotothestreet": "Aller dans la rue",
+      "backtothehouse": "Retour à la maison",
+      "backtothestreet": "Retour à la rue"
+    },
+    "goTo": "Aller à : {{room}}",
+    "kinds": {
+      "fridge": "Frigo",
+      "stove": "Cuisinière",
+      "oven": "Four",
+      "books": "Bibliothèque",
+      "radio": "Radio",
+      "breakup": "Salle de Rupture",
+      "telescope": "Télescope",
+      "garden": "Jardin",
+      "clock": "Horloge",
+      "monitor": "Ordinateur",
+      "puzzles": "Puzzles",
+      "cupboard": "Placard",
+      "wardrobe": "Armoire",
+      "cosmetics": "Coiffeuse",
+      "dog": "Chien",
+      "pond": "Bassin",
+      "supercar": "Supercar",
+      "garage": "Garage",
+      "monalisa": "Mona Lisa",
+      "roti": "Machine à rotis",
+      "painting": "Tableau",
+      "shop": "Boutique",
+      "game": "Jeu",
+      "hub": "Espace jeux",
+      "console": "Console de jeux",
+      "upstairs": "{{name}} (en haut)"
+    },
+    "games": {
+      "pool": "Billard 8",
+      "pingpong": "Ping-pong",
+      "foosball": "Baby-foot",
+      "claw": "Pince à peluches",
+      "snake": "Serpent",
+      "breakout": "Casse-briques",
+      "tetris": "Empile-blocs",
+      "invaders": "Envahisseurs des étoiles",
+      "flappy": "Flappy Bird",
+      "whack": "Tape-taupe",
+      "mines": "Démineur",
+      "connect4": "Puissance 4",
+      "racing": "Course Turbo",
+      "penalty": "Tirs au but",
+      "airhockey": "Air hockey",
+      "cricket": "Cricket à la main",
+      "dj": "Cabine DJ",
+      "mixbar": "Bar à mocktails"
+    },
+    "seat": {
+      "sit": "S'asseoir ici"
+    },
+    "join": {
+      "joined": "{{name}} est entré(e) dans la maison",
+      "go": "Aller le/la rejoindre"
+    },
+    "photo": {
+      "take": "Photographier cette pièce",
+      "saved": "Photo enregistrée"
+    },
+    "speaking": {
+      "tip": "{{name}} parle"
     }
   }
 }

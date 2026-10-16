@@ -173,6 +173,27 @@ function schedule() {
   }, next);
 }
 
+// Short one-off sounds: a soft footstep, a door, a ping when someone arrives. They follow the
+// same on/off switch and volume as the room sounds.
+export function playSfx(kind) {
+  if (!prefs.on || !ctx || !master || ctx.state !== 'running') return;
+  const t = ctx.currentTime;
+  const blip = (type, f0, f1, at, len, level) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t + at);
+    if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + at + len);
+    g.gain.setValueAtTime(level, t + at);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + at + len);
+    o.connect(g); g.connect(master);
+    o.start(t + at); o.stop(t + at + len + 0.02);
+  };
+  if (kind === 'step') blip('sine', 130 + Math.random() * 30, 70, 0, 0.07, 0.05);
+  else if (kind === 'door') { blip('sine', 190, 60, 0, 0.2, 0.14); blip('sawtooth', 320, 210, 0.04, 0.28, 0.018); blip('sine', 170, 60, 0.3, 0.18, 0.1); }
+  else if (kind === 'join') { blip('sine', 660, 660, 0, 0.14, 0.05); blip('sine', 880, 880, 0.12, 0.2, 0.05); }
+}
+
 // ---------------------------------------------------------------- controls
 // Must be called from a tap/click the first time (browsers only start sound then).
 export function setAmbienceOn(on) {

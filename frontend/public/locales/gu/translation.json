@@ -2108,6 +2108,97 @@
       "unpinTip": "{{name}} ને ક્વિક એક્સેસમાંથી કાઢો",
       "pin": "ક્વિક એક્સેસમાં પિન કરો",
       "unpin": "ક્વિક એક્સેસમાંથી કાઢો"
+    },
+    "zones": {
+      "study": "સ્ટડી",
+      "hall": "લિવિંગ રૂમ",
+      "bedroom": "બેડરૂમ",
+      "kitchen": "રસોડું",
+      "gameroom": "ગેમ રૂમ",
+      "lawn": "બગીચો",
+      "terrace": "ઓસરી",
+      "frontyard": "આગળનું આંગણું",
+      "courtyard": "આંગણું",
+      "street": "શેરી",
+      "cricket": "ક્રિકેટ મેદાન",
+      "market": "બજાર",
+      "f2bed1": "માસ્ટર બેડરૂમ",
+      "f2hall": "ઉપરનો હોલ",
+      "f2bed2": "ગેસ્ટ બેડરૂમ",
+      "f2kitchen": "ઉપરનું રસોડું",
+      "f2balcony": "બાલ્કની",
+      "f2breakup": "બ્રેકઅપ રૂમ"
+    },
+    "link": {
+      "goupstairs": "ઉપર જાઓ",
+      "gotonextfloor": "આગલા માળે જાઓ",
+      "godownstairs": "નીચે જાઓ",
+      "gotothestreet": "શેરીમાં જાઓ",
+      "backtothehouse": "ઘરે પાછા",
+      "backtothestreet": "શેરીમાં પાછા"
+    },
+    "goTo": "{{room}} માં જાઓ",
+    "kinds": {
+      "fridge": "ફ્રિજ",
+      "stove": "ચૂલો",
+      "oven": "ઓવન",
+      "books": "પુસ્તકોનું કબાટ",
+      "radio": "રેડિયો",
+      "breakup": "બ્રેકઅપ રૂમ",
+      "telescope": "દૂરબીન",
+      "garden": "બગીચો",
+      "clock": "ઘડિયાળ",
+      "monitor": "કમ્પ્યુટર",
+      "puzzles": "કોયડા",
+      "cupboard": "કબાટ",
+      "wardrobe": "કપડાંનું કબાટ",
+      "cosmetics": "ડ્રેસિંગ ટેબલ",
+      "dog": "કૂતરો",
+      "pond": "તળાવ",
+      "supercar": "સુપરકાર",
+      "garage": "ગેરેજ",
+      "monalisa": "મોનાલિસા",
+      "roti": "રોટી મેકર",
+      "painting": "ચિત્ર",
+      "shop": "દુકાન",
+      "game": "ગેમ",
+      "hub": "ગેમ હબ",
+      "console": "ગેમ કન્સોલ",
+      "upstairs": "{{name}} (ઉપર)"
+    },
+    "games": {
+      "pool": "8-બોલ પૂલ",
+      "pingpong": "પિંગ પોંગ",
+      "foosball": "ફૂસબોલ",
+      "claw": "ક્લો મશીન",
+      "snake": "સાપ",
+      "breakout": "બ્રિક બ્રેકર",
+      "tetris": "બ્લોક સ્ટેક",
+      "invaders": "સ્ટાર ઇન્વેડર્સ",
+      "flappy": "ફ્લેપી બર્ડ",
+      "whack": "વેક-અ-મોલ",
+      "mines": "માઇનસ્વીપર",
+      "connect4": "કનેક્ટ ફોર",
+      "racing": "ટર્બો રેસિંગ",
+      "penalty": "પેનલ્ટી શૂટઆઉટ",
+      "airhockey": "એર હોકી",
+      "cricket": "હેન્ડ ક્રિકેટ",
+      "dj": "ડીજે બૂથ",
+      "mixbar": "મોકટેલ બાર"
+    },
+    "seat": {
+      "sit": "અહીં બેસો"
+    },
+    "join": {
+      "joined": "{{name}} ઘરમાં આવ્યા",
+      "go": "તેમની પાસે જાઓ"
+    },
+    "photo": {
+      "take": "આ રૂમનો ફોટો લો",
+      "saved": "ફોટો સેવ થયો"
+    },
+    "speaking": {
+      "tip": "{{name}} બોલી રહ્યા છે"
     }
   }
 }

@@ -2115,6 +2115,97 @@
       "unpinTip": "{{name}} को क्विक एक्सेस से हटाएँ",
       "pin": "क्विक एक्सेस में पिन करें",
       "unpin": "क्विक एक्सेस से हटाएँ"
+    },
+    "zones": {
+      "study": "स्टडी",
+      "hall": "लिविंग रूम",
+      "bedroom": "बेडरूम",
+      "kitchen": "रसोई",
+      "gameroom": "गेम रूम",
+      "lawn": "बगीचा",
+      "terrace": "बरामदा",
+      "frontyard": "आगे का आँगन",
+      "courtyard": "आँगन",
+      "street": "गली",
+      "cricket": "क्रिकेट मैदान",
+      "market": "बाज़ार",
+      "f2bed1": "मास्टर बेडरूम",
+      "f2hall": "ऊपर का हॉल",
+      "f2bed2": "गेस्ट बेडरूम",
+      "f2kitchen": "ऊपर की रसोई",
+      "f2balcony": "बालकनी",
+      "f2breakup": "ब्रेकअप रूम"
+    },
+    "link": {
+      "goupstairs": "ऊपर जाएँ",
+      "gotonextfloor": "अगली मंज़िल पर जाएँ",
+      "godownstairs": "नीचे जाएँ",
+      "gotothestreet": "गली में जाएँ",
+      "backtothehouse": "घर वापस",
+      "backtothestreet": "गली में वापस"
+    },
+    "goTo": "{{room}} में जाएँ",
+    "kinds": {
+      "fridge": "फ्रिज",
+      "stove": "चूल्हा",
+      "oven": "ओवन",
+      "books": "किताबों की अलमारी",
+      "radio": "रेडियो",
+      "breakup": "ब्रेकअप रूम",
+      "telescope": "दूरबीन",
+      "garden": "बगीचा",
+      "clock": "घड़ी",
+      "monitor": "कंप्यूटर",
+      "puzzles": "पहेलियाँ",
+      "cupboard": "अलमारी",
+      "wardrobe": "कपड़ों की अलमारी",
+      "cosmetics": "श्रृंगार मेज़",
+      "dog": "कुत्ता",
+      "pond": "तालाब",
+      "supercar": "सुपरकार",
+      "garage": "गैराज",
+      "monalisa": "मोनालिसा",
+      "roti": "रोटी मेकर",
+      "painting": "पेंटिंग",
+      "shop": "दुकान",
+      "game": "गेम",
+      "hub": "गेम हब",
+      "console": "गेम कंसोल",
+      "upstairs": "{{name}} (ऊपर)"
+    },
+    "games": {
+      "pool": "8-बॉल पूल",
+      "pingpong": "पिंग पोंग",
+      "foosball": "फूसबॉल",
+      "claw": "क्लॉ मशीन",
+      "snake": "साँप",
+      "breakout": "ब्रिक ब्रेकर",
+      "tetris": "ब्लॉक स्टैक",
+      "invaders": "स्टार इनवेडर्स",
+      "flappy": "फ्लैपी बर्ड",
+      "whack": "व्हैक-अ-मोल",
+      "mines": "माइनस्वीपर",
+      "connect4": "कनेक्ट फोर",
+      "racing": "टर्बो रेसिंग",
+      "penalty": "पेनल्टी शूटआउट",
+      "airhockey": "एयर हॉकी",
+      "cricket": "हैंड क्रिकेट",
+      "dj": "डीजे बूथ",
+      "mixbar": "मॉकटेल बार"
+    },
+    "seat": {
+      "sit": "यहाँ बैठें"
+    },
+    "join": {
+      "joined": "{{name}} घर में आए",
+      "go": "उनके पास जाएँ"
+    },
+    "photo": {
+      "take": "इस कमरे की फोटो लें",
+      "saved": "फोटो सेव हुई"
+    },
+    "speaking": {
+      "tip": "{{name}} बोल रहे हैं"
     }
   }
 }

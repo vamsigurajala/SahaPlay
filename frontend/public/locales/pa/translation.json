@@ -2119,6 +2119,97 @@
       "unpinTip": "{{name}} ਨੂੰ ਕੁਇੱਕ ਐਕਸੈਸ ਤੋਂ ਹਟਾਓ",
       "pin": "ਕੁਇੱਕ ਐਕਸੈਸ ਵਿੱਚ ਪਿੰਨ ਕਰੋ",
       "unpin": "ਕੁਇੱਕ ਐਕਸੈਸ ਤੋਂ ਹਟਾਓ"
+    },
+    "zones": {
+      "study": "ਸਟੱਡੀ",
+      "hall": "ਲਿਵਿੰਗ ਰੂਮ",
+      "bedroom": "ਬੈੱਡਰੂਮ",
+      "kitchen": "ਰਸੋਈ",
+      "gameroom": "ਗੇਮ ਰੂਮ",
+      "lawn": "ਬਾਗ਼",
+      "terrace": "ਵਰਾਂਡਾ",
+      "frontyard": "ਅਗਲਾ ਵਿਹੜਾ",
+      "courtyard": "ਵਿਹੜਾ",
+      "street": "ਗਲੀ",
+      "cricket": "ਕ੍ਰਿਕਟ ਮੈਦਾਨ",
+      "market": "ਬਾਜ਼ਾਰ",
+      "f2bed1": "ਮਾਸਟਰ ਬੈੱਡਰੂਮ",
+      "f2hall": "ਉੱਪਰਲਾ ਹਾਲ",
+      "f2bed2": "ਗੈਸਟ ਬੈੱਡਰੂਮ",
+      "f2kitchen": "ਉੱਪਰਲੀ ਰਸੋਈ",
+      "f2balcony": "ਬਾਲਕਨੀ",
+      "f2breakup": "ਬ੍ਰੇਕਅੱਪ ਰੂਮ"
+    },
+    "link": {
+      "goupstairs": "ਉੱਪਰ ਜਾਓ",
+      "gotonextfloor": "ਅਗਲੀ ਮੰਜ਼ਿਲ ਤੇ ਜਾਓ",
+      "godownstairs": "ਹੇਠਾਂ ਜਾਓ",
+      "gotothestreet": "ਗਲੀ ਵਿੱਚ ਜਾਓ",
+      "backtothehouse": "ਘਰ ਵਾਪਸ",
+      "backtothestreet": "ਗਲੀ ਵਿੱਚ ਵਾਪਸ"
+    },
+    "goTo": "{{room}} ਵਿੱਚ ਜਾਓ",
+    "kinds": {
+      "fridge": "ਫਰਿੱਜ",
+      "stove": "ਚੁੱਲ੍ਹਾ",
+      "oven": "ਓਵਨ",
+      "books": "ਕਿਤਾਬਾਂ ਦੀ ਅਲਮਾਰੀ",
+      "radio": "ਰੇਡੀਓ",
+      "breakup": "ਬ੍ਰੇਕਅੱਪ ਰੂਮ",
+      "telescope": "ਦੂਰਬੀਨ",
+      "garden": "ਬਾਗ਼",
+      "clock": "ਘੜੀ",
+      "monitor": "ਕੰਪਿਊਟਰ",
+      "puzzles": "ਬੁਝਾਰਤਾਂ",
+      "cupboard": "ਅਲਮਾਰੀ",
+      "wardrobe": "ਕੱਪੜਿਆਂ ਦੀ ਅਲਮਾਰੀ",
+      "cosmetics": "ਡ੍ਰੈਸਿੰਗ ਟੇਬਲ",
+      "dog": "ਕੁੱਤਾ",
+      "pond": "ਛੱਪੜ",
+      "supercar": "ਸੁਪਰਕਾਰ",
+      "garage": "ਗੈਰਾਜ",
+      "monalisa": "ਮੋਨਾਲੀਸਾ",
+      "roti": "ਰੋਟੀ ਮੇਕਰ",
+      "painting": "ਤਸਵੀਰ",
+      "shop": "ਦੁਕਾਨ",
+      "game": "ਗੇਮ",
+      "hub": "ਗੇਮ ਹੱਬ",
+      "console": "ਗੇਮ ਕੰਸੋਲ",
+      "upstairs": "{{name}} (ਉੱਪਰ)"
+    },
+    "games": {
+      "pool": "8-ਬਾਲ ਪੂਲ",
+      "pingpong": "ਪਿੰਗ ਪੌਂਗ",
+      "foosball": "ਫੂਸਬਾਲ",
+      "claw": "ਕਲੌ ਮਸ਼ੀਨ",
+      "snake": "ਸੱਪ",
+      "breakout": "ਬ੍ਰਿਕ ਬ੍ਰੇਕਰ",
+      "tetris": "ਬਲਾਕ ਸਟੈਕ",
+      "invaders": "ਸਟਾਰ ਇਨਵੇਡਰਜ਼",
+      "flappy": "ਫਲੈਪੀ ਬਰਡ",
+      "whack": "ਵੈਕ-ਏ-ਮੋਲ",
+      "mines": "ਮਾਈਨਸਵੀਪਰ",
+      "connect4": "ਕਨੈਕਟ ਫੋਰ",
+      "racing": "ਟਰਬੋ ਰੇਸਿੰਗ",
+      "penalty": "ਪੈਨਲਟੀ ਸ਼ੂਟਆਊਟ",
+      "airhockey": "ਏਅਰ ਹਾਕੀ",
+      "cricket": "ਹੈਂਡ ਕ੍ਰਿਕਟ",
+      "dj": "ਡੀਜੇ ਬੂਥ",
+      "mixbar": "ਮੌਕਟੇਲ ਬਾਰ"
+    },
+    "seat": {
+      "sit": "ਇੱਥੇ ਬੈਠੋ"
+    },
+    "join": {
+      "joined": "{{name}} ਘਰ ਵਿੱਚ ਆਏ",
+      "go": "ਉਨ੍ਹਾਂ ਕੋਲ ਜਾਓ"
+    },
+    "photo": {
+      "take": "ਇਸ ਕਮਰੇ ਦੀ ਫੋਟੋ ਖਿੱਚੋ",
+      "saved": "ਫੋਟੋ ਸੇਵ ਹੋ ਗਈ"
+    },
+    "speaking": {
+      "tip": "{{name}} ਬੋਲ ਰਹੇ ਹਨ"
     }
   }
 }

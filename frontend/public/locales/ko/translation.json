@@ -2118,6 +2118,97 @@
       "unpinTip": "{{name}}을(를) 빠른 실행에서 해제",
       "pin": "빠른 실행에 고정",
       "unpin": "빠른 실행에서 해제"
+    },
+    "zones": {
+      "study": "서재",
+      "hall": "거실",
+      "bedroom": "침실",
+      "kitchen": "주방",
+      "gameroom": "게임룸",
+      "lawn": "정원",
+      "terrace": "베란다",
+      "frontyard": "앞마당",
+      "courtyard": "중정",
+      "street": "거리",
+      "cricket": "크리켓 경기장",
+      "market": "시장",
+      "f2bed1": "안방",
+      "f2hall": "위층 홀",
+      "f2bed2": "손님방",
+      "f2kitchen": "위층 주방",
+      "f2balcony": "발코니",
+      "f2breakup": "이별의 방"
+    },
+    "link": {
+      "goupstairs": "위로 가기",
+      "gotonextfloor": "다음 층으로 가기",
+      "godownstairs": "아래로 가기",
+      "gotothestreet": "거리로 가기",
+      "backtothehouse": "집으로 돌아가기",
+      "backtothestreet": "거리로 돌아가기"
+    },
+    "goTo": "{{room}}(으)로 가기",
+    "kinds": {
+      "fridge": "냉장고",
+      "stove": "가스레인지",
+      "oven": "오븐",
+      "books": "책장",
+      "radio": "라디오",
+      "breakup": "이별의 방",
+      "telescope": "망원경",
+      "garden": "정원",
+      "clock": "시계",
+      "monitor": "컴퓨터",
+      "puzzles": "퍼즐",
+      "cupboard": "찬장",
+      "wardrobe": "옷장",
+      "cosmetics": "화장대",
+      "dog": "강아지",
+      "pond": "연못",
+      "supercar": "슈퍼카",
+      "garage": "차고",
+      "monalisa": "모나리자",
+      "roti": "로티 메이커",
+      "painting": "그림",
+      "shop": "상점",
+      "game": "게임",
+      "hub": "게임 허브",
+      "console": "게임 콘솔",
+      "upstairs": "{{name}} (위층)"
+    },
+    "games": {
+      "pool": "8볼 당구",
+      "pingpong": "탁구",
+      "foosball": "테이블 축구",
+      "claw": "크레인 게임",
+      "snake": "스네이크",
+      "breakout": "벽돌 깨기",
+      "tetris": "블록 쌓기",
+      "invaders": "스타 인베이더",
+      "flappy": "플래피 버드",
+      "whack": "두더지 잡기",
+      "mines": "지뢰 찾기",
+      "connect4": "커넥트 포",
+      "racing": "터보 레이싱",
+      "penalty": "승부차기",
+      "airhockey": "에어 하키",
+      "cricket": "핸드 크리켓",
+      "dj": "DJ 부스",
+      "mixbar": "목테일 바"
+    },
+    "seat": {
+      "sit": "여기 앉기"
+    },
+    "join": {
+      "joined": "{{name}}님이 집에 들어왔어요",
+      "go": "만나러 가기"
+    },
+    "photo": {
+      "take": "이 방 사진 찍기",
+      "saved": "사진이 저장되었어요"
+    },
+    "speaking": {
+      "tip": "{{name}}님이 말하고 있어요"
     }
   }
 }

@@ -12356,6 +12356,7 @@ const Room = () => {
                 mySocketId={socket?.id}
                 avatarPositions={avatarPositions}
                 emotes={avatarEmotes}
+                speakingIds={speakingIds}
                 onEmote={(emote) => socket?.emit('avatar_emote', { roomId, emote })}
                 knownAvatars={knownAvatars}
                 hostId={hostId}

@@ -2075,6 +2075,97 @@
       "unpinTip": "Unpin {{name}} from quick access",
       "pin": "Pin to quick access",
       "unpin": "Unpin from quick access"
+    },
+    "zones": {
+      "study": "Study",
+      "hall": "Living Room",
+      "bedroom": "Bedroom",
+      "kitchen": "Kitchen",
+      "gameroom": "Game Room",
+      "lawn": "Garden",
+      "terrace": "Veranda",
+      "frontyard": "Front Yard",
+      "courtyard": "Courtyard",
+      "street": "Street",
+      "cricket": "Cricket Ground",
+      "market": "Market",
+      "f2bed1": "Master Bedroom",
+      "f2hall": "Upstairs Hall",
+      "f2bed2": "Guest Bedroom",
+      "f2kitchen": "Upstairs Kitchen",
+      "f2balcony": "Balcony",
+      "f2breakup": "Breakup Room"
+    },
+    "link": {
+      "goupstairs": "Go upstairs",
+      "gotonextfloor": "Go to next floor",
+      "godownstairs": "Go downstairs",
+      "gotothestreet": "Go to the street",
+      "backtothehouse": "Back to the house",
+      "backtothestreet": "Back to the street"
+    },
+    "goTo": "Go to {{room}}",
+    "kinds": {
+      "fridge": "Fridge",
+      "stove": "Stove",
+      "oven": "Oven",
+      "books": "Bookshelf",
+      "radio": "Radio",
+      "breakup": "Breakup Room",
+      "telescope": "Telescope",
+      "garden": "Garden",
+      "clock": "Clock",
+      "monitor": "Computer",
+      "puzzles": "Puzzles",
+      "cupboard": "Cupboard",
+      "wardrobe": "Wardrobe",
+      "cosmetics": "Dressing table",
+      "dog": "Dog",
+      "pond": "Pond",
+      "supercar": "Supercar",
+      "garage": "Garage",
+      "monalisa": "Mona Lisa",
+      "roti": "Roti maker",
+      "painting": "Painting",
+      "shop": "Shop",
+      "game": "Game",
+      "hub": "Game Hub",
+      "console": "Game Console",
+      "upstairs": "{{name}} (upstairs)"
+    },
+    "games": {
+      "pool": "8-Ball Pool",
+      "pingpong": "Ping Pong",
+      "foosball": "Foosball",
+      "claw": "Claw Machine",
+      "snake": "Snake",
+      "breakout": "Brick Breaker",
+      "tetris": "Block Stack",
+      "invaders": "Star Invaders",
+      "flappy": "Flappy Bird",
+      "whack": "Whack-a-Mole",
+      "mines": "Minesweeper",
+      "connect4": "Connect Four",
+      "racing": "Turbo Racing",
+      "penalty": "Penalty Shootout",
+      "airhockey": "Air Hockey",
+      "cricket": "Hand Cricket",
+      "dj": "DJ Booth",
+      "mixbar": "Mocktail Bar"
+    },
+    "seat": {
+      "sit": "Sit here"
+    },
+    "join": {
+      "joined": "{{name}} joined the house",
+      "go": "Go to them"
+    },
+    "photo": {
+      "take": "Take a photo of this room",
+      "saved": "Photo saved"
+    },
+    "speaking": {
+      "tip": "{{name}} is speaking"
     }
   }
 }

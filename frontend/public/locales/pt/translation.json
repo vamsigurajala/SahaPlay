@@ -2120,6 +2120,97 @@
       "unpinTip": "Remover {{name}} do acesso rápido",
       "pin": "Fixar no acesso rápido",
       "unpin": "Remover do acesso rápido"
+    },
+    "zones": {
+      "study": "Escritório",
+      "hall": "Sala de estar",
+      "bedroom": "Quarto",
+      "kitchen": "Cozinha",
+      "gameroom": "Sala de jogos",
+      "lawn": "Jardim",
+      "terrace": "Varanda",
+      "frontyard": "Quintal da frente",
+      "courtyard": "Pátio",
+      "street": "Rua",
+      "cricket": "Campo de críquete",
+      "market": "Mercado",
+      "f2bed1": "Suíte principal",
+      "f2hall": "Salão de cima",
+      "f2bed2": "Quarto de hóspedes",
+      "f2kitchen": "Cozinha de cima",
+      "f2balcony": "Sacada",
+      "f2breakup": "Sala do Término"
+    },
+    "link": {
+      "goupstairs": "Subir",
+      "gotonextfloor": "Ir para o próximo andar",
+      "godownstairs": "Descer",
+      "gotothestreet": "Ir para a rua",
+      "backtothehouse": "Voltar para a casa",
+      "backtothestreet": "Voltar para a rua"
+    },
+    "goTo": "Ir para {{room}}",
+    "kinds": {
+      "fridge": "Geladeira",
+      "stove": "Fogão",
+      "oven": "Forno",
+      "books": "Estante de livros",
+      "radio": "Rádio",
+      "breakup": "Sala do Término",
+      "telescope": "Telescópio",
+      "garden": "Jardim",
+      "clock": "Relógio",
+      "monitor": "Computador",
+      "puzzles": "Quebra-cabeças",
+      "cupboard": "Armário",
+      "wardrobe": "Guarda-roupa",
+      "cosmetics": "Penteadeira",
+      "dog": "Cachorro",
+      "pond": "Lago",
+      "supercar": "Supercarro",
+      "garage": "Garagem",
+      "monalisa": "Mona Lisa",
+      "roti": "Máquina de roti",
+      "painting": "Quadro",
+      "shop": "Loja",
+      "game": "Jogo",
+      "hub": "Central de jogos",
+      "console": "Console de jogos",
+      "upstairs": "{{name}} (em cima)"
+    },
+    "games": {
+      "pool": "Sinuca 8",
+      "pingpong": "Ping-pong",
+      "foosball": "Pebolim",
+      "claw": "Máquina de garra",
+      "snake": "Cobrinha",
+      "breakout": "Quebra-tijolos",
+      "tetris": "Empilha Blocos",
+      "invaders": "Invasores das Estrelas",
+      "flappy": "Flappy Bird",
+      "whack": "Acerte a Toupeira",
+      "mines": "Campo Minado",
+      "connect4": "Four em Linha",
+      "racing": "Corrida Turbo",
+      "penalty": "Disputa de Pênaltis",
+      "airhockey": "Hóquei de Mesa",
+      "cricket": "Críquete de Mão",
+      "dj": "Cabine de DJ",
+      "mixbar": "Bar de Mocktails"
+    },
+    "seat": {
+      "sit": "Sentar aqui"
+    },
+    "join": {
+      "joined": "{{name}} entrou na casa",
+      "go": "Ir até a pessoa"
+    },
+    "photo": {
+      "take": "Tirar uma foto desta sala",
+      "saved": "Foto salva"
+    },
+    "speaking": {
+      "tip": "{{name}} está falando"
     }
   }
 }

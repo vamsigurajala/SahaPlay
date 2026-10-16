@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Trophy, X, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { GAMES } from './games';
+import { gameName } from './gamifyText';
 import { useDaily, dayBest, requestBoard, gameOfTheDay } from './dailyGame';
 
 // Today's game and how the people in the house are doing in it.
@@ -24,7 +25,7 @@ export default function DailyPanel({ me, onPlay, onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, background: 'rgba(255,255,255,0.06)' }}>
           <span style={{ width: 40, height: 40, flex: 'none', borderRadius: 12, background: game.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><game.Icon size={21} color="#fff" /></span>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontWeight: 800, fontSize: 14 }}>{game.title}</div>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>{gameName(id, game.title)}</div>
             <div style={{ fontSize: 11.5, opacity: 0.75 }}>{mine > 0 ? t('gamify.daily.best', { defaultValue: 'Your best today: {{score}}', score: fmt(mine) }) : t('gamify.daily.notPlayed', 'You have not played it today')}</div>
           </div>
           <button onClick={onPlay} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 12px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#8b5cff,#4f46e5)', color: '#fff', fontWeight: 800, fontSize: 12.5, cursor: 'pointer' }}><Play size={13} />{t('gamify.daily.play', 'Play')}</button>

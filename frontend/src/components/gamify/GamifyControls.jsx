@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX, Camera } from 'lucide-react';
 import { useAmbience } from './ambience';
 import { useHideLabels, toggleHideLabels } from './labelPrefs';
 import { ALL_ZONES, COLS } from '../../data/gamifyZones';
+import { zoneName, goToText } from './gamifyText';
 import { ZONES_BY_FLOOR } from './GamifyRig';
 import { WEATHER, WEATHER_ORDER } from './environment';
 
 export default function GamifyControls({
+  onPhoto,
   focus,
   floor,
   uiShown,
@@ -40,6 +43,7 @@ export default function GamifyControls({
 }) {
   const [rightOpen, setRightOpen] = useState(true);
   const hideLabels = useHideLabels();
+  const { t } = useTranslation();
   const sound = useAmbience();
   const [leftOpen, setLeftOpen] = useState(true);
 
@@ -71,7 +75,7 @@ export default function GamifyControls({
       <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
         {!hideLabels && (
           <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>
-            {ALL_ZONES[focus]?.label || focus}
+            {zoneName(ALL_ZONES[focus]) || focus}
           </div>
         )}
         {!hideLabels && (
@@ -166,7 +170,7 @@ export default function GamifyControls({
               }}
             >
               <Layers size={12} color="#a56bff" />
-              <span>{ALL_ZONES[focus]?.label || 'Rooms'}</span>
+              <span>{zoneName(ALL_ZONES[focus]) || 'Rooms'}</span>
             </button>
           )}
 
@@ -217,7 +221,7 @@ export default function GamifyControls({
                 key={z.id}
                 className="stay-white"
                 onClick={() => onFocusRoom(z.id)}
-                title={`Go to ${z.label}`}
+                title={goToText(z)}
                 style={{
                   gridColumn: z.col + 1,
                   gridRow: z.row + 1,
@@ -233,7 +237,7 @@ export default function GamifyControls({
                   transition: 'background 0.18s, border-color 0.18s',
                 }}
               >
-                {z.label}
+                {zoneName(z)}
                 {counts[z.id] > 0 && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 4, fontSize: 10 }}>
                     <Users size={9} />{counts[z.id]}
@@ -354,6 +358,9 @@ export default function GamifyControls({
             style={{ ...btn, flex: 'none', background: smooth ? 'rgba(34,197,94,0.75)' : btn.background }}
           >
             <Gauge size={16} />
+          </button>
+          <button className="stay-white" onClick={onPhoto} title={t('gamify.photo.take', 'Take a photo of this room')} aria-label={t('gamify.photo.take', 'Take a photo of this room')} style={{ ...btn, flex: 'none' }}>
+            <Camera size={16} />
           </button>
           <button className="stay-white" onClick={onTour} title="How this works" style={{ ...btn, flex: 'none' }}>
             <HelpCircle size={16} />

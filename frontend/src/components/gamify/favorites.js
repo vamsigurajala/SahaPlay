@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { GAMES } from './games';
 import { SHOPS } from '../../data/gamifyShops';
 import { PAINTINGS } from '../../data/gamifyPaintings';
+import { gameName, kindName } from './gamifyText';
 
 // Pinned things (a game, the radio, a shop...) shown as quick buttons in the house.
 // Each is just what the house needs to open it again: a kind and an optional arg.
@@ -17,14 +18,14 @@ const KIND_LABELS = {
 
 export function favLabel({ kind, arg }) {
   if (kind === 'game') {
-    if (arg === 'hub') return 'Game Hub';
-    if (arg === 'console') return 'Game Console';
-    return GAMES[arg]?.title || 'Game';
+    if (arg === 'hub') return kindName('hub', 'Game Hub');
+    if (arg === 'console') return kindName('console', 'Game Console');
+    return GAMES[arg] ? gameName(arg, GAMES[arg].title) : kindName('game', 'Game');
   }
   if (kind === 'shop') return SHOPS[arg]?.name || 'Shop';
   if (kind === 'painting') return PAINTINGS[arg]?.title || 'Painting';
-  if (kind === 'stove' || kind === 'fridge' || kind === 'oven') return `${KIND_LABELS[kind]}${arg === 'up' ? ' (upstairs)' : ''}`;
-  return KIND_LABELS[kind] || kind;
+  if (kind === 'stove' || kind === 'fridge' || kind === 'oven') { const n = kindName(kind, KIND_LABELS[kind]); return arg === 'up' ? kindName('upstairs', '{{name}} (upstairs)', { name: n }) : n; }
+  return KIND_LABELS[kind] ? kindName(kind, KIND_LABELS[kind]) : kind;
 }
 
 const same = (a, b) => a.kind === b.kind && (a.arg || '') === (b.arg || '');

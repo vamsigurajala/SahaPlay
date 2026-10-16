@@ -1,7 +1,10 @@
 import { memo, useCallback, useMemo, useRef, useContext, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { DoorOpen, LogOut, Shirt, ArrowUp, ArrowDown } from 'lucide-react';
+import { zoneName, linkText } from './gamifyText';
+import { DoorOpen, LogOut, Shirt, ArrowUp, ArrowDown, Armchair } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { seatsIn } from './seats';
 import { Box, Neon, ScaledHtml, DoorFrame, ViewContext, HotChip, FocusContext, DoorNavContext } from './parts';
 import { Study, LivingRoom, Bedroom, Kitchen, GameRoom, Garden, Veranda, FrontYard, Courtyard } from './placedRooms';
 import { CricketGround, CricketFloor } from './cricket';
@@ -147,7 +150,42 @@ function RoomSign({ z }) {
         padding: '3px 14px', borderRadius: 99, background: 'rgba(12,10,24,0.72)', color: 'rgba(255,255,255,0.9)',
         fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
         border: '1px solid rgba(255,255,255,0.14)', backdropFilter: 'blur(3px)', userSelect: 'none', transition: 'opacity .25s',
-      }}>{z.label}</div>
+      }}>{zoneName(z)}</div>
+    </ScaledHtml>
+  );
+}
+
+// A place to sit: tap it and your avatar walks over and sits (beside whoever is already there).
+function SeatDot({ seat }) {
+  const view = useContext(ViewContext);
+  const { t } = useTranslation();
+  const ref = useRef();
+  const last = useRef(null);
+  const zone = ALL_ZONES[seat.zone];
+  const floor = zone.floor || 0;
+  const x = zone.world.x0 + seat.x;
+  const z = zone.world.z0 + seat.z;
+  useFrame(() => {
+    const el = ref.current;
+    if (!el) return;
+    const on = !getHideLabels() && (view.current.alwaysDots || view.current.uiVisible !== false) && !view.current.out;
+    if (last.current === on) return;
+    last.current = on;
+    el.style.opacity = on ? '1' : '0';
+    el.style.pointerEvents = on ? 'auto' : 'none';
+  });
+  return (
+    <ScaledHtml position={[x, floor * FLOOR_Y + 0.9, z]} zIndexRange={[32, 0]}>
+      <div ref={ref} style={{ opacity: 0, pointerEvents: 'none', transition: 'opacity .25s' }}>
+        <button
+          className="stay-white"
+          aria-label={t('gamify.seat.sit', 'Sit here')}
+          title={t('gamify.seat.sit', 'Sit here')}
+          onPointerDown={e => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); view.current.walk = { x, z, floor, snap: false }; }}
+          style={{ width: 24, height: 24, borderRadius: '50%', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(12,10,24,0.82)', border: '2px solid rgba(94,234,212,0.95)', color: '#5eead4', animation: 'gp-dot 1.8s infinite' }}
+        ><Armchair size={13} /></button>
+      </div>
     </ScaledHtml>
   );
 }
@@ -180,7 +218,7 @@ function DoorChip({ link, onGo }) {
           className="stay-white"
           onClick={() => onGo(link)}
           onPointerDown={e => e.stopPropagation()}
-          title={link.label || `Go to ${dest.label}`}
+          title={linkText(link, dest)}
           style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 99, cursor: 'pointer',
             background: 'rgba(12,10,24,0.78)', color: '#fff', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap',
@@ -188,7 +226,7 @@ function DoorChip({ link, onGo }) {
           }}
         >
           {stairs ? (link.dir === 'up' ? <ArrowUp size={14} /> : <ArrowDown size={14} />) : <DoorOpen size={14} />}
-          {link.label || dest.label}
+          {linkText(link, dest)}
         </button>
       </div>
     </ScaledHtml>
@@ -494,6 +532,7 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
       {zoomedOut && Object.values(FLOORPLAN_ZONES).filter(z => z.row >= 2).map(z => <RoomSign key={z.id} z={z} />)}
       {zoomedOut && Object.values(ALL_ZONES).filter(z => z.floor === 1).map(z => <RoomSign key={z.id} z={z} />)}
       {focus === 'frontyard' && <ExitChip onExit={onExitHouse} />}
+      {focus && seatsIn(focus).map(st => <SeatDot key={st.id} seat={st} />)}
       {ALL_LINKS.filter(l => l.from === focus).map(l => <DoorChip key={`${l.from}-${l.to}`} link={l} onGo={onGoToRoom} />)}
     </group>
     </DoorNavContext.Provider>

@@ -2118,6 +2118,97 @@
       "unpinTip": "{{name}} vom Schnellzugriff lösen",
       "pin": "An Schnellzugriff anheften",
       "unpin": "Vom Schnellzugriff lösen"
+    },
+    "zones": {
+      "study": "Arbeitszimmer",
+      "hall": "Wohnzimmer",
+      "bedroom": "Schlafzimmer",
+      "kitchen": "Küche",
+      "gameroom": "Spielzimmer",
+      "lawn": "Garten",
+      "terrace": "Veranda",
+      "frontyard": "Vorgarten",
+      "courtyard": "Innenhof",
+      "street": "Straße",
+      "cricket": "Cricketplatz",
+      "market": "Markt",
+      "f2bed1": "Elternschlafzimmer",
+      "f2hall": "Obere Halle",
+      "f2bed2": "Gästezimmer",
+      "f2kitchen": "Obere Küche",
+      "f2balcony": "Balkon",
+      "f2breakup": "Trennungsraum"
+    },
+    "link": {
+      "goupstairs": "Nach oben",
+      "gotonextfloor": "Zur nächsten Etage",
+      "godownstairs": "Nach unten",
+      "gotothestreet": "Zur Straße",
+      "backtothehouse": "Zurück ins Haus",
+      "backtothestreet": "Zurück zur Straße"
+    },
+    "goTo": "Gehe zu {{room}}",
+    "kinds": {
+      "fridge": "Kühlschrank",
+      "stove": "Herd",
+      "oven": "Backofen",
+      "books": "Bücherregal",
+      "radio": "Radio",
+      "breakup": "Trennungsraum",
+      "telescope": "Teleskop",
+      "garden": "Garten",
+      "clock": "Uhr",
+      "monitor": "Computer",
+      "puzzles": "Rätsel",
+      "cupboard": "Schrank",
+      "wardrobe": "Kleiderschrank",
+      "cosmetics": "Frisiertisch",
+      "dog": "Hund",
+      "pond": "Teich",
+      "supercar": "Supersportwagen",
+      "garage": "Garage",
+      "monalisa": "Mona Lisa",
+      "roti": "Roti-Maschine",
+      "painting": "Gemälde",
+      "shop": "Laden",
+      "game": "Spiel",
+      "hub": "Spielzentrum",
+      "console": "Spielkonsole",
+      "upstairs": "{{name}} (oben)"
+    },
+    "games": {
+      "pool": "8-Ball-Billard",
+      "pingpong": "Tischtennis",
+      "foosball": "Tischkicker",
+      "claw": "Greifautomat",
+      "snake": "Snake",
+      "breakout": "Ziegelbrecher",
+      "tetris": "Blockstapeln",
+      "invaders": "Sterneninvasoren",
+      "flappy": "Flappy Bird",
+      "whack": "Maulwurf-Klopfen",
+      "mines": "Minesweeper",
+      "connect4": "Vier gewinnt",
+      "racing": "Turbo-Rennen",
+      "penalty": "Elfmeterschießen",
+      "airhockey": "Lufthockey",
+      "cricket": "Handcricket",
+      "dj": "DJ-Pult",
+      "mixbar": "Mocktail-Bar"
+    },
+    "seat": {
+      "sit": "Hier sitzen"
+    },
+    "join": {
+      "joined": "{{name}} ist ins Haus gekommen",
+      "go": "Zu ihnen gehen"
+    },
+    "photo": {
+      "take": "Foto von diesem Raum machen",
+      "saved": "Foto gespeichert"
+    },
+    "speaking": {
+      "tip": "{{name}} spricht"
     }
   }
 }

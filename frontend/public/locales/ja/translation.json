@@ -2118,6 +2118,97 @@
       "unpinTip": "{{name}}をクイックアクセスから外す",
       "pin": "クイックアクセスにピン留め",
       "unpin": "クイックアクセスから外す"
+    },
+    "zones": {
+      "study": "書斎",
+      "hall": "リビング",
+      "bedroom": "寝室",
+      "kitchen": "キッチン",
+      "gameroom": "ゲームルーム",
+      "lawn": "庭",
+      "terrace": "ベランダ",
+      "frontyard": "前庭",
+      "courtyard": "中庭",
+      "street": "通り",
+      "cricket": "クリケット場",
+      "market": "マーケット",
+      "f2bed1": "主寝室",
+      "f2hall": "2階ホール",
+      "f2bed2": "ゲストルーム",
+      "f2kitchen": "2階キッチン",
+      "f2balcony": "バルコニー",
+      "f2breakup": "ブレイクアップルーム"
+    },
+    "link": {
+      "goupstairs": "上へ行く",
+      "gotonextfloor": "次の階へ行く",
+      "godownstairs": "下へ行く",
+      "gotothestreet": "通りへ行く",
+      "backtothehouse": "家に戻る",
+      "backtothestreet": "通りに戻る"
+    },
+    "goTo": "{{room}}へ行く",
+    "kinds": {
+      "fridge": "冷蔵庫",
+      "stove": "コンロ",
+      "oven": "オーブン",
+      "books": "本棚",
+      "radio": "ラジオ",
+      "breakup": "ブレイクアップルーム",
+      "telescope": "望遠鏡",
+      "garden": "庭",
+      "clock": "時計",
+      "monitor": "パソコン",
+      "puzzles": "パズル",
+      "cupboard": "食器棚",
+      "wardrobe": "クローゼット",
+      "cosmetics": "ドレッサー",
+      "dog": "犬",
+      "pond": "池",
+      "supercar": "スーパーカー",
+      "garage": "ガレージ",
+      "monalisa": "モナ・リザ",
+      "roti": "ロティメーカー",
+      "painting": "絵画",
+      "shop": "お店",
+      "game": "ゲーム",
+      "hub": "ゲームハブ",
+      "console": "ゲーム機",
+      "upstairs": "{{name}}（上階）"
+    },
+    "games": {
+      "pool": "8ボールプール",
+      "pingpong": "卓球",
+      "foosball": "テーブルサッカー",
+      "claw": "クレーンゲーム",
+      "snake": "スネーク",
+      "breakout": "ブロック崩し",
+      "tetris": "ブロックスタック",
+      "invaders": "スターインベーダー",
+      "flappy": "フラッピーバード",
+      "whack": "もぐらたたき",
+      "mines": "マインスイーパー",
+      "connect4": "コネクトフォー",
+      "racing": "ターボレーシング",
+      "penalty": "PK戦",
+      "airhockey": "エアホッケー",
+      "cricket": "ハンドクリケット",
+      "dj": "DJブース",
+      "mixbar": "モクテルバー"
+    },
+    "seat": {
+      "sit": "ここに座る"
+    },
+    "join": {
+      "joined": "{{name}}さんが家に入りました",
+      "go": "会いに行く"
+    },
+    "photo": {
+      "take": "この部屋の写真を撮る",
+      "saved": "写真を保存しました"
+    },
+    "speaking": {
+      "tip": "{{name}}さんが話しています"
     }
   }
 }
