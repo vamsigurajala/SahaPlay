@@ -293,16 +293,63 @@ export default function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut,
       g.fillStyle = '#9a7a56'; g.fillRect(0, 0, n, n);
       for (let i = 0; i < 6; i++) { g.fillStyle = `rgba(${i % 2 ? '255,255,255,0.06' : '0,0,0,0.12'})`; g.fillRect(0, i * (n / 6), n, n / 6 - 2); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, i * (n / 6) + n / 6 - 2, n, 2); }
     }, [5.4, 4.8]),
-    frontyard: canvasTexture(256, (g, n) => {
-      g.fillStyle = '#6a687a'; g.fillRect(0, 0, n, n);
-      const t = n / 4;
-      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#757386' : '#615f72'; g.fillRect(i * t + 2, j * t + 2, t - 4, t - 4); }
-    }, [5.4, 4.8]),
-    courtyard: canvasTexture(256, (g, n) => {
-      g.fillStyle = '#c98a5a'; g.fillRect(0, 0, n, n);
-      const t = n / 4;
-      for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? '#d49a6a' : '#be7d4c'; g.fillRect(i * t + 2, j * t + 2, t - 4, t - 4); }
-    }, [5.4, 4.8]),
+    frontyard: canvasTexture(512, (g, n) => {
+      // Modern interlocking granite cobblestone driveway paving
+      g.fillStyle = '#1e1c24';
+      g.fillRect(0, 0, n, n);
+      const rows = 12;
+      const cols = 12;
+      const rowH = n / rows;
+      const colW = n / cols;
+      const cobbleTones = ['#5a5766', '#4e4c5a', '#646170', '#444250', '#565362'];
+      for (let r = 0; r < rows; r++) {
+        const offset = (r % 2) * (colW / 2);
+        for (let c = -1; c <= cols; c++) {
+          const x = c * colW + offset;
+          const y = r * rowH;
+          const toneIdx = Math.abs((r * 11 + c * 17) % cobbleTones.length);
+          g.fillStyle = cobbleTones[toneIdx];
+          g.fillRect(x + 1.5, y + 1.5, colW - 3, rowH - 3);
+          g.fillStyle = 'rgba(255, 255, 255, 0.06)';
+          g.fillRect(x + 1.5, y + 1.5, colW - 3, 1.5);
+          g.fillStyle = 'rgba(0, 0, 0, 0.12)';
+          g.fillRect(x + 1.5, y + rowH - 3, colW - 3, 1.5);
+        }
+      }
+    }, [4.5, 4.0]),
+    courtyard: canvasTexture(512, (g, n) => {
+      // Authentic heritage Indian terracotta / sandstone courtyard paving
+      g.fillStyle = '#3a2012';
+      g.fillRect(0, 0, n, n);
+      const rows = 8;
+      const cols = 8;
+      const rowH = n / rows;
+      const colW = n / cols;
+      const stoneColors = [
+        '#ba6b3a', '#c87844', '#af5f2f', '#c07240',
+        '#d0824e', '#a85727', '#b56637', '#cd7d48'
+      ];
+      for (let r = 0; r < rows; r++) {
+        const offset = (r % 2) * (colW / 2);
+        for (let c = -1; c <= cols; c++) {
+          const x = c * colW + offset;
+          const y = r * rowH;
+          const colorIdx = Math.abs((r * 7 + c * 13) % stoneColors.length);
+          g.fillStyle = stoneColors[colorIdx];
+          g.fillRect(x + 2.5, y + 2.5, colW - 5, rowH - 5);
+          // Subtle beveled stone relief
+          g.fillStyle = 'rgba(255, 255, 255, 0.07)';
+          g.fillRect(x + 2.5, y + 2.5, colW - 5, 2.5);
+          g.fillStyle = 'rgba(0, 0, 0, 0.12)';
+          g.fillRect(x + 2.5, y + rowH - 5, colW - 5, 2.5);
+        }
+      }
+      // Micro-texture stippling for natural stone surface
+      for (let k = 0; k < 1400; k++) {
+        g.fillStyle = Math.random() > 0.5 ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.06)';
+        g.fillRect(Math.random() * n, Math.random() * n, 1.5, 1.5);
+      }
+    }, [4.5, 4.0]),
     lawn: canvasTexture(512, (g, n) => {
       // Smooth realistic meadow grass with organic dappled shading
       g.fillStyle = '#256335'; g.fillRect(0, 0, n, n);
