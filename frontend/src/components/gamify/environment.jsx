@@ -134,23 +134,24 @@ const TREES = [
 export function Ground({ weather }) {
   const w = WEATHER[weather];
   const tex = useMemo(() => grassTexture(), []);
-  const R = 40;
+  const R = 48;
+  const cz = 8; // the plot reaches past the cricket ground in front of the house
   return (
     <group>
-      <mesh position={[0, -3.6, 0]} receiveShadow>
+      <mesh position={[0, -3.6, cz]} receiveShadow>
         <boxGeometry args={[R * 2, 6, R * 2]} />
         <meshStandardMaterial color="#5e4630" roughness={1} />
       </mesh>
-      <mesh position={[0, -0.59, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh position={[0, -0.59, cz]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[R * 2, R * 2]} />
         <meshStandardMaterial map={tex} color={w.grass} roughness={1} />
       </mesh>
       {/* lane in front of the house */}
-      <mesh position={[0, -0.57, 30]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh position={[0, -0.57, 41]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[R * 2, 5]} />
         <meshStandardMaterial color="#58585f" roughness={1} />
       </mesh>
-      <mesh position={[0, -0.56, 30]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, -0.56, 41]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[R * 2, 0.18]} />
         <meshStandardMaterial color="#e8d9a0" roughness={1} />
       </mesh>

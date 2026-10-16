@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ArrowLeft, Bird, Blocks, Bomb, Car, Circle, Disc, Disc3, Gamepad2, Goal, Grab, Grid3x3, Hammer, Hash, Layers, Martini, Rocket, Shield, Snail, Zap,
+  ArrowLeft, Bird, Blocks, Bomb, Car, Circle, Disc, Disc3, Gamepad2, Goal, Grab, Grid3x3, Hammer, Hash, Layers, Martini, Rocket, Shield, Snail, Trophy, Zap,
 } from 'lucide-react';
 import { getBest, ui } from './shared';
 
@@ -27,6 +27,7 @@ export const GAMES = {
   racing: { title: 'Turbo Racing', desc: '3 laps against 3 drivers', Icon: Car, color: '#ff4f6e', group: 'console', load: () => import('./RacingGame'), fmt: fmtTime },
   penalty: { title: 'Penalty Shootout', desc: 'Shoot, then save, vs the computer', Icon: Shield, color: '#2f9a4a', group: 'console', load: () => import('./PenaltyGame') },
   airhockey: { title: 'Air Hockey', desc: 'Smash the puck past the computer', Icon: Disc, color: '#2a7fd0', group: 'console', load: () => import('./AirHockeyGame') },
+  cricket: { title: 'Cricket', desc: 'Bat against the computer, two overs', Icon: Trophy, color: '#3fa24a', group: 'outdoor', load: () => import('./CricketGame') },
   dj: { title: 'DJ Booth', desc: 'Pads and a 16-step beat maker', Icon: Disc3, color: '#e0529f', group: 'party', load: () => import('./DjBooth'), noScore: true },
   mixbar: { title: 'Mocktail Bar', desc: 'Stack the layers to match the recipe', Icon: Martini, color: '#ff6fb5', group: 'party', load: () => import('./MixBar') },
 };
@@ -38,7 +39,7 @@ const lazyFor = (id) => { if (!LAZY[id]) LAZY[id] = lazy(GAMES[id].load); return
 export const prefetchGame = (id) => { try { GAMES[id]?.load(); } catch { /* offline */ } };
 
 const SECTIONS = {
-  hub: [['table', 'Game table'], ['arcade', 'Arcade'], ['console', 'Console'], ['party', 'Party corner']],
+  hub: [['table', 'Game table'], ['arcade', 'Arcade'], ['console', 'Console'], ['outdoor', 'Outdoor'], ['party', 'Party corner']],
   console: [['console', 'Console games']],
 };
 

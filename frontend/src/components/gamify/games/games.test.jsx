@@ -27,7 +27,7 @@ const FILES = {
   snake: () => import('./SnakeGame'), breakout: () => import('./BreakoutGame'), tetris: () => import('./TetrisGame'), invaders: () => import('./InvadersGame'),
   flappy: () => import('./FlappyGame'), g2048: () => import('./Game2048'), whack: () => import('./WhackGame'), mines: () => import('./MinesGame'),
   connect4: () => import('./ConnectFourGame'), racing: () => import('./RacingGame'), penalty: () => import('./PenaltyGame'), airhockey: () => import('./AirHockeyGame'),
-  dj: () => import('./DjBooth'), mixbar: () => import('./MixBar'),
+  dj: () => import('./DjBooth'), mixbar: () => import('./MixBar'), cricket: () => import('./CricketGame'),
 };
 
 describe('Game Room games', () => {

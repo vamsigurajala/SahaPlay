@@ -5,7 +5,7 @@ import { Box, Plant, Chair, Table, Rug, Sofa, TableLamp, FloorLamp, Monitor, Boo
 import { Cell } from './cell';
 import { Telescope, Jhula, Vanity, FairyLights, Curtain, FlowerPatch, Teddy, Stairs } from './props';
 import IndianKitchen from './indianKitchen';
-import { FLOOR_Y, CELL_W, CELL_D, FLOOR2_ZONES, DOORWAYS_F2 } from '../../data/gamifyZones';
+import { FLOOR_Y, CELL_W, CELL_D, WORLD_D, FLOOR2_ZONES, DOORWAYS_F2 } from '../../data/gamifyZones';
 
 // The second floor: a plain, natural-coloured home (cream walls, timber floors,
 // soft fabrics) — no neon. Two bedrooms, a living room, a kitchen and a balcony.
@@ -304,10 +304,10 @@ export default function Floor2() {
     if (g.visible !== show) g.visible = show;
   });
   const x0 = -27;
-  const z0 = -24;
+  const z0 = -WORLD_D / 2;
   const x1 = 27;
-  const mz = -8; // row boundary
-  const zEnd = 8; // front edge of row 1
+  const mz = z0 + CELL_D; // row boundary
+  const zEnd = z0 + 2 * CELL_D; // front edge of row 1
   const vGaps = (x) => DOORWAYS_F2.filter(d => d.axis === 'v' && d.x === x).map(d => d.z);
   const hGaps = (zz) => DOORWAYS_F2.filter(d => d.axis === 'h' && d.z === zz).map(d => d.x);
   return (

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Crown } from 'lucide-react';
 import Avatar from '../Avatar';
-import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D, FLOOR_Y, ALL_ZONES, zoneForPoint } from '../../data/gamifyZones';
+import { FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D, CELL_D, FLOOR_Y, ALL_ZONES, zoneForPoint } from '../../data/gamifyZones';
 import { ScaledHtml, ViewContext } from './parts';
 
 const toWorld = (vx, vy) => ({ x: (vx / FLOORPLAN_WIDTH - 0.5) * WORLD_W, z: (vy / FLOORPLAN_HEIGHT - 0.5) * WORLD_D });
@@ -12,7 +12,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const BOUND_X = WORLD_W / 2 - 0.7;
 const BOUND_Z = WORLD_D / 2 - 0.7;
 // Upstairs only covers the back two rows of the house.
-const BOUND_Z_UP = -WORLD_D / 2 + 2 * (WORLD_D / 3) - 0.7;
+const BOUND_Z_UP = -WORLD_D / 2 + 2 * CELL_D - 0.7;
 
 // One participant, standing on the floor of the 3D house. Only the viewer's own
 // avatar is draggable; dragging raycasts the pointer onto the floor plane so
@@ -113,7 +113,7 @@ export default function Avatar3D({ username, avatarPath, isHost, isOwn, x, y, zo
       const wx = clamp(p.x + off.x, -BOUND_X, BOUND_X);
       let wz = clamp(p.z + off.z, -BOUND_Z, floorRef.current ? BOUND_Z_UP : BOUND_Z);
       // the front-right cell upstairs is open air
-      if (floorRef.current && wx > WORLD_W / 6 - 0.3 && wz > -WORLD_D / 6 - 0.7) wz = -WORLD_D / 6 - 0.7;
+      if (floorRef.current && wx > WORLD_W / 6 - 0.3 && wz > -WORLD_D / 2 + CELL_D - 0.7) wz = -WORLD_D / 2 + CELL_D - 0.7;
       targetRef.current = { x: wx, z: wz };
       emitThrottled(wx, wz);
     };

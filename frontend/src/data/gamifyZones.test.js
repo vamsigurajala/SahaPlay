@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { FLOORPLAN_ZONES, ZONE_IDS, DEFAULT_SPAWN, DOORWAYS, DOOR_LINKS, DOOR_LINKS_F2, STAIR_LINKS, FLOOR2_ZONES, zoneForPoint, FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D } from './gamifyZones';
+import { FLOORPLAN_ZONES, ZONE_IDS, DEFAULT_SPAWN, DOORWAYS, DOOR_LINKS, DOOR_LINKS_F2, STAIR_LINKS, GATE_LINKS, FLOOR2_ZONES, zoneForPoint, FLOORPLAN_WIDTH, FLOORPLAN_HEIGHT, WORLD_W, WORLD_D } from './gamifyZones';
 
 describe('gamify zones', () => {
   it('every zone center resolves back to its own zone', () => {
@@ -8,9 +8,18 @@ describe('gamify zones', () => {
     }
   });
 
-  it('zones tile the whole floor with no gaps or overlap', () => {
+  it('zones do not overlap: the 3x3 house plus the cricket ground fill 10 of the 12 grid cells', () => {
     const area = Object.values(FLOORPLAN_ZONES).reduce((s, z) => s + z.width * z.height, 0);
-    expect(area).toBeCloseTo(FLOORPLAN_WIDTH * FLOORPLAN_HEIGHT, 4);
+    expect(area).toBeCloseTo((FLOORPLAN_WIDTH * FLOORPLAN_HEIGHT * 10) / 12, 4);
+  });
+
+  it('the front yard gate links to the cricket ground and back', () => {
+    const toVirtual = (p) => [(p.x / WORLD_W + 0.5) * FLOORPLAN_WIDTH, (p.z / WORLD_D + 0.5) * FLOORPLAN_HEIGHT];
+    expect(GATE_LINKS).toHaveLength(2);
+    for (const l of GATE_LINKS) {
+      expect(zoneForPoint(...toVirtual(l.chip))).toBe(l.from);
+      expect(zoneForPoint(...toVirtual(l.entry))).toBe(l.to);
+    }
   });
 
   it('default spawn lands in the living room, and out-of-bounds points still get a zone', () => {
