@@ -164,7 +164,7 @@ describe('Gamify Mode End-to-End Test Suite', () => {
 
       // Floating control buttons (Flip, AlwaysDots, ResetView, ZoomIn, ZoomOut)
       expect(screen.getByTitle(/Flip house left\/right/i)).toBeInTheDocument();
-      expect(screen.getByTitle(/Interactive dots/i)).toBeInTheDocument();
+      expect(screen.queryByTitle(/Interactive dots/i)).not.toBeInTheDocument();
       expect(screen.getByTitle(/Back to my room/i)).toBeInTheDocument();
       expect(screen.getByTitle(/Zoom in/i)).toBeInTheDocument();
       expect(screen.getByTitle(/Zoom out/i)).toBeInTheDocument();
@@ -225,33 +225,6 @@ describe('Gamify Mode End-to-End Test Suite', () => {
       // Header updates to focus on Kitchen
       const kitchens = screen.getAllByText('Kitchen');
       expect(kitchens.length).toBeGreaterThan(0);
-    });
-
-    it('toggles interactive dots always-on setting and saves to localStorage', () => {
-      render(
-        <GamifyFloorPlan
-          userList={mockUserList}
-          mySocketId="user-1"
-          avatarPositions={mockAvatarPositions}
-          knownAvatars={{}}
-          hostId="user-1"
-          onMove={vi.fn()}
-          onExitHouse={vi.fn()}
-          tvElementRef={{ current: document.createElement('div') }}
-          onTvReady={vi.fn()}
-        />
-      );
-
-      const dotsToggleBtn = screen.getByTitle(/Interactive dots/i);
-      expect(localStorage.getItem('sp_gamify_always_dots')).toBeNull();
-
-      // Toggle always-on
-      fireEvent.click(dotsToggleBtn);
-      expect(localStorage.getItem('sp_gamify_always_dots')).toBe('true');
-
-      // Toggle off
-      fireEvent.click(dotsToggleBtn);
-      expect(localStorage.getItem('sp_gamify_always_dots')).toBe('false');
     });
   });
 

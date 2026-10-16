@@ -158,17 +158,35 @@ const CLOUD_SPOTS = Array.from({ length: 16 }).map((_, i) => {
   return { x: Math.cos(a) * r, z: Math.sin(a) * r, y: 20 + (i % 5) * 3, s: 1.4 + (i % 3) * 0.7, v: 0.25 + (i % 4) * 0.12 };
 });
 
-function Cloud({ spot, color, opacity }) {
+// A drifting cloud. Tap or click it and it shrinks away (so it never hides what is
+// behind it); a while later it drifts back in from the edge of the plot.
+function Cloud({ spot, color }) {
   const ref = useRef();
+  const life = useRef({ s: 1, gone: false, back: 0 });
   useFrame((_, dt) => {
     const g = ref.current;
     if (!g) return;
+    const L = life.current;
+    const now = performance.now();
     g.position.x += spot.v * dt;
     if (g.position.x > 100) g.position.x = -100;
+    if (L.gone && L.s < 0.02 && !L.back) L.back = now + 25000;
+    if (L.gone && L.back && now > L.back) { L.gone = false; L.back = 0; g.position.x = -100 + Math.random() * 25; }
+    L.s += ((L.gone ? 0 : 1) - L.s) * (1 - Math.exp(-Math.min(dt, 0.1) * 7));
+    g.scale.setScalar(spot.s * Math.max(L.s, 0.0001));
+    const show = L.s > 0.01;
+    if (g.visible !== show) g.visible = show;
   });
   const puffs = [[0, 0, 0, 3.2], [3, -0.4, 0.8, 2.5], [-3, -0.3, -0.6, 2.4]];
   return (
-    <group ref={ref} position={[spot.x, spot.y, spot.z]} scale={spot.s}>
+    <group
+      ref={ref}
+      position={[spot.x, spot.y, spot.z]}
+      scale={spot.s}
+      onClick={(e) => { e.stopPropagation(); life.current.gone = true; }}
+      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={() => { document.body.style.cursor = ''; }}
+    >
       {puffs.map(([x, y, z, r], i) => (
         <mesh key={i} position={[x, y, z]} scale={[1, 0.6, 1]}>
           <sphereGeometry args={[r, 8, 6]} />

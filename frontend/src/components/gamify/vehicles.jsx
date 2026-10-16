@@ -77,6 +77,45 @@ function CarWheel({ x, z, r = 0.36, w = 0.3, spin, left, rimColor = '#c8ccd4' })
   );
 }
 
+// ───────────────────────────── Tyre smoke ─────────────────────────────
+
+// Puffs of burnout smoke rolling back and up from a rear tyre. They keep spawning
+// while `active` and fade out on their own once it stops.
+function TireSmoke({ x, active }) {
+  const N = 26;
+  const refs = useRef([]);
+  const parts = useRef(Array.from({ length: N }, (_, i) => ({ t: -i / N, dx: 0, vx: 0, vz: 0 })));
+  useFrame((_, dt) => {
+    for (let i = 0; i < N; i++) {
+      const p = parts.current[i];
+      const m = refs.current[i];
+      if (!m) continue;
+      p.t += Math.min(dt, 0.05) * 0.5;
+      if (p.t >= 1) {
+        if (!active) { m.visible = false; p.t = 1; continue; }
+        p.t = 0; p.dx = (Math.random() - 0.5) * 0.35; p.vx = (Math.random() - 0.5) * 0.9; p.vz = -0.5 - Math.random() * 1.1;
+      }
+      if (p.t < 0) { m.visible = false; continue; }
+      if (!active && p.t === 0) { m.visible = false; continue; }
+      const t = p.t;
+      m.visible = true;
+      m.position.set(x + p.dx + p.vx * t, 0.14 + t * 1.1, -1.5 + p.vz * t * 2.4);
+      m.scale.setScalar(0.3 + t * 1.7);
+      m.material.opacity = (1 - t) * 0.72;
+    }
+  });
+  return (
+    <group>
+      {Array.from({ length: N }).map((_, i) => (
+        <mesh key={i} ref={(el) => { refs.current[i] = el; }} visible={false}>
+          <sphereGeometry args={[1, 10, 8]} />
+          <meshBasicMaterial color="#e6e8ee" transparent opacity={0} depthWrite={false} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 // ───────────────────────────── Supercar ─────────────────────────────
 
 // The body is built in pieces (nose + tail + side panels) so the cabin stays open for the interior.
@@ -133,7 +172,7 @@ function Interior({ started, lightsOn }) {
   );
 }
 
-export function Supercar3D({ color = '#c8102e', lightsOn = true, doorsOpen = false, started = false, spin = 0, interior = true, wingUp = false, cutaway = false }) {
+export function Supercar3D({ color = '#c8102e', lightsOn = true, doorsOpen = false, started = false, spin = 0, interior = true, wingUp = false, cutaway = false, smoke = false }) {
   const nose = useBody(CAR_NOSE, 0.22, 1.9, 0.09, carTaper);
   const tail = useBody(CAR_TAIL, 0.22, 1.9, 0.09, carTaper);
   const glass = useBody(CAR_GLASS, 0.88, 1.3, 0.03, glassTaper);
@@ -210,6 +249,9 @@ export function Supercar3D({ color = '#c8102e', lightsOn = true, doorsOpen = fal
           <mesh position={[s * 0.045, 0.14, -0.9]}><boxGeometry args={[0.03, 0.03, 0.16]} /><meshStandardMaterial color="#cfd3da" metalness={0.9} roughness={0.2} /></mesh>
         </group>
       ))}
+
+      <TireSmoke x={-0.9} active={smoke} />
+      <TireSmoke x={0.9} active={smoke} />
 
       {/* wheels: wider and slightly larger at the back */}
       <CarWheel x={-0.84} z={1.4} left spin={spin} />

@@ -8,6 +8,24 @@ import { Supercar3D, Superbike3D, Bicycle3D } from './vehicles';
 
 const PI = Math.PI;
 
+// Compound wall along the street edge of a cell (cell-local z = 15.8), so the
+// Terrace and the Courtyard are closed off from the road just like the Front Yard.
+function StreetWall({ color = '#27272a', cap = '#3f3f46', lamp = NEON_AMBER }) {
+  return (
+    <group>
+      <Box p={[9, 0.9, 15.8]} s={[18, 1.8, 0.38]} c={color} r={0.03} />
+      <Box p={[9, 1.85, 15.8]} s={[18.2, 0.12, 0.48]} c={cap} />
+      {[0.3, 17.7].map(x => (
+        <group key={x}>
+          <Box p={[x, 1.2, 15.8]} s={[0.7, 2.4, 0.7]} c={cap} r={0.05} />
+          <Box p={[x, 2.5, 15.8]} s={[0.9, 0.18, 0.9]} c={color} />
+          <mesh position={[x, 2.8, 15.8]}><sphereGeometry args={[0.22, 14, 12]} /><meshBasicMaterial color={lamp} toneMapped={false} /></mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
 // ============================================================================
 // TERRACE (Upstairs Open Roof Lounge)
 // ============================================================================
@@ -53,6 +71,7 @@ export function Terrace() {
       </group>
       <BeanBag p={[14.6, 0, 7.4]} color="#d0592a" glow={NEON_AMBER} />
       <FloorLamp p={[1.2, 0, 1.6]} />
+      <StreetWall />
     </Cell>
   );
 }
@@ -836,6 +855,7 @@ export function Courtyard() {
       <Plant p={[2.4, 0, 7.4]} scale={1.15} color="#22c55e" pot="#b45309" />
       <Plant p={[11.2, 0, 2.6]} scale={1.1} color="#15803d" pot="#c2410c" />
       <Plant p={[8.6, 0, 15.0]} scale={1.05} color="#16a34a" pot="#b45309" />
+      <StreetWall color="#7a4e32" cap="#a8714a" />
     </Cell>
   );
 }

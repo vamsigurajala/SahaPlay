@@ -115,6 +115,17 @@ describe('Game Room games', () => {
     expect(screen.getByRole('button', { name: /Drop \(5\)/ })).toBeInTheDocument();
   });
 
+  it('hand cricket: you bat, a ball is played, and the score or an out shows', async () => {
+    vi.useRealTimers();
+    const Game = (await FILES.cricket()).default;
+    vi.useFakeTimers();
+    render(<Game />);
+    expect(screen.getAllByText(/You bat first/i).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: '6' }));
+    run(900);
+    expect(screen.getAllByText(/\+6|OUT/i, { selector: 'div' }).length).toBeGreaterThan(0);
+  });
+
   it('racing: the countdown ends and the race clock runs', async () => {
     vi.useRealTimers();
     const Game = (await FILES.racing()).default;

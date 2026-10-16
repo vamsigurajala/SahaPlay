@@ -25,6 +25,8 @@ class SupercarSoundEngine {
     this.filterNode = null;
     this.distortionNode = null;
     this.isPlaying = false;
+    this.muted = false;
+    this.level = 0.08;
   }
 
   init() {
@@ -95,13 +97,19 @@ class SupercarSoundEngine {
     const targetMid = baseFreq * 2 + norm * 520;
     const targetHigh = baseFreq * 4 + norm * 1100;
     const filterFreq = 340 + norm * 2600 + (driveMode === 'CORSA' ? 300 : 0);
-    const targetGain = 0.08 + norm * 0.22;
+    const targetGain = (0.08 + norm * 0.22) * (this.muted ? 0 : 1);
+    this.level = targetGain;
 
     this.oscLow.frequency.setTargetAtTime(targetLow, now, 0.03);
     this.oscMid.frequency.setTargetAtTime(targetMid, now, 0.03);
     this.oscHigh.frequency.setTargetAtTime(targetHigh, now, 0.03);
     this.filterNode.frequency.setTargetAtTime(filterFreq, now, 0.03);
     this.gainNode.gain.setTargetAtTime(targetGain, now, 0.03);
+  }
+
+  setMuted(m) {
+    this.muted = m;
+    if (this.gainNode && this.ctx) this.gainNode.gain.setTargetAtTime(m ? 0 : Math.max(0.08, this.level || 0.08), this.ctx.currentTime, 0.04);
   }
 
   stop() {
@@ -169,100 +177,91 @@ export default function SupercarViewer({ onClose }) {
     { name: 'Bianco Avus', hex: '#f8fafc' },
   ];
 
-  const revIntervalRef = useRef(null);
-  const isRevvingRef = useRef(false);
+  // Engine state lives in a ref and a single animation loop advances it, so the
+  // sound, the gauges and the tyre smoke all follow the same throttle (no stale
+  // closures, and it behaves the same with a mouse, a finger or the space bar).
+  const eng = useRef({ started: false, gas: false, rpm: 0, speed: 0, mode: 'SPORT', sound: true });
+  eng.current.mode = driveMode;
+  eng.current.sound = soundEnabled;
 
-  // Engine Start / Stop
-  const toggleStart = () => {
-    if (!isStarted) {
-      setIsStarted(true);
-      setGear('N');
-      setRpm(1200);
-      if (soundEnabled) {
-        supercarAudio.start(driveMode);
-        supercarAudio.setRpm(1200, driveMode);
-      }
-    } else {
-      setIsStarted(false);
-      setGear('P');
-      setRpm(0);
-      setSpeed(0);
-      supercarAudio.stop();
-    }
+  const startEngine = () => {
+    const e = eng.current;
+    if (e.started) return;
+    e.started = true;
+    e.rpm = 1200;
+    setIsStarted(true);
+    setGear('N');
+    setRpm(1200);
+    supercarAudio.start(e.mode);
+    supercarAudio.setMuted(!e.sound);
+    supercarAudio.setRpm(1200, e.mode);
   };
-
-  // Accelerator Rev Action (Press & Hold)
-  const startRevving = () => {
-    if (!isStarted) return;
-    isRevvingRef.current = true;
-    setGear('1');
-    if (revIntervalRef.current) clearInterval(revIntervalRef.current);
-
-    revIntervalRef.current = setInterval(() => {
-      setRpm(prev => {
-        const next = Math.min(8500, prev + 260);
-        if (soundEnabled) supercarAudio.setRpm(next, driveMode);
-        return next;
-      });
-      setSpeed(prev => Math.min(340, prev + 9));
-    }, 40);
+  const stopEngine = () => {
+    const e = eng.current;
+    e.started = false;
+    e.gas = false;
+    e.rpm = 0;
+    e.speed = 0;
+    setIsStarted(false);
+    setGear('P');
+    setRpm(0);
+    setSpeed(0);
+    supercarAudio.stop();
   };
-
-  const stopRevving = () => {
-    isRevvingRef.current = false;
-    if (revIntervalRef.current) clearInterval(revIntervalRef.current);
-
-    revIntervalRef.current = setInterval(() => {
-      setRpm(prev => {
-        if (prev <= 1200) {
-          clearInterval(revIntervalRef.current);
-          if (soundEnabled) supercarAudio.setRpm(1200, driveMode);
-          return 1200;
-        }
-        const next = prev - 340;
-        if (soundEnabled) supercarAudio.setRpm(next, driveMode);
-        return next;
-      });
-      setSpeed(prev => {
-        if (prev <= 0) return 0;
-        return prev - 14;
-      });
-    }, 40);
+  const toggleStart = () => (eng.current.started ? stopEngine() : startEngine());
+  // Pressing the pedal starts the engine first if it is still off.
+  const pressGas = () => {
+    if (!eng.current.started) startEngine();
+    eng.current.gas = true;
   };
+  const releaseGas = () => { eng.current.gas = false; };
 
-  // Drive Mode Toggle (STRADA -> SPORT -> CORSA)
   const cycleDriveMode = () => {
     const modes = ['STRADA', 'SPORT', 'CORSA'];
-    const nextIdx = (modes.indexOf(driveMode) + 1) % modes.length;
-    const nextMode = modes[nextIdx];
-    setDriveMode(nextMode);
-    if (isStarted && soundEnabled) {
-      supercarAudio.setRpm(rpm, nextMode);
-    }
+    setDriveMode(modes[(modes.indexOf(driveMode) + 1) % modes.length]);
   };
 
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.code === 'Space' && !e.repeat) {
-        e.preventDefault();
-        startRevving();
+    let raf = 0;
+    let last = performance.now();
+    let hud = 0;
+    const tick = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const e = eng.current;
+      if (e.started) {
+        const target = e.gas ? 8500 : 1200;
+        const rate = e.gas ? 5200 : 3800; // rpm per second
+        e.rpm += Math.sign(target - e.rpm) * Math.min(Math.abs(target - e.rpm), rate * dt);
+        e.speed = Math.max(0, Math.min(340, e.speed + (e.gas ? 190 : -260) * dt));
+        supercarAudio.setRpm(e.rpm, e.mode);
       }
-    };
-    const handleKeyUp = (e) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        stopRevving();
+      hud += dt;
+      if (hud > 0.05) { // about 20 React updates a second keeps phones smooth
+        hud = 0;
+        setRpm(Math.round(e.rpm));
+        setSpeed(Math.round(e.speed));
+        setGear(!e.started ? 'P' : e.speed < 2 ? (e.gas ? '1' : 'N') : String(Math.min(6, 1 + Math.floor(e.speed / 55))));
       }
+      raf = requestAnimationFrame(tick);
     };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      if (revIntervalRef.current) clearInterval(revIntervalRef.current);
-      supercarAudio.stop();
-    };
-  }, [isStarted, driveMode, rpm, soundEnabled]);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  useEffect(() => { supercarAudio.setMuted(!soundEnabled); }, [soundEnabled]);
+
+  useEffect(() => {
+    const down = (e) => { if (e.code === 'Space' && !e.repeat) { e.preventDefault(); pressGas(); } };
+    const up = (e) => { if (e.code === 'Space') { e.preventDefault(); releaseGas(); } };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Silence the engine only when the viewer closes.
+  useEffect(() => () => { eng.current.started = false; supercarAudio.stop(); }, []);
 
   // Camera for the chosen view (the in-car views look around from the seat)
   const inside = cameraView !== 'showroom';
@@ -293,9 +292,11 @@ export default function SupercarViewer({ onClose }) {
       <div
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '16px 24px',
+          gap: 10,
+          padding: '12px 16px',
           borderBottom: '1px solid rgba(255,255,255,0.12)',
           background: 'rgba(0,0,0,0.45)',
           zIndex: 20,
@@ -317,7 +318,7 @@ export default function SupercarViewer({ onClose }) {
             <Gauge size={22} color="#fff" />
           </div>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 'clamp(13px, 3.6vw, 18px)', fontWeight: 900, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
               Ferrari SF90 Stradale &bull; 3D Cockpit Experience
             </div>
             <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600 }}>
@@ -327,7 +328,7 @@ export default function SupercarViewer({ onClose }) {
         </div>
 
         {/* Camera Preset View Switcher Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.06)', padding: 4, borderRadius: 16 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.06)', padding: 4, borderRadius: 16, order: 3, flex: '1 1 100%', justifyContent: 'center' }}>
           {[
             { id: 'cockpit', label: "Driver's Seat" },
             { id: 'cabin', label: 'Wide Cabin' },
@@ -404,7 +405,7 @@ export default function SupercarViewer({ onClose }) {
             <meshBasicMaterial color={driveMode === 'CORSA' ? '#ef4444' : driveMode === 'SPORT' ? '#f59e0b' : '#38bdf8'} toneMapped={false} />
           </mesh>
 
-          <Supercar3D cutaway={inside} color={exteriorColor} lightsOn={lightsOn} doorsOpen={doorsOpen} started={isStarted} spin={isStarted ? speed / 14 : 0} wingUp={isStarted && speed > 60} />
+          <Supercar3D smoke={isStarted && rpm > 7400} cutaway={inside} color={exteriorColor} lightsOn={lightsOn} doorsOpen={doorsOpen} started={isStarted} spin={isStarted ? speed / 14 : 0} wingUp={isStarted && speed > 60} />
         </Canvas>
 
         {/* ── HUD DASHBOARD TELEMETRY READOUT ── */}
@@ -492,17 +493,20 @@ export default function SupercarViewer({ onClose }) {
       {/* ── BOTTOM INTERACTIVE CONTROLS ── */}
       <div
         style={{
-          padding: '16px 24px',
+          padding: '12px 16px',
           borderTop: '1px solid rgba(255,255,255,0.12)',
           background: 'rgba(12,10,20,0.94)',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 16,
+          gap: 12,
+          overflowY: 'auto',
+          maxHeight: '42%',
           zIndex: 20,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
           {/* Engine Start / Stop Button */}
           <button
             onClick={toggleStart}
@@ -563,39 +567,45 @@ export default function SupercarViewer({ onClose }) {
               alignItems: 'center',
               justifyContent: 'center',
             }}
-            title={soundEnabled ? 'Engine Sound Muted' : 'Engine Sound Active'}
+            title={soundEnabled ? 'Mute engine sound' : 'Turn engine sound on'}
           >
             {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
           </button>
         </div>
 
         {/* Dynamic Throttle Revving Button */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, flex: '1 1 320px' }}>
           <button
-            onMouseDown={startRevving}
-            onMouseUp={stopRevving}
-            onTouchStart={startRevving}
-            onTouchEnd={stopRevving}
-            disabled={!isStarted}
+            onPointerDown={(e) => { e.preventDefault(); try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not supported */ } pressGas(); }}
+            onPointerUp={releaseGas}
+            onPointerCancel={releaseGas}
+            onLostPointerCapture={releaseGas}
+            onContextMenu={(e) => e.preventDefault()}
             style={{
+              flex: '1 1 230px',
+              minHeight: 52,
               padding: '12px 28px',
               borderRadius: 14,
               border: '1px solid rgba(255,255,255,0.25)',
-              background: isStarted ? 'linear-gradient(135deg, #0284c7, #0369a1)' : 'rgba(255,255,255,0.05)',
-              color: isStarted ? '#fff' : '#64748b',
+              background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+              color: '#fff',
               fontSize: 13,
               fontWeight: 900,
-              cursor: isStarted ? 'pointer' : 'not-allowed',
+              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: 8,
-              boxShadow: isStarted ? '0 4px 18px rgba(2,132,199,0.45)' : 'none',
+              boxShadow: '0 4px 18px rgba(2,132,199,0.45)',
               userSelect: 'none',
+              WebkitUserSelect: 'none',
+              WebkitTouchCallout: 'none',
+              touchAction: 'none',
               transition: 'all 0.15s',
             }}
           >
             <Play size={16} />
-            <span>HOLD TO REV THROTTLE</span>
+            <span>{isStarted ? 'HOLD TO ACCELERATE' : 'HOLD TO START & ACCELERATE'}</span>
           </button>
 
           {/* Doors & Headlights Toggle */}
