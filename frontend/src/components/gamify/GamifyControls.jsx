@@ -400,12 +400,6 @@ export default function GamifyControls({
           <button className="stay-white" onClick={onResetView} title="Back to my room" style={{ ...btn, flex: 'none' }}>
             <Maximize2 size={16} />
           </button>
-          <button className="stay-white" onClick={onZoomIn} title="Zoom in" style={btn}>
-            <ZoomIn size={16} />
-          </button>
-          <button className="stay-white" onClick={onZoomOut} title="Zoom out" style={btn}>
-            <ZoomOut size={16} />
-          </button>
         </div>
 
         {/* Smooth Arrow dropdown toggle button */}
@@ -428,6 +422,36 @@ export default function GamifyControls({
             }}
           />
         </button>
+
+        {/* Zoom In & Zoom Out buttons simply at the end of the right panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 2 }}>
+          <button
+            className="stay-white"
+            onClick={onZoomIn}
+            title="Zoom in (+)"
+            aria-label="Zoom in"
+            style={{
+              ...btn,
+              background: 'rgba(18,14,34,0.85)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+            }}
+          >
+            <ZoomIn size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={onZoomOut}
+            title="Zoom out (-)"
+            aria-label="Zoom out"
+            style={{
+              ...btn,
+              background: 'rgba(18,14,34,0.85)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+            }}
+          >
+            <ZoomOut size={16} />
+          </button>
+        </div>
       </div>
     </>
   );
