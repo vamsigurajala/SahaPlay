@@ -332,12 +332,12 @@ export default function Floor2() {
       for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * t, 0); g.lineTo(i * t, n); g.stroke(); g.beginPath(); g.moveTo(0, i * t); g.lineTo(n, i * t); g.stroke(); }
     }, [4.4, 4]),
   }), []);
-  // Only drawn while you are upstairs, or when zoomed out to see the whole house.
+  // Only drawn while you are upstairs so it does not block the ground floor map view.
   useFrame(() => {
     const g = root.current;
     if (!g) return;
     const v = view.current;
-    const show = v.floor === 1 || v.cur < 0.8;
+    const show = v.floor === 1;
     if (g.visible !== show) g.visible = show;
   });
   const x0 = -27;

@@ -28,8 +28,7 @@ export function Cell({ id, base, children }) {
     if (!g) return;
     const v = view.current;
     const lx = v.flip ? v.pz : v.px;
-    const lz = v.flip ? v.px : v.pz;
-    const show = (z.floor === (v.floor || 0) || v.cur < 0.8) && (v.focus === id || v.cur < 0.8 || Math.hypot(lx - z.center.x, lz - z.center.z) < 32.0);
+    const show = (z.floor === (v.floor || 0)) && (v.focus === id || v.cur < 0.8 || Math.hypot(lx - z.center.x, lz - z.center.z) < 32.0);
     if (g.visible !== show) g.visible = show;
   });
   return (

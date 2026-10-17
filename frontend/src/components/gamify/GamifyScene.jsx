@@ -156,19 +156,60 @@ function FollowLight({ shadows, size, sun }) {
   );
 }
 
-// Floating room name — only shown when zoomed out (up close, the top-of-screen
-// pill already says which room you are in).
-function RoomSign({ z }) {
+// Floating room name — shown when zoomed out as an interactive architectural map
+function RoomSign({ z, onGoToRoom }) {
   const view = useContext(ViewContext);
   const ref = useRef();
-  useFrame(() => { if (ref.current) ref.current.style.opacity = !getHideLabels() && view.current.cur < 0.8 ? '1' : '0'; });
+  useFrame(() => {
+    if (ref.current) {
+      const active = !getHideLabels() && view.current.cur < 0.72;
+      ref.current.style.opacity = active ? '1' : '0';
+      ref.current.style.pointerEvents = active ? 'auto' : 'none';
+    }
+  });
   return (
-    <ScaledHtml position={[z.center.x, 0.3 + (z.floor || 0) * FLOOR_Y, z.center.z]} pointerEvents="none">
-      <div ref={ref} className="stay-white" style={{
-        padding: '3px 14px', borderRadius: 99, background: 'rgba(12,10,24,0.72)', color: 'rgba(255,255,255,0.9)',
-        fontSize: 12, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-        border: '1px solid rgba(255,255,255,0.14)', backdropFilter: 'blur(3px)', userSelect: 'none', transition: 'opacity .25s',
-      }}>{zoneName(z)}</div>
+    <ScaledHtml position={[z.center.x, 0.4 + (z.floor || 0) * FLOOR_Y, z.center.z]} zIndexRange={[45, 0]}>
+      <div
+        ref={ref}
+        className="stay-white"
+        onClick={(e) => {
+          e.stopPropagation();
+          onGoToRoom?.(z.id);
+        }}
+        title={`Go to ${zoneName(z)}`}
+        style={{
+          padding: '4px 13px',
+          borderRadius: 99,
+          background: 'rgba(10, 8, 24, 0.92)',
+          color: '#ffffff',
+          fontSize: 11.5,
+          fontWeight: 800,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap',
+          border: '1.5px solid rgba(255, 255, 255, 0.28)',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.55)',
+          backdropFilter: 'blur(8px)',
+          userSelect: 'none',
+          cursor: 'pointer',
+          pointerEvents: 'none',
+          transition: 'transform 0.15s ease, opacity 0.2s ease, background 0.15s ease',
+        }}
+        onPointerOver={(e) => {
+          try {
+            e.currentTarget.style.transform = 'scale(1.1)';
+            e.currentTarget.style.background = 'rgba(139, 92, 255, 0.95)';
+          } catch {}
+        }}
+        onPointerOut={(e) => {
+          try {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.background = 'rgba(10, 8, 24, 0.92)';
+          } catch {}
+        }}
+      >
+        {zoneName(z)}
+      </div>
     </ScaledHtml>
   );
 }
@@ -548,9 +589,13 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
 
       <Floor2 />
 
-      {/* ── Room signs + door hotspots ── */}
-      {zoomedOut && Object.values(FLOORPLAN_ZONES).filter(z => z.row >= 2).map(z => <RoomSign key={z.id} z={z} />)}
-      {zoomedOut && Object.values(ALL_ZONES).filter(z => z.floor === 1).map(z => <RoomSign key={z.id} z={z} />)}
+      {/* ── Room signs on the interactive architectural map ── */}
+      {zoomedOut && (sceneView.current?.floor === 1
+        ? Object.values(ALL_ZONES).filter(z => z.floor === 1)
+        : Object.values(FLOORPLAN_ZONES)
+      ).map(z => (
+        <RoomSign key={z.id} z={z} onGoToRoom={onGoToRoom} />
+      ))}
       {focus === 'frontyard' && <ExitChip onExit={onExitHouse} />}
       {focus && seatsIn(focus).map(st => <SeatDot key={st.id} seat={st} />)}
       {ALL_LINKS.filter(l => l.from === focus).map(l => <DoorChip key={`${l.from}-${l.to}`} link={l} onGo={onGoToRoom} />)}

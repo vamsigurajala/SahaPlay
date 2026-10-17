@@ -14,6 +14,8 @@ export default function GamifyControls({
   floor,
   uiShown,
   zoomedIn,
+  isMapView,
+  onToggleMap,
   counts,
   weather,
   weatherPref,
@@ -75,7 +77,7 @@ export default function GamifyControls({
 
   return (
     <>
-      {/* Current room + hint + stairs button */}
+      {/* Current room + hint + stairs & map toggle buttons */}
       <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
         {!hideLabels && (
           <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>
@@ -84,22 +86,76 @@ export default function GamifyControls({
         )}
         {!hideLabels && (
           <div className="stay-white" style={{ transition: 'opacity .2s', fontSize: 11, opacity: uiShown ? 0.7 : 0, textShadow: '0 1px 3px #000' }}>
-            Drag to look around, tap a door to go through
+            {isMapView ? 'Tap any room to fly in, or pinch to zoom' : 'Drag to look around, pinch to view map'}
           </div>
         )}
-        <button
-          className="stay-white"
-          onClick={onChangeFloor}
-          title={floor === 0 ? 'Take the stairs up' : 'Take the stairs down'}
-          style={{ ...glass, pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: 'pointer', marginTop: 2 }}
-        >
-          {floor === 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-          {floor === 0 ? 'Go upstairs' : 'Go downstairs'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, pointerEvents: 'auto' }}>
+          <button
+            className="stay-white"
+            onClick={onChangeFloor}
+            title={floor === 0 ? 'Take the stairs up' : 'Take the stairs down'}
+            style={{ ...glass, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+          >
+            {floor === 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+            {floor === 0 ? 'Go upstairs' : 'Go downstairs'}
+          </button>
+          <button
+            className="stay-white"
+            onClick={onToggleMap}
+            title={isMapView ? 'Zoom in to room' : 'View complete map'}
+            style={{
+              ...glass,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '5px 14px',
+              borderRadius: 99,
+              fontSize: 12,
+              fontWeight: 800,
+              cursor: 'pointer',
+              background: isMapView ? 'rgba(139,92,255,0.85)' : 'rgba(12,10,24,0.72)',
+              border: isMapView ? '1px solid rgba(255,255,255,0.55)' : '1px solid rgba(255,255,255,0.18)',
+              boxShadow: isMapView ? '0 0 14px rgba(139,92,255,0.5)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {isMapView ? <ZoomIn size={13} /> : <Layers size={13} />}
+            <span>{isMapView ? '🔍 Room View' : '🗺️ Map View'}</span>
+          </button>
+        </div>
       </div>
 
+      {/* Floating Return to Room pill when in Map View */}
+      {isMapView && (
+        <button
+          className="stay-white"
+          onClick={onToggleMap}
+          style={{
+            ...glass,
+            position: 'absolute',
+            bottom: 14,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 62,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 18px',
+            borderRadius: 99,
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            background: 'linear-gradient(135deg, rgba(139,92,255,0.95), rgba(99,102,241,0.95))',
+            boxShadow: '0 6px 20px rgba(139,92,255,0.45)',
+          }}
+        >
+          <ZoomIn size={15} />
+          <span>🔍 Return to Room</span>
+        </button>
+      )}
+
       {/* Zoom out pill when zoomed in */}
-      {zoomedIn && (
+      {!isMapView && zoomedIn && (
         <button
           className="stay-white"
           onClick={onResetZoom}
@@ -396,6 +452,14 @@ export default function GamifyControls({
           </button>
           <button className="stay-white" onClick={onTour} title="How this works" style={{ ...btn, flex: 'none' }}>
             <HelpCircle size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={onToggleMap}
+            title={isMapView ? 'Zoom into room' : 'View entire map'}
+            style={{ ...btn, flex: 'none', background: isMapView ? 'rgba(139,92,255,0.85)' : btn.background }}
+          >
+            <Layers size={16} />
           </button>
           <button className="stay-white" onClick={onResetView} title="Back to my room" style={{ ...btn, flex: 'none' }}>
             <Maximize2 size={16} />

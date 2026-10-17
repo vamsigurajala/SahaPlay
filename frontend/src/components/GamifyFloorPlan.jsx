@@ -255,23 +255,51 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     const onWheel = (e) => {
       e.preventDefault();
       const v = viewRef.current;
-      const rate = e.ctrlKey ? 0.012 : 0.0022; // trackpad pinch reports ctrlKey with small deltas
+      if (!v) return;
+      const rate = e.ctrlKey ? 0.015 : 0.0032; // trackpad pinch reports ctrlKey with small deltas
       v.zoom = clamp(v.zoom * Math.exp(-e.deltaY * rate), MIN_ZOOM, MAX_ZOOM);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // However far in you are, one tap gets you back: double-click / double-tap, Escape,
-  // or the Zoom out pill all return to a one-room view.
+  // Double-tap or double-click toggles between room view and full map view
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return undefined;
-    const reset = () => { const v = viewRef.current; if (v.zoom > 1.05) v.zoom = 1; };
-    const onKey = (e) => { if (e.key === 'Escape') reset(); };
-    el.addEventListener('dblclick', reset);
+    let lastTap = 0;
+    const toggleMap = () => {
+      const v = viewRef.current;
+      if (!v) return;
+      if (v.cur < 0.45) {
+        focusRoom(myZoneRef.current, 1);
+      } else {
+        v.tx = 0;
+        v.tz = v.floor === 1 ? -16 : 8;
+        v.zoom = 0.12;
+        v.glide = true;
+      }
+    };
+    const onDblClick = () => toggleMap();
+    const onTouchEnd = (e) => {
+      if (e.touches && e.touches.length > 0) return;
+      const now = performance.now();
+      if (now - lastTap < 320) {
+        toggleMap();
+        lastTap = 0;
+      } else {
+        lastTap = now;
+      }
+    };
+    const onKey = (e) => { if (e.key === 'Escape' || e.key === 'm' || e.key === 'M') toggleMap(); };
+    el.addEventListener('dblclick', onDblClick);
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
     window.addEventListener('keydown', onKey);
-    return () => { el.removeEventListener('dblclick', reset); window.removeEventListener('keydown', onKey); };
+    return () => {
+      el.removeEventListener('dblclick', onDblClick);
+      el.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('keydown', onKey);
+    };
   }, []);
 
   // Glide the camera so room `id` fills the view.
@@ -313,9 +341,28 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     v.walk = { x: link.entry.x, z: link.entry.z, floor: f, snap: true };
   };
   const changeFloor = () => goToFloor(viewRef.current.floor === 0 ? 1 : 0);
-  viewRef.current.changeFloor = changeFloor;
-  const zoomBy = (ratio) => { const v = viewRef.current; v.zoom = clamp(v.zoom * ratio, MIN_ZOOM, MAX_ZOOM); };
-  const resetView = () => focusRoom(myZoneRef.current);
+  const zoomBy = (ratio) => { const v = viewRef.current; if (v) v.zoom = clamp(v.zoom * ratio, MIN_ZOOM, MAX_ZOOM); };
+  const toggleMapView = useCallback(() => {
+    const v = viewRef.current;
+    if (!v) return;
+    if (v.cur < 0.45) {
+      focusRoom(myZoneRef.current, 1);
+    } else {
+      v.tx = 0;
+      v.tz = v.floor === 1 ? -16 : 8;
+      v.zoom = 0.12;
+      v.glide = true;
+    }
+  }, [focusRoom]);
+  const resetView = () => {
+    const v = viewRef.current;
+    if (!v) return;
+    if (v.cur < 0.45) {
+      focusRoom(myZoneRef.current, 1);
+    } else {
+      toggleMapView();
+    }
+  };
   const toggleFlip = () => {
     const v = viewRef.current;
     const next = !v.flip;
@@ -483,7 +530,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
           frameloop={viewer ? 'never' : 'always'}
           camera={{ position: [18, 15.5, 18], zoom: 30, near: -250, far: 600 }}
           gl={{ antialias: !coarse, alpha: true, powerPreference: 'high-performance' }}
-          style={{ position: 'absolute', inset: 0 }}
+          style={{ position: 'absolute', inset: 0, touchAction: 'none' }}
         >
           <ViewContext.Provider value={viewRef}>
             <PhotoRig />
@@ -527,6 +574,8 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         floor={floor}
         uiShown={uiShown}
         zoomedIn={zoomedIn}
+        isMapView={zoomedOut}
+        onToggleMap={toggleMapView}
         counts={counts}
         weather={weather}
         weatherPref={weatherPref}
