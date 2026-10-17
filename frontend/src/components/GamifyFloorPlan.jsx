@@ -382,7 +382,11 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     const fresh = userList.find(u => !prev.has(u.socketId) && u.socketId !== mySocketId);
     if (fresh) {
       playSfx('join');
-      setNotice({ text: t('gamify.join.joined', { defaultValue: '{{name}} joined the house', name: fresh.username }), person: { socketId: fresh.socketId } });
+      setNotice({
+        text: t('gamify.join.joined', { defaultValue: '{{name}} joined the house', name: fresh.username }),
+        person: { socketId: fresh.socketId },
+        canWave: fresh.socketId,
+      });
     }
   }, [userList]); // eslint-disable-line react-hooks/exhaustive-deps
   const takePhoto = async () => {
@@ -563,11 +567,145 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         />
       )}
       {notice && (
-        <div className="stay-white" role="status" style={{ position: 'absolute', left: '50%', bottom: 'max(14px, env(safe-area-inset-bottom))', transform: 'translateX(-50%)', zIndex: 70, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderRadius: 14, background: 'rgba(14,12,30,0.94)', border: '1px solid rgba(139,92,255,0.6)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', color: '#fff', fontSize: 13, fontWeight: 700, maxWidth: 'calc(100% - 24px)' }}>
-          <span style={{ minWidth: 0 }}>{notice.text}</span>
-          {notice.back && <button onClick={() => { waveAt(notice.back); }} style={{ padding: '6px 12px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#fff', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('gamify.wave.back', 'Wave back')}</button>}
-          {notice.person && <button onClick={() => { goToPerson(notice.person); setNotice(null); }} style={{ padding: '6px 12px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#8b5cff,#4f46e5)', color: '#fff', fontWeight: 800, fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap' }}>{t('gamify.join.go', 'Go to them')}</button>}
-          <button onClick={() => setNotice(null)} aria-label={t('gamify.close', 'Close')} style={{ width: 26, height: 26, borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.1)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
+        <div
+          className="stay-white"
+          role="status"
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: 'max(72px, calc(env(safe-area-inset-top) + 64px))',
+            transform: 'translateX(-50%)',
+            zIndex: 90,
+            width: 'min(360px, calc(100vw - 28px))',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+            padding: '12px 14px',
+            borderRadius: 18,
+            background: 'rgba(14, 11, 28, 0.94)',
+            border: '1.5px solid rgba(139, 92, 246, 0.55)',
+            boxShadow: '0 12px 36px rgba(0,0,0,0.6), 0 0 24px rgba(139,92,246,0.25)',
+            backdropFilter: 'blur(16px)',
+            color: '#fff',
+            animation: 'gp-fade 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
+          {/* Top row: Avatar icon, aligned text, and close button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, rgba(139,92,246,0.3), rgba(236,72,153,0.3))',
+                border: '1.5px solid rgba(255,255,255,0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 18,
+                flexShrink: 0,
+              }}
+            >
+              👋
+            </div>
+
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#f8fafc', lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {notice.text}
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', fontWeight: 600 }}>
+                {notice.back
+                  ? t('gamify.wave.hint', 'Waved at you just now')
+                  : notice.canWave || notice.person
+                  ? t('gamify.join.hint', 'Just joined the house')
+                  : t('gamify.house.notice', 'Social Space')}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setNotice(null)}
+              aria-label={t('gamify.close', 'Close')}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                border: 'none',
+                background: 'rgba(255,255,255,0.08)',
+                color: 'rgba(255,255,255,0.7)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                transition: 'background 0.15s ease',
+              }}
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* Action buttons row if waving or navigation is possible */}
+          {(notice.back || notice.canWave || notice.person) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
+              {(notice.back || notice.canWave) && (
+                <button
+                  onClick={() => {
+                    const targetId = notice.back || notice.canWave;
+                    waveAt(targetId);
+                  }}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(245,158,11,0.35)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span>👋</span>
+                  <span>{notice.back ? t('gamify.wave.back', 'Wave back') : t('gamify.wave.wave_at', 'Wave at them')}</span>
+                </button>
+              )}
+
+              {notice.person && (
+                <button
+                  onClick={() => {
+                    goToPerson(notice.person);
+                    setNotice(null);
+                  }}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    padding: '8px 12px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(139,92,246,0.35)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span>📍</span>
+                  <span>{t('gamify.join.go', 'Go to them')}</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
       {panel === 'people' && <GamifyPeople people={people} onGo={goToPerson} onClose={() => setPanel(null)} />}

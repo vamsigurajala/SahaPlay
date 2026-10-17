@@ -14,6 +14,7 @@ import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { WORLD_W, WORLD_D, HOUSE_D, CELL_W, CELL_D, COLS, HOUSE_ROWS, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, DOORWAYS, ALL_LINKS } from '../../data/gamifyZones';
 import Floor2 from './floor2';
 import { WEATHER, Ground, Clouds, Rain, ShootingStars3D, FlockOfBirds } from './environment';
+import { getHideLabels } from './labelPrefs';
 
 export const WALL_H = 4.8;
 const LOW_H = 0.9;
@@ -329,7 +330,7 @@ function LightPool({ lights, neon }) {
 }
 
 function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, weather = 'night' }) {
-  const wx = WEATHER[weather];
+  const wx = WEATHER[weather] || WEATHER.night;
   const sceneView = useContext(ViewContext);
   // Tapping a doorway: go through it from the room you are looking at (or from its first room).
   const tapDoor = useCallback((a, b) => {

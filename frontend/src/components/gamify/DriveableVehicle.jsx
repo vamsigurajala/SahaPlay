@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Supercar3D, Superbike3D } from './vehicles';
@@ -146,10 +147,12 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
     if (view?.current) {
       view.current.driving = false;
       // Drop avatar right beside the driver's side of the car
-      const st = stateRef.current;
+      const wp = new THREE.Vector3();
+      if (carRef.current) carRef.current.getWorldPosition(wp);
+      else wp.set(4, 0, 0.6);
       view.current.walk = {
-        x: Math.max(-26, Math.min(26, st.x - 2.2)),
-        z: Math.max(6, Math.min(36, st.z)),
+        x: Math.max(-26, Math.min(26, wp.x - 2.2)),
+        z: Math.max(6, Math.min(36, wp.z)),
         floor: 0,
       };
       view.current.glide = true;
@@ -210,9 +213,9 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
       st.x += forwardX * st.speed * dt;
       st.z += forwardZ * st.speed * dt;
 
-      // Road, frontyard, and street boundary clamping
-      st.x = Math.max(-25.5, Math.min(25.5, st.x));
-      st.z = Math.max(7.2, Math.min(36.0, st.z));
+      // Road, frontyard, and street boundary clamping relative to turntable
+      st.x = Math.max(-28.0, Math.min(20.0, st.x));
+      st.z = Math.max(-2.0, Math.min(32.0, st.z));
 
       // Update sound
       if (audioRef.current) {
@@ -224,17 +227,10 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
       // Camera dynamically tracks the supercar in world space
       if (view?.current && !view.current.dragging) {
         view.current.glide = false;
-        view.current.tx = st.x;
-        view.current.tz = st.z;
-      }
-
-      // Sync avatar spot with car position
-      if (view?.current?.spots) {
-        const mySpot = Object.values(view.current.spots).find(s => s.floor === 0);
-        if (mySpot) {
-          mySpot.x = st.x;
-          mySpot.z = st.z;
-        }
+        const wp = new THREE.Vector3();
+        car.getWorldPosition(wp);
+        view.current.tx = wp.x;
+        view.current.tz = wp.z;
       }
     }
 
@@ -300,8 +296,8 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
         )}
       </group>
 
-      {/* In-Game Drive Mode HUD Overlay */}
-      {isDriving && (
+      {/* In-Game Drive Mode HUD Overlay - Portaled into document.body to prevent R3F DOM reconciler crash */}
+      {isDriving && typeof document !== 'undefined' && createPortal(
         <>
           <div
             className="stay-white"
@@ -479,7 +475,8 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
               GAS ▲
             </button>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </>
   );
