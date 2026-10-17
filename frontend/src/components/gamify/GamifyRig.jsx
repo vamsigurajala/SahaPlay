@@ -107,16 +107,11 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
         const curD = dist(a, b);
         if (pinch && pinch.lastD > 10 && curD > 10) {
           const delta = curD / pinch.lastD;
-          // Exponential sensitivity curve:
-          // A natural pinch inwards (curD < pinch.lastD) accelerates smoothly so a single
-          // natural pinch stroke easily glides from 1.0 (room) down to 0.12 (complete map)!
-          const sens = delta < 1 ? 2.2 : 1.6;
-          const factor = Math.pow(delta, sens);
-          v.zoom = clamp(v.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+          v.zoom = clamp(v.zoom * delta, MIN_ZOOM, MAX_ZOOM);
           pinch.lastD = curD;
           lastPinchT = performance.now();
         } else if (!pinch && curD > 10) {
-          pinch = { lastD: curD, startD: curD };
+          pinch = { lastD: curD };
         }
         return;
       }
@@ -230,15 +225,7 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
     camera.zoom = Math.min(size.width / (FIT_W * 0.95), size.height / (FIT_H * 0.9)) * v.cur;
     v.py += (v.floor * FLOOR_Y - v.py) * (1 - Math.exp(-dt * 6));
 
-    // When zooming out toward complete map view (v.cur < 0.72), gracefully bias camera target
-    // toward the estate center (0, 8 for ground + street/cricket, 0, -16 for upstairs) so the entire map is beautifully framed
-    const mapBlend = v.dragging ? 0 : clamp((0.72 - v.cur) / 0.52, 0, 0.88);
-    const estateCenterX = 0;
-    const estateCenterZ = v.floor === 1 ? -16 : 8;
-    const effX = v.flip ? v.px : THREE.MathUtils.lerp(v.px, estateCenterX, mapBlend);
-    const effZ = v.flip ? v.pz : THREE.MathUtils.lerp(v.pz, estateCenterZ, mapBlend);
-
-    target.set(effX, TARGET_Y + v.py, effZ);
+    target.set(v.px, TARGET_Y + v.py, v.pz);
     camera.position.copy(target).add(CAM_OFFSET);
     camera.lookAt(target);
     camera.updateProjectionMatrix();

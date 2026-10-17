@@ -263,43 +263,16 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // Double-tap or double-click toggles between room view and full map view
+  // Escape resets zoom if zoomed deep in
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return undefined;
-    let lastTap = 0;
-    const toggleMap = () => {
-      const v = viewRef.current;
-      if (!v) return;
-      if (v.cur < 0.45) {
-        focusRoom(myZoneRef.current, 1);
-      } else {
-        v.tx = 0;
-        v.tz = v.floor === 1 ? -16 : 8;
-        v.zoom = 0.12;
-        v.glide = true;
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        const v = viewRef.current;
+        if (v && v.zoom > 1.05) v.zoom = 1;
       }
     };
-    const onDblClick = () => toggleMap();
-    const onTouchEnd = (e) => {
-      if (e.touches && e.touches.length > 0) return;
-      const now = performance.now();
-      if (now - lastTap < 320) {
-        toggleMap();
-        lastTap = 0;
-      } else {
-        lastTap = now;
-      }
-    };
-    const onKey = (e) => { if (e.key === 'Escape' || e.key === 'm' || e.key === 'M') toggleMap(); };
-    el.addEventListener('dblclick', onDblClick);
-    el.addEventListener('touchend', onTouchEnd, { passive: true });
     window.addEventListener('keydown', onKey);
-    return () => {
-      el.removeEventListener('dblclick', onDblClick);
-      el.removeEventListener('touchend', onTouchEnd);
-      window.removeEventListener('keydown', onKey);
-    };
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // Glide the camera so room `id` fills the view.
@@ -342,27 +315,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   };
   const changeFloor = () => goToFloor(viewRef.current.floor === 0 ? 1 : 0);
   const zoomBy = (ratio) => { const v = viewRef.current; if (v) v.zoom = clamp(v.zoom * ratio, MIN_ZOOM, MAX_ZOOM); };
-  const toggleMapView = useCallback(() => {
-    const v = viewRef.current;
-    if (!v) return;
-    if (v.cur < 0.45) {
-      focusRoom(myZoneRef.current, 1);
-    } else {
-      v.tx = 0;
-      v.tz = v.floor === 1 ? -16 : 8;
-      v.zoom = 0.12;
-      v.glide = true;
-    }
-  }, [focusRoom]);
-  const resetView = () => {
-    const v = viewRef.current;
-    if (!v) return;
-    if (v.cur < 0.45) {
-      focusRoom(myZoneRef.current, 1);
-    } else {
-      toggleMapView();
-    }
-  };
+  const resetView = () => focusRoom(myZoneRef.current, 1);
   const toggleFlip = () => {
     const v = viewRef.current;
     const next = !v.flip;
@@ -574,8 +527,6 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         floor={floor}
         uiShown={uiShown}
         zoomedIn={zoomedIn}
-        isMapView={zoomedOut}
-        onToggleMap={toggleMapView}
         counts={counts}
         weather={weather}
         weatherPref={weatherPref}
