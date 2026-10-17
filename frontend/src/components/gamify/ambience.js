@@ -192,6 +192,7 @@ export function playSfx(kind) {
   if (kind === 'step') blip('sine', 130 + Math.random() * 30, 70, 0, 0.07, 0.05);
   else if (kind === 'door') { blip('sine', 190, 60, 0, 0.2, 0.14); blip('sawtooth', 320, 210, 0.04, 0.28, 0.018); blip('sine', 170, 60, 0.3, 0.18, 0.1); }
   else if (kind === 'join') { blip('sine', 660, 660, 0, 0.14, 0.05); blip('sine', 880, 880, 0.12, 0.2, 0.05); }
+  else if (kind === 'pop') { blip('sine', 520, 260, 0, 0.11, 0.07); }
 }
 
 // ---------------------------------------------------------------- controls

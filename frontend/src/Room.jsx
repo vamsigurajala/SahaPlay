@@ -1431,7 +1431,13 @@ const Room = () => {
   // corrects) it, same as every other client in the room.
   const [showVisitHouse, setShowVisitHouse] = useState(false); // Gamify front gate: "visit another house" picker
   const [visitCode, setVisitCode] = useState('');
-  const [gamifyMode, setGamifyMode] = useState(false);
+  const [gamifyMode, setGamifyMode] = useState(() => {
+    try {
+      return localStorage.getItem(`gamify_mode_${roomId}`) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
   const [avatarSays, setAvatarSays] = useState({}); // socketId -> {text, n}: the latest chat bubble
   const [incomingWave, setIncomingWave] = useState(null); // {from, name, n}: someone waved at you
@@ -3622,13 +3628,11 @@ const Room = () => {
     });
   };
   // Gamify Mode toggle, shared by the desktop in-player button and the mobile
-  // 3-dot menu. Optimistic local flip + server broadcast (see the gamifyMode
-  // state declaration). On mobile, turning it on also pulls the player area
-  // open so the house is actually on screen instead of hiding behind the chat.
+  // 3-dot menu. Purely individual choice — never exits or interrupts other users in the room.
   const toggleGamify = () => {
     const next = !gamifyMode;
     setGamifyMode(next);
-    socket?.emit('set_gamify_mode', { roomId, enabled: next });
+    try { localStorage.setItem(`gamify_mode_${roomId}`, next ? '1' : '0'); } catch {}
     if (isMobile) { setIsPeekExpanded(next); setPeekProgress(next ? 1 : 0); }
   };
   // Real Fullscreen (the rotate-to-landscape feature) and this gesture are
@@ -4848,9 +4852,9 @@ const Room = () => {
     });
 
     // ── Gamify Mode ──
-    sock.on('gamify_mode_changed', ({ enabled }) => {
-      setGamifyMode(!!enabled);
-      if (!enabled) { setAvatarPositions({}); setAvatarEmotes({}); setAvatarSays({}); } // mirrors the server clearing roomAvatarPositions on turn-off
+    // Every user has their own individual preference — do not forcibly change view on server broadcasts
+    sock.on('gamify_mode_changed', () => {
+      // Individual user setting preserved
     });
     sock.on('calm_shared', ({ from, desc, title, by }) => receiveInvite(from, desc, title, by));
     sock.on('daily_board', (payload) => setDailyBoard(payload));
@@ -12384,7 +12388,11 @@ const Room = () => {
                 knownAvatars={knownAvatars}
                 hostId={hostId}
                 onMove={(x, y, zone) => socket?.emit('avatar_move', { roomId, x, y, zone })}
-                onExitHouse={() => setShowVisitHouse(true)}
+                onExitHouse={() => {
+                  setGamifyMode(false);
+                  try { localStorage.setItem(`gamify_mode_${roomId}`, '0'); } catch {}
+                  if (isMobile) { setIsPeekExpanded(false); setPeekProgress(0); }
+                }}
                 tvElementRef={playerWrapRef}
                 onTvReady={setGamifyTvReady}
               />

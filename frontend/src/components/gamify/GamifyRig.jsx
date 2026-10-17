@@ -4,7 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { WALL_H } from './GamifyScene';
 import { FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, CELL_W, CELL_D, COLS, ROWS } from '../../data/gamifyZones';
 
-export const MIN_ZOOM = 0.28; // zoomed all the way out shows entire house and outdoors
+export const MIN_ZOOM = 0.11; // zoomed all the way out shows entire house, all floors, cricket, market and outer grounds
 export const MAX_ZOOM = 3.2; // deep zoom into rooms, shops & cricket ground
 export const CAM_OFFSET = new THREE.Vector3(18, 15.5, 18);
 export const SIN_ELEV = CAM_OFFSET.y / CAM_OFFSET.length();
@@ -21,9 +21,9 @@ export const ZONES_BY_FLOOR = [Object.values(FLOORPLAN_ZONES), Object.values(ALL
 // Camera targets may roam over every room centre plus a wide margin (reaching shops,
 // market, front street and cricket pitch).
 export const panLimits = (flip, floor = 0) => {
-  const lx = ((COLS - 1) * CELL_W) / 2 + 18;
-  const zmin = -(((ROWS - 1) * CELL_D) / 2 + 18);
-  const zmax = floor ? CELL_D / 2 - 4 : -zmin + 18;
+  const lx = ((COLS - 1) * CELL_W) / 2 + 32;
+  const zmin = -(((ROWS - 1) * CELL_D) / 2 + 32);
+  const zmax = floor ? CELL_D / 2 - 4 : -zmin + 32;
   return flip ? { xmin: zmin, xmax: zmax, zmin: -lx, zmax: lx } : { xmin: -lx, xmax: lx, zmin, zmax };
 };
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));

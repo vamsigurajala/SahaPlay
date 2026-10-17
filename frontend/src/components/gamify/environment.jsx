@@ -2,6 +2,7 @@ import { useContext, useLayoutEffect, useMemo, useRef, useState, useEffect } fro
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { ViewContext, Tree } from './parts';
+import { playSfx } from './ambience';
 
 // The world around the house: grass plot, road, trees, drifting clouds, rain, and
 // the weather presets that tint every light in the scene. The sky itself is a CSS
@@ -283,20 +284,29 @@ function Cloud({ spot, color }) {
   });
   const puffs = [[0, 0, 0, 3.2], [3, -0.4, 0.8, 2.5], [-3, -0.3, -0.6, 2.4]];
   const pop = (e) => {
-    if (e.delta > 6) return;
     e.stopPropagation();
     const L = life.current;
-    if (!L.gone) { L.gone = true; L.t0 = performance.now(); }
+    if (!L.gone) {
+      L.gone = true;
+      L.t0 = performance.now();
+      playSfx('pop');
+    }
   };
   return (
     <group
       ref={ref}
       position={[spot.x, spot.y, spot.z]}
       scale={spot.s}
+      onPointerDown={pop}
       onClick={pop}
-      onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { document.body.style.cursor = ''; }}
+      onPointerOver={(e) => { e.stopPropagation(); try { document.body.style.cursor = 'pointer'; } catch {} }}
+      onPointerOut={() => { try { document.body.style.cursor = ''; } catch {} }}
     >
+      {/* Invisible generous hit target so ANY tap/click directly on or near the cloud bursts it instantly */}
+      <mesh visible={false} position={[0, 0, 0]}>
+        <sphereGeometry args={[5.5, 10, 8]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
       {puffs.map(([x, y, z, r], i) => (
         <mesh key={i} position={[x, y, z]} scale={[1, 0.6, 1]}>
           <sphereGeometry args={[r, 8, 6]} />
