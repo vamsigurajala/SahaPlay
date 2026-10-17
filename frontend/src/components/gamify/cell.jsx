@@ -27,7 +27,9 @@ export function Cell({ id, base, children }) {
     const g = gate.current;
     if (!g) return;
     const v = view.current;
+    if (!v) return;
     const lx = v.flip ? v.pz : v.px;
+    const lz = v.flip ? v.px : v.pz;
     const show = (z.floor === (v.floor || 0)) && (v.focus === id || v.cur < 0.8 || Math.hypot(lx - z.center.x, lz - z.center.z) < 32.0);
     if (g.visible !== show) g.visible = show;
   });
