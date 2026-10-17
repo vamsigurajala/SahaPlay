@@ -557,6 +557,35 @@ export default function SupercarViewer({ onClose }) {
             <span>{isStarted ? 'STOP ENGINE' : 'START ENGINE'}</span>
           </button>
 
+          {/* Hop In & Drive Action Button */}
+          <button
+            onClick={() => {
+              onClose();
+              setTimeout(() => {
+                window.__startSupercarDrive?.();
+              }, 120);
+            }}
+            title="Drive across the frontyard and street"
+            style={{
+              padding: '12px 20px',
+              borderRadius: 14,
+              border: '1px solid rgba(239, 68, 68, 0.75)',
+              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 900,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              boxShadow: '0 4px 18px rgba(239, 68, 68, 0.5)',
+              transition: 'transform 0.15s ease',
+            }}
+          >
+            <span>⚡</span>
+            <span>HOP IN & DRIVE</span>
+          </button>
+
           {/* Drive Mode Selector Pill */}
           <button
             onClick={cycleDriveMode}

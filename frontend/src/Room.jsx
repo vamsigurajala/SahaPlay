@@ -38,6 +38,15 @@ import { registerDailySender, setDailyBoard } from './components/gamify/dailyGam
 const gamifyChunk = () => import('./components/GamifyFloorPlan');
 const GamifyFloorPlan = React.lazy(gamifyChunk);
 const preloadGamify = () => { gamifyChunk(); };
+
+// Warm up the Gamify bundle during idle time so opening Gamify mode is instantaneous
+if (typeof window !== 'undefined') {
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(() => preloadGamify(), { timeout: 3500 });
+  } else {
+    setTimeout(() => preloadGamify(), 2500);
+  }
+}
 import { useVideoUpload } from './hooks/useVideoUpload';
 import { useVoiceActivityDetection } from './hooks/useVoiceActivityDetection';
 import { useBackIntercept } from './hooks/useBackIntercept';

@@ -488,13 +488,12 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
       {/* ── Lighting (tinted by the weather) ── */}
       <ambientLight intensity={wx.ambient[1]} color={wx.ambient[0]} />
       <hemisphereLight args={[wx.hemi[0], wx.hemi[1], wx.hemi[2]]} />
-      <FollowLight shadows={!lowQ} size={coarse ? 1024 : 2048} sun={wx.sun} />
+      <FollowLight shadows={!lowQ} size={coarse ? 512 : 1024} sun={wx.sun} />
       <LightPool lights={allLights} neon={wx.neon} />
 
       {/* ── Grass plot, trees, clouds and rain around the house, then the slab and per-room floors ── */}
       <Ground weather={weather} />
       <Clouds weather={weather} />
-      {weather === 'night' && <ShootingStars3D />}
       {(weather === 'day' || weather === 'sunrise' || weather === 'sunset' || weather === 'cloudy') && <FlockOfBirds />}
       {wx.rain && <Rain />}
       <mesh position={[0, -0.25, houseMid]} receiveShadow>

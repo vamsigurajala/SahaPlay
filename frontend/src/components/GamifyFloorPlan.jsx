@@ -120,6 +120,47 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const myName = userList.find(u => u.socketId === mySocketId)?.username;
 
   const [showJoystick, setShowJoystick] = useState(false);
+  const [carDriving, setCarDriving] = useState(false);
+  const [carSpeed, setCarSpeed] = useState(0);
+
+  useEffect(() => {
+    if (viewRef.current) {
+      viewRef.current.driveKeys = { w: false, s: false, a: false, d: false };
+      viewRef.current.setCarDrivingState = (driving, speed) => {
+        setCarDriving(driving);
+        setCarSpeed(speed);
+      };
+    }
+  }, []);
+
+  // Keyboard controls for in-world driving (WASD / Arrows)
+  useEffect(() => {
+    if (!carDriving) return;
+    const onDown = (e) => {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      const k = e.key.toLowerCase();
+      if (!viewRef.current?.driveKeys) return;
+      if (k === 'w' || e.key === 'ArrowUp') viewRef.current.driveKeys.w = true;
+      if (k === 's' || e.key === 'ArrowDown') viewRef.current.driveKeys.s = true;
+      if (k === 'a' || e.key === 'ArrowLeft') viewRef.current.driveKeys.a = true;
+      if (k === 'd' || e.key === 'ArrowRight') viewRef.current.driveKeys.d = true;
+    };
+    const onUp = (e) => {
+      const k = e.key.toLowerCase();
+      if (!viewRef.current?.driveKeys) return;
+      if (k === 'w' || e.key === 'ArrowUp') viewRef.current.driveKeys.w = false;
+      if (k === 's' || e.key === 'ArrowDown') viewRef.current.driveKeys.s = false;
+      if (k === 'a' || e.key === 'ArrowLeft') viewRef.current.driveKeys.a = false;
+      if (k === 'd' || e.key === 'ArrowRight') viewRef.current.driveKeys.d = false;
+    };
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+    };
+  }, [carDriving]);
 
   const [pip, setPip] = useState(false);
   const togglePip = useCallback(() => {
@@ -559,12 +600,199 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         pip={pip}
         onTogglePip={togglePip}
       />
-      {showJoystick && !viewer && (
+      {showJoystick && !viewer && !carDriving && (
         <VirtualJoystick
           onMove={onJoystickMove}
           onStop={onJoystickStop}
           visible={true}
         />
+      )}
+
+      {/* ── Supercar Driving HUD & Mobile Controls (rendered outside Canvas) ── */}
+      {carDriving && (
+        <>
+          {/* Top Speedometer & Exit Pill */}
+          <div
+            className="stay-white"
+            style={{
+              position: 'absolute',
+              top: 'max(16px, calc(env(safe-area-inset-top) + 12px))',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 95,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '8px 18px',
+              borderRadius: 99,
+              background: 'rgba(15, 12, 28, 0.94)',
+              border: '2px solid #ef4444',
+              boxShadow: '0 12px 32px rgba(239, 68, 68, 0.4)',
+              backdropFilter: 'blur(12px)',
+              color: '#ffffff',
+              pointerEvents: 'auto',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900, fontSize: 14 }}>
+              <span style={{ color: '#ef4444', animation: 'gp-pulse 1s infinite' }}>●</span>
+              <span>SUPERCAR: {carSpeed} KM/H</span>
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.75, fontWeight: 700, display: coarse ? 'none' : 'block' }}>
+              WASD / Arrow Keys
+            </div>
+            <button
+              onClick={() => viewRef.current?.exitCarDrive?.()}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 99,
+                border: 'none',
+                background: '#ef4444',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: 12,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.5)',
+                transition: 'transform 0.15s ease',
+              }}
+            >
+              Exit Vehicle
+            </button>
+          </div>
+
+          {/* Left Mobile Controls: Steering ◀ ▶ */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 'max(20px, calc(env(safe-area-inset-bottom) + 16px))',
+              left: 20,
+              display: 'flex',
+              gap: 12,
+              zIndex: 95,
+              pointerEvents: 'auto',
+            }}
+          >
+            <button
+              onPointerDown={(e) => { e.preventDefault(); if (viewRef.current?.driveKeys) viewRef.current.driveKeys.a = true; }}
+              onPointerUp={(e) => { e.preventDefault(); if (viewRef.current?.driveKeys) viewRef.current.driveKeys.a = false; }}
+              onPointerCancel={() => { if (viewRef.current?.driveKeys) viewRef.current.driveKeys.a = false; }}
+              onPointerLeave={() => { if (viewRef.current?.driveKeys) viewRef.current.driveKeys.a = false; }}
+              aria-label="Steer Left"
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 18,
+                background: 'rgba(15, 10, 25, 0.88)',
+                border: '1.5px solid rgba(255, 255, 255, 0.35)',
+                color: '#fff',
+                fontSize: 24,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                userSelect: 'none',
+                touchAction: 'none',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 6px 18px rgba(0,0,0,0.4)',
+              }}
+            >
+              ◀
+            </button>
+            <button
+              onPointerDown={(e) => { e.preventDefault(); if (viewRef.current?.driveKeys) viewRef.current.driveKeys.d = true; }}
+              onPointerUp={(e) => { e.preventDefault(); if (viewRef.current?.driveKeys) viewRef.current.driveKeys.d = false; }}
+              onPointerCancel={() => { if (viewRef.current?.driveKeys) viewRef.current.driveKeys.d = false; }}
+              onPointerLeave={() => { if (viewRef.current?.driveKeys) viewRef.current.driveKeys.d = false; }}
+              aria-label="Steer Right"
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 18,
+                background: 'rgba(15, 10, 25, 0.88)',
+                border: '1.5px solid rgba(255, 255, 255, 0.35)',
+                color: '#fff',
+                fontSize: 24,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                userSelect: 'none',
+                touchAction: 'none',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 6px 18px rgba(0,0,0,0.4)',
+              }}
+            >
+              ▶
+            </button>
+          </div>
+
+          {/* Right Mobile Controls: Brake & Gas */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 'max(20px, calc(env(safe-area-inset-bottom) + 16px))',
+              right: 20,
+              display: 'flex',
+              gap: 12,
+              zIndex: 95,
+              pointerEvents: 'auto',
+            }}
+          >
+            <button
+              onPointerDown={(e) => { e.preventDefault(); if (viewRef.current?.driveKeys) viewRef.current.driveKeys.s = true; }}
+              onPointerUp={(e) => { e.preventDefault(); if (viewRef.current?.driveKeys) viewRef.current.driveKeys.s = false; }}
+              onPointerCancel={() => { if (viewRef.current?.driveKeys) viewRef.current.driveKeys.s = false; }}
+              onPointerLeave={() => { if (viewRef.current?.driveKeys) viewRef.current.driveKeys.s = false; }}
+              aria-label="Brake or Reverse"
+              style={{
+                width: 60,
+                height: 58,
+                borderRadius: 18,
+                background: 'rgba(239, 68, 68, 0.45)',
+                border: '1.5px solid rgba(239, 68, 68, 0.8)',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                userSelect: 'none',
+                touchAction: 'none',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 6px 18px rgba(239, 68, 68, 0.35)',
+              }}
+            >
+              BRAKE
+            </button>
+            <button
+              onPointerDown={(e) => { e.preventDefault(); if (viewRef.current?.driveKeys) viewRef.current.driveKeys.w = true; }}
+              onPointerUp={(e) => { e.preventDefault(); if (viewRef.current?.driveKeys) viewRef.current.driveKeys.w = false; }}
+              onPointerCancel={() => { if (viewRef.current?.driveKeys) viewRef.current.driveKeys.w = false; }}
+              onPointerLeave={() => { if (viewRef.current?.driveKeys) viewRef.current.driveKeys.w = false; }}
+              aria-label="Gas / Accelerate"
+              style={{
+                width: 60,
+                height: 58,
+                borderRadius: 18,
+                background: 'rgba(34, 197, 94, 0.5)',
+                border: '1.5px solid rgba(34, 197, 94, 0.85)',
+                color: '#fff',
+                fontSize: 12.5,
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                userSelect: 'none',
+                touchAction: 'none',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 6px 18px rgba(34, 197, 94, 0.35)',
+              }}
+            >
+              GAS ▲
+            </button>
+          </div>
+        </>
       )}
       {notice && (
         <div

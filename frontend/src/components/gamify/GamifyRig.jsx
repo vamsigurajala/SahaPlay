@@ -36,6 +36,7 @@ export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // Room.jsx.
 export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onInChange, onReady }) {
   const readyRef = useRef(false);
+  const lastFocusCommitRef = useRef(0);
   const { camera, gl, size, events } = useThree();
   const target = useMemo(() => new THREE.Vector3(), []);
 
@@ -122,6 +123,8 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
       if (pts.size === 0) {
         const v = viewRef.current;
         v.dragging = false;
+        lastFocusCommitRef.current = performance.now();
+        onFocusChange && onFocusChange(v.focus);
         // Fling: keep coasting in the release direction if the finger was still moving.
         if (wasDragging && e.type === 'pointerup' && e.timeStamp - lastT < 80 && Math.hypot(vel.x, vel.z) > 1.5) v.vel = { x: vel.x, z: vel.z };
       }
@@ -153,51 +156,37 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
   // screen, and the scene barely moves: refresh them every few frames (less often
   // while panning or zooming) instead of every frame, and render at 1x pixel
   // density during a pan/zoom, restoring full sharpness once the view settles.
-  const perf = useRef({ n: 0, reduced: false, base: 1, calmAt: 0 });
-  useEffect(() => {
-    gl.shadowMap.autoUpdate = false;
-    gl.shadowMap.needsUpdate = true;
-    const st = perf.current;
-    return () => { gl.shadowMap.autoUpdate = true; if (st.reduced) gl.setPixelRatio(st.base); };
-  }, [gl]);
   useFrame((_, dt) => {
     const v = viewRef.current;
-    const st = perf.current;
-    const moving = v.dragging || !!v.vel || v.glide || Math.abs(v.zoom - v.cur) > 0.004;
-    st.n++;
-    if (st.n % (moving ? 8 : 3) === 0) gl.shadowMap.needsUpdate = true;
-    const now = performance.now();
-    if (moving) {
-      st.calmAt = now + 280;
-      if (!st.reduced && gl.getPixelRatio() > 1.01) { st.base = gl.getPixelRatio(); gl.setPixelRatio(1); st.reduced = true; }
-    } else if (st.reduced && now > st.calmAt) {
-      gl.setPixelRatio(st.base);
-      st.reduced = false;
-      gl.shadowMap.needsUpdate = true;
-    }
-    const kz = 1 - Math.exp(-dt * 11);
+    const kz = 1 - Math.exp(-dt * 12);
     v.cur += (v.zoom - v.cur) * kz;
     if (v.vel) {
       // fling: coast with friction, stopping at the pan limits
       const lim = panLimits(v.flip, v.floor);
       v.tx = clamp(v.tx + v.vel.x * dt, lim.xmin, lim.xmax);
       v.tz = clamp(v.tz + v.vel.z * dt, lim.zmin, lim.zmax);
-      const f = Math.exp(-dt * 3.2);
+      const f = Math.exp(-dt * 3.4);
       v.vel.x *= f; v.vel.z *= f;
-      if (Math.hypot(v.vel.x, v.vel.z) < 0.4) v.vel = null;
+      if (Math.hypot(v.vel.x, v.vel.z) < 0.3) v.vel = null;
     }
-    if (v.dragging || v.vel) {
-      // the view sticks to the finger 1:1 while dragging (no easing lag)
-      v.px = v.tx; v.pz = v.tz;
+    if (v.dragging) {
+      // Smooth high-speed tracking to finger (silky 60-120fps response, zero buffer stutter)
+      const kp = 1 - Math.exp(-dt * 32);
+      v.px += (v.tx - v.px) * kp;
+      v.pz += (v.tz - v.pz) * kp;
+    } else if (v.vel) {
+      const kp = 1 - Math.exp(-dt * 24);
+      v.px += (v.tx - v.px) * kp;
+      v.pz += (v.tz - v.pz) * kp;
     } else {
-      // a door glide eases slowly between rooms; everything else settles quickly
-      const kp = 1 - Math.exp(-dt * (v.glide ? 4.2 : 14));
+      // a room glide eases smoothly between rooms
+      const kp = 1 - Math.exp(-dt * (v.glide ? 6.0 : 18));
       v.px += (v.tx - v.px) * kp;
       v.pz += (v.tz - v.pz) * kp;
     }
     if (v.glide && Math.abs(v.tx - v.px) + Math.abs(v.tz - v.pz) < 0.05) v.glide = false;
     camera.zoom = Math.min(size.width / (FIT_W * 0.95), size.height / (FIT_H * 0.9)) * v.cur;
-    v.py += (v.floor * FLOOR_Y - v.py) * (1 - Math.exp(-dt * 5));
+    v.py += (v.floor * FLOOR_Y - v.py) * (1 - Math.exp(-dt * 6));
     target.set(v.px, TARGET_Y + v.py, v.pz);
     camera.position.copy(target).add(CAM_OFFSET);
     camera.lookAt(target);
@@ -221,7 +210,11 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
     if (out !== v.out) { v.out = out; onOutChange && onOutChange(out); }
     if (best !== v.focus) {
       v.focus = best;
-      onFocusChange && onFocusChange(best);
+      const now = performance.now();
+      if (!v.dragging || now - lastFocusCommitRef.current > 350) {
+        lastFocusCommitRef.current = now;
+        onFocusChange && onFocusChange(best);
+      }
     }
   });
   return null;

@@ -817,6 +817,8 @@ export function Courtyard() {
 
 // 1. Top-Model Ferrari / Lamborghini Hypercar (Click to inspect 3D Cockpit or Drive!)
 function TopModelSupercar3D({ p, rot = 0 }) {
+  const openSupercar = useOpenProp('supercar', 'shared');
+
   return (
     <group position={p} rotation={[0, rot, 0]}>
       {/* Showroom turntable with LED lighting ring */}
@@ -825,7 +827,7 @@ function TopModelSupercar3D({ p, rot = 0 }) {
       <mesh position={[0, 0.126, 0]} rotation={[-PI / 2, 0, 0]}><ringGeometry args={[2.35, 2.4, 56]} /><meshBasicMaterial color="#f43f5e" toneMapped={false} /></mesh>
 
       <PropDot position={[2.5, 0.7, 2.2]} kind="supercar" />
-      <DriveableSupercar initialPos={[0, 0.12, 0]} />
+      <DriveableSupercar initialPos={[0, 0.12, 0]} onInspect={openSupercar?.onClick} />
     </group>
   );
 }
