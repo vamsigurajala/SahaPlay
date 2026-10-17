@@ -148,12 +148,31 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, 
           targetRef.current = clamped;
           emitThrottled(clamped.x, clamped.z);
           movingViaInputRef.current = true;
+          if (view?.current && !view.current.dragging) {
+            view.current.glide = false;
+            if (view.current.flip) {
+              view.current.tx = clamped.z;
+              view.current.tz = clamped.x;
+            } else {
+              view.current.tx = clamped.x;
+              view.current.tz = clamped.z;
+            }
+          }
         }
       } else if (movingViaInputRef.current) {
         movingViaInputRef.current = false;
         const settled = place(targetRef.current.x, targetRef.current.z);
         targetRef.current = settled;
         emit(settled.x, settled.z);
+        if (view?.current && !view.current.dragging) {
+          if (view.current.flip) {
+            view.current.tx = settled.z;
+            view.current.tz = settled.x;
+          } else {
+            view.current.tx = settled.x;
+            view.current.tz = settled.z;
+          }
+        }
         if (onDrop) {
           const v = toVirtual(settled.x, settled.z);
           onDrop(zoneForPoint(clamp(v.x, 0, FLOORPLAN_WIDTH), clamp(v.y, 0, FLOORPLAN_HEIGHT), floorRef.current));

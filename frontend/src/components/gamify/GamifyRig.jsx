@@ -4,8 +4,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { WALL_H } from './GamifyScene';
 import { FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, CELL_W, CELL_D, COLS, ROWS } from '../../data/gamifyZones';
 
-export const MIN_ZOOM = 0.36; // zoomed all the way out shows most of the house
-export const MAX_ZOOM = 2.0;
+export const MIN_ZOOM = 0.28; // zoomed all the way out shows entire house and outdoors
+export const MAX_ZOOM = 3.2; // deep zoom into rooms, shops & cricket ground
 export const CAM_OFFSET = new THREE.Vector3(18, 15.5, 18);
 export const SIN_ELEV = CAM_OFFSET.y / CAM_OFFSET.length();
 export const COS_ELEV = Math.sqrt(1 - SIN_ELEV * SIN_ELEV);
@@ -18,13 +18,12 @@ export const FIT_H = FIT_W * SIN_ELEV + WALL_H * COS_ELEV;
 export const TARGET_Y = WALL_H / 2;
 export const ZONES_BY_FLOOR = [Object.values(FLOORPLAN_ZONES), Object.values(ALL_ZONES).filter(z => z.floor === 1)];
 
-// Camera targets may roam over every room centre plus a margin (upstairs only has
-// the back two rows). Mirrored (flipped) view reflects the house across the x=z
-// diagonal, so the two limits swap.
+// Camera targets may roam over every room centre plus a wide margin (reaching shops,
+// market, front street and cricket pitch).
 export const panLimits = (flip, floor = 0) => {
-  const lx = ((COLS - 1) * CELL_W) / 2 + 4;
-  const zmin = -(((ROWS - 1) * CELL_D) / 2 + 4);
-  const zmax = floor ? CELL_D / 2 - 4 : -zmin;
+  const lx = ((COLS - 1) * CELL_W) / 2 + 18;
+  const zmin = -(((ROWS - 1) * CELL_D) / 2 + 18);
+  const zmax = floor ? CELL_D / 2 - 4 : -zmin + 18;
   return flip ? { xmin: zmin, xmax: zmax, zmin: -lx, zmax: lx } : { xmin: -lx, xmax: lx, zmin, zmax };
 };
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -67,25 +66,30 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
       viewRef.current.glide = false; // grabbing the view cancels a door glide
       viewRef.current.vel = null; // ...and any fling in progress
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      el.setPointerCapture?.(e.pointerId);
-      if (pts.size === 2) {
-        const [a, b] = [...pts.values()];
-        pinch = { d: dist(a, b), z: viewRef.current.zoom };
-        last = null;
-      } else if (pts.size === 1) {
+      if (pts.size === 1) {
+        try { el.setPointerCapture?.(e.pointerId); } catch (_) {}
         last = { x: e.clientX, y: e.clientY };
         lastT = e.timeStamp;
         vel = { x: 0, z: 0 };
         viewRef.current.dragging = true;
+      } else if (pts.size >= 2) {
+        // Multi-touch pinch: release single finger capture if held so pinch doesn't stall
+        try { el.releasePointerCapture?.(e.pointerId); } catch (_) {}
+        const [a, b] = [...pts.values()];
+        pinch = { d: dist(a, b), z: viewRef.current.zoom };
+        last = null;
       }
     };
     const move = (e) => {
       if (!pts.has(e.pointerId)) return;
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       const v = viewRef.current;
-      if (pinch && pts.size === 2) {
+      if (pinch && pts.size >= 2) {
         const [a, b] = [...pts.values()];
-        v.zoom = clamp(pinch.z * (dist(a, b) / Math.max(pinch.d, 1)), MIN_ZOOM, MAX_ZOOM);
+        const curD = dist(a, b);
+        if (curD > 10 && pinch.d > 10) {
+          v.zoom = clamp(pinch.z * (curD / pinch.d), MIN_ZOOM, MAX_ZOOM);
+        }
         return;
       }
       if (!last) return;
@@ -111,6 +115,7 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
     };
     const up = (e) => {
       const wasDragging = pts.size === 1 && last;
+      try { el.releasePointerCapture?.(e.pointerId); } catch (_) {}
       pts.delete(e.pointerId);
       if (pts.size < 2) pinch = null;
       last = pts.size === 1 ? { ...[...pts.values()][0] } : null;
@@ -121,15 +126,26 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
         if (wasDragging && e.type === 'pointerup' && e.timeStamp - lastT < 80 && Math.hypot(vel.x, vel.z) > 1.5) v.vel = { x: vel.x, z: vel.z };
       }
     };
+
+    const wheel = (e) => {
+      e.preventDefault();
+      const v = viewRef.current;
+      if (!v) return;
+      const factor = e.deltaY < 0 ? 1.15 : (1 / 1.15);
+      v.zoom = clamp(v.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+    };
+
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
+    el.addEventListener('wheel', wheel, { passive: false });
     return () => {
       el.removeEventListener('pointerdown', down);
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       el.removeEventListener('pointercancel', up);
+      el.removeEventListener('wheel', wheel);
     };
   }, [camera, gl, dragLockRef, viewRef]);
 

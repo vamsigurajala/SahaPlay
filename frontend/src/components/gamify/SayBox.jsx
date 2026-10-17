@@ -123,9 +123,18 @@ export default function SayBox({ onSend }) {
         disabled={!text.trim()}
         aria-label={t('gamify.say.send', 'Send')}
         title={t('gamify.say.send', 'Send')}
+        className={text.trim() ? 'stay-white' : undefined}
         style={btnStyle}
       >
-        <Send size={17} />
+        <Send
+          size={17}
+          color={text.trim() ? '#ffffff' : (isLight ? '#94a3b8' : 'rgba(255,255,255,0.4)')}
+          style={{
+            color: text.trim() ? '#ffffff' : undefined,
+            stroke: text.trim() ? '#ffffff' : undefined,
+            filter: text.trim() ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))' : 'none',
+          }}
+        />
       </button>
     </form>
   );

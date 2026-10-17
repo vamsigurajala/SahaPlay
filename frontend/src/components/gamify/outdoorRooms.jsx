@@ -824,7 +824,7 @@ function TopModelSupercar3D({ p, rot = 0 }) {
       <mesh position={[0, 0.126, 0]} rotation={[-PI / 2, 0, 0]}><ringGeometry args={[2.72, 2.82, 56]} /><meshBasicMaterial color="#38bdf8" toneMapped={false} /></mesh>
       <mesh position={[0, 0.126, 0]} rotation={[-PI / 2, 0, 0]}><ringGeometry args={[2.35, 2.4, 56]} /><meshBasicMaterial color="#f43f5e" toneMapped={false} /></mesh>
 
-      <PropDot position={[0, 2.4, 0]} kind="supercar" />
+      <PropDot position={[2.5, 0.7, 2.2]} kind="supercar" />
       <DriveableSupercar initialPos={[0, 0.12, 0]} />
     </group>
   );

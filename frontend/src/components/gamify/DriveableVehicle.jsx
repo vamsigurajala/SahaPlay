@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Supercar3D, Superbike3D } from './vehicles';
-import { ViewContext } from './parts';
+import { ViewContext, ScaledHtml } from './parts';
 import { useIsLight } from './useIsLight';
 
 const PI = Math.PI;
@@ -86,6 +86,14 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
 
   const keysRef = useRef({ w: false, s: false, a: false, d: false });
   const audioRef = useRef(null);
+
+  // Expose global drive starter so prop modals or UI buttons can trigger driving immediately
+  useEffect(() => {
+    window.__startSupercarDrive = startDrive;
+    return () => {
+      delete window.__startSupercarDrive;
+    };
+  }, []);
 
   // Keyboard controls
   useEffect(() => {
@@ -212,6 +220,13 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
 
       setSpeedKmh(Math.round(Math.abs(st.speed) * 3.6 * 2.5));
 
+      // Camera dynamically tracks the supercar in world space
+      if (view?.current && !view.current.dragging) {
+        view.current.glide = false;
+        view.current.tx = st.x;
+        view.current.tz = st.z;
+      }
+
       // Sync avatar spot with car position
       if (view?.current?.spots) {
         const mySpot = Object.values(view.current.spots).find(s => s.floor === 0);
@@ -229,7 +244,17 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
 
   return (
     <>
-      <group ref={carRef} position={initialPos}>
+      <group
+        ref={carRef}
+        position={initialPos}
+        onClick={(e) => {
+          if (!isDriving) {
+            e.stopPropagation();
+            startDrive();
+          }
+        }}
+        style={{ cursor: isDriving ? 'default' : 'pointer' }}
+      >
         <Supercar3D
           color="#c8102e"
           lightsOn={true}
@@ -237,70 +262,223 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
           spin={isDriving ? stateRef.current.speed * 2.4 : 0}
         />
 
-        {/* Action Prompt Pill on Vehicle */}
+        {/* 3D Prominent Floating Action Pill directly above the Supercar */}
         {!isDriving && (
-          <group position={[0, 2.2, 0]}>
-            <mesh
-              onClick={(e) => { e.stopPropagation(); startDrive(); }}
-              onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
-              onPointerOut={() => { document.body.style.cursor = ''; }}
-            >
-              <sphereGeometry args={[0.34, 16, 16]} />
-              <meshBasicMaterial color="#ef4444" />
-            </mesh>
-          </group>
+          <ScaledHtml position={[0, 2.6, 0]} zIndexRange={[50, 0]}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, pointerEvents: 'auto' }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startDrive();
+                }}
+                title="Hop in and drive across the frontyard and street"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 16px',
+                  borderRadius: 22,
+                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  color: '#ffffff',
+                  border: '1.5px solid rgba(255,255,255,0.45)',
+                  fontSize: 12.5,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  boxShadow: '0 6px 20px rgba(239,68,68,0.55)',
+                  whiteSpace: 'nowrap',
+                  backdropFilter: 'blur(8px)',
+                  letterSpacing: '0.02em',
+                  transform: 'scale(1)',
+                  transition: 'transform 0.15s ease',
+                }}
+              >
+                🏎️ Drive Supercar
+              </button>
+            </div>
+          </ScaledHtml>
         )}
       </group>
 
       {/* In-Game Drive Mode HUD Overlay */}
       {isDriving && (
-        <div
-          className="stay-white"
-          style={{
-            position: 'absolute',
-            top: 20,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 80,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 14,
-            padding: '8px 18px',
-            borderRadius: 99,
-            background: isLight ? 'rgba(255, 255, 255, 0.94)' : 'rgba(15, 12, 28, 0.92)',
-            border: '2px solid #ef4444',
-            boxShadow: '0 12px 32px rgba(239, 68, 68, 0.35)',
-            backdropFilter: 'blur(12px)',
-            color: isLight ? '#0f172a' : '#ffffff',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900, fontSize: 14 }}>
-            <span style={{ color: '#ef4444' }}>●</span>
-            <span>SUPERCAR: {speedKmh} KM/H</span>
-          </div>
-
-          <div style={{ fontSize: 11.5, opacity: 0.75, fontWeight: 700 }}>
-            WASD / Joystick to Steer
-          </div>
-
-          <button
-            onClick={exitDrive}
+        <>
+          <div
+            className="stay-white"
             style={{
-              padding: '6px 14px',
+              position: 'absolute',
+              top: 20,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 80,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '8px 18px',
               borderRadius: 99,
-              border: 'none',
-              background: '#ef4444',
-              color: '#ffffff',
-              fontWeight: 800,
-              fontSize: 12,
-              cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(239, 68, 68, 0.5)',
-              transition: 'transform 0.15s ease',
+              background: isLight ? 'rgba(255, 255, 255, 0.94)' : 'rgba(15, 12, 28, 0.92)',
+              border: '2px solid #ef4444',
+              boxShadow: '0 12px 32px rgba(239, 68, 68, 0.35)',
+              backdropFilter: 'blur(12px)',
+              color: isLight ? '#0f172a' : '#ffffff',
             }}
           >
-            Exit Vehicle
-          </button>
-        </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 900, fontSize: 14 }}>
+              <span style={{ color: '#ef4444' }}>●</span>
+              <span>SUPERCAR: {speedKmh} KM/H</span>
+            </div>
+
+            <div style={{ fontSize: 11.5, opacity: 0.75, fontWeight: 700 }}>
+              WASD / Touch Buttons
+            </div>
+
+            <button
+              onClick={exitDrive}
+              style={{
+                padding: '6px 14px',
+                borderRadius: 99,
+                border: 'none',
+                background: '#ef4444',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: 12,
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(239, 68, 68, 0.5)',
+                transition: 'transform 0.15s ease',
+              }}
+            >
+              Exit Vehicle
+            </button>
+          </div>
+
+          {/* Mobile Touch Controls for Steering & Throttle */}
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 24,
+              left: 20,
+              display: 'flex',
+              gap: 12,
+              pointerEvents: 'auto',
+              zIndex: 9999,
+            }}
+          >
+            <button
+              onPointerDown={(e) => { e.preventDefault(); keysRef.current.a = true; }}
+              onPointerUp={(e) => { e.preventDefault(); keysRef.current.a = false; }}
+              onPointerLeave={() => { keysRef.current.a = false; }}
+              aria-label="Steer Left"
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: 16,
+                background: 'rgba(15,10,25,0.85)',
+                border: '1.5px solid rgba(255,255,255,0.3)',
+                color: '#fff',
+                fontSize: 22,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                userSelect: 'none',
+                touchAction: 'none',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 6px 18px rgba(0,0,0,0.4)',
+              }}
+            >
+              ◀
+            </button>
+            <button
+              onPointerDown={(e) => { e.preventDefault(); keysRef.current.d = true; }}
+              onPointerUp={(e) => { e.preventDefault(); keysRef.current.d = false; }}
+              onPointerLeave={() => { keysRef.current.d = false; }}
+              aria-label="Steer Right"
+              style={{
+                width: 54,
+                height: 54,
+                borderRadius: 16,
+                background: 'rgba(15,10,25,0.85)',
+                border: '1.5px solid rgba(255,255,255,0.3)',
+                color: '#fff',
+                fontSize: 22,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                userSelect: 'none',
+                touchAction: 'none',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 6px 18px rgba(0,0,0,0.4)',
+              }}
+            >
+              ▶
+            </button>
+          </div>
+
+          <div
+            style={{
+              position: 'fixed',
+              bottom: 24,
+              right: 20,
+              display: 'flex',
+              gap: 12,
+              pointerEvents: 'auto',
+              zIndex: 9999,
+            }}
+          >
+            <button
+              onPointerDown={(e) => { e.preventDefault(); keysRef.current.s = true; }}
+              onPointerUp={(e) => { e.preventDefault(); keysRef.current.s = false; }}
+              onPointerLeave={() => { keysRef.current.s = false; }}
+              aria-label="Brake or Reverse"
+              style={{
+                width: 56,
+                height: 54,
+                borderRadius: 16,
+                background: 'rgba(239,68,68,0.4)',
+                border: '1.5px solid rgba(239,68,68,0.7)',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                userSelect: 'none',
+                touchAction: 'none',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 6px 18px rgba(239,68,68,0.35)',
+              }}
+            >
+              BRAKE
+            </button>
+            <button
+              onPointerDown={(e) => { e.preventDefault(); keysRef.current.w = true; }}
+              onPointerUp={(e) => { e.preventDefault(); keysRef.current.w = false; }}
+              onPointerLeave={() => { keysRef.current.w = false; }}
+              aria-label="Accelerate"
+              style={{
+                width: 56,
+                height: 54,
+                borderRadius: 16,
+                background: 'rgba(34,197,94,0.45)',
+                border: '1.5px solid rgba(34,197,94,0.8)',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                userSelect: 'none',
+                touchAction: 'none',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 6px 18px rgba(34,197,94,0.35)',
+              }}
+            >
+              GAS ▲
+            </button>
+          </div>
+        </>
       )}
     </>
   );

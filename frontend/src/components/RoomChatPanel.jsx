@@ -731,7 +731,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const themeTextVars = onColoredCard ? { '--fc-sub-c': 'rgba(255,255,255,0.75)' } : {};
 
   return (
-    <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 200, marginTop: 2, ...themeTextVars }}>
+    <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 220, maxWidth: '100%', marginTop: 2, ...themeTextVars }}>
       {forwarded && (
         <div className="rcp-vn-expiry" style={{ fontSize: 9, color: timeColor, WebkitTextFillColor: timeColor, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4 }}>
           <Forward size={8} color={timeColor} style={{ flexShrink: 0 }} />Forwarded
@@ -771,8 +771,8 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
           <Download size={18} color={dlColor} />
         </button>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3, marginLeft: 40 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginLeft: 40, flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
           <button
             onClick={toggleSpeed}
@@ -788,13 +788,14 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
               fontWeight: 800,
               cursor: 'pointer',
               lineHeight: 1.2,
+              flexShrink: 0,
               transition: 'all 0.15s ease',
             }}
           >
             {speed}x
           </button>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {expiresAt && (() => {
             const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
             if (daysLeft <= 0) return null;

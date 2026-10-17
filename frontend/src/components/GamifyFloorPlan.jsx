@@ -119,10 +119,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const [ownEmote, setOwnEmote] = useState(null);
   const myName = userList.find(u => u.socketId === mySocketId)?.username;
 
-  const [showJoystick, setShowJoystick] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  });
+  const [showJoystick, setShowJoystick] = useState(false);
 
   const [pip, setPip] = useState(false);
   const togglePip = useCallback(() => {

@@ -13,8 +13,7 @@ import { Market, MarketFloor } from './market';
 import { NEON_PINK, NEON_CYAN, NEON_VIOLET, NEON_AMBER } from './constants';
 import { WORLD_W, WORLD_D, HOUSE_D, CELL_W, CELL_D, COLS, HOUSE_ROWS, FLOORPLAN_ZONES, ALL_ZONES, FLOOR_Y, DOORWAYS, ALL_LINKS } from '../../data/gamifyZones';
 import Floor2 from './floor2';
-import { getHideLabels } from './labelPrefs';
-import { WEATHER, Ground, Clouds, Rain } from './environment';
+import { WEATHER, Ground, Clouds, Rain, ShootingStars3D, FlockOfBirds } from './environment';
 
 export const WALL_H = 4.8;
 const LOW_H = 0.9;
@@ -510,6 +509,8 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
       {/* ── Grass plot, trees, clouds and rain around the house, then the slab and per-room floors ── */}
       <Ground weather={weather} />
       <Clouds weather={weather} />
+      {weather === 'night' && <ShootingStars3D />}
+      {(weather === 'day' || weather === 'sunrise' || weather === 'sunset' || weather === 'cloudy') && <FlockOfBirds />}
       {wx.rain && <Rain />}
       <mesh position={[0, -0.25, houseMid]} receiveShadow>
         <boxGeometry args={[WORLD_W + 0.8, 0.5, HOUSE_D + 0.8]} />

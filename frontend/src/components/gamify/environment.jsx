@@ -133,17 +133,36 @@ export function SkyBackdrop({ weather }) {
         {STARS.map((s, i) => <span key={i} style={{ position: 'absolute', left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, borderRadius: '50%', background: '#fff', opacity: s.o }} />)}
       </div>
       {w.stars > 0.5 && (
-        <div style={{
-          position: 'absolute',
-          top: '22%',
-          left: '65%',
-          width: 90,
-          height: 1.5,
-          background: 'linear-gradient(90deg, rgba(255,255,255,0.85), transparent)',
-          transform: 'rotate(-32deg)',
-          pointerEvents: 'none',
-          animation: 'shootingStarAnim 10s ease-in-out infinite',
-        }} />
+        <>
+          <div style={{
+            position: 'absolute',
+            top: '18%',
+            left: '62%',
+            width: 140,
+            height: 2.5,
+            borderRadius: 2,
+            background: 'linear-gradient(90deg, #ffffff 0%, rgba(255,255,255,0.7) 30%, transparent 100%)',
+            boxShadow: '0 0 8px 1px rgba(255,255,255,0.8)',
+            transform: 'rotate(-35deg)',
+            pointerEvents: 'none',
+            animation: 'shootingStarAnim 7s ease-in-out infinite',
+            zIndex: 1,
+          }} />
+          <div style={{
+            position: 'absolute',
+            top: '12%',
+            left: '26%',
+            width: 120,
+            height: 2,
+            borderRadius: 2,
+            background: 'linear-gradient(90deg, #ffffff 0%, rgba(255,255,255,0.6) 35%, transparent 100%)',
+            boxShadow: '0 0 6px 1px rgba(255,255,255,0.7)',
+            transform: 'rotate(-38deg)',
+            pointerEvents: 'none',
+            animation: 'shootingStarAnim2 11s ease-in-out infinite',
+            zIndex: 1,
+          }} />
+        </>
       )}
       {w.disc && (
         <div style={{ position: 'absolute', left: w.disc.x, top: w.disc.y, width: w.disc.size, height: w.disc.size, marginLeft: -w.disc.size / 2, marginTop: -w.disc.size / 2, borderRadius: '50%', background: w.disc.color, boxShadow: `0 0 ${w.disc.size}px ${w.disc.size / 3}px ${w.disc.color}66`, transition: 'all 1.2s' }} />
@@ -337,5 +356,144 @@ export function Rain() {
       <boxGeometry args={[0.025, 0.75, 0.025]} />
       <meshBasicMaterial color="#cfe2ff" transparent opacity={0.6} depthWrite={false} />
     </instancedMesh>
+  );
+}
+
+/**
+ * 3D Shooting Stars that streak across the upper night sky
+ */
+export function ShootingStars3D() {
+  const starsRef = useRef([]);
+  const count = 4;
+  const state = useRef(Array.from({ length: count }).map((_, i) => ({
+    active: false,
+    timer: 1.0 + i * 2.2,
+    x: 0,
+    y: 30 + Math.random() * 8,
+    z: 0,
+    dx: -34 - Math.random() * 12,
+    dz: -26 - Math.random() * 10,
+    progress: 0,
+  })));
+
+  useFrame((_, dt) => {
+    state.current.forEach((s, idx) => {
+      const mesh = starsRef.current[idx];
+      if (!mesh) return;
+
+      if (!s.active) {
+        s.timer -= dt;
+        if (s.timer <= 0) {
+          s.active = true;
+          s.progress = 0;
+          s.x = 45 + Math.random() * 25;
+          s.y = 30 + Math.random() * 6;
+          s.z = 25 + Math.random() * 25;
+          mesh.visible = true;
+        }
+      } else {
+        s.progress += dt * 1.5;
+        mesh.position.set(s.x + s.dx * s.progress, s.y, s.z + s.dz * s.progress);
+        mesh.scale.set(1 + s.progress * 0.5, 1, 1 + s.progress * 1.8);
+        if (s.progress >= 1) {
+          s.active = false;
+          s.timer = 2.5 + Math.random() * 4.5;
+          mesh.visible = false;
+        }
+      }
+    });
+  });
+
+  return (
+    <group>
+      {state.current.map((_, i) => (
+        <group key={i} ref={el => (starsRef.current[i] = el)} visible={false} rotation={[0, 0.65, -0.25]}>
+          <mesh>
+            <cylinderGeometry args={[0.06, 0.22, 3.2, 8]} />
+            <meshBasicMaterial color="#ffffff" toneMapped={false} transparent opacity={0.95} />
+          </mesh>
+          <mesh position={[0, 1.6, 0]}>
+            <sphereGeometry args={[0.3, 12, 12]} />
+            <meshBasicMaterial color="#ffffff" toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/**
+ * Flock of Birds soaring across the daytime/sunset sky over the clouds
+ */
+export function FlockOfBirds() {
+  const groupRef = useRef();
+  const wingsRef = useRef([]);
+  const timeRef = useRef(0);
+
+  const birdOffsets = useMemo(() => [
+    { x: 0, y: 0, z: 0, s: 1.0 },
+    { x: -3.5, y: -0.6, z: -2.8, s: 0.85 },
+    { x: 3.2, y: -0.4, z: -2.6, s: 0.9 },
+    { x: -6.8, y: -1.1, z: -5.4, s: 0.75 },
+    { x: 6.5, y: -0.9, z: -5.2, s: 0.8 },
+    { x: -9.8, y: -1.6, z: -8.0, s: 0.7 },
+    { x: 9.6, y: -1.4, z: -7.8, s: 0.72 },
+  ], []);
+
+  useFrame((_, dt) => {
+    timeRef.current += dt;
+    const t = timeRef.current;
+    const g = groupRef.current;
+    if (!g) return;
+
+    // Graceful flight path circling across the sky over the plot
+    const radius = 64;
+    const speed = 0.16;
+    const angle = t * speed;
+    g.position.x = Math.sin(angle) * radius;
+    g.position.z = Math.cos(angle) * (radius * 0.75) - 6;
+    g.position.y = 23 + Math.sin(t * 0.35) * 2.5;
+    g.rotation.y = angle + Math.PI / 2;
+
+    // Wing flapping animation
+    wingsRef.current.forEach((w, i) => {
+      if (!w) return;
+      const flap = Math.sin(t * 7.5 + i * 0.4) * 0.55;
+      if (w.left) w.left.rotation.z = flap;
+      if (w.right) w.right.rotation.z = -flap;
+    });
+  });
+
+  return (
+    <group ref={groupRef}>
+      {birdOffsets.map((b, i) => (
+        <group key={i} position={[b.x, b.y, b.z]} scale={b.s * 0.75}>
+          {/* Bird body */}
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[0.18, 1.2, 6]} />
+            <meshStandardMaterial color="#1e293b" roughness={0.7} />
+          </mesh>
+          {/* Wings */}
+          <group ref={el => {
+            if (!wingsRef.current[i]) wingsRef.current[i] = {};
+            if (el) wingsRef.current[i].left = el;
+          }} position={[-0.1, 0.05, 0]}>
+            <mesh position={[-0.55, 0, 0]} rotation={[0, 0.2, 0]}>
+              <boxGeometry args={[1.0, 0.04, 0.35]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.7} />
+            </mesh>
+          </group>
+          <group ref={el => {
+            if (!wingsRef.current[i]) wingsRef.current[i] = {};
+            if (el) wingsRef.current[i].right = el;
+          }} position={[0.1, 0.05, 0]}>
+            <mesh position={[0.55, 0, 0]} rotation={[0, -0.2, 0]}>
+              <boxGeometry args={[1.0, 0.04, 0.35]} />
+              <meshStandardMaterial color="#0f172a" roughness={0.7} />
+            </mesh>
+          </group>
+        </group>
+      ))}
+    </group>
   );
 }

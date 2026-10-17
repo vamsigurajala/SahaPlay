@@ -272,9 +272,21 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
   const [progress, setProgress] = React.useState(0);
+  const [speed, setSpeed] = React.useState(1);
   const audioRef = React.useRef(null);
   const rafRef = React.useRef(null);
   const isPlayingRef = React.useRef(false);
+  const isScrubbingRef = React.useRef(false);
+
+  const toggleSpeed = (e) => {
+    e.stopPropagation();
+    const speeds = [1, 1.5, 2];
+    const next = speeds[(speeds.indexOf(speed) + 1) % speeds.length];
+    setSpeed(next);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = next;
+    }
+  };
 
   const fmtDur = (s) => (!s || !isFinite(s) || isNaN(s) || s < 0) ? '0:00' :
     `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -324,6 +336,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const handleLoadedMetadata = () => {
     const el = audioRef.current;
     if (!el) return;
+    el.playbackRate = speed;
     if (isFinite(el.duration) && el.duration > 0 && el.duration < 1e8) {
       setDuration(el.duration);
     } else {
@@ -351,6 +364,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const toggle = () => {
     const el = audioRef.current;
     if (!el) return;
+    el.playbackRate = speed;
     if (el.currentTime > 1e5) el.currentTime = 0;
 
     if (isPlayingRef.current) {
@@ -392,6 +406,42 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     }
   };
 
+  const seekToPosition = (clientX, targetEl) => {
+    const el = audioRef.current;
+    if (!el || !targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const dur = isFinite(el.duration) && el.duration < 1e8 ? el.duration : duration;
+    if (dur > 0) {
+      el.currentTime = pct * dur;
+      setProgress(pct);
+      setCurrentTime(pct * dur);
+    }
+  };
+
+  const onPointerDownWave = (e) => {
+    e.preventDefault();
+    isScrubbingRef.current = true;
+    const target = e.currentTarget;
+    seekToPosition(e.clientX, target);
+
+    const onPointerMove = (ev) => {
+      if (!isScrubbingRef.current) return;
+      seekToPosition(ev.clientX, target);
+    };
+
+    const onPointerUp = () => {
+      isScrubbingRef.current = false;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  };
+
   const handleDownload = async (e) => {
     e.stopPropagation();
     try {
@@ -409,12 +459,6 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.15)')
     : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)'));
   const playedColor = themeColor || 'var(--brand-2)';
-  // Waveform bars (a `background` fill) and the download icon (an SVG
-  // `color` prop) aren't reachable by the .rcp-vn-time-style class override
-  // — that only wins the cascade war for actual CSS `color` on classed text
-  // nodes — so Zen Interior's forced-black sent bubble needs these two
-  // computed explicitly instead of the white a dark-app-mode sent bubble
-  // normally gets.
   const unplayedColor = onColoredCard
     ? 'rgba(255,255,255,0.35)'
     : (isMe
@@ -429,13 +473,10 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
       ? ((isLight || wallpaperForceBlack) ? 'var(--brand-1)' : 'rgba(255,255,255,0.7)')
       : (isLight ? 'var(--brand-2-dark)' : 'var(--brand-2-light)'));
   const displayTime = (playing || currentTime > 0) ? fmtDur(currentTime) : fmtDur(duration);
-  // App.jsx's light-mode .rcp-vn-time/.rcp-vn-expiry overrides read this
-  // (falling back to their normal hardcoded dark default when unset), same
-  // mechanism as FileCard's --fc-sub-c just above.
   const themeTextVars = onColoredCard ? { '--fc-sub-c': 'rgba(255,255,255,0.75)' } : {};
 
   return (
-    <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 200, marginTop: 2, ...themeTextVars }}>
+    <div style={{ background: bubbleBg, borderRadius: 10, padding: '8px 12px', minWidth: 220, maxWidth: '100%', marginTop: 2, ...themeTextVars }}>
       {forwarded && (
         <div className="rcp-vn-expiry" style={{ fontSize: 9, color: timeColor, WebkitTextFillColor: timeColor, display: 'flex', alignItems: 'center', gap: 3, marginBottom: 4 }}>
           <Forward size={8} color={timeColor} style={{ flexShrink: 0 }} />Forwarded
@@ -449,31 +490,57 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
           {playing ? <Pause size={12} color="#fff" fill="#fff" /> : <Play size={12} color="#fff" fill="#fff" />}
         </button>
         <div
-          style={{ flex: 1, display: 'flex', alignItems: 'center', height: 28, gap: 1.5, cursor: 'pointer' }}
-          onClick={e => {
-            const el = audioRef.current;
-            if (!el) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-            const dur = isFinite(el.duration) && el.duration < 1e8 ? el.duration : duration;
-            if (dur > 0) {
-              el.currentTime = pct * dur;
-              setProgress(pct);
-              setCurrentTime(pct * dur);
-            }
-          }}
+          style={{ flex: 1, display: 'flex', alignItems: 'center', height: 28, gap: 1.5, cursor: 'ew-resize', touchAction: 'none' }}
+          onPointerDown={onPointerDownWave}
         >
-          {bars.map((h, i) => (
-            <div key={i} style={{ width: 2, height: h, borderRadius: 1, background: i / BAR_COUNT < progress ? playedColor : unplayedColor, flexShrink: 0 }} />
-          ))}
+          {bars.map((h, i) => {
+            const isPlayed = i / BAR_COUNT < progress;
+            const isCurrent = Math.floor(progress * BAR_COUNT) === i && playing;
+            return (
+              <div
+                key={i}
+                style={{
+                  width: 2,
+                  height: isCurrent ? Math.min(24, h * 1.35) : h,
+                  borderRadius: 1,
+                  background: isPlayed ? playedColor : unplayedColor,
+                  flexShrink: 0,
+                  transformOrigin: 'center bottom',
+                  transition: 'height 0.1s ease',
+                }}
+              />
+            );
+          })}
         </div>
         <button onClick={handleDownload} title="Download voice note" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
           <Download size={18} color={dlColor} />
         </button>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3, marginLeft: 40 }}>
-        <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, marginLeft: 40, flexWrap: 'wrap', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
+          <button
+            onClick={toggleSpeed}
+            title={`Speed: ${speed}x (tap to change)`}
+            aria-label={`Playback speed ${speed}x`}
+            style={{
+              padding: '1px 5px',
+              borderRadius: 6,
+              border: `1px solid ${speed > 1 ? (themeColor || 'var(--brand-2)') : (isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.22)')}`,
+              background: speed > 1 ? (themeColor || 'var(--brand-2)') : 'transparent',
+              color: speed > 1 ? '#ffffff' : timeColor,
+              fontSize: 9.5,
+              fontWeight: 800,
+              cursor: 'pointer',
+              lineHeight: 1.2,
+              flexShrink: 0,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {speed}x
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           {expiresAt && (() => {
             const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));
             if (daysLeft <= 0) return null;

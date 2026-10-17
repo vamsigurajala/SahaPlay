@@ -6,7 +6,7 @@ import { Supercar3D } from './vehicles';
 import {
   X, Gauge, Play, RotateCcw, Volume2, VolumeX, Eye, Sparkles,
   Zap, Disc, Key, Shield, ArrowRight, Check, Compass, Sliders,
-  Radio, Activity, ChevronRight
+  Radio, Activity, ChevronRight, Car
 } from 'lucide-react';
 
 const PI = Math.PI;
@@ -354,6 +354,33 @@ export default function SupercarViewer({ onClose }) {
             </button>
           ))}
         </div>
+
+        <button
+          onClick={() => {
+            onClose();
+            if (window.__startSupercarDrive) {
+              window.__startSupercarDrive();
+            }
+          }}
+          title="Drive this supercar outside in the Frontyard and Street"
+          style={{
+            padding: '7px 16px',
+            borderRadius: 12,
+            border: '1px solid rgba(255,255,255,0.25)',
+            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            cursor: 'pointer',
+            fontSize: 12.5,
+            fontWeight: 800,
+            boxShadow: '0 4px 14px rgba(239,68,68,0.45)',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <Car size={16} /> Drive Supercar
+        </button>
 
         <button
           onClick={onClose}
