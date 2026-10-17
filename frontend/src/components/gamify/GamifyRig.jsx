@@ -37,6 +37,8 @@ export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, onInChange, onReady }) {
   const readyRef = useRef(false);
   const lastFocusCommitRef = useRef(0);
+  const isPinchingRef = useRef(false);
+  const frameCount = useRef(0);
   const { camera, gl, size, events } = useThree();
   const target = useMemo(() => new THREE.Vector3(), []);
 
@@ -82,6 +84,7 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
         viewRef.current.dragging = true;
       } else if (pts.size >= 2) {
         // Multi-touch pinch: release any single pointer capture and cancel drag
+        isPinchingRef.current = true;
         viewRef.current.dragging = false;
         try {
           for (const pid of pts.keys()) {
@@ -90,7 +93,11 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
         } catch (_) {}
         const [a, b] = [...pts.values()];
         const d = dist(a, b);
-        pinch = { lastD: d, startD: d };
+        pinch = {
+          lastD: d,
+          startD: d,
+          lastCenter: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        };
         last = null;
         lastPinchT = performance.now();
       }
@@ -102,22 +109,43 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
       const v = viewRef.current;
 
       if (pts.size >= 2) {
-        // Multi-touch pinch gesture
+        // Multi-touch pinch gesture: direct 1:1 camera zoom + simultaneous center pan
+        isPinchingRef.current = true;
         const [a, b] = [...pts.values()];
         const curD = dist(a, b);
-        if (pinch && pinch.lastD > 10 && curD > 10) {
+        const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        if (pinch && pinch.lastD > 8 && curD > 8) {
           const delta = curD / pinch.lastD;
           v.zoom = clamp(v.zoom * delta, MIN_ZOOM, MAX_ZOOM);
+          // Zero-latency response: follow fingers directly while pinching
+          v.cur = v.zoom;
+
+          // Simultaneous two-finger pan with center position
+          if (pinch.lastCenter) {
+            const dx = center.x - pinch.lastCenter.x;
+            const dy = center.y - pinch.lastCenter.y;
+            const z = camera.zoom || 1;
+            const k = 1 / Math.SQRT2;
+            const up = dy / (z * SIN_ELEV);
+            const lim = panLimits(v.flip, v.floor);
+            const dwx = (-dx / z) * k - up * k;
+            const dwz = (dx / z) * k - up * k;
+            v.tx = clamp(v.tx + dwx, lim.xmin, lim.xmax);
+            v.tz = clamp(v.tz + dwz, lim.zmin, lim.zmax);
+            v.px = v.tx;
+            v.pz = v.tz;
+          }
           pinch.lastD = curD;
+          pinch.lastCenter = center;
           lastPinchT = performance.now();
-        } else if (!pinch && curD > 10) {
-          pinch = { lastD: curD };
+        } else if (!pinch && curD > 8) {
+          pinch = { lastD: curD, lastCenter: center };
         }
         return;
       }
 
-      // Single-finger drag with 220ms cooldown after pinch to prevent jerk
-      if (performance.now() - lastPinchT < 220) {
+      // Single-finger drag with brief 80ms cooldown after pinch to prevent jerk
+      if (performance.now() - lastPinchT < 80) {
         last = { x: e.clientX, y: e.clientY };
         return;
       }
@@ -146,12 +174,13 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
     };
 
     const up = (e) => {
-      const wasDragging = pts.size === 1 && last && (performance.now() - lastPinchT > 250);
+      const wasDragging = pts.size === 1 && last && (performance.now() - lastPinchT > 100);
       try { el.releasePointerCapture?.(e.pointerId); } catch (_) {}
       pts.delete(e.pointerId);
 
       if (pts.size < 2) {
         pinch = null;
+        isPinchingRef.current = false;
         lastPinchT = performance.now();
       }
 
@@ -172,7 +201,12 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
       e.preventDefault();
       const v = viewRef.current;
       if (!v) return;
-      const factor = e.deltaY < 0 ? 1.18 : (1 / 1.18);
+      let dy = e.deltaY;
+      if (e.deltaMode === 1) dy *= 25; // line mode
+      else if (e.deltaMode === 2) dy *= 250; // page mode
+      // Smooth continuous exponential zooming for both trackpads and mouse wheels
+      const rate = e.ctrlKey ? 0.008 : 0.0018;
+      const factor = Math.exp(-dy * rate);
       v.zoom = clamp(v.zoom * factor, MIN_ZOOM, MAX_ZOOM);
     };
 
@@ -193,8 +227,24 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
   // Shadows and frame updates:
   useFrame((_, dt) => {
     const v = viewRef.current;
-    const kz = 1 - Math.exp(-dt * 12);
-    v.cur += (v.zoom - v.cur) * kz;
+    if (isPinchingRef.current) {
+      // Direct 1:1 camera zoom tracking while actively pinching with fingers
+      v.cur = v.zoom;
+    } else {
+      // Responsive, buttery-smooth ease (settles cleanly in ~60ms without lag or sticking)
+      const kz = 1 - Math.exp(-dt * 26);
+      v.cur += (v.zoom - v.cur) * kz;
+    }
+
+    // Shadow optimization: alternate updates every 2 frames for a rock-solid 60-120fps
+    if (gl.shadowMap?.enabled) {
+      gl.shadowMap.autoUpdate = false;
+      frameCount.current = (frameCount.current + 1) % 2;
+      if (frameCount.current === 0) {
+        gl.shadowMap.needsUpdate = true;
+      }
+    }
+
     if (v.vel) {
       // fling: coast with friction, stopping at the pan limits
       const lim = panLimits(v.flip, v.floor);

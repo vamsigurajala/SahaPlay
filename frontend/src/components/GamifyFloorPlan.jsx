@@ -246,29 +246,23 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     return () => { v.openProp = null; };
   }, []);
 
-  // Wheel zoom: multiplicative (each tick scales by a fixed ratio) so it feels
-  // the same at any zoom level. Native non-passive listener — React's onWheel
-  // is passive, so preventDefault there silently no-ops and the page scrolls.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const onWheel = (e) => {
-      e.preventDefault();
-      const v = viewRef.current;
-      if (!v) return;
-      const rate = e.ctrlKey ? 0.015 : 0.0032; // trackpad pinch reports ctrlKey with small deltas
-      v.zoom = clamp(v.zoom * Math.exp(-e.deltaY * rate), MIN_ZOOM, MAX_ZOOM);
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, []);
-
-  // Escape resets zoom if zoomed deep in
+  // Keypad & keyboard zoom shortcuts (+, -, 0, Escape)
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') {
-        const v = viewRef.current;
-        if (v && v.zoom > 1.05) v.zoom = 1;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      const v = viewRef.current;
+      if (!v) return;
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        v.zoom = clamp(v.zoom * 1.25, MIN_ZOOM, MAX_ZOOM);
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        v.zoom = clamp(v.zoom / 1.25, MIN_ZOOM, MAX_ZOOM);
+      } else if (e.key === '0') {
+        v.zoom = 1;
+      } else if (e.key === 'Escape') {
+        if (v.zoom > 1.05) v.zoom = 1;
       }
     };
     window.addEventListener('keydown', onKey);
