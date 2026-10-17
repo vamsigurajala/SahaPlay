@@ -92,7 +92,7 @@ export default function GameViewer({ id }) {
   const current = menu ? picked : id;
   const Game = current && GAMES[current] ? lazyFor(current) : null;
   return (
-    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+    <div data-no-pull="true" onClick={(e) => e.stopPropagation()} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       {menu && picked && (
         <button style={{ ...ui.btn, alignSelf: 'flex-start', marginLeft: 'max(0px, calc(50% - 440px))' }} onClick={() => setPicked(null)}><ArrowLeft size={15} />{id === 'console' ? t('gamify.games.backConsole', 'All console games') : t('gamify.games.backHub', 'All games')}</button>
       )}

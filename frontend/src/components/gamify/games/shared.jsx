@@ -118,7 +118,7 @@ export const ui = {
 export function GameFrame({ title, Icon, score, scoreLabel, best, bestLabel, hint, onRestart, maxWidth = 760, accent = '#8b5cff', extra, children }) {
   const { t } = useTranslation();
   return (
-    <div style={{ ...ui.card, maxWidth }}>
+    <div data-no-pull="true" onClick={(e) => e.stopPropagation()} style={{ ...ui.card, maxWidth }}>
       <div style={{ ...ui.panel, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 900, fontSize: 18, letterSpacing: '0.02em' }}>
           {Icon && <span style={{ width: 34, height: 34, borderRadius: 10, background: accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon size={19} /></span>}

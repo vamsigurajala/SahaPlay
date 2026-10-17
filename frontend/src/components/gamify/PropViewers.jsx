@@ -4188,8 +4188,10 @@ function clickedBlank(target, stopAt) {
 // not on a canvas or slider (games use those for their own touch controls), and not
 // inside something that is itself scrolled down.
 function canPullClose(target, scroller) {
+  if (target?.closest?.('[data-no-pull]')) return false;
   for (let el = target; el && el !== scroller; el = el.parentElement) {
-    if (['CANVAS', 'INPUT', 'TEXTAREA', 'SELECT', 'IFRAME'].includes(el.tagName)) return false;
+    if (['CANVAS', 'INPUT', 'TEXTAREA', 'SELECT', 'IFRAME', 'BUTTON', 'SVG'].includes(el.tagName)) return false;
+    if (el.dataset?.noPull !== undefined) return false;
     const cs = getComputedStyle(el);
     if (cs.touchAction === 'none') return false;
     if (el.scrollTop > 0) return false;
@@ -4225,6 +4227,10 @@ export default function PropViewer({ kind, arg, onClose }) {
 
   // Pull down to close on phones: drag the sheet down from the top and let go.
   const onTouchStart = (e) => {
+    if (['game', 'puzzles', 'supercar', 'roti'].includes(kind)) {
+      pull.current = { y: 0, x: 0, on: false, dy: 0 };
+      return;
+    }
     const t0 = e.touches[0];
     pull.current = { y: t0.clientY, x: t0.clientX, on: canPullClose(e.target, scrollRef.current), dy: 0 };
   };
@@ -4269,7 +4275,7 @@ export default function PropViewer({ kind, arg, onClose }) {
         onTouchCancel={onTouchEnd}
       >
       <div
-        onClick={(e) => { e.stopPropagation(); if (clickedBlank(e.target, e.currentTarget)) onClose(); }}
+        onClick={(e) => { e.stopPropagation(); }}
         style={{ width: '100%', display: 'flex', justifyContent: 'center' }}
       >
         {kind === 'books' && (book ? <BookReader book={book} onBack={() => setBook(null)} /> : <BookshelfView shelfId={arg} onPick={setBook} />)}

@@ -152,6 +152,7 @@ export function DriveableSupercar({ initialPos = [13.0, 0, 8.6], onDriveChange }
         z: Math.max(6, Math.min(36, st.z)),
         floor: 0,
       };
+      view.current.glide = true;
     }
     onDriveChange && onDriveChange(false);
   };

@@ -480,22 +480,6 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
   const hLines = [];
   for (let r = 1; r < HOUSE_ROWS; r++) hLines.push(-halfD + r * CELL_D);
 
-  const view = useContext(ViewContext);
-  const floor0Ref = useRef();
-  const outdoorRef = useRef();
-
-  useFrame(() => {
-    const v = view?.current;
-    if (!v) return;
-    const isUpstairs = v.floor === 1 && v.cur >= 0.8;
-    if (floor0Ref.current && floor0Ref.current.visible === isUpstairs) {
-      floor0Ref.current.visible = !isUpstairs;
-    }
-    if (outdoorRef.current && outdoorRef.current.visible === isUpstairs) {
-      outdoorRef.current.visible = !isUpstairs;
-    }
-  });
-
   return (
     <FocusContext.Provider value={focus}>
     <DoorNavContext.Provider value={tapDoor}>
@@ -546,27 +530,21 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
         <DoorFrame key={i} p={[d.x, 0, d.z]} axis={d.axis === 'v' ? 'z' : 'x'} color={DOOR_COLORS[i % 4]} doorKey={[d.a, d.b].sort().join('|')} />
       ))}
 
-      {/* ── Ground Floor Rooms (Culled when focused upstairs) ── */}
-      <group ref={floor0Ref}>
-        <Study />
-        <LivingRoom weather={weather} />
-        <Bedroom />
-        <Kitchen />
-        <GameRoom />
-        <Garden />
-        <Veranda />
-        <FrontYard />
-        <Courtyard />
-      </group>
-
-      {/* ── Distant Outdoor Areas (Culled when focused upstairs) ── */}
-      <group ref={outdoorRef}>
-        <Street weather={weather} />
-        <CricketFloor weather={weather} />
-        <CricketGround weather={weather} />
-        <MarketFloor />
-        <Market weather={weather} />
-      </group>
+      {/* ── Rooms ── */}
+      <Study />
+      <LivingRoom weather={weather} />
+      <Bedroom />
+      <Kitchen />
+      <GameRoom />
+      <Garden />
+      <Veranda />
+      <FrontYard />
+      <Courtyard />
+      <Street weather={weather} />
+      <CricketFloor weather={weather} />
+      <CricketGround weather={weather} />
+      <MarketFloor />
+      <Market weather={weather} />
 
       <Floor2 />
 

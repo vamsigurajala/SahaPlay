@@ -39,6 +39,7 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, 
   const targetRef = useRef(toWorld(x, y));
   const initialPos = useMemo(() => { const t = toWorld(x, y); return [t.x, zoneFloor * FLOOR_Y, t.z]; }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const lastEmitRef = useRef(0);
+  const lastZoneRef = useRef(zone);
   const stepAt = useRef(0);
   const pendingRef = useRef(null);
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
@@ -148,15 +149,13 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, 
           targetRef.current = clamped;
           emitThrottled(clamped.x, clamped.z);
           movingViaInputRef.current = true;
-          if (view?.current && !view.current.dragging) {
-            view.current.glide = false;
-            if (view.current.flip) {
-              view.current.tx = clamped.z;
-              view.current.tz = clamped.x;
-            } else {
-              view.current.tx = clamped.x;
-              view.current.tz = clamped.z;
-            }
+
+          // If crossing into a different room while moving, smoothly glide camera to the new room
+          const v = toVirtual(clamped.x, clamped.z);
+          const curZone = zoneForPoint(clamp(v.x, 0, FLOORPLAN_WIDTH), clamp(v.y, 0, FLOORPLAN_HEIGHT), floorRef.current);
+          if (curZone && curZone !== lastZoneRef.current) {
+            lastZoneRef.current = curZone;
+            if (onDrop) onDrop(curZone);
           }
         }
       } else if (movingViaInputRef.current) {
@@ -164,18 +163,11 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, 
         const settled = place(targetRef.current.x, targetRef.current.z);
         targetRef.current = settled;
         emit(settled.x, settled.z);
-        if (view?.current && !view.current.dragging) {
-          if (view.current.flip) {
-            view.current.tx = settled.z;
-            view.current.tz = settled.x;
-          } else {
-            view.current.tx = settled.x;
-            view.current.tz = settled.z;
-          }
-        }
         if (onDrop) {
           const v = toVirtual(settled.x, settled.z);
-          onDrop(zoneForPoint(clamp(v.x, 0, FLOORPLAN_WIDTH), clamp(v.y, 0, FLOORPLAN_HEIGHT), floorRef.current));
+          const curZone = zoneForPoint(clamp(v.x, 0, FLOORPLAN_WIDTH), clamp(v.y, 0, FLOORPLAN_HEIGHT), floorRef.current);
+          lastZoneRef.current = curZone;
+          onDrop(curZone);
         }
       }
     }
