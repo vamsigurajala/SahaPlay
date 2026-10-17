@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX, Camera, MessageCircle } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX, Camera, MessageCircle, Gamepad2, Tv } from 'lucide-react';
 import { useAmbience } from './ambience';
 import { useHideLabels, toggleHideLabels } from './labelPrefs';
 import { ALL_ZONES, COLS } from '../../data/gamifyZones';
@@ -40,6 +40,10 @@ export default function GamifyControls({
   smooth,
   onToggleSmooth,
   onTour,
+  showJoystick,
+  onToggleJoystick,
+  pip,
+  onTogglePip,
 }) {
   const [rightOpen, setRightOpen] = useState(true);
   const hideLabels = useHideLabels();
@@ -350,6 +354,24 @@ export default function GamifyControls({
             style={{ ...btn, flex: 'none', background: panel === 'say' ? 'rgba(139,92,255,0.75)' : btn.background }}
           >
             <MessageCircle size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={onToggleJoystick}
+            aria-pressed={showJoystick}
+            title={showJoystick ? 'Hide on-screen joystick' : 'Show on-screen joystick (WASD / Touch)'}
+            style={{ ...btn, flex: 'none', background: showJoystick ? 'rgba(139,92,255,0.75)' : btn.background }}
+          >
+            <Gamepad2 size={16} />
+          </button>
+          <button
+            className="stay-white"
+            onClick={onTogglePip}
+            aria-pressed={pip}
+            title={pip ? 'Dock video back to 3D TV' : 'Floating Picture-in-Picture (PiP) Video'}
+            style={{ ...btn, flex: 'none', background: pip ? 'rgba(139,92,255,0.75)' : btn.background }}
+          >
+            <Tv size={16} />
           </button>
           <button
             className="stay-white"

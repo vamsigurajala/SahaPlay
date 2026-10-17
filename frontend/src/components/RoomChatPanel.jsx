@@ -532,12 +532,23 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const [playing, setPlaying] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(0);
   const [progress, setProgress] = React.useState(0);
+  const [speed, setSpeed] = React.useState(1);
   const audioRef = React.useRef(null);
   const rafRef = React.useRef(null);
   const isPlayingRef = React.useRef(false);
+  const isScrubbingRef = React.useRef(false);
 
   const fmtDur = (s) => (!s || !isFinite(s) || isNaN(s) || s < 0) ? '0:00' :
     `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  const toggleSpeed = (e) => {
+    e.stopPropagation();
+    const next = speed === 1 ? 1.5 : speed === 1.5 ? 2 : 1;
+    setSpeed(next);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = next;
+    }
+  };
 
   // Cleanup RAF and global registry on unmount
   React.useEffect(() => () => {
@@ -555,9 +566,6 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const isLoading = loading && !url;
   const isExpired = !url && !isLoading;
   const expColor = isMe ? 'rgba(255,255,255,0.5)' : (isLight ? '#94a3b8' : '#666');
-  // Same per-theme color plain message bubbles use whenever a wallpaper's
-  // active, instead of a low-alpha tint over the photo (reads as "barely
-  // there") or a fixed card unrelated to the picked theme.
   const loadBg = wallpaperBg || (isMe ? 'rgba(255,255,255,0.1)' : (isLight ? 'rgba(var(--brand-1-rgb),0.07)' : 'rgba(255,255,255,0.06)'));
 
   if (isLoading) return (
@@ -582,10 +590,10 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     </div>
   );
 
-  // MediaRecorder WebM files have duration=Infinity — seek to end to force real duration
   const handleLoadedMetadata = () => {
     const el = audioRef.current;
     if (!el) return;
+    el.playbackRate = speed;
     if (isFinite(el.duration) && el.duration > 0 && el.duration < 1e8) {
       setDuration(el.duration);
     } else {
@@ -613,7 +621,7 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
   const toggle = () => {
     const el = audioRef.current;
     if (!el) return;
-    // If mid-duration-detection (seeked to 1e9), reset position first
+    el.playbackRate = speed;
     if (el.currentTime > 1e5) el.currentTime = 0;
 
     if (isPlayingRef.current) {
@@ -623,14 +631,12 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
       setPlaying(false);
       if (_vnReg_rcp.el === el) { _vnReg_rcp.el = null; _vnReg_rcp.pauseFn = null; }
     } else {
-      // Stop any other playing voice note in this panel
       if (_vnReg_rcp.el && _vnReg_rcp.el !== el && _vnReg_rcp.pauseFn) {
         _vnReg_rcp.pauseFn();
         _vnReg_rcp.el.pause();
       }
       isPlayingRef.current = true;
-      setPlaying(true); // immediate UI feedback
-      // Start RAF immediately — fills bars as soon as audio data arrives
+      setPlaying(true);
       const tick = () => {
         const a = audioRef.current;
         if (!a || !isPlayingRef.current) return;
@@ -657,6 +663,42 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     }
   };
 
+  const seekToPosition = (clientX, targetEl) => {
+    const el = audioRef.current;
+    if (!el || !targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const dur = isFinite(el.duration) && el.duration < 1e8 ? el.duration : duration;
+    if (dur > 0) {
+      el.currentTime = pct * dur;
+      setProgress(pct);
+      setCurrentTime(pct * dur);
+    }
+  };
+
+  const onPointerDownWave = (e) => {
+    e.preventDefault();
+    isScrubbingRef.current = true;
+    const target = e.currentTarget;
+    seekToPosition(e.clientX, target);
+
+    const onPointerMove = (ev) => {
+      if (!isScrubbingRef.current) return;
+      seekToPosition(ev.clientX, target);
+    };
+
+    const onPointerUp = () => {
+      isScrubbingRef.current = false;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+  };
+
   const handleDownload = async (e) => {
     e.stopPropagation();
     try {
@@ -667,19 +709,11 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     } catch { toast.error('Download failed'); }
   };
 
-  // Same per-theme reasoning as loadBg above — plus a picked Chat Theme
-  // color, same as FileCard above.
   const onColoredCard = isMe && !!(wallpaperBg || themeGradient);
   const bubbleBg = wallpaperBg || themeGradient || (isMe
     ? (isLight ? 'rgba(var(--brand-1-rgb),0.12)' : 'rgba(255,255,255,0.15)')
     : (isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)'));
   const playedColor = themeColor || 'var(--brand-2)';
-  // Waveform bars (a `background` fill) and the download icon (an SVG
-  // `color` prop) aren't reachable by the .rcp-vn-time-style class override
-  // — that only wins the cascade war for actual CSS `color` on classed text
-  // nodes — so Zen Interior's forced-black sent bubble needs these two
-  // computed explicitly instead of the white a dark-app-mode sent bubble
-  // normally gets.
   const unplayedColor = onColoredCard
     ? 'rgba(255,255,255,0.35)'
     : (isMe
@@ -693,7 +727,6 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
     : (isMe
       ? ((isLight || wallpaperForceBlack) ? 'var(--brand-1)' : 'rgba(255,255,255,0.7)')
       : (isLight ? 'var(--brand-2-dark)' : 'var(--brand-2-light)'));
-  // Before play: show total duration. While playing or paused mid-track: show elapsed.
   const displayTime = (playing || currentTime > 0) ? fmtDur(currentTime) : fmtDur(duration);
   const themeTextVars = onColoredCard ? { '--fc-sub-c': 'rgba(255,255,255,0.75)' } : {};
 
@@ -712,30 +745,55 @@ function AudioPlayerBubble({ url, expiresAt, isMe, isLight, loading, tick, forwa
           {playing ? <Pause size={12} color="#fff" fill="#fff" /> : <Play size={12} color="#fff" fill="#fff" />}
         </button>
         <div
-          style={{ flex: 1, display: 'flex', alignItems: 'center', height: 28, gap: 1.5, cursor: 'pointer' }}
-          onClick={e => {
-            const el = audioRef.current;
-            if (!el) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-            const dur = isFinite(el.duration) && el.duration < 1e8 ? el.duration : duration;
-            if (dur > 0) {
-              el.currentTime = pct * dur;
-              setProgress(pct);
-              setCurrentTime(pct * dur);
-            }
-          }}
+          style={{ flex: 1, display: 'flex', alignItems: 'center', height: 28, gap: 1.5, cursor: 'ew-resize', touchAction: 'none' }}
+          onPointerDown={onPointerDownWave}
         >
-          {bars.map((h, i) => (
-            <div key={i} style={{ width: 2, height: h, borderRadius: 1, background: i / BAR_COUNT < progress ? playedColor : unplayedColor, flexShrink: 0 }} />
-          ))}
+          {bars.map((h, i) => {
+            const isPlayed = i / BAR_COUNT < progress;
+            const isCurrent = Math.floor(progress * BAR_COUNT) === i && playing;
+            return (
+              <div
+                key={i}
+                style={{
+                  width: 2,
+                  height: isCurrent ? Math.min(24, h * 1.35) : h,
+                  borderRadius: 1,
+                  background: isPlayed ? playedColor : unplayedColor,
+                  flexShrink: 0,
+                  transformOrigin: 'center bottom',
+                  transition: 'height 0.1s ease',
+                }}
+              />
+            );
+          })}
         </div>
         <button onClick={handleDownload} title="Download voice note" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
           <Download size={18} color={dlColor} />
         </button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 3, marginLeft: 40 }}>
-        <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span className="rcp-vn-time" style={{ fontSize: 10, color: timeColor, WebkitTextFillColor: timeColor }}>{displayTime}</span>
+          <button
+            onClick={toggleSpeed}
+            title={`Speed: ${speed}x (tap to change)`}
+            aria-label={`Playback speed ${speed}x`}
+            style={{
+              padding: '1px 5px',
+              borderRadius: 6,
+              border: `1px solid ${speed > 1 ? (themeColor || 'var(--brand-2)') : (isLight ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.22)')}`,
+              background: speed > 1 ? (themeColor || 'var(--brand-2)') : 'transparent',
+              color: speed > 1 ? '#ffffff' : timeColor,
+              fontSize: 9.5,
+              fontWeight: 800,
+              cursor: 'pointer',
+              lineHeight: 1.2,
+              transition: 'all 0.15s ease',
+            }}
+          >
+            {speed}x
+          </button>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {expiresAt && (() => {
             const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000*60*60*24));

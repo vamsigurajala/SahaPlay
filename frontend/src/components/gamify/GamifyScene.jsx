@@ -21,7 +21,12 @@ const LOW_H = 0.9;
 const GAP = 1.6; // half-width of a doorway
 const DOOR_COLORS = [NEON_CYAN, NEON_PINK, NEON_VIOLET, NEON_AMBER];
 
+const SCENE_TEXTURE_CACHE = new Map();
+
 function canvasTexture(size, draw, repeat) {
+  const key = `${size}_${repeat[0]}_${repeat[1]}_${draw.toString().slice(0, 50)}`;
+  if (SCENE_TEXTURE_CACHE.has(key)) return SCENE_TEXTURE_CACHE.get(key);
+
   const c = document.createElement('canvas');
   c.width = c.height = size;
   draw(c.getContext('2d'), size);
@@ -30,6 +35,7 @@ function canvasTexture(size, draw, repeat) {
   t.repeat.set(repeat[0], repeat[1]);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  SCENE_TEXTURE_CACHE.set(key, t);
   return t;
 }
 
@@ -475,6 +481,22 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
   const hLines = [];
   for (let r = 1; r < HOUSE_ROWS; r++) hLines.push(-halfD + r * CELL_D);
 
+  const view = useContext(ViewContext);
+  const floor0Ref = useRef();
+  const outdoorRef = useRef();
+
+  useFrame(() => {
+    const v = view?.current;
+    if (!v) return;
+    const isUpstairs = v.floor === 1 && v.cur >= 0.8;
+    if (floor0Ref.current && floor0Ref.current.visible === isUpstairs) {
+      floor0Ref.current.visible = !isUpstairs;
+    }
+    if (outdoorRef.current && outdoorRef.current.visible === isUpstairs) {
+      outdoorRef.current.visible = !isUpstairs;
+    }
+  });
+
   return (
     <FocusContext.Provider value={focus}>
     <DoorNavContext.Provider value={tapDoor}>
@@ -523,21 +545,28 @@ function GamifyScene({ onGoToRoom, onExitHouse, focus, zoomedOut, lowQ, coarse, 
         <DoorFrame key={i} p={[d.x, 0, d.z]} axis={d.axis === 'v' ? 'z' : 'x'} color={DOOR_COLORS[i % 4]} doorKey={[d.a, d.b].sort().join('|')} />
       ))}
 
-      {/* ── Rooms ── */}
-      <Study />
-      <LivingRoom weather={weather} />
-      <Bedroom />
-      <Kitchen />
-      <GameRoom />
-      <Garden />
-      <Veranda />
-      <FrontYard />
-      <Courtyard />
-      <Street weather={weather} />
-      <CricketFloor weather={weather} />
-      <CricketGround weather={weather} />
-      <MarketFloor />
-      <Market weather={weather} />
+      {/* ── Ground Floor Rooms (Culled when focused upstairs) ── */}
+      <group ref={floor0Ref}>
+        <Study />
+        <LivingRoom weather={weather} />
+        <Bedroom />
+        <Kitchen />
+        <GameRoom />
+        <Garden />
+        <Veranda />
+        <FrontYard />
+        <Courtyard />
+      </group>
+
+      {/* ── Distant Outdoor Areas (Culled when focused upstairs) ── */}
+      <group ref={outdoorRef}>
+        <Street weather={weather} />
+        <CricketFloor weather={weather} />
+        <CricketGround weather={weather} />
+        <MarketFloor />
+        <Market weather={weather} />
+      </group>
+
       <Floor2 />
 
       {/* ── Room signs + door hotspots ── */}

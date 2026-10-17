@@ -1,4 +1,4 @@
-import { useContext, useLayoutEffect, useMemo, useRef } from 'react';
+import { useContext, useLayoutEffect, useMemo, useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { ViewContext, Tree } from './parts';
@@ -32,8 +32,12 @@ export const WEATHER = {
     label: 'Night', sky: ['#070b1f', '#101a3d', '#26305a'], ambient: ['#8a8cff', 0.5], hemi: ['#6a70e0', '#141028', 0.5],
     sun: { color: '#9ab0ff', int: 0.55, pos: [14, 26, 16] }, neon: 1.25, cloud: { color: '#2c3556', count: 6, op: 0.9 }, grass: '#1f4a35', disc: { x: '82%', y: '14%', color: '#f4f6ff', size: 54 }, stars: 1,
   },
+  storm: {
+    label: 'Thunderstorm', sky: ['#121020', '#221b33', '#392d4f'], ambient: ['#7c7499', 0.5], hemi: ['#655b85', '#1a1424', 0.45],
+    sun: { color: '#887fad', int: 0.45, pos: [14, 26, 16] }, neon: 1.35, cloud: { color: '#27203b', count: 18, op: 1 }, grass: '#253d2d', disc: null, stars: 0, rain: true, storm: true,
+  },
 };
-export const WEATHER_ORDER = ['sunrise', 'day', 'cloudy', 'rain', 'sunset', 'night'];
+export const WEATHER_ORDER = ['sunrise', 'day', 'sunset', 'night', 'cloudy', 'rain', 'storm'];
 
 // Weather that matches the viewer's local clock.
 export function autoWeather(d = new Date()) {
@@ -91,16 +95,69 @@ export async function fetchLiveWeather(lat, lon) {
 
 const STARS = Array.from({ length: 70 }).map((_, i) => ({ x: (i * 53.7) % 100, y: (i * 31.3) % 62, s: 1 + (i % 3) * 0.6, o: 0.4 + (i % 5) * 0.12 }));
 
-// CSS sky behind the transparent canvas: gradient, sun / moon disc, stars.
+// CSS sky behind the transparent canvas: gradient, sun / moon disc, stars, and atmospheric lightning.
 export function SkyBackdrop({ weather }) {
-  const w = WEATHER[weather];
+  const w = WEATHER[weather] || WEATHER.day;
+  const [flash, setFlash] = useState(false);
+
+  useEffect(() => {
+    if (!w.storm) {
+      setFlash(false);
+      return;
+    }
+    let timer;
+    const trigger = () => {
+      const wait = 4000 + Math.random() * 7000;
+      timer = setTimeout(() => {
+        setFlash(true);
+        setTimeout(() => {
+          setFlash(false);
+          // 45% chance of secondary rumble flash
+          if (Math.random() > 0.55) {
+            setTimeout(() => {
+              setFlash(true);
+              setTimeout(() => setFlash(false), 80);
+            }, 100);
+          }
+        }, 120);
+        trigger();
+      }, wait);
+    };
+    trigger();
+    return () => clearTimeout(timer);
+  }, [w.storm]);
+
   return (
     <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${w.sky[0]} 0%, ${w.sky[1]} 55%, ${w.sky[2]} 100%)`, transition: 'background 1.2s' }}>
       <div style={{ position: 'absolute', inset: 0, opacity: w.stars, transition: 'opacity 1.2s' }}>
         {STARS.map((s, i) => <span key={i} style={{ position: 'absolute', left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, borderRadius: '50%', background: '#fff', opacity: s.o }} />)}
       </div>
+      {w.stars > 0.5 && (
+        <div style={{
+          position: 'absolute',
+          top: '22%',
+          left: '65%',
+          width: 90,
+          height: 1.5,
+          background: 'linear-gradient(90deg, rgba(255,255,255,0.85), transparent)',
+          transform: 'rotate(-32deg)',
+          pointerEvents: 'none',
+          animation: 'shootingStarAnim 10s ease-in-out infinite',
+        }} />
+      )}
       {w.disc && (
         <div style={{ position: 'absolute', left: w.disc.x, top: w.disc.y, width: w.disc.size, height: w.disc.size, marginLeft: -w.disc.size / 2, marginTop: -w.disc.size / 2, borderRadius: '50%', background: w.disc.color, boxShadow: `0 0 ${w.disc.size}px ${w.disc.size / 3}px ${w.disc.color}66`, transition: 'all 1.2s' }} />
+      )}
+      {w.storm && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'rgba(224, 231, 255, 0.45)',
+          opacity: flash ? 1 : 0,
+          pointerEvents: 'none',
+          transition: flash ? 'opacity 0.03s' : 'opacity 0.28s',
+          zIndex: 2,
+        }} />
       )}
     </div>
   );

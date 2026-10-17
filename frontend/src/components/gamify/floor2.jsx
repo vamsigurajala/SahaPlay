@@ -28,7 +28,12 @@ const POT = '#b9663a';
 
 const MIXED = ['#ff8aa8', '#ffd25a', '#ffffff', '#c78bff', '#ff9a5a'];
 
+const F2_TEXTURE_CACHE = new Map();
+
 function tex(size, draw, repeat) {
+  const key = `${size}_${repeat[0]}_${repeat[1]}_${draw.toString().slice(0, 50)}`;
+  if (F2_TEXTURE_CACHE.has(key)) return F2_TEXTURE_CACHE.get(key);
+
   const c = document.createElement('canvas');
   c.width = c.height = size;
   draw(c.getContext('2d'), size);
@@ -37,6 +42,7 @@ function tex(size, draw, repeat) {
   t.repeat.set(repeat[0], repeat[1]);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
+  F2_TEXTURE_CACHE.set(key, t);
   return t;
 }
 

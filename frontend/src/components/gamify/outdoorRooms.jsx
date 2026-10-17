@@ -5,6 +5,7 @@ import { Box, Neon, Plant, Tree, BeanBag, Rug, Table, Stool, FloorLamp, useOpenP
 import { Cell } from './cell';
 import { NEON_PINK, NEON_VIOLET, NEON_AMBER } from './constants';
 import { Supercar3D, Superbike3D, Bicycle3D } from './vehicles';
+import { DriveableSupercar } from './DriveableVehicle';
 
 const PI = Math.PI;
 
@@ -814,20 +815,17 @@ export function Courtyard() {
 // FRONT YARD: ATTACHED WALL GARAGE, SUPERBIKE, BICYCLES & TOP-MODEL SUPERCAR
 // ============================================================================
 
-// 1. Top-Model Ferrari / Lamborghini Hypercar (Click to inspect 3D Cockpit!)
+// 1. Top-Model Ferrari / Lamborghini Hypercar (Click to inspect 3D Cockpit or Drive!)
 function TopModelSupercar3D({ p, rot = 0 }) {
-  const openCar = useOpenProp('supercar');
-  const dais = useRef();
-  useFrame((_, dt) => { if (dais.current) dais.current.rotation.y += dt * 0.14; });
   return (
-    <group position={p} rotation={[0, rot, 0]} {...openCar}>
-      <PropDot position={[0, 2.4, 0]} kind="supercar" />
-      {/* showroom turntable with an LED ring */}
+    <group position={p} rotation={[0, rot, 0]}>
+      {/* Showroom turntable with LED lighting ring */}
       <mesh position={[0, 0.06, 0]} receiveShadow><cylinderGeometry args={[3.0, 3.1, 0.12, 40]} /><meshStandardMaterial color="#14141a" roughness={0.4} metalness={0.5} /></mesh>
       <mesh position={[0, 0.126, 0]} rotation={[-PI / 2, 0, 0]}><ringGeometry args={[2.72, 2.82, 56]} /><meshBasicMaterial color="#38bdf8" toneMapped={false} /></mesh>
       <mesh position={[0, 0.126, 0]} rotation={[-PI / 2, 0, 0]}><ringGeometry args={[2.35, 2.4, 56]} /><meshBasicMaterial color="#f43f5e" toneMapped={false} /></mesh>
-      <group ref={dais} position={[0, 0.12, 0]}><Supercar3D color="#c8102e" lightsOn interior /></group>
-      <mesh position={[0, 0.9, 0]} visible={false}><boxGeometry args={[2.6, 1.8, 5.2]} /></mesh>
+
+      <PropDot position={[0, 2.4, 0]} kind="supercar" />
+      <DriveableSupercar initialPos={[0, 0.12, 0]} />
     </group>
   );
 }

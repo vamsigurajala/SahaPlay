@@ -67,16 +67,103 @@ function Avatar3D({ avatarId, username, avatarPath, isHost, isOwn, speaking, x, 
     return limit(r.x, r.z);
   };
 
+  const keysRef = useRef({ w: false, a: false, s: false, d: false });
+  const movingViaInputRef = useRef(false);
+
   useEffect(() => {
-    if (!draggingRef.current) targetRef.current = toWorld(x, y);
+    if (!isOwn) return;
+    const isInputActive = () => {
+      const el = document.activeElement;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+    };
+
+    const onKeyDown = (e) => {
+      if (isInputActive()) return;
+      const k = e.key?.toLowerCase();
+      if (k === 'w' || e.key === 'ArrowUp') { keysRef.current.w = true; }
+      if (k === 's' || e.key === 'ArrowDown') { keysRef.current.s = true; }
+      if (k === 'a' || e.key === 'ArrowLeft') { keysRef.current.a = true; }
+      if (k === 'd' || e.key === 'ArrowRight') { keysRef.current.d = true; }
+    };
+
+    const onKeyUp = (e) => {
+      const k = e.key?.toLowerCase();
+      if (k === 'w' || e.key === 'ArrowUp') { keysRef.current.w = false; }
+      if (k === 's' || e.key === 'ArrowDown') { keysRef.current.s = false; }
+      if (k === 'a' || e.key === 'ArrowLeft') { keysRef.current.a = false; }
+      if (k === 'd' || e.key === 'ArrowRight') { keysRef.current.d = false; }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [isOwn]);
+
+  useEffect(() => {
+    if (!draggingRef.current && !movingViaInputRef.current) targetRef.current = toWorld(x, y);
   }, [x, y]);
 
   useFrame((_, dt) => {
     const g = group.current;
     if (!g) return;
+
+    // Keyboard & Joystick WASD navigation for own avatar
+    if (isOwn && !draggingRef.current) {
+      let nx = 0;
+      let ny = 0;
+      if (keysRef.current.w) ny -= 1;
+      if (keysRef.current.s) ny += 1;
+      if (keysRef.current.a) nx -= 1;
+      if (keysRef.current.d) nx += 1;
+
+      if (view.current?.joystick) {
+        nx += view.current.joystick.x || 0;
+        ny += view.current.joystick.y || 0;
+      }
+
+      const inputLen = Math.hypot(nx, ny);
+      if (inputLen > 0.05) {
+        const snx = nx / inputLen;
+        const sny = ny / inputLen;
+        let moveX = sny + snx;
+        let moveZ = sny - snx;
+        if (view.current?.flip) {
+          const tmp = moveX;
+          moveX = moveZ;
+          moveZ = tmp;
+        }
+
+        const moveLen = Math.hypot(moveX, moveZ);
+        if (moveLen > 0.001) {
+          const speed = 12.0;
+          const step = Math.min(inputLen, 1.0) * speed * dt;
+          const nextX = targetRef.current.x + (moveX / moveLen) * step;
+          const nextZ = targetRef.current.z + (moveZ / moveLen) * step;
+          const clamped = limit(nextX, nextZ);
+          targetRef.current = clamped;
+          emitThrottled(clamped.x, clamped.z);
+          movingViaInputRef.current = true;
+        }
+      } else if (movingViaInputRef.current) {
+        movingViaInputRef.current = false;
+        const settled = place(targetRef.current.x, targetRef.current.z);
+        targetRef.current = settled;
+        emit(settled.x, settled.z);
+        if (onDrop) {
+          const v = toVirtual(settled.x, settled.z);
+          onDrop(zoneForPoint(clamp(v.x, 0, FLOORPLAN_WIDTH), clamp(v.y, 0, FLOORPLAN_HEIGHT), floorRef.current));
+        }
+      }
+    }
+
     // A door click asks this (own) avatar to walk through to the next room.
     const walk = isOwn ? view.current.walk : null;
-    if (walk && !draggingRef.current) {
+    if (walk && !draggingRef.current && !movingViaInputRef.current) {
       view.current.walk = null;
       if (walk.floor != null) floorRef.current = walk.floor;
       const r = place(walk.x, walk.z);

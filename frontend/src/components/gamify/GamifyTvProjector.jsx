@@ -20,6 +20,33 @@ export default function TvProjector({ tvElementRef, onTvReady }) {
   useFrame(() => {
     const el = tvElementRef.current;
     if (!el) return;
+
+    // Floating Picture-in-Picture mode: float video to top-right corner
+    if (view.current?.pip) {
+      const pipW = Math.min(320, Math.max(220, size.width * 0.32));
+      const pipH = (pipW * 9) / 16;
+      const targetX = size.width - pipW - 16;
+      const targetY = 64;
+      const scaleX = pipW / TV_NATIVE_W;
+      const scaleY = pipH / TV_NATIVE_H;
+
+      const m = `translate3d(${targetX}px, ${targetY}px, 0) scale(${scaleX}, ${scaleY})`;
+      if (m !== lastRef.current) {
+        lastRef.current = m;
+        el.style.transformOrigin = '0 0';
+        el.style.transform = m;
+        el.style.opacity = '1';
+        el.style.pointerEvents = 'auto';
+        el.style.borderRadius = `${14 / scaleX}px`;
+        el.style.boxShadow = '0 16px 40px rgba(0,0,0,0.7)';
+      }
+      if (!readyRef.current) {
+        readyRef.current = true;
+        onTvReady && onTvReady(true);
+      }
+      return;
+    }
+
     // Upstairs the video moves to the upstairs hall's TV; zoomed out from the ground
     // floor the roof hides the living room, so the picture is hidden (it keeps playing).
     const up = view.current.floor === 1;

@@ -13,6 +13,8 @@ const { default: rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const helmet = require('helmet');
 const http = require('http');
 const { Server } = require('socket.io');
+const { createAdapter } = require('@socket.io/redis-adapter');
+const { createClient: createRedisClient } = require('redis');
 const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
@@ -1781,6 +1783,29 @@ const io = new Server(server, {
   allowEIO3: true,
   maxHttpBufferSize: 1e6  // A7-F7: explicit 1 MB cap (matches Socket.IO 4.x default)
 });
+
+// Horizontal Scaling with Redis Adapter (Multi-instance / Cluster resilience)
+const redisUrl = process.env.REDIS_URL || (process.env.REDIS_HOST ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}` : null);
+if (redisUrl) {
+  try {
+    const pubClient = createRedisClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    pubClient.on('error', (err) => console.warn('[Redis Adapter] pubClient error:', err.message));
+    subClient.on('error', (err) => console.warn('[Redis Adapter] subClient error:', err.message));
+
+    Promise.all([pubClient.connect(), subClient.connect()]).then(() => {
+      io.adapter(createAdapter(pubClient, subClient));
+      console.log('[REDIS ADAPTER] Socket.io attached to Redis adapter for horizontal scaling ✅');
+    }).catch((err) => {
+      console.warn('[REDIS ADAPTER] Failed to connect to Redis, continuing with default in-memory adapter:', err.message);
+    });
+  } catch (err) {
+    console.warn('[REDIS ADAPTER] Setup error, continuing with default in-memory adapter:', err.message);
+  }
+} else {
+  console.log('[REDIS ADAPTER] No REDIS_URL configured; running with default high-performance in-memory adapter.');
+}
 
 
 async function checkBucket() {

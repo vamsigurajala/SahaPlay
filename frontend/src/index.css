@@ -678,6 +678,23 @@ html[data-theme='light'] .input-field {
   color: #111 !important;
 }
 
+.gamify-say-light input::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+.gamify-say-light input:focus {
+  border-color: #8b5cff !important;
+  box-shadow: 0 0 0 3px rgba(139, 92, 255, 0.25) !important;
+}
+
+@keyframes shootingStarAnim {
+  0% { transform: translate(0, 0) rotate(-32deg); opacity: 0; }
+  1.5% { opacity: 0.9; }
+  10% { transform: translate(-140px, 90px) rotate(-32deg); opacity: 0; }
+  100% { transform: translate(-140px, 90px) rotate(-32deg); opacity: 0; }
+}
+
 html[data-theme='light'] h1:not(.login-left-text):not(.stay-white):not(.gcw-force-dark h1):not(.gcw-force-dark *),
 html[data-theme='light'] h2:not(.login-left-text):not(.stay-white):not(.gcw-force-dark h2):not(.gcw-force-dark *),
 html[data-theme='light'] h3:not(.login-left-text):not(.stay-white):not(.gcw-force-dark h3):not(.gcw-force-dark *) {

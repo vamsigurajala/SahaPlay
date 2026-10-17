@@ -27,6 +27,7 @@ import GamifyTour, { tourSeen } from './gamify/GamifyTour';
 import GamifyPeople from './gamify/GamifyPeople';
 import EmotePicker from './gamify/EmotePicker';
 import SayBox from './gamify/SayBox';
+import VirtualJoystick from './gamify/VirtualJoystick';
 
 const FLIP_KEY = 'sp_gamify_flip';
 const WEATHER_KEY = 'sp_gamify_weather';
@@ -117,6 +118,32 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   const [tourOpen, setTourOpen] = useState(false);
   const [ownEmote, setOwnEmote] = useState(null);
   const myName = userList.find(u => u.socketId === mySocketId)?.username;
+
+  const [showJoystick, setShowJoystick] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  });
+
+  const [pip, setPip] = useState(false);
+  const togglePip = useCallback(() => {
+    setPip(p => {
+      const next = !p;
+      if (viewRef.current) viewRef.current.pip = next;
+      return next;
+    });
+  }, [viewRef]);
+
+  const onJoystickMove = useCallback((nx, ny) => {
+    if (viewRef.current) {
+      viewRef.current.joystick = { x: nx, y: ny };
+    }
+  }, [viewRef]);
+
+  const onJoystickStop = useCallback(() => {
+    if (viewRef.current) {
+      viewRef.current.joystick = null;
+    }
+  }, [viewRef]);
 
   // Sync alwaysDots to viewRef
   useEffect(() => {
@@ -526,7 +553,18 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         onToggleSmooth={toggleSmooth}
         onTour={() => { setPanel(null); setTourOpen(true); }}
         onPhoto={takePhoto}
+        showJoystick={showJoystick}
+        onToggleJoystick={() => setShowJoystick(s => !s)}
+        pip={pip}
+        onTogglePip={togglePip}
       />
+      {showJoystick && !viewer && (
+        <VirtualJoystick
+          onMove={onJoystickMove}
+          onStop={onJoystickStop}
+          visible={true}
+        />
+      )}
       {notice && (
         <div className="stay-white" role="status" style={{ position: 'absolute', left: '50%', bottom: 'max(14px, env(safe-area-inset-bottom))', transform: 'translateX(-50%)', zIndex: 70, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px 8px 14px', borderRadius: 14, background: 'rgba(14,12,30,0.94)', border: '1px solid rgba(139,92,255,0.6)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', color: '#fff', fontSize: 13, fontWeight: 700, maxWidth: 'calc(100% - 24px)' }}>
           <span style={{ minWidth: 0 }}>{notice.text}</span>
