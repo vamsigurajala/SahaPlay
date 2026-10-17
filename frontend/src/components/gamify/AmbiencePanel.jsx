@@ -18,7 +18,7 @@ export default function AmbiencePanel({ onClose }) {
         <input type="range" min="0" max="1" step="0.05" value={volume} onChange={(e) => setAmbienceVolume(e.target.value)} aria-label="Room sound volume" style={{ flex: 1, minWidth: 0, accentColor: '#8b5cff' }} />
       </label>
       <div style={{ fontSize: 11.5, lineHeight: 1.5, opacity: 0.75, marginTop: 10 }}>
-        Birds and wind in the garden, rain on the veranda, chatter in the market, a hum and the odd clink in the kitchen. It gets quieter when music or the radio plays.
+        Soothing, peaceful music that gently adapts to each room: warm chords, soft piano chimes, and relaxing harmonic tones. Zero noise.
       </div>
     </div>
   );

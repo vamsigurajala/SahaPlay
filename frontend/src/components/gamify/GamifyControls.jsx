@@ -291,9 +291,10 @@ export default function GamifyControls({
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
-            maxHeight: rightOpen ? 'min(440px, calc(100vh - 170px))' : 0,
+            maxHeight: rightOpen ? 'min(580px, calc(100vh - 80px))' : 0,
             overflowY: 'auto',
             scrollbarWidth: 'none',
+            padding: '2px 0',
             opacity: rightOpen ? 1 : 0,
             transform: rightOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(24px)',
             transformOrigin: 'bottom center',
@@ -400,9 +401,15 @@ export default function GamifyControls({
           <button className="stay-white" onClick={onResetView} title="Back to my room" style={{ ...btn, flex: 'none' }}>
             <Maximize2 size={16} />
           </button>
+          <button className="stay-white" onClick={onZoomIn} title="Zoom in (+)" aria-label="Zoom in" style={{ ...btn, flex: 'none' }}>
+            <ZoomIn size={16} />
+          </button>
+          <button className="stay-white" onClick={onZoomOut} title="Zoom out (-)" aria-label="Zoom out" style={{ ...btn, flex: 'none' }}>
+            <ZoomOut size={16} />
+          </button>
         </div>
 
-        {/* Smooth Arrow dropdown toggle button */}
+        {/* Smooth Arrow dropdown toggle button: collapses all controls so everything disappears */}
         <button
           className="stay-white"
           onClick={() => setRightOpen(o => !o)}
@@ -422,36 +429,6 @@ export default function GamifyControls({
             }}
           />
         </button>
-
-        {/* Zoom In & Zoom Out buttons simply at the end of the right panel */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 2 }}>
-          <button
-            className="stay-white"
-            onClick={onZoomIn}
-            title="Zoom in (+)"
-            aria-label="Zoom in"
-            style={{
-              ...btn,
-              background: 'rgba(18,14,34,0.85)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-            }}
-          >
-            <ZoomIn size={16} />
-          </button>
-          <button
-            className="stay-white"
-            onClick={onZoomOut}
-            title="Zoom out (-)"
-            aria-label="Zoom out"
-            style={{
-              ...btn,
-              background: 'rgba(18,14,34,0.85)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-            }}
-          >
-            <ZoomOut size={16} />
-          </button>
-        </div>
       </div>
     </>
   );

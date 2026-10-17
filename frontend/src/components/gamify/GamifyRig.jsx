@@ -75,6 +75,14 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
       if (dragLockRef.current) return;
       viewRef.current.glide = false; // grabbing the view cancels a door glide
       viewRef.current.vel = null; // ...and any fling in progress
+
+      // If this is the primary pointer beginning a gesture, wipe any stale touch points
+      if (e.isPrimary) {
+        pts.clear();
+        pinch = null;
+        isPinchingRef.current = false;
+      }
+
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
       if (pts.size === 1) {
@@ -109,7 +117,7 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
       const v = viewRef.current;
 
       if (pts.size >= 2) {
-        // Multi-touch pinch gesture: direct 1:1 camera zoom + simultaneous center pan
+        // Multi-touch pinch gesture: fingers moving together zoom out; fingers moving apart zoom in
         isPinchingRef.current = true;
         const [a, b] = [...pts.values()];
         const curD = dist(a, b);
@@ -117,7 +125,7 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
         if (pinch && pinch.lastD > 8 && curD > 8) {
           const delta = curD / pinch.lastD;
           v.zoom = clamp(v.zoom * delta, MIN_ZOOM, MAX_ZOOM);
-          // Zero-latency response: follow fingers directly while pinching
+          // Instant 1:1 camera zoom tracking under two fingers
           v.cur = v.zoom;
 
           // Simultaneous two-finger pan with center position
@@ -144,13 +152,18 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
         return;
       }
 
-      // Single-finger drag with brief 80ms cooldown after pinch to prevent jerk
+      // Single-finger drag: ONLY moves canvas to see other rooms, NEVER zooms!
       if (performance.now() - lastPinchT < 80) {
         last = { x: e.clientX, y: e.clientY };
         return;
       }
 
-      if (!last) return;
+      if (!last) {
+        last = { x: e.clientX, y: e.clientY };
+        lastT = e.timeStamp;
+        return;
+      }
+
       const dx = e.clientX - last.x;
       const dy = e.clientY - last.y;
       const dtMs = Math.max(1, e.timeStamp - lastT);
@@ -197,6 +210,24 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
       }
     };
 
+    // Hardware touch synchronization to ensure zero stale touches on mobile
+    const onTouchEnd = (e) => {
+      if (e.touches.length === 0) {
+        pts.clear();
+        pinch = null;
+        isPinchingRef.current = false;
+        last = null;
+        viewRef.current.dragging = false;
+      } else if (e.touches.length === 1) {
+        pinch = null;
+        isPinchingRef.current = false;
+        const t = e.touches[0];
+        last = { x: t.clientX, y: t.clientY };
+        lastT = performance.now();
+        lastPinchT = performance.now();
+      }
+    };
+
     const wheel = (e) => {
       e.preventDefault();
       const v = viewRef.current;
@@ -211,15 +242,19 @@ export default function Rig({ viewRef, dragLockRef, onFocusChange, onOutChange, 
     };
 
     el.addEventListener('pointerdown', down);
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
     el.addEventListener('wheel', wheel, { passive: false });
     return () => {
       el.removeEventListener('pointerdown', down);
-      el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', up);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
       el.removeEventListener('wheel', wheel);
     };
   }, [camera, gl, dragLockRef, viewRef]);
