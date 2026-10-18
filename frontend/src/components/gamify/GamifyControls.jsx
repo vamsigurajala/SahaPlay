@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX, Camera, MessageCircle, Gamepad2, Tv } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX, Camera, MessageCircle, Gamepad2, Tv, LogOut } from 'lucide-react';
 import { useAmbience } from './ambience';
 import { useHideLabels, toggleHideLabels } from './labelPrefs';
 import { ALL_ZONES, COLS } from '../../data/gamifyZones';
@@ -34,6 +34,7 @@ export default function GamifyControls({
   onResetView,
   onZoomIn,
   onZoomOut,
+  onExitHouse,
   panel,
   onPanel,
   peopleCount = 0,
@@ -87,15 +88,28 @@ export default function GamifyControls({
             Drag to look around, tap a door to go through
           </div>
         )}
-        <button
-          className="stay-white"
-          onClick={onChangeFloor}
-          title={floor === 0 ? 'Take the stairs up' : 'Take the stairs down'}
-          style={{ ...glass, pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: 'pointer', marginTop: 2 }}
-        >
-          {floor === 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-          {floor === 0 ? 'Go upstairs' : 'Go downstairs'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, pointerEvents: 'auto', marginTop: 2 }}>
+          <button
+            className="stay-white"
+            onClick={onChangeFloor}
+            title={floor === 0 ? 'Take the stairs up' : 'Take the stairs down'}
+            style={{ ...glass, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+          >
+            {floor === 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+            {floor === 0 ? 'Go upstairs' : 'Go downstairs'}
+          </button>
+          {onExitHouse && (
+            <button
+              className="stay-white"
+              onClick={onExitHouse}
+              title="Exit Gamify Mode"
+              style={{ ...glass, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: 'pointer', background: 'rgba(239, 68, 68, 0.28)', borderColor: 'rgba(239, 68, 68, 0.45)' }}
+            >
+              <LogOut size={13} />
+              Exit
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Zoom out pill when zoomed in */}
@@ -284,17 +298,20 @@ export default function GamifyControls({
       )}
 
       {/* Floating control buttons on right with smooth arrow collapse */}
-      <div style={{ position: 'absolute', bottom: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, zIndex: 60 }}>
+      <div style={{ position: 'absolute', top: 12, bottom: 12, right: 12, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', gap: 6, zIndex: 60, pointerEvents: 'none' }}>
         {/* Collapsible Action buttons */}
         <div
+          className="gamify-right-scroll"
           style={{
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
-            maxHeight: rightOpen ? 'min(580px, calc(100vh - 80px))' : 0,
-            overflowY: 'auto',
-            scrollbarWidth: 'none',
-            padding: '2px 0',
+            maxHeight: rightOpen ? 'calc(100% - 46px)' : 0,
+            overflowY: rightOpen ? 'auto' : 'hidden',
+            touchAction: 'pan-y',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
+            padding: '4px 2px',
             opacity: rightOpen ? 1 : 0,
             transform: rightOpen ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(24px)',
             transformOrigin: 'bottom center',
@@ -407,6 +424,17 @@ export default function GamifyControls({
           <button className="stay-white" onClick={onZoomOut} title="Zoom out (-)" aria-label="Zoom out" style={{ ...btn, flex: 'none' }}>
             <ZoomOut size={16} />
           </button>
+          {onExitHouse && (
+            <button
+              className="stay-white"
+              onClick={onExitHouse}
+              title="Exit Gamify Mode"
+              aria-label="Exit Gamify Mode"
+              style={{ ...btn, flex: 'none', background: 'rgba(239, 68, 68, 0.35)', borderColor: 'rgba(239, 68, 68, 0.55)' }}
+            >
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
 
         {/* Smooth Arrow dropdown toggle button: collapses all controls so everything disappears */}
@@ -416,6 +444,7 @@ export default function GamifyControls({
           title={rightOpen ? 'Hide controls' : 'Show controls'}
           style={{
             ...btn,
+            pointerEvents: 'auto',
             background: rightOpen ? 'rgba(12,10,24,0.72)' : 'rgba(139,92,255,0.85)',
             boxShadow: rightOpen ? 'none' : '0 0 16px rgba(139,92,255,0.6)',
             transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',

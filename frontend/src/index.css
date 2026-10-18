@@ -1559,14 +1559,27 @@ html[data-theme='light'] .mobile-nav-divider {
   .room-quick-controls { display: none !important; }
   .mobile-browse-media-btn { display: flex !important; }
 
-  /* No media active: hide player col, right col fills full screen */
-  .room-main-layout:not(.mob-media-active) .room-player-col { display: none !important; }
-  .room-main-layout:not(.mob-media-active) .room-right-column {
+  /* No media active: hide player col, right col fills full screen (unless Gamify mode is active) */
+  .room-main-layout:not(.mob-media-active):not(.mob-gamify-active) .room-player-col { display: none !important; }
+  .room-main-layout:not(.mob-media-active):not(.mob-gamify-active) .room-right-column {
     display: flex !important;
     flex: 1 !important;
     width: 100% !important;
     height: 100% !important;
     position: static !important;
+  }
+
+  /* Gamify active on mobile: 3D house fills full screen */
+  .mob-gamify-active .room-player-col {
+    display: flex !important;
+    flex: 1 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
+  }
+  .mob-gamify-active .room-right-column {
+    display: none !important;
   }
 
   /* Strip card styling from all inner wrappers inside the right column on mobile so
@@ -2058,6 +2071,22 @@ body.sp-mobile-fs-light-activity .room-player-col {
     min-height: var(--peek-player-height, 340px) !important;
     max-height: var(--peek-player-height, 62vh) !important;
   }
+
+  /* Gamify active on mobile: 3D house fills full screen, right column hidden */
+  .mob-gamify-active {
+    flex-direction: column !important;
+  }
+  .mob-gamify-active .room-player-col {
+    display: flex !important;
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
+  }
+  .mob-gamify-active .room-right-column {
+    display: none !important;
+  }
   /* Part 5 — Media selector modal: mobile resizes */
   .media-selector-modal-inner {
     max-width: 100% !important;
@@ -2273,3 +2302,23 @@ html[data-theme='light'] .player-subtitle-menu button:hover {
     opacity: 0;
   }
 }
+
+/* Thin sleek scrollbar for Gamify right panel */
+.gamify-right-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 255, 0.4) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+.gamify-right-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.gamify-right-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.gamify-right-scroll::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 255, 0.4);
+  border-radius: 4px;
+}
+.gamify-right-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 255, 0.7);
+}

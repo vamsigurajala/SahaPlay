@@ -142,19 +142,27 @@ export default function TetrisGame() {
     }
   });
 
+  const [isNarrow, setIsNarrow] = useState(() => typeof window !== 'undefined' && window.innerWidth < 560);
+  useEffect(() => {
+    const onResize = () => setIsNarrow(window.innerWidth < 560);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const btn = {
     ...ui.btn,
-    width: 'clamp(36px, 10.4vw, 52px)',
-    height: 'clamp(35px, 9.4vw, 48px)',
+    width: '100%',
+    height: isNarrow ? 'clamp(32px, 8.5vw, 44px)' : 'clamp(36px, 9.4vw, 48px)',
     justifyContent: 'center',
     padding: 0,
+    minWidth: 0,
     borderRadius: 'clamp(8px, 2vw, 12px)',
     touchAction: 'none',
     userSelect: 'none',
     WebkitUserSelect: 'none',
   };
 
-  const iconStyle = { width: 'clamp(16px, 4.4vw, 20px)', height: 'clamp(16px, 4.4vw, 20px)' };
+  const iconStyle = { width: isNarrow ? 'clamp(14px, 4vw, 18px)' : 'clamp(16px, 4.4vw, 20px)', height: isNarrow ? 'clamp(14px, 4vw, 18px)' : 'clamp(16px, 4.4vw, 20px)' };
 
   return (
     <GameFrame
@@ -172,18 +180,20 @@ export default function TetrisGame() {
           display: 'flex',
           flexDirection: 'row',
           flexWrap: 'nowrap',
-          gap: 'clamp(6px, 2vw, 14px)',
+          gap: isNarrow ? 'clamp(5px, 1.6vw, 10px)' : 'clamp(6px, 2vw, 14px)',
           alignItems: 'center',
           width: '100%',
           justifyContent: 'center',
           maxWidth: 520,
+          boxSizing: 'border-box',
+          padding: '0 4px',
         }}
       >
         <div
           style={{
             position: 'relative',
-            width: 'min(270px, 46vw, calc((100dvh - 170px) * 0.5))',
-            maxWidth: '48vw',
+            width: isNarrow ? 'min(160px, calc(100vw - 165px), calc((100vh - 220px) * 0.48))' : 'min(270px, 46vw, calc((100vh - 170px) * 0.5))',
+            maxWidth: isNarrow ? 'calc(100vw - 165px)' : '48vw',
             aspectRatio: '10 / 20',
             flexShrink: 0,
           }}
@@ -223,10 +233,11 @@ export default function TetrisGame() {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 'clamp(5px, 1.1vh, 9px)',
+            gap: isNarrow ? 'clamp(4px, 1vh, 8px)' : 'clamp(5px, 1.1vh, 9px)',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
+            width: isNarrow ? 'clamp(115px, 32vw, 138px)' : undefined,
             minWidth: 0,
           }}
         >
@@ -234,9 +245,9 @@ export default function TetrisGame() {
             style={{
               ...ui.panel,
               textAlign: 'center',
-              fontSize: 'clamp(10.5px, 2.7vw, 12px)',
+              fontSize: 'clamp(10px, 2.6vw, 12px)',
               fontWeight: 800,
-              padding: 'clamp(4px, 0.7vh, 7px) clamp(6px, 1.5vw, 10px)',
+              padding: isNarrow ? '4px 6px' : 'clamp(4px, 0.7vh, 7px) clamp(6px, 1.5vw, 10px)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -250,7 +261,7 @@ export default function TetrisGame() {
               ref={nextCanvas}
               style={{
                 display: 'block',
-                width: 'clamp(62px, 17vw, 104px)',
+                width: isNarrow ? 'clamp(52px, 14vw, 84px)' : 'clamp(62px, 17vw, 104px)',
                 height: 'auto',
                 aspectRatio: '112 / 84',
                 marginTop: 3,
@@ -264,10 +275,10 @@ export default function TetrisGame() {
             style={{
               ...ui.panel,
               textAlign: 'center',
-              fontSize: 'clamp(10.5px, 2.8vw, 12.5px)',
+              fontSize: 'clamp(10px, 2.6vw, 12.5px)',
               fontWeight: 800,
-              lineHeight: 1.45,
-              padding: 'clamp(4px, 0.7vh, 6px) clamp(6px, 1.5vw, 10px)',
+              lineHeight: 1.4,
+              padding: isNarrow ? '4px 6px' : 'clamp(4px, 0.7vh, 6px) clamp(6px, 1.5vw, 10px)',
               width: '100%',
               boxSizing: 'border-box',
               borderRadius: 'clamp(8px, 2vw, 12px)',
@@ -280,8 +291,10 @@ export default function TetrisGame() {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, clamp(36px, 10.4vw, 52px))',
-              gap: 'clamp(4px, 1.2vw, 6px)',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              width: '100%',
+              gap: isNarrow ? '4px' : 'clamp(4px, 1.2vw, 6px)',
+              boxSizing: 'border-box',
             }}
           >
             <button

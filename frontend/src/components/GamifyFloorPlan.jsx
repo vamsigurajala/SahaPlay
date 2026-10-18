@@ -3,6 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { PerformanceMonitor } from '@react-three/drei';
 import { Gamepad2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useBackIntercept } from '../hooks/useBackIntercept';
 import PhotoRig from './gamify/GamifyPhoto';
 import { zoneName } from './gamify/gamifyText';
 import GamifyScene from './gamify/GamifyScene';
@@ -41,8 +42,13 @@ class WebGLBoundary extends React.Component {
   render() {
     if (this.state.failed) {
       return (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center', padding: 24 }}>
-          3D view isn't supported on this device — turn Gamify Mode off to go back to the normal player.
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center', padding: 24, gap: 12 }}>
+          <span>3D view isn't supported on this device — turn Gamify Mode off to go back to the normal player.</span>
+          {this.props.onExitHouse && (
+            <button onClick={this.props.onExitHouse} style={{ padding: '8px 18px', borderRadius: 10, background: '#8b5cff', border: 'none', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+              Exit Gamify Mode
+            </button>
+          )}
         </div>
       );
     }
@@ -91,6 +97,10 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
     : (weatherPref === 'auto' || !WEATHER[weatherPref] ? autoWx : weatherPref);
   const [myZone, setMyZone] = useState(() => myZoneRef.current);
   const [viewer, setViewer] = useState(null); // { kind: 'books'|'fridge'|'oven'|'stove', arg }
+  // Mobile swipe-back cleanly closes open bookshelf, fridge, or in-house minigames
+  useBackIntercept(viewer ? 1 : 0, (newLevel) => {
+    if (newLevel === 0) setViewer(null);
+  });
   const [uiShown, setUiShown] = useState(true);
   const [alwaysDots, setAlwaysDots] = useState(() => {
     try {
@@ -105,6 +115,11 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
   // still changing, and the resulting unmount/remount race leaves some of them
   // missing for good.
   const [ready, setReady] = useState(false);
+  // Fallback safety: guarantee ready flips to true even if useFrame in GamifyRig is delayed by phone layout or GPU init
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
   // Phones/tablets: lighter render settings from the start, and PerformanceMonitor
   // drops further (no shadows, 1x pixels) if the frame rate is still poor.
   const coarse = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
@@ -468,7 +483,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
       {!ready && (
         <div className="stay-white" style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 13, fontWeight: 700, zIndex: 5, pointerEvents: 'none' }}><Gamepad2 size={30} />Building your house...</div>
       )}
-      <WebGLBoundary>
+      <WebGLBoundary onExitHouse={stableExit}>
         <Canvas
           orthographic
           shadows={!lowQ}
@@ -476,7 +491,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
           // A full-screen viewer (a game, a shop) covers the house, so stop drawing it behind.
           frameloop={viewer ? 'never' : 'always'}
           camera={{ position: [18, 15.5, 18], zoom: 30, near: -250, far: 600 }}
-          gl={{ antialias: !coarse, alpha: true, powerPreference: 'high-performance' }}
+          gl={{ antialias: !coarse, alpha: true, powerPreference: coarse ? 'default' : 'high-performance' }}
           style={{ position: 'absolute', inset: 0, touchAction: 'none' }}
         >
           <ViewContext.Provider value={viewRef}>
@@ -541,6 +556,7 @@ export default function GamifyFloorPlan({ userList, mySocketId, avatarPositions,
         onResetView={resetView}
         onZoomIn={() => zoomBy(1.3)}
         onZoomOut={() => zoomBy(1 / 1.3)}
+        onExitHouse={stableExit}
         panel={panel}
         onPanel={togglePanel}
         peopleCount={userList.length}

@@ -118,7 +118,7 @@ export const ui = {
 export function GameFrame({ title, Icon, score, scoreLabel, best, bestLabel, hint, onRestart, maxWidth = 760, accent = '#8b5cff', extra, children }) {
   const { t } = useTranslation();
   return (
-    <div data-no-pull="true" onClick={(e) => e.stopPropagation()} style={{ ...ui.card, maxWidth }}>
+    <div data-no-pull="true" onClick={(e) => e.stopPropagation()} style={{ ...ui.card, maxWidth: typeof maxWidth === 'number' ? `min(${maxWidth}px, 100%)` : (maxWidth || '100%'), boxSizing: 'border-box' }}>
       <div style={{ ...ui.panel, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'clamp(6px, 1.5vw, 10px)', flexWrap: 'wrap', padding: 'clamp(6px, 0.9vh, 8px) clamp(8px, 2vw, 14px)', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(6px, 1.8vw, 10px)', fontWeight: 900, fontSize: 'clamp(14px, 3.8vw, 18px)', letterSpacing: '0.02em' }}>
           {Icon && <span style={{ width: 'clamp(28px, 6.5vw, 34px)', height: 'clamp(28px, 6.5vw, 34px)', borderRadius: 10, background: accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon size={18} style={{ width: 'clamp(15px, 4vw, 19px)', height: 'clamp(15px, 4vw, 19px)' }} /></span>}

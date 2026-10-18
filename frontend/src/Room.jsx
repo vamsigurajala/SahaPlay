@@ -39,12 +39,11 @@ const gamifyChunk = () => import('./components/GamifyFloorPlan');
 const GamifyFloorPlan = React.lazy(gamifyChunk);
 const preloadGamify = () => { gamifyChunk(); };
 
-// Warm up the Gamify bundle during idle time so opening Gamify mode is instantaneous
+// Warm up the Gamify bundle eagerly so opening Gamify mode is instantaneous
 if (typeof window !== 'undefined') {
+  setTimeout(() => preloadGamify(), 400);
   if ('requestIdleCallback' in window) {
-    window.requestIdleCallback(() => preloadGamify(), { timeout: 3500 });
-  } else {
-    setTimeout(() => preloadGamify(), 2500);
+    window.requestIdleCallback(() => preloadGamify(), { timeout: 1500 });
   }
 }
 import { useVideoUpload } from './hooks/useVideoUpload';
@@ -1455,9 +1454,9 @@ const Room = () => {
     const run = () => {
       import('./data/bookCovers').then(m => m.prefetchBookCovers()).catch(() => {});
       import('./data/wikiImages').then(m => m.prefetchFoodImages()).catch(() => {});
-      if (!navigator.connection?.saveData) gamifyChunk().catch(() => {});
+      gamifyChunk().catch(() => {});
     };
-    const t = setTimeout(() => { if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 4000 }); else run(); }, 3000);
+    const t = setTimeout(run, 400);
     return () => clearTimeout(t);
   }, []);
   // True once the 3D scene has projected the TV screen at least once. While
@@ -3521,7 +3520,13 @@ const Room = () => {
   const peekDragRef = useRef({ active: false, startY: 0, startProgress: 0, containerHeight: 0, baseHeight: ROOM_PEEK_MIN_HEIGHT });
   const [peekProgress, setPeekProgress] = useState(0); // 0..1, live only while dragging
   const [isPeekDragging, setIsPeekDragging] = useState(false);
-  const [isPeekExpanded, setIsPeekExpanded] = useState(false); // settled state after release
+  const [isPeekExpanded, setIsPeekExpanded] = useState(() => {
+    try {
+      return localStorage.getItem(`gamify_mode_${roomId}`) === '1';
+    } catch {
+      return false;
+    }
+  }); // settled state after release
 
   // In-room calls (activity://videocall|voicecall) rest at a much taller
   // collapsed height than regular media (see .mob-call-active .room-player-col
@@ -3533,7 +3538,7 @@ const Room = () => {
   // 62vh the CSS resolves to; only governs live-drag math, not the idle
   // (non-dragging) size, which the CSS's own var(--peek-player-height, ...)
   // fallback already renders correctly on its own.
-  const hasMobileMedia = !!(mediaUrl || isScreensharing || isViewer);
+  const hasMobileMedia = !!(mediaUrl || isScreensharing || isViewer || gamifyMode);
   // With nothing playing the player strip rests fully collapsed (0px — the chat
   // fills the screen), and the same pull-down gesture grows it from nothing.
   const getPeekBaseHeight = () => (isCallActivity(mediaUrl) ? Math.max(340, window.innerHeight * 0.62) : (hasMobileMedia ? ROOM_PEEK_MIN_HEIGHT : 0));
@@ -10198,6 +10203,36 @@ const Room = () => {
     }
   });
 
+  // Mobile swipe-back cleanly leaves Gamify mode back to the room
+  useBackIntercept(gamifyMode ? 1 : 0, (newLevel) => {
+    if (newLevel === 0) {
+      setGamifyMode(false);
+      try { localStorage.setItem(`gamify_mode_${roomId}`, '0'); } catch {}
+      if (isMobile) { setIsPeekExpanded(false); setPeekProgress(0); }
+    }
+  });
+
+  // Mobile swipe-back when in room (no modal or gamify open) leaves room cleanly
+  // to Home (/) instead of terminating or exiting the application
+  useEffect(() => {
+    if (!isMobile) return undefined;
+    const roomStateKey = { __wt_room_root: roomId };
+    window.history.pushState(roomStateKey, '');
+
+    const handleRoomPop = (e) => {
+      // If we popped out of the room root (user swiped back to exit the room)
+      if (!e.state || (!e.state.__backLevel && !e.state.__wt_room_root)) {
+        toast.remove();
+        socket?.emit('leave_room', { roomId });
+        navigate('/', { replace: true });
+      }
+    };
+    window.addEventListener('popstate', handleRoomPop);
+    return () => {
+      window.removeEventListener('popstate', handleRoomPop);
+    };
+  }, [isMobile, roomId, socket, navigate]);
+
   // Web-view keyboard shortcuts: Space toggles play/pause, ←/→ seek ±10s.
   // Mobile has its own tap-gesture layer for this, so skip there. Bails out
   // whenever focus is on a text field (chat box etc.) or any modal/dropdown
@@ -12292,7 +12327,7 @@ const Room = () => {
           media is very much still playing, so excluding it here made that
           "empty room" rule misfire during Fullscreen too — hiding the
           player and expanding the chat panel over it instead of the video. */}
-      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', padding: (isTvMode || isPeekExpanded) ? 0 : 12, gap: (isTvMode || isPeekExpanded) ? 0 : 12 }} className={`no-scrollbar room-main-layout${(isMobile && (mediaUrl || isScreensharing || isViewer) && !isTvMode) || peekOpenNoMedia ? ' mob-media-active' : ''}${peekOpenNoMedia ? ' mob-peek-nomedia' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}`}>
+      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', padding: (isTvMode || isPeekExpanded || gamifyMode) ? 0 : 12, gap: (isTvMode || isPeekExpanded || gamifyMode) ? 0 : 12 }} className={`no-scrollbar room-main-layout${(isMobile && (mediaUrl || isScreensharing || isViewer || gamifyMode) && !isTvMode) || peekOpenNoMedia ? ' mob-media-active' : ''}${peekOpenNoMedia ? ' mob-peek-nomedia' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}${isMobile && gamifyMode ? ' mob-gamify-active' : ''}`}>
         {/* Player column — padded when a theme is active to let the background show */}
         <div
           style={{
@@ -12305,7 +12340,7 @@ const Room = () => {
             // a single JS-side constant can't correctly represent both.
             '--peek-player-height': isPeekDragging
               ? `${peekDragRef.current.baseHeight + peekProgress * (peekDragRef.current.containerHeight - peekDragRef.current.baseHeight)}px`
-              : (isPeekExpanded ? '100%' : ((isChatKeyboardOpen && !isCallActivity(mediaUrl)) ? '90px' : undefined)),
+              : (gamifyMode ? '100%' : (isPeekExpanded ? '100%' : ((isChatKeyboardOpen && !isCallActivity(mediaUrl)) ? '90px' : undefined))),
             transition: isPeekDragging ? 'none' : 'height 0.28s cubic-bezier(0.22, 1, 0.36, 1)',
           }}
           className="no-scrollbar room-player-col"
