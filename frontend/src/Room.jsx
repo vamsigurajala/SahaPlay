@@ -1430,13 +1430,7 @@ const Room = () => {
   // corrects) it, same as every other client in the room.
   const [showVisitHouse, setShowVisitHouse] = useState(false); // Gamify front gate: "visit another house" picker
   const [visitCode, setVisitCode] = useState('');
-  const [gamifyMode, setGamifyMode] = useState(() => {
-    try {
-      return localStorage.getItem(`gamify_mode_${roomId}`) === '1';
-    } catch {
-      return false;
-    }
-  });
+  const [gamifyMode, setGamifyMode] = useState(false);
   const [avatarPositions, setAvatarPositions] = useState({}); // socketId -> {x,y,zone}
   const [avatarSays, setAvatarSays] = useState({}); // socketId -> {text, n}: the latest chat bubble
   const [incomingWave, setIncomingWave] = useState(null); // {from, name, n}: someone waved at you
@@ -3520,13 +3514,7 @@ const Room = () => {
   const peekDragRef = useRef({ active: false, startY: 0, startProgress: 0, containerHeight: 0, baseHeight: ROOM_PEEK_MIN_HEIGHT });
   const [peekProgress, setPeekProgress] = useState(0); // 0..1, live only while dragging
   const [isPeekDragging, setIsPeekDragging] = useState(false);
-  const [isPeekExpanded, setIsPeekExpanded] = useState(() => {
-    try {
-      return localStorage.getItem(`gamify_mode_${roomId}`) === '1';
-    } catch {
-      return false;
-    }
-  }); // settled state after release
+  const [isPeekExpanded, setIsPeekExpanded] = useState(false); // settled state after release
 
   // In-room calls (activity://videocall|voicecall) rest at a much taller
   // collapsed height than regular media (see .mob-call-active .room-player-col
@@ -4384,7 +4372,7 @@ const Room = () => {
       // Gamify Mode: bootstrap from room_state so a late joiner/reconnect/
       // refresh sees the mode and everyone's CURRENT avatar positions right
       // away, not just future moves (see getSerializableRoom() server-side).
-      setGamifyMode(!!state.gamifyMode);
+      // Gamify Mode: avatar positions for 3D view when user opens it
       setAvatarPositions(state.avatarPositions || {});
       if (!themeChangeInFlightRef.current) {
         const hostTheme = state.roomTheme || 'default';

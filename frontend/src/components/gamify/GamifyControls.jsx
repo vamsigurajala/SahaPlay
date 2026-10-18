@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ZoomIn, ZoomOut, Maximize2, FlipHorizontal2, Users, CloudSun, Layers, ArrowUp, ArrowDown, ChevronDown, Eye, EyeOff, SmilePlus, Gauge, HelpCircle, Volume2, VolumeX, Camera, MessageCircle, Gamepad2, Tv, LogOut } from 'lucide-react';
 import { useAmbience } from './ambience';
@@ -52,6 +52,15 @@ export default function GamifyControls({
   const sound = useAmbience();
   const [leftOpen, setLeftOpen] = useState(true);
 
+  const [showHint, setShowHint] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowHint(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const btn = {
     flex: 'none',
     width: 34,
@@ -76,40 +85,40 @@ export default function GamifyControls({
 
   return (
     <>
-      {/* Current room + hint + stairs button */}
-      <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, pointerEvents: 'none' }}>
-        {!hideLabels && (
-          <div className="stay-white" style={{ ...glass, padding: '5px 16px', borderRadius: 99, fontSize: 13, fontWeight: 800, letterSpacing: '0.04em' }}>
-            {zoneName(ALL_ZONES[focus]) || focus}
-          </div>
-        )}
-        {!hideLabels && (
-          <div className="stay-white" style={{ transition: 'opacity .2s', fontSize: 11, opacity: uiShown ? 0.7 : 0, textShadow: '0 1px 3px #000' }}>
-            Drag to look around, tap a door to go through
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, pointerEvents: 'auto', marginTop: 2 }}>
+      {/* Current room + stairs button side-by-side, with temporary hint underneath */}
+      <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, pointerEvents: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, pointerEvents: 'auto' }}>
+          {!hideLabels && (
+            <div className="stay-white" style={{ ...glass, padding: '5px 14px', borderRadius: 99, fontSize: 12.5, fontWeight: 800, letterSpacing: '0.03em', whiteSpace: 'nowrap' }}>
+              {zoneName(ALL_ZONES[focus]) || focus}
+            </div>
+          )}
           <button
             className="stay-white"
             onClick={onChangeFloor}
             title={floor === 0 ? 'Take the stairs up' : 'Take the stairs down'}
-            style={{ ...glass, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+            style={{ ...glass, display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
             {floor === 0 ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
             {floor === 0 ? 'Go upstairs' : 'Go downstairs'}
           </button>
-          {onExitHouse && (
-            <button
-              className="stay-white"
-              onClick={onExitHouse}
-              title="Exit Gamify Mode"
-              style={{ ...glass, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, fontSize: 12, fontWeight: 800, cursor: 'pointer', background: 'rgba(239, 68, 68, 0.28)', borderColor: 'rgba(239, 68, 68, 0.45)' }}
-            >
-              <LogOut size={13} />
-              Exit
-            </button>
-          )}
         </div>
+        {showHint && !hideLabels && (
+          <div
+            className="stay-white"
+            style={{
+              fontSize: 11,
+              opacity: uiShown ? 0.75 : 0,
+              textShadow: '0 1px 3px #000',
+              transition: 'opacity 0.6s ease',
+              pointerEvents: 'none',
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Drag to look around, tap a door to go through
+          </div>
+        )}
       </div>
 
       {/* Zoom out pill when zoomed in */}
