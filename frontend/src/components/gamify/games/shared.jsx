@@ -108,7 +108,7 @@ export function useSwipe(onSwipe, minDist = 24) {
 }
 
 export const ui = {
-  card: { width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: '#fff' },
+  card: { width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'clamp(6px, 1.2vh, 12px)', color: '#fff', boxSizing: 'border-box' },
   panel: { background: 'rgba(14,12,30,0.82)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14, padding: '8px 14px' },
   btn: { background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.22)', color: '#fff', borderRadius: 12, padding: '9px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 },
   btnOn: { background: 'linear-gradient(135deg,#8b5cff,#4f46e5)', border: '1px solid rgba(255,255,255,0.4)' },
@@ -119,20 +119,20 @@ export function GameFrame({ title, Icon, score, scoreLabel, best, bestLabel, hin
   const { t } = useTranslation();
   return (
     <div data-no-pull="true" onClick={(e) => e.stopPropagation()} style={{ ...ui.card, maxWidth }}>
-      <div style={{ ...ui.panel, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 900, fontSize: 18, letterSpacing: '0.02em' }}>
-          {Icon && <span style={{ width: 34, height: 34, borderRadius: 10, background: accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Icon size={19} /></span>}
-          {title}
+      <div style={{ ...ui.panel, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'clamp(6px, 1.5vw, 10px)', flexWrap: 'wrap', padding: 'clamp(6px, 0.9vh, 8px) clamp(8px, 2vw, 14px)', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(6px, 1.8vw, 10px)', fontWeight: 900, fontSize: 'clamp(14px, 3.8vw, 18px)', letterSpacing: '0.02em' }}>
+          {Icon && <span style={{ width: 'clamp(28px, 6.5vw, 34px)', height: 'clamp(28px, 6.5vw, 34px)', borderRadius: 10, background: accent, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Icon size={18} style={{ width: 'clamp(15px, 4vw, 19px)', height: 'clamp(15px, 4vw, 19px)' }} /></span>}
+          <span style={{ whiteSpace: 'nowrap' }}>{title}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontWeight: 800, fontSize: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(8px, 2vw, 14px)', fontWeight: 800, fontSize: 'clamp(11.5px, 3vw, 14px)', flexWrap: 'wrap' }}>
           {score !== undefined && <span>{scoreLabel || t('gamify.games.score', 'Score')}: <span style={{ color: '#ffd36b' }}>{score}</span></span>}
           {best !== undefined && <span style={{ display: 'flex', alignItems: 'center', gap: 4, opacity: 0.85 }}><Trophy size={14} color="#ffd36b" />{bestLabel || t('gamify.games.best', 'Best')}: {best}</span>}
-          {onRestart && <button style={ui.btn} onClick={onRestart}><RotateCcw size={14} />{t('gamify.games.restart', 'Restart')}</button>}
+          {onRestart && <button style={{ ...ui.btn, padding: 'clamp(4px, 0.8vh, 8px) clamp(8px, 2vw, 14px)', fontSize: 'clamp(11px, 2.8vw, 13px)' }} onClick={onRestart}><RotateCcw size={13} />{t('gamify.games.restart', 'Restart')}</button>}
           {extra}
         </div>
       </div>
       {children}
-      {hint && <div style={{ fontSize: 12.5, opacity: 0.7, textAlign: 'center', maxWidth: 560 }}>{hint}</div>}
+      {hint && <div style={{ fontSize: 'clamp(10.5px, 2.6vw, 12px)', opacity: 0.65, textAlign: 'center', maxWidth: 560, lineHeight: 1.3, padding: '0 4px' }}>{hint}</div>}
     </div>
   );
 }

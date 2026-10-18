@@ -47,7 +47,7 @@ const overlay = {
 const scroller = {
   position: 'absolute', inset: 0, overflowY: 'auto', overflowX: 'hidden', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain',
   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-  padding: 'max(56px, calc(env(safe-area-inset-top) + 52px)) 14px max(20px, env(safe-area-inset-bottom))',
+  padding: 'max(48px, calc(env(safe-area-inset-top) + 44px)) clamp(8px, 2vw, 14px) max(16px, env(safe-area-inset-bottom))',
 };
 const closeBtn = {
   position: 'absolute', top: 'max(10px, env(safe-area-inset-top))', right: 12, width: 44, height: 44, borderRadius: 14, border: '1px solid rgba(255,255,255,0.35)',

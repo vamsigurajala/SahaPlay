@@ -160,4 +160,28 @@ describe('Game Room games', () => {
     run(20000);
     expect(screen.getByText(/to shoot|shoot again|your shot|Foul|Nice pot|potted|missed|No pot/i)).toBeInTheDocument();
   });
+
+  it('tetris: renders board and all side options (next preview, stats, keypad buttons)', async () => {
+    vi.useRealTimers();
+    const Game = (await FILES.tetris()).default;
+    vi.useFakeTimers();
+    const { container } = render(<Game />);
+    expect(screen.getByText(/Block Stack/i)).toBeInTheDocument();
+    expect(screen.getByText(/Next/i)).toBeInTheDocument();
+    expect(screen.getByText(/Level:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Lines:/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'left' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'rotate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'right' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'down' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'drop' })).toBeInTheDocument();
+    const canvases = container.querySelectorAll('canvas');
+    expect(canvases.length).toBe(2);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'left' }));
+    run(300);
+    fireEvent.pointerUp(screen.getByRole('button', { name: 'left' }));
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'rotate' }));
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'drop' }));
+  });
 });
+

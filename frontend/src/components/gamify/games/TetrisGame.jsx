@@ -19,6 +19,25 @@ export default function TetrisGame() {
   const [hud, setHud] = useState({ score: 0, lines: 0, level: 1, over: false });
   const g = useRef(null);
 
+  const repeatTimer = useRef(null);
+  const stopRepeat = () => {
+    if (repeatTimer.current) {
+      clearInterval(repeatTimer.current);
+      clearTimeout(repeatTimer.current);
+      repeatTimer.current = null;
+    }
+  };
+  useEffect(() => stopRepeat, []);
+
+  const holdBtn = (action) => (e) => {
+    if (e.cancelable) e.preventDefault();
+    action();
+    stopRepeat();
+    repeatTimer.current = setTimeout(() => {
+      repeatTimer.current = setInterval(action, 120);
+    }, 200);
+  };
+
   const draw1 = (ctx, x, y, color, size = CELL) => {
     ctx.fillStyle = color; ctx.fillRect(x, y, size - 1, size - 1);
     ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(x, y, size - 1, 4);
@@ -27,6 +46,7 @@ export default function TetrisGame() {
 
   const nextPiece = (s) => { if (s.queue.length < 3) s.queue.push(...bag()); return spawn(s.queue.shift()); };
   const init = () => {
+    stopRepeat();
     const s = { board: newBoard(), queue: bag(), score: 0, lines: 0, level: 1, acc: 0, over: false, flash: 0 };
     s.piece = nextPiece(s);
     g.current = s;
@@ -67,6 +87,33 @@ export default function TetrisGame() {
     else if (k === 'ArrowUp' || k === 'w') rotate(); else if (k === 'ArrowDown' || k === 's') down(); else if (k === ' ') hard();
   });
 
+  // Direct swipe & tap gestures on canvas for mobile comfort
+  const pointerStart = useRef(null);
+  const onPointerDown = (e) => {
+    pointerStart.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+  };
+  const onPointerUp = (e) => {
+    const s = pointerStart.current;
+    pointerStart.current = null;
+    if (!s) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    const dist = Math.hypot(dx, dy);
+    const dt = Date.now() - s.time;
+    if (dist < 12 && dt < 300) {
+      rotate();
+      return;
+    }
+    if (dist >= 18) {
+      if (Math.abs(dx) > Math.abs(dy)) {
+        press(dx > 0 ? 'right' : 'left');
+      } else {
+        if (dy > 0) down();
+        else rotate();
+      }
+    }
+  };
+
   useRaf((dt) => {
     const s = g.current;
     const c = canvas.current;
@@ -95,28 +142,192 @@ export default function TetrisGame() {
     }
   });
 
-  const btn = { ...ui.btn, width: 56, height: 52, justifyContent: 'center', padding: 0, touchAction: 'none' };
+  const btn = {
+    ...ui.btn,
+    width: 'clamp(36px, 10.4vw, 52px)',
+    height: 'clamp(35px, 9.4vw, 48px)',
+    justifyContent: 'center',
+    padding: 0,
+    borderRadius: 'clamp(8px, 2vw, 12px)',
+    touchAction: 'none',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+  };
+
+  const iconStyle = { width: 'clamp(16px, 4.4vw, 20px)', height: 'clamp(16px, 4.4vw, 20px)' };
+
   return (
-    <GameFrame title={t('gamify.games.tetris', 'Block Stack')} Icon={Layers} accent="#4f7bff" score={hud.score} best={best} onRestart={init} maxWidth={520} hint={t('gamify.games.tetrisHint', 'Arrows move, up rotates, space drops. Complete rows to clear them - every 10 rows is a new level.')}>
-      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', width: 280, maxWidth: '62vw' }}>
-          <canvas ref={canvas} style={ui.canvas} />
+    <GameFrame
+      title={t('gamify.games.tetris', 'Block Stack')}
+      Icon={Layers}
+      accent="#4f7bff"
+      score={hud.score}
+      best={best}
+      onRestart={init}
+      maxWidth={520}
+      hint={t('gamify.games.tetrisHint', 'Arrows move, up rotates, space drops. Complete rows to clear them - every 10 rows is a new level.')}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          flexWrap: 'nowrap',
+          gap: 'clamp(6px, 2vw, 14px)',
+          alignItems: 'center',
+          width: '100%',
+          justifyContent: 'center',
+          maxWidth: 520,
+        }}
+      >
+        <div
+          style={{
+            position: 'relative',
+            width: 'min(270px, 46vw, calc((100dvh - 170px) * 0.5))',
+            maxWidth: '48vw',
+            aspectRatio: '10 / 20',
+            flexShrink: 0,
+          }}
+        >
+          <canvas
+            ref={canvas}
+            style={{ ...ui.canvas, width: '100%', height: '100%', aspectRatio: '10 / 20' }}
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+          />
           {hud.over && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, background: 'rgba(5,4,14,0.75)', borderRadius: 14 }}>
-              <div style={{ fontSize: 26, fontWeight: 900 }}>{t('gamify.games.gameOver', 'Game over')}</div>
-              <button style={{ ...ui.btn, ...ui.btnOn }} onClick={init}>{t('gamify.games.playAgain', 'Play again')}</button>
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                background: 'rgba(5,4,14,0.78)',
+                borderRadius: 14,
+                padding: 10,
+              }}
+            >
+              <div style={{ fontSize: 'clamp(18px, 5vw, 26px)', fontWeight: 900 }}>
+                {t('gamify.games.gameOver', 'Game over')}
+              </div>
+              <button style={{ ...ui.btn, ...ui.btnOn, padding: '8px 16px', fontSize: 13 }} onClick={init}>
+                {t('gamify.games.playAgain', 'Play again')}
+              </button>
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
-          <div style={{ ...ui.panel, textAlign: 'center', fontSize: 12, fontWeight: 800 }}>{t('gamify.games.next', 'Next')}<canvas ref={nextCanvas} style={{ display: 'block', width: 112, height: 84, marginTop: 4 }} /></div>
-          <div style={{ ...ui.panel, textAlign: 'center', fontSize: 13, fontWeight: 800, lineHeight: 1.6 }}>{t('gamify.games.level', 'Level')}: {hud.level}<br />{t('gamify.games.lines', 'Lines')}: {hud.lines}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 56px)', gap: 6 }}>
-            <button style={btn} onPointerDown={() => press('left')} aria-label="left"><ArrowLeft size={20} /></button>
-            <button style={btn} onPointerDown={() => press('up')} aria-label="rotate"><RotateCw size={20} /></button>
-            <button style={btn} onPointerDown={() => press('right')} aria-label="right"><ArrowRight size={20} /></button>
-            <button style={btn} onPointerDown={() => press('down')} aria-label="down"><ArrowDown size={20} /></button>
-            <button style={{ ...btn, gridColumn: 'span 2', width: '100%' }} onPointerDown={hard} aria-label="drop"><ChevronsDown size={20} /></button>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'clamp(5px, 1.1vh, 9px)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            minWidth: 0,
+          }}
+        >
+          <div
+            style={{
+              ...ui.panel,
+              textAlign: 'center',
+              fontSize: 'clamp(10.5px, 2.7vw, 12px)',
+              fontWeight: 800,
+              padding: 'clamp(4px, 0.7vh, 7px) clamp(6px, 1.5vw, 10px)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              width: '100%',
+              boxSizing: 'border-box',
+              borderRadius: 'clamp(8px, 2vw, 12px)',
+            }}
+          >
+            <span>{t('gamify.games.next', 'Next')}</span>
+            <canvas
+              ref={nextCanvas}
+              style={{
+                display: 'block',
+                width: 'clamp(62px, 17vw, 104px)',
+                height: 'auto',
+                aspectRatio: '112 / 84',
+                marginTop: 3,
+                borderRadius: 8,
+                background: '#0a0720',
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              ...ui.panel,
+              textAlign: 'center',
+              fontSize: 'clamp(10.5px, 2.8vw, 12.5px)',
+              fontWeight: 800,
+              lineHeight: 1.45,
+              padding: 'clamp(4px, 0.7vh, 6px) clamp(6px, 1.5vw, 10px)',
+              width: '100%',
+              boxSizing: 'border-box',
+              borderRadius: 'clamp(8px, 2vw, 12px)',
+            }}
+          >
+            <div>{t('gamify.games.level', 'Level')}: {hud.level}</div>
+            <div>{t('gamify.games.lines', 'Lines')}: {hud.lines}</div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, clamp(36px, 10.4vw, 52px))',
+              gap: 'clamp(4px, 1.2vw, 6px)',
+            }}
+          >
+            <button
+              style={btn}
+              onPointerDown={holdBtn(() => press('left'))}
+              onPointerUp={stopRepeat}
+              onPointerLeave={stopRepeat}
+              onPointerCancel={stopRepeat}
+              aria-label="left"
+            >
+              <ArrowLeft size={18} style={iconStyle} />
+            </button>
+            <button
+              style={btn}
+              onPointerDown={() => rotate()}
+              aria-label="rotate"
+            >
+              <RotateCw size={18} style={iconStyle} />
+            </button>
+            <button
+              style={btn}
+              onPointerDown={holdBtn(() => press('right'))}
+              onPointerUp={stopRepeat}
+              onPointerLeave={stopRepeat}
+              onPointerCancel={stopRepeat}
+              aria-label="right"
+            >
+              <ArrowRight size={18} style={iconStyle} />
+            </button>
+            <button
+              style={btn}
+              onPointerDown={holdBtn(down)}
+              onPointerUp={stopRepeat}
+              onPointerLeave={stopRepeat}
+              onPointerCancel={stopRepeat}
+              aria-label="down"
+            >
+              <ArrowDown size={18} style={iconStyle} />
+            </button>
+            <button
+              style={{ ...btn, gridColumn: 'span 2', width: '100%' }}
+              onPointerDown={hard}
+              aria-label="drop"
+            >
+              <ChevronsDown size={18} style={iconStyle} />
+            </button>
           </div>
         </div>
       </div>
