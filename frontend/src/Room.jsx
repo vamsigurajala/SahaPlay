@@ -959,9 +959,9 @@ const CrazyGamesLobby = ({ onSelectGame, isLight }) => {
   const [activeTab, setActiveTab] = React.useState('multiplayer');
 
   const kosmiPicks = [
-    { name: '8 Ball Pool', url: 'https://games.crazygames.com/en_US/8-ball-pool-wyr/index.html', image: '/images/apps/8ball.jpg?v=2' },
+    { name: '8 Ball Pool', url: 'https://games.crazygames.com/en_US/8-ball-pool-wyr/index.html', image: '/images/apps/8ball.webp' },
     { name: 'WorldGuessr', url: 'https://games.crazygames.com/en_US/worldguessr/index.html', color: '#3b82f6' },
-    { name: 'Chess', url: 'https://games.crazygames.com/en_US/chess-free/index.html', image: '/images/apps/chess.jpg?v=2' },
+    { name: 'Chess', url: 'https://games.crazygames.com/en_US/chess-free/index.html', image: '/images/apps/chess.webp' },
     { name: 'Uno Online', url: 'https://games.crazygames.com/en_US/uno-online/index.html', color: '#ef4444' },
     { name: 'Connect 4', url: 'https://games.crazygames.com/en_US/connect-4/index.html', color: '#eab308' },
     { name: 'Ships 3D', url: 'https://games.crazygames.com/en_US/ships-3d/index.html', color: '#06b6d4' }
@@ -969,19 +969,19 @@ const CrazyGamesLobby = ({ onSelectGame, isLight }) => {
 
   const multiplayerGames = [
     { name: 'Miniblox', url: 'https://games.crazygames.com/en_US/miniblox/index.html', color: '#51cf66' },
-    { name: 'Smash Karts', url: 'https://games.crazygames.com/en_US/smash-karts/index.html', image: '/images/apps/smashkarts.jpg?v=2' },
+    { name: 'Smash Karts', url: 'https://games.crazygames.com/en_US/smash-karts/index.html', image: '/images/apps/smashkarts.webp' },
     { name: 'Shell Shockers', url: 'https://games.crazygames.com/en_US/shellshockersio/index.html', color: '#ff6b6b' },
     { name: 'Hexanaut.io', url: 'https://games.crazygames.com/en_US/hexanaut-io/index.html', color: '#4dadf7' },
-    { name: 'Circuit Racing', url: 'https://games.crazygames.com/en_US/circuit-racing/index.html', image: '/images/apps/circuitracing.png?v=2' },
-    { name: 'Checkers', url: 'https://games.crazygames.com/en_US/classic-checkers/index.html', image: '/images/apps/checkers.png?v=2' },
-    { name: 'Trial Mania', url: 'https://games.crazygames.com/en_US/trial-mania/index.html', image: '/images/apps/trialmania.jpg?v=2' },
-    { name: 'Prison Escape 2', url: 'https://games.crazygames.com/en_US/prison-escape-2/index.html', image: '/images/apps/prisonescape.jpg?v=2' },
-    { name: 'Skill Warz', url: 'https://games.crazygames.com/en_US/skillwarz/index.html', image: '/images/apps/skillwarz.jpg?v=2' }
+    { name: 'Circuit Racing', url: 'https://games.crazygames.com/en_US/circuit-racing/index.html', image: '/images/apps/circuitracing.webp' },
+    { name: 'Checkers', url: 'https://games.crazygames.com/en_US/classic-checkers/index.html', image: '/images/apps/checkers.webp' },
+    { name: 'Trial Mania', url: 'https://games.crazygames.com/en_US/trial-mania/index.html', image: '/images/apps/trialmania.webp' },
+    { name: 'Prison Escape 2', url: 'https://games.crazygames.com/en_US/prison-escape-2/index.html', image: '/images/apps/prisonescape.webp' },
+    { name: 'Skill Warz', url: 'https://games.crazygames.com/en_US/skillwarz/index.html', image: '/images/apps/skillwarz.webp' }
   ];
 
   const singleplayerGames = [
-    { name: 'Trial Mania', url: 'https://games.crazygames.com/en_US/trial-mania/index.html', image: '/images/apps/trialmania.jpg?v=2' },
-    { name: 'Prison Escape 2', url: 'https://games.crazygames.com/en_US/prison-escape-2/index.html', image: '/images/apps/prisonescape.jpg?v=2' },
+    { name: 'Trial Mania', url: 'https://games.crazygames.com/en_US/trial-mania/index.html', image: '/images/apps/trialmania.webp' },
+    { name: 'Prison Escape 2', url: 'https://games.crazygames.com/en_US/prison-escape-2/index.html', image: '/images/apps/prisonescape.webp' },
     { name: 'Miniblox', url: 'https://games.crazygames.com/en_US/miniblox/index.html', color: '#51cf66' }
   ];
 
@@ -1445,6 +1445,7 @@ const Room = () => {
   // Warm things Gamify Mode needs once the room has settled: book covers (images and
   // lookups) and the 3D house code, so toggling it on feels instant. Idle-time only.
   useEffect(() => {
+    if (!gamifyMode) return undefined;
     const run = () => {
       import('./data/bookCovers').then(m => m.prefetchBookCovers()).catch(() => {});
       import('./data/wikiImages').then(m => m.prefetchFoodImages()).catch(() => {});
@@ -1452,7 +1453,7 @@ const Room = () => {
     };
     const t = setTimeout(run, 400);
     return () => clearTimeout(t);
-  }, []);
+  }, [gamifyMode]);
   // True once the 3D scene has projected the TV screen at least once. While
   // gamify mode is on, player-wrap is laid out at a fixed "native" size and
   // GamifyFloorPlan's TvProjector writes a CSS matrix3d straight onto its DOM
