@@ -149,10 +149,12 @@ export default function RoomSettingsModal({
   const handleConfirmCrop = async () => {
     try {
       setIsUploading(true);
-      const croppedImageBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
+      const croppedImageBlob = await getCroppedImg(imageSrc, croppedAreaPixels, 1024, 0.85);
+      const isWebp = croppedImageBlob?.type === 'image/webp';
+      const filename = isWebp ? 'thumbnail.webp' : 'thumbnail.jpg';
       
       const formData = new FormData();
-      formData.append('thumbnail', croppedImageBlob, 'thumbnail.jpg');
+      formData.append('thumbnail', croppedImageBlob, filename);
       formData.append('roomId', roomId);
 
       const res = await fetch(`${API}/api/rooms/thumbnail`, {

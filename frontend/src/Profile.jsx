@@ -1013,10 +1013,12 @@ const Profile = () => {
   const handleCropConfirm = async () => {
     if (!croppedAreaPixels) return;
     try {
-      const blob = await getCroppedImg(selectedImage, croppedAreaPixels);
+      const blob = await getCroppedImg(selectedImage, croppedAreaPixels, 512, 0.85);
+      const isWebp = blob?.type === 'image/webp';
+      const filename = isWebp ? 'avatar.webp' : 'avatar.png';
       setShowCropModal(false);
       const formData = new FormData();
-      formData.append('avatar', blob, 'avatar.png');
+      formData.append('avatar', blob, filename);
       const res = await fetch(`${API}/api/profile/avatar`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
       const data = await res.json();
       if (data.error) return toast.error(data.error);

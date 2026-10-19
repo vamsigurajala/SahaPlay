@@ -1,16 +1,32 @@
 /**
  * Utility to crop images on client-side using Canvas.
  */
-export const getCroppedImg = async (imageSrc, pixelCrop) => {
+export const getCroppedImg = async (imageSrc, pixelCrop, maxDim = 1024, quality = 0.85) => {
   const image = await createImage(imageSrc);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
 
   if (!ctx) return null;
 
-  // Set canvas size to the cropped area dimensions
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
+  let targetWidth = Math.round(pixelCrop.width);
+  let targetHeight = Math.round(pixelCrop.height);
+
+  // Proportional resize if crop exceeds max dimension
+  if (targetWidth > maxDim || targetHeight > maxDim) {
+    if (targetWidth > targetHeight) {
+      targetHeight = Math.round((targetHeight * maxDim) / targetWidth);
+      targetWidth = maxDim;
+    } else {
+      targetWidth = Math.round((targetWidth * maxDim) / targetHeight);
+      targetHeight = maxDim;
+    }
+  }
+
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   // Draw the cropped portion of the image onto the canvas
   ctx.drawImage(
@@ -21,19 +37,25 @@ export const getCroppedImg = async (imageSrc, pixelCrop) => {
     pixelCrop.height,
     0,
     0,
-    pixelCrop.width,
-    pixelCrop.height
+    targetWidth,
+    targetHeight
   );
 
-  // Return as a Blob
+  // Return as an optimized WebP Blob (fallback to JPEG if browser lacks WebP encoding)
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error('Canvas is empty'));
-        return;
+      if (blob) {
+        resolve(blob);
+      } else {
+        canvas.toBlob((fallbackBlob) => {
+          if (!fallbackBlob) {
+            reject(new Error('Canvas is empty'));
+            return;
+          }
+          resolve(fallbackBlob);
+        }, 'image/jpeg', quality);
       }
-      resolve(blob);
-    }, 'image/jpeg');
+    }, 'image/webp', quality);
   });
 };
 
