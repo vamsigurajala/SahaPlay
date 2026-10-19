@@ -32,34 +32,34 @@ const PRIVATE_SCRIPT = [
 
 const PLATFORMS = [
   // ── Video / Streaming ──
-  { name: 'YouTube',      logo: '/platforms/youtube.png' },
-  { name: 'Twitch',       logo: '/platforms/Twitch.png' },
-  { name: 'Netflix',      logo: '/platforms/Netflix.png' },
-  { name: 'Vimeo',        logo: '/platforms/Vimeo.png' },
-  { name: 'Prime Video',  logo: '/platforms/Prime.png' },
-  { name: 'Apple TV',     logo: '/platforms/Appletv.png', logoDark: '/platforms/appletvblack.png' },
-  { name: 'Hulu',         logo: '/platforms/hulu.png' },
-  { name: 'HBO Max',      logo: '/platforms/hbomax.png', logoLight: '/platforms/hbomaxlight.png' },
-  { name: 'Disney+',      logo: '/platforms/disneyhotstar.png', logoDark: '/platforms/disneyhotstarblack.png' },
-  { name: 'Crunchyroll',  logo: '/platforms/crunchyroll.png' },
-  { name: 'ZEE5',         logo: '/platforms/Z5.png' },
-  { name: 'SonyLIV',      logo: '/platforms/sonyliv.png' },
-  { name: 'Peacock TV',   logo: '/platforms/Peacocktv.png' },
-  { name: 'Viki',         logo: '/platforms/Viki.png' },
-  { name: 'MX Player',    logo: '/platforms/MXplayer.png' },
+  { name: 'YouTube',      logo: '/platforms/youtube.webp' },
+  { name: 'Twitch',       logo: '/platforms/Twitch.webp' },
+  { name: 'Netflix',      logo: '/platforms/Netflix.webp' },
+  { name: 'Vimeo',        logo: '/platforms/Vimeo.webp' },
+  { name: 'Prime Video',  logo: '/platforms/Prime.webp' },
+  { name: 'Apple TV',     logo: '/platforms/Appletv.webp', logoDark: '/platforms/appletvblack.webp' },
+  { name: 'Hulu',         logo: '/platforms/hulu.webp' },
+  { name: 'HBO Max',      logo: '/platforms/hbomax.webp', logoLight: '/platforms/hbomaxlight.webp' },
+  { name: 'Disney+',      logo: '/platforms/disneyhotstar.webp', logoDark: '/platforms/disneyhotstarblack.webp' },
+  { name: 'Crunchyroll',  logo: '/platforms/crunchyroll.webp' },
+  { name: 'ZEE5',         logo: '/platforms/Z5.webp' },
+  { name: 'SonyLIV',      logo: '/platforms/sonyliv.webp' },
+  { name: 'Peacock TV',   logo: '/platforms/Peacocktv.webp' },
+  { name: 'Viki',         logo: '/platforms/Viki.webp' },
+  { name: 'MX Player',    logo: '/platforms/MXplayer.webp' },
 
   // ── Music ──
-  { name: 'Spotify',      logo: '/platforms/Spotify.png' },
-  { name: 'Apple Music',  logo: '/platforms/Applemusic.png' },
-  { name: 'SoundCloud',   logo: '/platforms/soundcloud.png' },
+  { name: 'Spotify',      logo: '/platforms/Spotify.webp' },
+  { name: 'Apple Music',  logo: '/platforms/Applemusic.webp' },
+  { name: 'SoundCloud',   logo: '/platforms/soundcloud.webp' },
 
   // ── Social ──
-  { name: 'Instagram',    logo: '/platforms/instagram.png' },
-  { name: 'TikTok',       logo: '/platforms/tiktok.png' },
-  { name: 'Facebook',     logo: '/platforms/facebook.png' },
+  { name: 'Instagram',    logo: '/platforms/instagram.webp' },
+  { name: 'TikTok',       logo: '/platforms/tiktok.webp' },
+  { name: 'Facebook',     logo: '/platforms/facebook.webp' },
 
-  // ── Games (add your own pngs later) ──
-  { name: 'Aha',          logo: '/platforms/Aha.png' },
+  // ── Games ──
+  { name: 'Aha',          logo: '/platforms/Aha.webp' },
 ];
 
 const Home = () => {
