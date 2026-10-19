@@ -375,34 +375,6 @@ function App() {
     return () => clearTimeout(id);
   }, []);
 
-  // MediaSelectorModal's app cards (Streaming/Games/Social/etc, opened from
-  // inside a room) are all small static images already bundled with this
-  // deploy — but each <img> only starts downloading the first time its own
-  // card actually mounts, which for a category tab is the first time it's
-  // switched to. That read as "images load slowly moving between tabs"
-  // (reported on both the desktop .exe and mobile). Same idle-time warming
-  // strategy as Room's own chunk right above — cheap and harmless if the
-  // modal is never opened this session — except here it's the actual image
-  // bytes being fetched (via a plain `new Image()`, which the browser then
-  // serves from cache when MediaSelectorModal's own <img> tags mount later),
-  // not a JS chunk. A longer idle timeout than Room's own warm-up since this
-  // has no urgency at all — it only needs to finish before the user actually
-  // opens the modal, not before any specific first paint.
-  useEffect(() => {
-    const warm = () => {
-      import('./components/MediaSelectorModal').then(mod => {
-        const urls = Array.from(new Set((mod.OPTIONS || []).map(o => o.image).filter(Boolean)));
-        urls.forEach(src => { const img = new Image(); img.src = src; });
-      }).catch(() => {});
-    };
-    if ('requestIdleCallback' in window) {
-      const id = window.requestIdleCallback(warm, { timeout: 8000 });
-      return () => window.cancelIdleCallback?.(id);
-    }
-    const id = setTimeout(warm, 4000);
-    return () => clearTimeout(id);
-  }, []);
-
   // See appUpdateCheck.js — proactively detects a new deploy going live
   // while this tab/window is still open, so the user gets a chance to
   // refresh on their own terms instead of the app silently going stale
