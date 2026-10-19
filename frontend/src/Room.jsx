@@ -1443,15 +1443,12 @@ const Room = () => {
     return () => { registerCalmShare(null); registerDailySender(null); };
   }, [socket, roomId, gamifyMode]);
   // Warm things Gamify Mode needs once the room has settled: book covers (images and
-  // lookups) and the 3D house code, so toggling it on feels instant. Idle-time only.
+  // Warm 3D house code chunk so toggling it on feels instant.
   useEffect(() => {
     if (!gamifyMode) return undefined;
-    const run = () => {
-      import('./data/bookCovers').then(m => m.prefetchBookCovers()).catch(() => {});
-      import('./data/wikiImages').then(m => m.prefetchFoodImages()).catch(() => {});
+    const t = setTimeout(() => {
       gamifyChunk().catch(() => {});
-    };
-    const t = setTimeout(run, 400);
+    }, 400);
     return () => clearTimeout(t);
   }, [gamifyMode]);
   // True once the 3D scene has projected the TV screen at least once. While

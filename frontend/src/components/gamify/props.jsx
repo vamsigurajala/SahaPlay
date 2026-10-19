@@ -1805,7 +1805,7 @@ export function CuteTreeVase({ p, potColor = '#4ecdc4', leavesColor = '#2ecc71' 
   );
 }
 
-export const MONA_LISA_IMG = '/images/gamify/art/mona-lisa.jpg';
+export const MONA_LISA_IMG = '/images/gamify/art/mona-lisa.webp';
 const MONA_ASPECT = 500 / 745;
 let monaTexPromise = null;
 function loadMonaTexture() {

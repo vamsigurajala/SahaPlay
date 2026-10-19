@@ -256,18 +256,18 @@ function getSpaceTexture(name) {
   if (TEX_CACHE[name]) return TEX_CACHE[name];
 
   const mapFile = {
-    Sun: 'sun.jpg',
-    Mercury: 'mercury.jpg',
-    Venus: 'venus.jpg',
-    Earth: 'earth.jpg',
-    Moon: 'moon.jpg',
-    Mars: 'mars.jpg',
-    Jupiter: 'jupiter.jpg',
-    Saturn: 'saturn.jpg',
-    SaturnRing: 'saturn_ring.png',
-    Uranus: 'uranus.jpg',
-    Neptune: 'neptune.jpg',
-    MilkyWay: 'milkyway.jpg',
+    Sun: 'sun.webp',
+    Mercury: 'mercury.webp',
+    Venus: 'venus.webp',
+    Earth: 'earth.webp',
+    Moon: 'moon.webp',
+    Mars: 'mars.webp',
+    Jupiter: 'jupiter.webp',
+    Saturn: 'saturn.webp',
+    SaturnRing: 'saturn_ring.webp',
+    Uranus: 'uranus.webp',
+    Neptune: 'neptune.webp',
+    MilkyWay: 'milkyway.webp',
   }[name];
 
   const url = mapFile ? `/images/gamify/space/${mapFile}` : '';
@@ -1357,7 +1357,7 @@ const chipBtn = (on) => ({
 function PlanetCard({ name, onBack }) {
   const info = name === 'Sun' ? SUN_INFO : PLANETS.find((p) => p.name === name);
   const photo = useWikiImage(info.wiki);
-  const localImage = `/images/gamify/space/${name.toLowerCase()}.jpg`;
+  const localImage = `/images/gamify/space/${name.toLowerCase()}.webp`;
 
   return (
     <div

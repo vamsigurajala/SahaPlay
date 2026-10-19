@@ -861,7 +861,7 @@ const ALL_STOVE_DISHES = [
     time: '6m',
     spicy: 'Mild',
     desc: 'Spiced Indian milk tea brewed with fresh crushed ginger, fragrant green cardamom & Assam CTC leaves.',
-    img: '/images/gamify/foods/masala-chai.jpg',
+    img: '/images/gamify/foods/masala-chai.webp',
     steps: ['Boil water with crushed ginger and green cardamom', 'Add Assam CTC tea leaves and let steep', 'Pour fresh whole milk and simmer until rich golden', 'Strain through fine mesh into clay kulhad']
   },
   {
@@ -873,7 +873,7 @@ const ALL_STOVE_DISHES = [
     time: '12m',
     spicy: 'Medium',
     desc: 'Velvety yellow lentils tempered with hot desi ghee, cumin seeds, garlic, dried red chillies and coriander.',
-    img: '/images/gamify/foods/dal-tadka.jpg',
+    img: '/images/gamify/foods/dal-tadka.webp',
     steps: ['Boil toor dal with turmeric and pink salt', 'Heat pure desi ghee in tadka pan', 'Splutter cumin, dried red chillies and garlic', 'Pour sizzling tadka over dal and garnish with coriander']
   },
   {
@@ -885,7 +885,7 @@ const ALL_STOVE_DISHES = [
     time: '15m',
     spicy: 'Medium',
     desc: 'Soft cottage cheese cubes simmered in a luscious rich satin gravy of tomatoes, butter, cashew and cream.',
-    img: '/images/gamify/foods/paneer-butter-masala.jpg',
+    img: '/images/gamify/foods/paneer-butter-masala.webp',
     steps: ['Sauté pureed vine tomatoes with ginger-garlic paste in butter', 'Add Kashmiri red chilli, garam masala and cream', 'Slide in fresh soft paneer cubes', 'Finish with crushed kasuri methi and butter drizzle']
   },
   {
@@ -897,7 +897,7 @@ const ALL_STOVE_DISHES = [
     time: '20m',
     spicy: 'Rich',
     desc: 'Fragrant aged basmati rice layered with spiced vegetables, saffron strands, caramelized onions and mint.',
-    img: '/images/gamify/foods/veg-biryani.jpg',
+    img: '/images/gamify/foods/veg-biryani.webp',
     steps: ['Parboil aged basmati rice with whole spices', 'Layer with saffron milk, mint, and spiced vegetables', 'Seal the pot rim with dough for dum', 'Slow-cook until every grain is fluffy and fragrant']
   },
   {
@@ -909,7 +909,7 @@ const ALL_STOVE_DISHES = [
     time: '10m',
     spicy: 'Medium',
     desc: 'Golden crisp flatbread stuffed with spiced mashed potatoes, roasted on a heavy iron tawa with white butter.',
-    img: '/images/gamify/foods/aloo-paratha.jpg',
+    img: '/images/gamify/foods/aloo-paratha.webp',
     steps: ['Stuff whole wheat dough with spiced mashed potato filling', 'Roll out gently with wooden belan', 'Roast on hot cast iron tawa with pure ghee', 'Flip until golden-crisp with brown speckles']
   },
   {
@@ -921,7 +921,7 @@ const ALL_STOVE_DISHES = [
     time: '8m',
     spicy: 'Medium',
     desc: 'Crispy fermented rice and lentil crepe rolled with aromatic spiced mustard potato masala.',
-    img: '/images/gamify/foods/masala-dosa.jpg',
+    img: '/images/gamify/foods/masala-dosa.webp',
     steps: ['Spread fermented batter thin on smoking tawa', 'Drizzle sesame oil around the crispy edges', 'Spoon spiced potato filling in the centre', 'Fold into a crisp roll and serve with chutney']
   },
   {
@@ -933,7 +933,7 @@ const ALL_STOVE_DISHES = [
     time: '14m',
     spicy: 'Zesty',
     desc: 'Spicy mashed vegetable curry topped with a generous dollop of butter, served with butter-toasted ladi pav.',
-    img: '/images/gamify/foods/pav-bhaji.jpg',
+    img: '/images/gamify/foods/pav-bhaji.webp',
     steps: ['Boil and mash potatoes, cauliflower, peas and tomatoes', 'Sauté with onions, garlic and special pav bhaji masala', 'Simmer into thick gravy with a mountain of butter', 'Serve sizzling with butter-toasted pav and lemon']
   },
   {
@@ -945,7 +945,7 @@ const ALL_STOVE_DISHES = [
     time: '18m',
     spicy: 'Spicy',
     desc: 'Tangy dark spiced chickpea curry infused with anardana, amla and roasted spices.',
-    img: '/images/gamify/foods/chole.jpg',
+    img: '/images/gamify/foods/chole.webp',
     steps: ['Simmer chickpeas with black tea leaves and dried amla', 'Prepare dark onion-tomato gravy with anardana', 'Add chickpeas and crushed roasted spices', 'Garnish with ginger juliennes and green chillies']
   },
 
@@ -959,7 +959,7 @@ const ALL_STOVE_DISHES = [
     time: '12m',
     spicy: 'Mild',
     desc: 'Classic Neapolitan pizza with crushed San Marzano tomatoes, fresh torn mozzarella, and aromatic basil.',
-    img: '/images/gamify/foods/pizza.jpg',
+    img: '/images/gamify/foods/pizza.webp',
     steps: ['Stretch fermented pizza dough into a thin disc', 'Spread crushed San Marzano tomato sauce and sea salt', 'Tear fresh buffalo mozzarella over the sauce', 'Bake at blistering heat until crust blisters and cheese bubbles']
   },
   {
@@ -971,7 +971,7 @@ const ALL_STOVE_DISHES = [
     time: '10m',
     spicy: 'Mild',
     desc: 'Silky bronze-cut ribbon pasta tossed in European butter, sweet cream and freshly grated Parmigiano-Reggiano.',
-    img: '/images/gamify/foods/creamy-pasta.jpg',
+    img: '/images/gamify/foods/creamy-pasta.webp',
     steps: ['Boil bronze-die fettuccine in salted water until al dente', 'Melt sweet butter in wide sauté skillet with cracked pepper', 'Toss pasta with warm cream and grated Parmigiano', 'Whisk in starchy pasta water until emulsified and velvety']
   },
   {
@@ -1019,7 +1019,7 @@ const ALL_STOVE_DISHES = [
     time: '7m',
     spicy: 'Mild',
     desc: 'Grilled rustic artisan country bread rubbed with fresh garlic, topped with vine-ripened tomatoes and basil.',
-    img: '/images/gamify/foods/garlic-bread.jpg',
+    img: '/images/gamify/foods/garlic-bread.webp',
     steps: ['Slice crusty sourdough bread and toast on tawa until crisp', 'Rub hot bread surface with raw garlic clove for aroma', 'Mound diced ripe tomatoes tossed with extra virgin olive oil and basil', 'Drizzle aged Modena balsamic glaze and sea salt flakes']
   },
 
@@ -1069,7 +1069,7 @@ const ALL_STOVE_DISHES = [
     time: '6m',
     spicy: 'Mild',
     desc: 'Toasted baguette rounds slathered with roasted garlic butter, fresh parsley and flaky Maldon salt.',
-    img: '/images/gamify/foods/garlic-bread.jpg',
+    img: '/images/gamify/foods/garlic-bread.webp',
     steps: ['Whip sweet butter with slow-roasted garlic and chopped parsley', 'Spread generously over artisan baguette rounds', 'Toast on tawa until golden-brown and fragrant', 'Serve warm with flaky sea salt garnish']
   },
   {
@@ -1095,7 +1095,7 @@ const ALL_STOVE_DISHES = [
     time: '9m',
     spicy: 'Zesty',
     desc: 'High-heat wok-tossed thin noodles with crunchy shredded cabbage, capsicum, carrots, dark soy and spring onion.',
-    img: '/images/gamify/foods/masala-noodles.jpg',
+    img: '/images/gamify/foods/masala-noodles.webp',
     steps: ['Boil wheat noodles al dente and toss with sesame oil', 'Heat seasoned iron wok over roaring flame until smoking', 'Flash fry julienned vegetables for crisp texture', 'Toss noodles with dark soy, chilli vinegar and spring onions']
   },
   {
@@ -1131,7 +1131,7 @@ const ALL_STOVE_DISHES = [
     time: '10m',
     spicy: 'Spicy',
     desc: 'Crispy batter-fried paneer cubes tossed in high-heat wok with onions, capsicum, garlic and sweet chili sauce.',
-    img: '/images/gamify/foods/schezwan-sauce.jpg',
+    img: '/images/gamify/foods/schezwan-sauce.webp',
     steps: ['Dust fresh paneer with cornstarch and sear till crisp', 'Sauté cubed onions, green peppers and sliced garlic', 'Add soy sauce, red chili paste and rice vinegar', 'Toss paneer swiftly so exterior stays crunchy']
   },
   {
@@ -1460,7 +1460,7 @@ const INDIAN_UTENSILS = [
     desc: 'Circular marble rolling board and tapered wooden rolling pin. Designed with weighted balance to roll paper-thin rotis, puris and parathas without sticking.',
     uses: 'Roti, Phulka, Puri, Paratha rolling',
     tip: 'Dust marble chakla lightly with whole wheat flour (palethan) before rolling for smooth gliding.',
-    img: '/images/gamify/foods/roti-on-the-tawa.jpg',
+    img: '/images/gamify/foods/roti-on-the-tawa.webp',
   },
   {
     id: 'loha_tawa',
@@ -1471,7 +1471,7 @@ const INDIAN_UTENSILS = [
     desc: 'Heavy concave black iron griddle that holds intense, even heat. The porous iron seasons over generations to impart authentic charred aroma to rotis.',
     uses: 'Phulkas, Chapatis, Stuffed Parathas',
     tip: 'Never wash with harsh soaps; wipe with warm water and rub a drop of mustard oil to keep seasoned.',
-    img: '/images/gamify/foods/aloo-paratha.jpg',
+    img: '/images/gamify/foods/aloo-paratha.webp',
   },
   {
     id: 'pital_kadhai',
@@ -1482,7 +1482,7 @@ const INDIAN_UTENSILS = [
     desc: 'Deep round-bottomed Indian wok with dual brass loop handles. Perfect for deep-frying puris and samosas, or slow-braising rich curries over high heat.',
     uses: 'Deep frying, Sabzi, Halwa, Gravies',
     tip: 'The steep curved sides retain heat and reduce oil needed for deep frying.',
-    img: '/images/gamify/foods/pakora.jpg',
+    img: '/images/gamify/foods/pakora.webp',
   },
   {
     id: 'mitti_handi',
@@ -1493,7 +1493,7 @@ const INDIAN_UTENSILS = [
     desc: 'Spherical pot with a wide belly and narrow rim. Traps steam naturally, allowing juices to condense and drip back for aromatic Awadhi Dum cooking.',
     uses: 'Dum Biryani, Dal Makhani, Champaran Stew',
     tip: 'Seal rim with whole wheat dough to create a natural pressure lock that preserves volatile aromas.',
-    img: '/images/gamify/foods/veg-biryani.jpg',
+    img: '/images/gamify/foods/veg-biryani.webp',
   },
   {
     id: 'chimta',
@@ -1504,7 +1504,7 @@ const INDIAN_UTENSILS = [
     desc: 'Spring-loaded culinary tongs with flattened, serrated tips. Safely flips hot rotis on the tawa and holds them directly over open flames to puff into balloons.',
     uses: 'Flipping and puffing rotis over direct gas flame',
     tip: 'Grip near the rim gently to avoid puncturing the expanding air pocket in the phulka.',
-    img: '/images/gamify/foods/roti-on-the-tawa.jpg',
+    img: '/images/gamify/foods/roti-on-the-tawa.webp',
   },
   {
     id: 'tadka_pan',
@@ -1515,7 +1515,7 @@ const INDIAN_UTENSILS = [
     desc: 'Miniature deep ladle-shaped pan with an extended heat-resistant handle. Concentrates heat to sizzle whole spices in hot desi ghee in seconds.',
     uses: 'Tempering dal, sambar, rasam, and raita',
     tip: 'Add cumin and mustard seeds first, then ginger and hing at the very end to prevent burning.',
-    img: '/images/gamify/foods/dal-tadka.jpg',
+    img: '/images/gamify/foods/dal-tadka.webp',
   },
   {
     id: 'masala_dabba',
@@ -1526,7 +1526,7 @@ const INDIAN_UTENSILS = [
     desc: 'Heritage circular brass spice box containing the seven sacred daily Indian spices: Haldi, Lal Mirch, Dhaniya, Jeera, Rai, Garam Masala, and Amchur.',
     uses: 'Instant access to core spices while cooking',
     tip: 'Brass naturally keeps ground spices dry, aromatic, and shielded from humidity.',
-    img: '/images/gamify/foods/garam-masala.jpg',
+    img: '/images/gamify/foods/garam-masala.webp',
   },
   {
     id: 'pressure_cooker',
@@ -1537,7 +1537,7 @@ const INDIAN_UTENSILS = [
     desc: 'The iconic rhythmic heartbeat of Indian households. Cooks lentils, chickpeas, and fragrant rice in minutes under 15 PSI steam pressure.',
     uses: 'Dals, Khichdi, Chole, Pulao, Steaming',
     tip: 'Listen for the whistle count; let pressure release naturally for velvety soft lentils.',
-    img: '/images/gamify/foods/khichdi.jpg',
+    img: '/images/gamify/foods/khichdi.webp',
   },
   {
     id: 'sil_batta',
@@ -1548,7 +1548,7 @@ const INDIAN_UTENSILS = [
     desc: 'Ancient Indian flat grinding slab and cylindrical muller stone. Stone-crushes garlic, chillies, mint, and spices without friction heat, preserving pure flavor.',
     uses: 'Fresh wet chutney, Garam masala paste, Thandai',
     tip: 'Sprinkle few drops of water while rolling back and forth for silky smooth chutneys.',
-    img: '/images/gamify/foods/mint-chutney.jpg',
+    img: '/images/gamify/foods/mint-chutney.webp',
   },
   {
     id: 'idli_steamer',
@@ -1559,7 +1559,7 @@ const INDIAN_UTENSILS = [
     desc: 'Tiered steaming vessel with perforated circular cavity plates. Circulates gentle steam to cook soft, pillowy fermented South Indian idlis.',
     uses: 'Steamed Idlis, Gujarati Dhokla, Muthia',
     tip: 'Lightly grease idli plates with sesame or coconut oil before pouring fermented batter.',
-    img: '/images/gamify/foods/idli.jpg',
+    img: '/images/gamify/foods/idli.webp',
   },
   {
     id: 'dosa_palta',
@@ -1570,7 +1570,7 @@ const INDIAN_UTENSILS = [
     desc: 'Flat spatula with beveled razor-thin edge. Slips effortlessly beneath paper-thin crispy dosas and parathas without tearing or wrinkling.',
     uses: 'Flipping dosas, uttapams, cheelas, parathas',
     tip: 'Slide the edge under the rim once the dosa edges naturally pull away from the tawa.',
-    img: '/images/gamify/foods/masala-dosa.jpg',
+    img: '/images/gamify/foods/masala-dosa.webp',
   },
   {
     id: 'kansa_thali',
@@ -1581,7 +1581,7 @@ const INDIAN_UTENSILS = [
     desc: 'Ancient Ayurvedic bronze dinnerware comprising a rimmed thali, katoris for dal and subzi, sweet bowl, and brass tumbler. Revered for balancing Pitta and promoting gut health.',
     uses: 'Traditional Indian family feasting & Ayurvedic dining',
     tip: 'Eating from pure Kansa alkalizes food and enhances digestion.',
-    img: '/images/gamify/foods/paneer-butter-masala.jpg',
+    img: '/images/gamify/foods/paneer-butter-masala.webp',
   }
 ];
 

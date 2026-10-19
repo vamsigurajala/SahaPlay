@@ -81,7 +81,7 @@ function Globe({ stations, selected, playingId, onPick }) {
   const [tex, setTex] = useState(null);
   useEffect(() => {
     let live = true;
-    new THREE.TextureLoader().load('/images/gamify/space/earth.jpg', (t) => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; if (live) setTex(t); });
+    new THREE.TextureLoader().load('/images/gamify/space/earth.webp', (t) => { t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; if (live) setTex(t); });
     return () => { live = false; };
   }, []);
   return (
