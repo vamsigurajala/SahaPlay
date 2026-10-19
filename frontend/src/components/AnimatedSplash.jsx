@@ -84,7 +84,7 @@ export default function AnimatedSplash() {
         }
       `}</style>
       <img
-        src="/logos/trans_appstore.png"
+        src="/logos/trans_appstore.webp"
         alt=""
         width={120}
         height={120}
