@@ -18,8 +18,22 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not configured in repository secrets!"
+            exit 1
+          fi
+
+          CONN_URL="$DATABASE_URL"
+          if [[ "$CONN_URL" != *"sslmode="* ]]; then
+            if [[ "$CONN_URL" == *"?"* ]]; then
+              CONN_URL="${CONN_URL}&sslmode=require"
+            else
+              CONN_URL="${CONN_URL}?sslmode=require"
+            fi
+          fi
+
           pg_dump \
-            "${DATABASE_URL}?sslmode=require" \
+            "$CONN_URL" \
             --no-password \
             --format=plain \
             --no-acl \
