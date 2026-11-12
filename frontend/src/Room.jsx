@@ -16102,9 +16102,14 @@ const Room = () => {
               </button>
             )}
             {!isGameOrActivity(mediaUrl) && (
-              <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); toggleGamify(); }} onTouchStart={preloadGamify}>
-                <Gamepad2 size={20} /> <span>{gamifyMode ? t('gamifyOff', 'Turn off Gamify Mode') : t('gamifyOn', 'Gamify Mode')}</span>
-              </button>
+              <>
+                <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); setShowCustomizeModal(true); }}>
+                  <Paintbrush size={20} /> <span>{t('customizeRoom', 'Customize Room')}</span>
+                </button>
+                <button className="mob-sheet-item" onClick={() => { setShowMobileMenu(false); toggleGamify(); }} onTouchStart={preloadGamify}>
+                  <Gamepad2 size={20} /> <span>{gamifyMode ? t('gamifyOff', 'Turn off Gamify Mode') : t('gamifyOn', 'Gamify Mode')}</span>
+                </button>
+              </>
             )}
             {!isEffectiveHost && (
               <button className="mob-sheet-item mob-sheet-item-danger" onClick={() => { setShowMobileMenu(false); setShowPersonalDeleteConfirm(true); }}>
