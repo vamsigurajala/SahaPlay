@@ -3171,7 +3171,7 @@ export default function RoomChatPanel({ p }) {
           those reflows: only its overflow:hidden CLIP boundary changes,
           which is cheap, while the underlying image layer never needs to
           move or resize. */}
-      <div id="room-chat-panel" style={{flex:1,display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:16,border: activeTabWallpaper ? 'none' : '1px solid var(--room-border)',overflow:'hidden',flexShrink:0,position:'relative', boxShadow: (isLight && !activeTabWallpaper) ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
+      <div id="room-chat-panel" style={{flex:1,minHeight:0,height:'100%',display:'flex',flexDirection:'column',background:'var(--room-sidebar-bg)',borderRadius:20,border: activeTabWallpaper ? 'none' : '1px solid var(--room-border)',overflow:'hidden',position:'relative', boxShadow: (isLight && !activeTabWallpaper) ? '0 8px 30px rgba(0,0,0,0.05)' : 'none'}}>
       {/* Message multi-select bar — overlays whichever tab's header is showing (group or DM) */}
       {msgSelectMode && (p.chatTab === 'group' || p.chatTab === 'dm') && (
         <div style={{

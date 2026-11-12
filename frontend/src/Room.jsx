@@ -1135,13 +1135,18 @@ const CrazyGamesLobby = ({ onSelectGame, isLight }) => {
 // instead of just innerWidth. A phone's width alone crosses 640 the moment it's
 // physically rotated to real landscape (e.g. 390x844 portrait -> 844x390 landscape),
 // which was silently flipping every mobile-only control off mid-session on rotation.
-// The smaller dimension stays under 640 in either orientation for an actual phone,
-// while tablets/desktops (where the smaller dimension is already well above 640)
-// are unaffected — this only fixes the rotation flip, it doesn't change who counts
-// as "mobile" for general room layout.
+// A device is mobile only if its screen width is phone-sized (<640px),
+// or if it's a touch device with a coarse pointer rotated into landscape (height <640px and width <1024px).
+// A desktop or laptop with a short browser window height (e.g. 1366x768 screens or zoomed viewports) must never be treated as mobile.
 function detectIsMobile() {
   if (typeof window === 'undefined') return false;
-  return Math.min(window.innerWidth, window.innerHeight) < 640;
+  if (window.innerWidth < 640) return true;
+  const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 1);
+  const isCoarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  if (isTouch && isCoarse && window.innerHeight < 640 && window.innerWidth < 1024) {
+    return true;
+  }
+  return false;
 }
 
 // The mobile-fullscreen "rotate trick" (.player-mob-fs) rotates the whole player
@@ -12313,13 +12318,14 @@ const Room = () => {
           media is very much still playing, so excluding it here made that
           "empty room" rule misfire during Fullscreen too — hiding the
           player and expanding the chat panel over it instead of the video. */}
-      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden', padding: (isTvMode || isPeekExpanded || gamifyMode) ? 0 : 12, gap: (isTvMode || isPeekExpanded || gamifyMode) ? 0 : 12 }} className={`no-scrollbar room-main-layout${(isMobile && (mediaUrl || isScreensharing || isViewer || gamifyMode) && !isTvMode) || peekOpenNoMedia ? ' mob-media-active' : ''}${peekOpenNoMedia ? ' mob-peek-nomedia' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}${isMobile && gamifyMode ? ' mob-gamify-active' : ''}`}>
+      <div ref={roomMainLayoutRef} style={{ display: 'flex', flex: 1, height: '100%', minHeight: 0, overflow: 'hidden', padding: (isTvMode || (isMobile && (isPeekExpanded || gamifyMode))) ? 0 : 12, gap: (isTvMode || (isMobile && (isPeekExpanded || gamifyMode))) ? 0 : 12 }} className={`no-scrollbar room-main-layout${(isMobile && (mediaUrl || isScreensharing || isViewer || gamifyMode) && !isTvMode) || peekOpenNoMedia ? ' mob-media-active' : ''}${peekOpenNoMedia ? ' mob-peek-nomedia' : ''}${isMobile && isCallActivity(mediaUrl) && !isTvMode ? ' mob-call-active' : ''}${isMobile && gamifyMode ? ' mob-gamify-active' : ''}`}>
         {/* Player column — padded when a theme is active to let the background show */}
         <div
           style={{
             flex: 3, display: 'flex', flexDirection: 'column', gap: isTvMode ? 0 : 12,
             overflow: 'hidden',
             maxHeight: '100%', position: 'relative',
+            borderRadius: (isFullscreen || isTvMode || isMobile) ? 0 : 20,
             // Idle (not dragging, not expanded): leave the var unset and let
             // each layout's own CSS default apply — .mob-media-active falls
             // back to 260px, .mob-call-active to 62vh (see index.css) — since
@@ -12465,7 +12471,7 @@ const Room = () => {
               // Fullscreen + rotate handling), not just isFullscreen — missing
               // it here was why this fix only ever applied on desktop.
               background: (isLight && !isTvMode && (!(isFullscreen || isMobileFsMode) || isGameOrActivity(mediaUrl))) ? '#fff' : '#000',
-              borderRadius: (isFullscreen || isTvMode || isMobile) ? 0 : 16,
+              borderRadius: (isFullscreen || isTvMode || isMobile) ? 0 : 20,
               border: (isLight && !isTvMode && (!(isFullscreen || isMobileFsMode) || isGameOrActivity(mediaUrl))) ? '1px solid #e2e8f0' : ((isFullscreen || isTvMode) ? 'none' : '1px solid rgba(255,255,255,0.07)'),
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               overflow: 'hidden',
@@ -15284,7 +15290,7 @@ const Room = () => {
             in that case to give the video the full width — it only reappears
             once there are enough cameras to need the fixed grid. */}
         {(!isTvMode || activeCameraUsers.length > TV_FLOATING_CAM_LIMIT) && (
-        <div ref={rightColumnRef} className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative', zIndex: 1 }}>
+        <div ref={rightColumnRef} className="room-right-column" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, position: 'relative', zIndex: 1 }}>
           {/* Reels-style pull-down-to-expand handle — grab anywhere on this
               bar and drag down to grow the video over the chat panel; drag
               back up on the video itself (see .room-player-col above) to
@@ -15294,7 +15300,7 @@ const Room = () => {
               pill — a bare few pixels around a 36×4px bar was too easy to
               miss; this whole row (including the empty space either side
               of the pill) starts the drag now, not just the pill itself. */}
-          {canPeekGesture && !isPeekExpanded && (
+          {isMobile && canPeekGesture && !isPeekExpanded && (
             <div
               onTouchStart={startPeekDrag}
               onTouchMove={movePeekDrag}
@@ -15364,12 +15370,13 @@ const Room = () => {
           {!isFullscreen && !isTvMode && (
             <div className="room-quick-controls" style={{
               background: isLight ? '#fff' : 'var(--room-sidebar-bg)',
-              borderRadius: 16,
+              borderRadius: 20,
               border: '1px solid var(--room-border)',
               padding: '20px 16px',
               display: 'flex',
               flexDirection: 'column',
               gap: 12,
+              flexShrink: 0,
               boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none',
               transition: 'all 0.3s ease'
             }}>
@@ -15595,7 +15602,7 @@ const Room = () => {
             <div style={{
               display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden',
               background: isLight ? '#fff' : 'var(--room-sidebar-bg)',
-              borderRadius: 16, border: '1px solid var(--room-border)',
+              borderRadius: 20, border: '1px solid var(--room-border)',
               boxShadow: isLight ? '0 8px 30px rgba(0,0,0,0.05)' : 'none',
               marginTop: isFullscreen ? 0 : 0,
             }}>
@@ -15929,7 +15936,8 @@ const Room = () => {
           ) : (
             /* FLOATING MODE (≤ threshold) — original RoomChatPanel, no camera management */
             (
-              <RoomChatPanel p={{
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <RoomChatPanel p={{
                 encryptionPending: localStorage.getItem('watch_is_guest') === 'true' && !keyPair,
                 chatThemes, openChatThemeSheet, bumpExpiryBannerTick,
                 chatTab, setChatTab, chatTabRef,
@@ -15991,6 +15999,7 @@ const Room = () => {
                 onEmptyDragMove: movePeekDrag,
                 onEmptyDragEnd: endPeekDrag,
               }} />
+              </div>
             )
           )}
         </div>
