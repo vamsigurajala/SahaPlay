@@ -12112,6 +12112,19 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('change_personal_room_theme', ({ roomId: rawRoomId, themeId }) => {
+    try {
+      if (!socket.username || !rawRoomId) return;
+      const roomId = String(rawRoomId).toLowerCase();
+      emitToUser(socket.username, 'personal_room_theme_changed', {
+        roomId,
+        themeId: themeId || null,
+      });
+    } catch (err) {
+      console.error('[SOCKET] change_personal_room_theme error:', err.message, 'user:', socket.username);
+    }
+  });
+
   socket.on('delete_room', ({ roomId }) => {
     try {
     const room = rooms.get(roomId);

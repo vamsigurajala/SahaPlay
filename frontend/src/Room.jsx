@@ -4115,9 +4115,10 @@ const Room = () => {
       socket?.emit('change_room_theme', { roomId, themeId });
       setTimeout(() => { themeChangeInFlightRef.current = false; }, 2000);
     } else {
-      // Non-host: personal override only — localStorage, no socket
+      // Non-host: personal override — localStorage + sync across own devices
       localStorage.setItem(`wt-personal-theme-${roomId}`, themeId);
       setRoomTheme(themeId);
+      socket?.emit('change_personal_room_theme', { roomId, themeId });
     }
     setShowCustomizeModal(false);
   };
@@ -4125,7 +4126,8 @@ const Room = () => {
   const handleClearPersonalTheme = useCallback(() => {
     localStorage.removeItem(`wt-personal-theme-${roomId}`);
     setRoomTheme(room?.roomTheme || 'default');
-  }, [roomId, room]);
+    socket?.emit('change_personal_room_theme', { roomId, themeId: null });
+  }, [roomId, room, socket]);
 
   const handleLeaveRoom = useCallback(() => {
     toast.remove(); // Immediately purge ALL toasts from the global store (no replay on next page)
@@ -4506,8 +4508,24 @@ const Room = () => {
     });
 
     sock.on('room_theme_changed', ({ themeId }) => {
-      setRoomTheme(themeId || 'default');
+      const nextTheme = themeId || 'default';
+      setRoomTheme(nextTheme);
+      setRoom(prev => (prev ? { ...prev, roomTheme: nextTheme } : prev));
       localStorage.removeItem(`wt-personal-theme-${roomId}`);
+    });
+
+    sock.on('personal_room_theme_changed', ({ roomId: targetRoomId, themeId }) => {
+      if (targetRoomId && String(targetRoomId).toLowerCase() !== String(roomId).toLowerCase()) return;
+      if (themeId) {
+        localStorage.setItem(`wt-personal-theme-${roomId}`, themeId);
+        setRoomTheme(themeId);
+      } else {
+        localStorage.removeItem(`wt-personal-theme-${roomId}`);
+        setRoom(prev => {
+          setRoomTheme(prev?.roomTheme || 'default');
+          return prev;
+        });
+      }
     });
 
     sock.on('room_settings_updated', (updatedData) => {
