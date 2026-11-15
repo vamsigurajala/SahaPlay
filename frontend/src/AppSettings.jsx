@@ -8,6 +8,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import GlobalChatWidget from './components/GlobalChatWidget';
 import SupportModal from './components/SupportModal';
 import DownloadAppModal from './components/DownloadAppModal';
+import Avatar from './components/Avatar';
 import { appCache } from './cache/appCache.js';
 import { useSearchHistory } from './hooks/useSearchHistory';
 import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
@@ -1745,13 +1746,11 @@ const AppSettings = () => {
               onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
             >
-              <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {profile?.avatarPath ? (
-                  <img src={getAvatarUrl(profile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <UserIcon size={14} style={{ color: 'var(--brand-1)' }} />
-                )}
-              </div>
+              <Avatar
+                avatarPath={profile?.avatarPath}
+                username={myUsername}
+                size={24}
+              />
               <span style={{ fontWeight: 600 }}>{myUsername}</span>
             </div>
             {showUserMenu && (

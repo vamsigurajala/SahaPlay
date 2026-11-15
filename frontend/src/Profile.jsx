@@ -14,6 +14,7 @@ import { SiGmail } from 'react-icons/si';
 import GlobalChatWidget from './components/GlobalChatWidget';
 import SupportModal from './components/SupportModal';
 import DownloadAppModal from './components/DownloadAppModal';
+import Avatar from './components/Avatar';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from './utils/CropImage';
 import { getFlagClass, getFlagClassFromName } from './utils/countryFlags.js';
@@ -1661,13 +1662,11 @@ const Profile = () => {
               onMouseEnter={() => { setShowUserMenu(true); setShowSearch(false); setShowRecentChats(false); setShowNotifications(false); }}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '6px 14px', fontSize: '14px', color: '#ddd', cursor: 'pointer', transition: 'all 0.2s' }}
             >
-              <div style={{ width: 24, height: 24, borderRadius: '50%', overflow: 'hidden', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {profile?.avatarPath ? (
-                  <img src={getAvatarUrl(profile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <UserIcon size={14} style={{ color: 'var(--brand-1)' }} />
-                )}
-              </div>
+              <Avatar
+                avatarPath={profile?.avatarPath}
+                username={myUsername}
+                size={24}
+              />
               <span style={{ fontWeight: 600 }}>{myUsername}</span>
             </div>
             {showUserMenu && (
@@ -1799,9 +1798,11 @@ const Profile = () => {
                 {isMobile ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative' }}>
-                      <div style={{ width: 84, height: 84, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {otherProfile.avatarPath ? <img src={getAvatarUrl(otherProfile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={38} color="var(--brand-1)" />}
-                      </div>
+                      <Avatar
+                        avatarPath={otherProfile.avatarPath}
+                        username={otherProfile.displayName || otherProfile.username}
+                        size={84}
+                      />
                       <div style={{ flex: 1, minWidth: 0, paddingRight: 32 }}>
                         <h2 style={{ margin: '0 0 2px', fontSize: '18px', fontWeight: 800, color: isLight ? '#1e293b' : '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {otherProfile.displayName || otherProfile.username}
@@ -1852,9 +1853,11 @@ const Profile = () => {
                 ) : (
                   <>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 32, marginBottom: 24 }}>
-                      <div style={{ width: 96, height: 96, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {otherProfile.avatarPath ? <img src={getAvatarUrl(otherProfile.avatarPath)} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={44} color="var(--brand-1)" />}
-                      </div>
+                      <Avatar
+                        avatarPath={otherProfile.avatarPath}
+                        username={otherProfile.displayName || otherProfile.username}
+                        size={96}
+                      />
                       <div style={{ display: 'flex', gap: 32 }}>
                         <button onClick={() => openFollowModal('followers', otherProfile.username)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                           <div className="stat-num" style={{ textAlign: 'left' }}>{otherProfile.followersCount ?? 0}</div>
@@ -2030,9 +2033,11 @@ const Profile = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                 {/* Profile Picture */}
                 <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <div style={{ width: 84, height: 84, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {avatarUrl ? <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={34} color="var(--brand-1)" />}
-                  </div>
+                  <Avatar
+                    src={avatarUrl}
+                    username={profile.displayName || profile.username}
+                    size={84}
+                  />
                   <button onClick={() => fileInputRef.current.click()} style={{ position: 'absolute', bottom: -2, right: -2, width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: '2px solid #0a0a0f', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                     <Camera size={12} color="#fff" />
                   </button>
@@ -2071,9 +2076,11 @@ const Profile = () => {
             /* Desktop view layout (original) */
             <div style={{ display: 'flex', alignItems: 'center', gap: '24px', marginBottom: '40px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '32px' }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div style={{ width: 100, height: 100, borderRadius: '50%', overflow: 'hidden', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {avatarUrl ? <img src={avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={40} color="var(--brand-1)" />}
-                </div>
+                <Avatar
+                  src={avatarUrl}
+                  username={profile.displayName || profile.username}
+                  size={100}
+                />
                 <button onClick={() => fileInputRef.current.click()} style={{ position: 'absolute', bottom: 0, right: 0, width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-1), var(--brand-2))', border: '2px solid #0a0a0f', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <Camera size={14} color="#fff" />
                 </button>
