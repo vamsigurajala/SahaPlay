@@ -473,7 +473,7 @@ const Login = () => {
     localStorage.setItem('watch_username', 'guest_' + guestName.trim());
     localStorage.setItem('watch_is_guest', 'true');
     localStorage.setItem('watch_last_activity', String(Date.now()));
-    navigate('/');
+    navigate(safeNext || '/');
   };
 
   const isTerminated = bannedInfo?.type === 'terminated';
@@ -929,7 +929,7 @@ const Login = () => {
 
           <p style={{ color: '#888', fontSize: '15px', marginBottom: '24px', textAlign: 'center' }}>
             {t('dontHaveAccount', "Don't have an account?")}{' '}
-            <Link to="/signup" style={{ color: 'var(--brand-1)', textDecoration: 'none', fontWeight: 700 }}>{t('signUp', 'Sign Up')}</Link>
+            <Link to={safeNext ? `/signup?next=${encodeURIComponent(safeNext)}` : "/signup"} style={{ color: 'var(--brand-1)', textDecoration: 'none', fontWeight: 700 }}>{t('signUp', 'Sign Up')}</Link>
           </p>
 
           {!showGuestInput ? (

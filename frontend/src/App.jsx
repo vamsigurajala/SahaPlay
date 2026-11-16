@@ -248,10 +248,13 @@ function RouteLoadingFallback() {
 }
 
 const ProtectedRoute = ({ children }) => {
+  const location = useLocation();
   const isAuthenticated = !!localStorage.getItem('watch_token');
   const isGuest = localStorage.getItem('watch_is_guest') === 'true';
   useInactivityLogout();
-  return (isAuthenticated || isGuest) ? children : <Navigate to="/login" replace />;
+  if (isAuthenticated || isGuest) return children;
+  const currentPath = location.pathname + location.search;
+  return <Navigate to={`/login?next=${encodeURIComponent(currentPath)}`} replace />;
 };
 
 // Root route: web visitors always get Home (the marketing landing page), regardless of

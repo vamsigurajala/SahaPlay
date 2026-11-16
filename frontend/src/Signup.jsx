@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleLogin } from '@react-oauth/google';
 import { ArrowLeft, User, Mail, Lock, UserPlus, Eye, EyeOff } from 'lucide-react';
@@ -43,8 +43,12 @@ const Signup = () => {
   const [oauthModalCtx, setOauthModalCtx] = useState(null);   // { data, oauthLabel, isMigration }
 
   const navigate       = useNavigate();
+  const location       = useLocation();
   const { t }          = useTranslation();
   const { setKeyPair } = useCrypto();
+
+  const rawNext = new URLSearchParams(location.search).get('next') || '';
+  const safeNext = rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : null;
 
   // Tap-to-toggle for touch devices — :hover alone never fires on a phone/PWA,
   // so without this the tooltip could only be dismissed, never opened, by tap.
@@ -164,7 +168,7 @@ const Signup = () => {
       setOauthModalMode('unlock');
     } else {
       window.dispatchEvent(new Event('login_success'));
-      navigate('/');
+      navigate(safeNext || '/');
     }
   };
 
@@ -222,7 +226,7 @@ const Signup = () => {
       setRecoveryPhrase(phrase);
       setShowRecoveryModal(true);
     } else if (!needsVerification) {
-      navigate('/');
+      navigate(safeNext || '/');
     } else {
       navigate('/login', { state: { message: t('accountCreatedVerify', 'Account created! Please check your email to verify your account.') } });
     }
@@ -242,7 +246,7 @@ const Signup = () => {
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));
-    navigate('/');
+    navigate(safeNext || '/');
   };
 
   // 'forgot' view — restore via the account's recovery phrase, verify it against
@@ -273,7 +277,7 @@ const Signup = () => {
     setOauthModalMode(null);
     setOauthModalCtx(null);
     window.dispatchEvent(new Event('login_success'));
-    navigate('/');
+    navigate(safeNext || '/');
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -606,7 +610,7 @@ const Signup = () => {
             <h1 style={{ fontSize: '28px', fontWeight: 900, letterSpacing: '0.5px', margin: '0 0 8px', color: '#fff' }}>{t('createAccount', 'Create Account')}</h1>
             <p style={{ color: '#888', fontSize: '15px', marginBottom: '32px' }}>
               {t('alreadyHaveOne', 'Already have one?')}{' '}
-              <Link to="/login" style={{ color: 'var(--brand-1)', textDecoration: 'none', fontWeight: 700 }}>{t('logIn', 'Log In')}</Link>
+              <Link to={safeNext ? `/login?next=${encodeURIComponent(safeNext)}` : "/login"} style={{ color: 'var(--brand-1)', textDecoration: 'none', fontWeight: 700 }}>{t('logIn', 'Log In')}</Link>
             </p>
 
             {globalError && (
