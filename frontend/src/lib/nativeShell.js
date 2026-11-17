@@ -78,6 +78,29 @@ export function initNativeResumeBridge() {
   });
 }
 
+// Deep links arriving when the native app is opened via https://sahaplay.com/room/...
+// or https://sahaplay.com/profile/... or custom scheme: Capacitor's App plugin receives
+// 'appUrlOpen'. If the app was already running in the background, this listener navigates
+// the router immediately to the clicked path instead of ignoring it.
+export function initNativeDeepLinkRouter() {
+  const app = capApp();
+  if (!app) return;
+  app.addListener('appUrlOpen', ({ url }) => {
+    if (!url) return;
+    try {
+      // Ignore custom schemes handled by other specific bridges
+      if (url.startsWith('sahaplay://')) return;
+      const parsed = new URL(url);
+      if (parsed.hostname.includes('sahaplay.com') || parsed.hostname === 'localhost') {
+        const targetPath = parsed.pathname + parsed.search + parsed.hash;
+        if (targetPath && targetPath !== window.location.pathname) {
+          window.location.assign(targetPath);
+        }
+      }
+    } catch (_) {}
+  });
+}
+
 // CSS `env(safe-area-inset-top)` reports 0 in this Capacitor WebView (the
 // Android edge-to-edge inset never gets propagated down to the page's CSS
 // environment the way it does in an installed PWA), so every top-of-screen

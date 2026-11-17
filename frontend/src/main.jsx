@@ -32,7 +32,7 @@ import { installCacheInterceptor } from './cache/fetchInterceptor.js';
 import { prefetchAll } from './cache/prefetch.js';
 import { API } from './lib/api.js';
 import { isStandalonePWA, isCapacitorApp } from './lib/platform.js';
-import { initNativeBackButton, initNativeStatusBarInset, initNativeNavBarInset, initNativeResumeBridge } from './lib/nativeShell.js';
+import { initNativeBackButton, initNativeStatusBarInset, initNativeNavBarInset, initNativeResumeBridge, initNativeDeepLinkRouter } from './lib/nativeShell.js';
 import { initNativeGoogleAuthCallback } from './lib/nativeGoogleAuth.js';
 import { initNativePush } from './lib/nativePush.js';
 import { initNativeCallEndLink } from './lib/nativeCallBridge.js';
@@ -58,6 +58,7 @@ if (isCapacitorApp()) {
   initNativeStatusBarInset();
   initNativeNavBarInset();
   initNativeResumeBridge();
+  initNativeDeepLinkRouter();
   // Registered once here (not per-page) since the deep link can land while
   // either Login or Signup triggered it — rebroadcast as a plain DOM event
   // so whichever page is mounted can pick it up, same bridging pattern
