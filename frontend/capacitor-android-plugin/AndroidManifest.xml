@@ -121,6 +121,18 @@
                 <data android:scheme="sahaplay" android:host="chat-open" />
             </intent-filter>
 
+            <!-- Android App Links: Captures https://sahaplay.com and https://www.sahaplay.com links
+                 (e.g., room invites /room/* and profile links /profile/*) tapped in WhatsApp, SMS,
+                 or external apps, and opens directly in the installed SahaPlay app instead of the
+                 browser. autoVerify="true" pairs with https://sahaplay.com/.well-known/assetlinks.json -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="sahaplay.com" />
+                <data android:scheme="https" android:host="www.sahaplay.com" />
+            </intent-filter>
+
         </activity>
 
         <!-- Full-screen, lock-screen-visible incoming call UI (see
