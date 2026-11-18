@@ -245,8 +245,9 @@ fn main() {
         // Relaunching the .exe while an instance is already running (e.g.
         // double-clicking a desktop shortcut again while it's hidden in the
         // tray) focuses the existing window instead of opening a second one.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
                 // See the "desktop_window_shown" comment on the tray "open"
@@ -255,6 +256,14 @@ fn main() {
                 // the .exe/shortcut while already running in the tray,
                 // rather than the tray menu itself).
                 let _ = app.emit("desktop_window_shown", ());
+
+                // If launched with a sahaplay:// link, navigate the webview directly to the route
+                if let Some(url_arg) = args.iter().find(|a| a.starts_with("sahaplay://")) {
+                    let clean = url_arg.trim_start_matches("sahaplay://").trim_start_matches('/');
+                    let target_url = format!("https://sahaplay.com/{}", clean);
+                    let js = format!("window.location.href = {:?};", target_url);
+                    let _ = window.eval(&js);
+                }
             }
         }))
         // Lets the app open ms-settings:notifications directly — used when

@@ -64,37 +64,13 @@ export default function SmartAppBanner() {
       return;
     }
 
-    if (isIOS && customSchemeUrl) {
-      window.location.href = customSchemeUrl;
-      return;
-    }
-
-    // On Laptop / Desktop (Windows / macOS / Linux):
-    // 1. Try launching native desktop client (Tauri / custom protocol) via hidden iframe
     if (customSchemeUrl) {
-      try {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = customSchemeUrl;
-        document.body.appendChild(iframe);
-        setTimeout(() => {
-          try {
-            document.body.removeChild(iframe);
-          } catch (_) {}
-        }, 2000);
-      } catch (_) {}
+      // Direct navigation to sahaplay:// custom protocol.
+      // In desktop browsers, this invokes the OS protocol prompt ("Open SahaPlay?")
+      // to launch the installed desktop app without opening an unwanted extra tab.
+      window.location.href = customSchemeUrl;
+      setDesktopAttempted(true);
     }
-
-    // 2. Open via window.open to trigger installed Chrome/Edge PWA launch_handler
-    const destinationUrl = `${window.location.origin}${targetPath.startsWith('/') ? '' : '/'}${targetPath}`;
-    try {
-      window.open(destinationUrl, '_blank');
-    } catch (_) {
-      window.location.href = destinationUrl;
-    }
-
-    // 3. Display desktop guidance hint
-    setDesktopAttempted(true);
   };
 
   const handleDismiss = () => {
@@ -141,7 +117,7 @@ export default function SmartAppBanner() {
               {isMobile
                 ? 'Open in installed app for synced video & audio'
                 : desktopAttempted
-                ? 'Launching app… Click the 🖥️ icon in your address bar if needed'
+                ? 'Opening SahaPlay… Click "Open SahaPlay" in your browser prompt'
                 : 'Open in SahaPlay desktop / app'}
             </div>
           </div>
@@ -201,7 +177,7 @@ export default function SmartAppBanner() {
             paddingLeft: 46,
           }}
         >
-          <span>🖥️ Installed on your laptop? You can also click the app icon in your browser address bar to switch instantly.</span>
+          <span>🖥️ Installed on your laptop? Click "Open App" to launch, or click the 🖥️ icon in your address bar.</span>
         </div>
       )}
     </div>
