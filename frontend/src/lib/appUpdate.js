@@ -44,14 +44,21 @@ export function dismissAppUpdate(availableVersionCode) {
   try { localStorage.setItem(`${DISMISS_KEY_PREFIX}${availableVersionCode}`, '1'); } catch {}
 }
 
+export function openPlayStore() {
+  try {
+    window.location.href = 'market://details?id=com.sahaplay.app';
+  } catch (_) {
+    window.open('https://play.google.com/store/apps/details?id=com.sahaplay.app', '_blank');
+  }
+}
+
 // Downloads the update in the background (Play Core shows its own one-time
 // system consent dialog the first time) while the user keeps using the app,
 // then installs and restarts automatically the instant the download
-// finishes — no separate "tap again to restart" step, matching the
-// one-tap Play Store app-update banner UX this was modeled on. onProgress is
-// called with the raw FlexibleUpdateInstallStatus state on every change;
-// the caller only needs it to render "Downloading… NN%", not to drive the
-// install/restart itself.
+// finishes — matching the one-tap Play Store app-update banner UX.
+// onProgress is called with the raw FlexibleUpdateInstallStatus state on every change;
+// when download reaches 100% (INSTALL_STATUS_DOWNLOADED), completeFlexibleUpdate()
+// is automatically triggered and the app is reloaded.
 export async function startFlexibleAppUpdate(onProgress) {
   const plugin = appUpdate();
   if (!plugin) return false;
@@ -59,8 +66,18 @@ export async function startFlexibleAppUpdate(onProgress) {
     const handle = await plugin.addListener('onFlexibleUpdateStateChange', (state) => {
       onProgress?.(state);
       if (state?.installStatus === INSTALL_STATUS_DOWNLOADED) {
-        handle.remove();
-        plugin.completeFlexibleUpdate().catch(() => {});
+        try { handle.remove(); } catch (_) {}
+        plugin.completeFlexibleUpdate()
+          .then(() => {
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          })
+          .catch(() => {
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          });
       }
     });
     await plugin.startFlexibleUpdate();
