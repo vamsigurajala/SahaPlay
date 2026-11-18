@@ -5,6 +5,11 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "theme_color": "#6366f1",
   "background_color": "#0f0f1a",
   "icons": [

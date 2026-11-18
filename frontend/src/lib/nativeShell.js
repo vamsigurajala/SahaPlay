@@ -80,25 +80,64 @@ export function initNativeResumeBridge() {
 
 // Deep links arriving when the native app is opened via https://sahaplay.com/room/...
 // or https://sahaplay.com/profile/... or custom scheme: Capacitor's App plugin receives
-// 'appUrlOpen'. If the app was already running in the background, this listener navigates
-// the router immediately to the clicked path instead of ignoring it.
-export function initNativeDeepLinkRouter() {
+// 'appUrlOpen'. If the app was already running in the background or opened fresh from
+// a cold start, this listener navigates the router immediately to the clicked path.
+export async function initNativeDeepLinkRouter() {
   const app = capApp();
   if (!app) return;
-  app.addListener('appUrlOpen', ({ url }) => {
-    if (!url) return;
+
+  const handleDeepLinkUrl = (rawUrl) => {
+    if (!rawUrl) return;
     try {
-      // Ignore custom schemes handled by other specific bridges
-      if (url.startsWith('sahaplay://')) return;
-      const parsed = new URL(url);
-      if (parsed.hostname.includes('sahaplay.com') || parsed.hostname === 'localhost') {
-        const targetPath = parsed.pathname + parsed.search + parsed.hash;
-        if (targetPath && targetPath !== window.location.pathname) {
+      // Reserved native bridge callbacks handled elsewhere
+      if (
+        rawUrl.startsWith('sahaplay://auth-callback') ||
+        rawUrl.startsWith('sahaplay://call-answer') ||
+        rawUrl.startsWith('sahaplay://call-end') ||
+        rawUrl.startsWith('sahaplay://chat-open')
+      ) {
+        return;
+      }
+
+      let targetPath = null;
+      if (rawUrl.startsWith('sahaplay://')) {
+        const pathPart = rawUrl.replace(/^sahaplay:\/\//, '');
+        if (pathPart.startsWith('sahaplay.com/')) {
+          targetPath = pathPart.replace(/^sahaplay\.com/, '');
+        } else if (pathPart.startsWith('www.sahaplay.com/')) {
+          targetPath = pathPart.replace(/^www\.sahaplay\.com/, '');
+        } else if (pathPart.startsWith('room/') || pathPart.startsWith('profile/') || pathPart.startsWith('login')) {
+          targetPath = '/' + pathPart;
+        } else if (pathPart.startsWith('/')) {
+          targetPath = pathPart;
+        }
+      } else {
+        const parsed = new URL(rawUrl);
+        if (parsed.hostname.includes('sahaplay.com') || parsed.hostname === 'localhost') {
+          targetPath = parsed.pathname + parsed.search + parsed.hash;
+        }
+      }
+
+      if (targetPath) {
+        targetPath = targetPath.replace(/^\/+/, '/');
+        const currentPath = window.location.pathname + window.location.search + window.location.hash;
+        if (targetPath !== currentPath) {
           window.location.assign(targetPath);
         }
       }
     } catch (_) {}
-  });
+  };
+
+  // 1. App running in background/foreground: incoming link tap
+  app.addListener('appUrlOpen', ({ url }) => handleDeepLinkUrl(url));
+
+  // 2. Cold start: app was closed and launched via link
+  try {
+    const launch = await app.getLaunchUrl();
+    if (launch?.url) {
+      handleDeepLinkUrl(launch.url);
+    }
+  } catch (_) {}
 }
 
 // CSS `env(safe-area-inset-top)` reports 0 in this Capacitor WebView (the

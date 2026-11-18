@@ -574,6 +574,14 @@ jobs:
         working-directory: frontend
         run: npx cap sync android
 
+      - name: Preserve custom AndroidManifest.xml after cap sync
+        working-directory: frontend
+        run: |
+          cp capacitor-android-plugin/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          echo "Verifying autoVerify intent-filter in android/app/src/main/AndroidManifest.xml..."
+          grep -q 'android:autoVerify="true"' android/app/src/main/AndroidManifest.xml || (echo "ERROR: autoVerify missing!" && exit 1)
+          grep -q 'android:scheme="sahaplay"' android/app/src/main/AndroidManifest.xml || (echo "ERROR: sahaplay scheme missing!" && exit 1)
+
       - name: Decode signing keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > frontend/android/sahaplay-upload.keystore
 
@@ -669,7 +677,7 @@ jobs:
       # tools:node="remove" of Capacitor's own one) — if Capacitor's own
       # service is still present here too, FCM delivery for calls becomes
       # ambiguous and needs a fix-and-rerun.
-      - name: Check merged manifest for FCM service conflicts
+      - name: Check merged manifest for FCM service conflicts and App Links
         working-directory: frontend/android
         run: |
           manifest=$(find app/build/intermediates -iname "AndroidManifest.xml" -path "*merged*" | head -n1)
@@ -678,6 +686,8 @@ jobs:
           else
             echo "Checking $manifest"
             grep -B2 -A2 "MESSAGING_EVENT" "$manifest" || echo "::warning::No MESSAGING_EVENT service found in merged manifest"
+            echo "Checking autoVerify in merged manifest:"
+            grep -B2 -A6 "autoVerify" "$manifest" || echo "::warning::No autoVerify intent-filter found in merged manifest"
           fi
 
       # Unlike desktop-build.yml, this workflow has no GitHub Release publish

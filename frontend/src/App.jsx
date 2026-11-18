@@ -20,6 +20,7 @@ import AnimatedSplash from './components/AnimatedSplash';
 import KeyRecoveryModal from './components/KeyRecoveryModal';
 import EncryptionUnlockGate from './components/EncryptionUnlockGate';
 import DeviceUnlockOverlay from './components/DeviceUnlockOverlay';
+import SmartAppBanner from './components/SmartAppBanner';
 const Home = lazy(() => import('./Home'));
 const Dashboard = lazy(() => import('./Dashboard'));
 const Room = lazy(() => import('./Room'));
@@ -1531,6 +1532,7 @@ function App() {
               </button>
             </div>
           )}
+          <SmartAppBanner />
           <ScrollToTop />
           <CallProvider>
           <Suspense fallback={<RouteLoadingFallback />}>
